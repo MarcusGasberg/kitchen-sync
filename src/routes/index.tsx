@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useCallback } from "react";
 import { Effect } from "effect";
+import { select1 } from "#/lib/db";
 
 export const Route = createFileRoute("/")({
 	component: Home,
@@ -13,6 +14,8 @@ function Home() {
 		() => Effect.sync(() => setCount((current) => current + 1)),
 		[],
 	);
+
+	const x = Effect.runSync(select1);
 
 	const increment = useCallback(() => Effect.runSync(task), [task]);
 	return (
