@@ -1,4 +1,9 @@
 allowBuilds:
   esbuild: true
+  msgpackr-extract: true
   sharp: true
   workerd: true
+minimumReleaseAgeExclude:
+  - effect@4.0.0-rc.108
+  - '@effect/vitest@4.0.0-rc.108'
+  - '@effect/sql-pg@4.0.0-rc.108'

@@ -1,30 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useCallback } from "react";
+import { createServerFn } from "@tanstack/react-start";
 import { Effect } from "effect";
-import { select1 } from "#/lib/db";
+import { DatabaseService } from "#/lib/db";
+
+type TaskRow = { id: string; title: string; completed: boolean };
+
+const fetchTasks = createServerFn({ method: "GET" }).handler(async () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const db = yield* DatabaseService;
+			return yield* db.query<TaskRow>(
+				"select id, title, completed from tasks order by created_at",
+			);
+		}).pipe(Effect.provide(DatabaseService.Live)),
+	),
+);
 
 export const Route = createFileRoute("/")({
+	loader: async () => ({ tasks: await fetchTasks() }),
 	component: Home,
 });
 
 function Home() {
-	const [count, setCount] = useState(0);
-
-	const task = useMemo(
-		() => Effect.sync(() => setCount((current) => current + 1)),
-		[],
-	);
-
-	const x = Effect.runSync(select1);
-
-	const increment = useCallback(() => Effect.runSync(task), [task]);
+	const { tasks } = Route.useLoaderData();
 	return (
 		<main>
 			<h1>Kitchen Sync</h1>
-			<p>Welcome to your blank TanStack Start app.</p>
-			<button type="button" onClick={increment}>
-				count is {count}
-			</button>
+			{tasks.length === 0 ? (
+				<p>No tasks yet.</p>
+			) : (
+				<ul>
+					{tasks.map((task) => (
+						<li key={task.id}>
+							{task.completed ? "☑" : "☐"} {task.title}
+						</li>
+					))}
+				</ul>
+			)}
 		</main>
 	);
 }

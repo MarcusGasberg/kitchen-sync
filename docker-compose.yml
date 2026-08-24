@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: kitchen_sync
+      POSTGRES_PASSWORD: kitchen_sync
+      POSTGRES_DB: kitchen_sync
+    volumes:
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/001-tasks.sql:ro
+      - kitchen-sync-pg:/var/lib/postgresql/data
+
+volumes:
+  kitchen-sync-pg:

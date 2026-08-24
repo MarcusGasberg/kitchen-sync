@@ -1,53 +1,53 @@
 {
-  "name": "kitchen-sync",
-  "private": true,
-  "type": "module",
-  "imports": {
-    "#/*": "./src/*"
-  },
-  "scripts": {
-    "dev": "vite dev --port 3000",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "deploy": "pnpm run build && wrangler deploy",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
-    "prepare": "effect-language-service patch"
-  },
-  "dependencies": {
-    "@cloudflare/vite-plugin": "^1.39.0",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-start": "latest",
-    "drizzle-orm": "^0.45.2",
-    "effect": "^3.21.2",
-    "pg": "^8.21.0",
-    "postgres": "^3.4.9",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.16",
-    "@effect/language-service": "^0.86.2",
-    "@types/node": "^22.10.2",
-    "@types/pg": "^8.20.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "@vitejs/plugin-react": "^6.0.1",
-    "drizzle-kit": "^0.31.10",
-    "jsdom": "^28.1.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.5",
-    "wrangler": "^4.70.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss",
-      "sharp",
-      "workerd"
-    ]
-  }
+	"name": "kitchen-sync",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#/*": "./src/*"
+	},
+	"scripts": {
+		"dev": "vite dev --port 3000",
+		"build": "vite build",
+		"preview": "vite preview",
+		"test": "vitest run",
+		"deploy": "pnpm run build && wrangler deploy",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"prepare": "effect-language-service patch"
+	},
+	"dependencies": {
+		"@cloudflare/vite-plugin": "^1.39.0",
+		"@effect/sql-pg": "4.0.0-rc.108",
+		"@tanstack/react-router": "latest",
+		"@tanstack/react-start": "latest",
+		"effect": "4.0.0-rc.108",
+		"pg": "^8.21.0",
+		"postgres": "^3.4.9",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@effect/language-service": "^0.87.2",
+		"@effect/vitest": "4.0.0-rc.108",
+		"@types/node": "^22.10.2",
+		"@types/pg": "^8.20.0",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"@vitejs/plugin-react": "^6.0.1",
+		"jsdom": "^28.1.0",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.0",
+		"vitest": "^4.1.5",
+		"wrangler": "^4.70.0"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"lightningcss",
+			"sharp",
+			"workerd"
+		]
+	}
 }

@@ -11,6 +11,8 @@
 			"**",
 			"!node_modules",
 			"!dist",
+			"!repos",
+			"!repos",
 			"!**/routeTree.gen.ts",
 			"!**/*.gen.ts"
 		]

@@ -6,5 +6,6 @@ export default defineConfig({
 	plugins: [tanstackStart(), viteReact()],
 	test: {
 		environment: "jsdom",
+		include: ["src/**/*.test.{ts,tsx}"],
 	},
 });
