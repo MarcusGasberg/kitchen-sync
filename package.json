@@ -23,7 +23,6 @@
 		"@tanstack/react-start": "latest",
 		"effect": "4.0.0-rc.108",
 		"pg": "^8.21.0",
-		"postgres": "^3.4.9",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0"
 	},

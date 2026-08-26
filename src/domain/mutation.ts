@@ -1,9 +1,5 @@
-import { DateTime, Schema } from "effect";
-
-const BaseTaskMutation = {
-	clientMutationId: Schema.Int.check(Schema.isGreaterThan(0)),
-	clientId: Schema.String.check(Schema.isUUID(4)),
-};
+import { type DateTime, Schema } from "effect";
+import { BaseMutation } from "./BaseMutation";
 
 const CreateTaskChanges = Schema.Struct({
 	title: Schema.String.check(Schema.isLengthBetween(1, 50)),
@@ -22,24 +18,25 @@ const EditTaskChanges = Schema.Struct({
 
 export const TaskMutation = Schema.TaggedUnion({
 	CreateTask: {
-		...BaseTaskMutation,
+		...BaseMutation,
+		taskId: Schema.String,
 		task: CreateTaskChanges,
 	},
 	CompleteTask: {
-		...BaseTaskMutation,
+		...BaseMutation,
 		taskId: Schema.String,
 	},
 	EditTask: {
-		...BaseTaskMutation,
+		...BaseMutation,
 		taskId: Schema.String,
 		changes: EditTaskChanges,
 	},
 	DeleteTask: {
-		...BaseTaskMutation,
+		...BaseMutation,
 		taskId: Schema.String,
 	},
 	ReorderTask: {
-		...BaseTaskMutation,
+		...BaseMutation,
 		taskId: Schema.String,
 		order: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 	},

@@ -8,7 +8,6 @@ services:
       POSTGRES_PASSWORD: kitchen_sync
       POSTGRES_DB: kitchen_sync
     volumes:
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/001-tasks.sql:ro
       - kitchen-sync-pg:/var/lib/postgresql/data
 
 volumes:

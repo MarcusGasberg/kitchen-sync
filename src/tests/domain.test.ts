@@ -10,15 +10,16 @@ function exitOf<A, E>(effect: Effect.Effect<A, E>) {
 describe("verification", () => {
 	it("task roundtrip: encode then decode equals original", () => {
 		const task = new Task({
-			id: "t1",
+			id: crypto.randomUUID(),
 			title: "buy milk",
 			createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
 			completed: false,
+			order: 1,
 		});
 		const wire = Schema.encodeSync(Task)(task);
 		const back = Schema.decodeUnknownSync(Task)(wire);
 
-		expect(wire.createdAt).toBe("2026-01-01T00:00:00.000Z");
+		expect(wire.createdAt).toEqual(new Date("2026-01-01T00:00:00.000Z"));
 		expect(back).toEqual(task);
 	});
 
@@ -26,8 +27,9 @@ describe("verification", () => {
 		const exit = exitOf(
 			Schema.decodeUnknownEffect(TaskMutation)({
 				_tag: "CreateTask",
-				clientMutationId: "cm1",
-				clientId: "c1",
+				clientMutationId: 1,
+				clientId: crypto.randomUUID(),
+				taskId: crypto.randomUUID(),
 				task: {},
 			}),
 		);
@@ -41,8 +43,8 @@ describe("verification", () => {
 	it("accepts an edit with a task id and at least one change", () => {
 		const edit = Schema.decodeUnknownSync(TaskMutation)({
 			_tag: "EditTask",
-			clientMutationId: "cm2",
-			clientId: "c1",
+			clientMutationId: 2,
+			clientId: crypto.randomUUID(),
 			taskId: "t1",
 			changes: { completed: true },
 		});
@@ -57,8 +59,8 @@ describe("verification", () => {
 	it("rejects an edit with no changes", () => {
 		const result = Schema.decodeUnknownExit(TaskMutation)({
 			_tag: "EditTask",
-			clientMutationId: "cm3",
-			clientId: "c1",
+			clientMutationId: 3,
+			clientId: crypto.randomUUID(),
 			taskId: "t1",
 			changes: {},
 		});
