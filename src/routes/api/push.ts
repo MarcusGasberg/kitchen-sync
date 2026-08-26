@@ -1,8 +1,8 @@
 import { PushRequest } from "#/domain/mutation";
 import { TaskRepoService } from "#/lib/repo";
+import { runtime } from "#/lib/runtime";
 import { createFileRoute } from "@tanstack/react-router";
-import { Effect, Schema } from "effect";
-import {} from "effect/unstable/http";
+import { Effect,  Schema } from "effect";
 
 export const Route = createFileRoute("/api/push")({
 	server: {
@@ -25,9 +25,9 @@ export const Route = createFileRoute("/api/push")({
 					);
 				});
 
-				await Effect.runPromise(
-					program.pipe(Effect.provide(TaskRepoService.Live)),
-				);
+
+
+				await runtime.runPromise(program):
 			},
 		},
 	},
