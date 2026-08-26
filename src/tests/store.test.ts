@@ -15,15 +15,18 @@ const createMutation = (title: string): typeof TaskMutation.Type => ({
 	_tag: "CreateTask",
 	clientMutationId: nextMutationId(),
 	clientId: uuid(),
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	taskId: uuid(),
 	task: { title },
 });
 
 const completeMutation = (taskId: string): typeof TaskMutation.Type => ({
-	_tag: "CompleteTask",
+	_tag: "SetTaskCompleted",
 	clientMutationId: nextMutationId(),
 	clientId: uuid(),
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	taskId,
+	completed: true,
 });
 
 const editMutation = (
@@ -33,6 +36,7 @@ const editMutation = (
 	_tag: "EditTask",
 	clientMutationId: nextMutationId(),
 	clientId: uuid(),
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	taskId,
 	changes,
 });
@@ -40,6 +44,7 @@ const editMutation = (
 const deleteMutation = (taskId: string): typeof TaskMutation.Type => ({
 	_tag: "DeleteTask",
 	clientMutationId: nextMutationId(),
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	clientId: uuid(),
 	taskId,
 });
@@ -49,6 +54,7 @@ const reorderMutation = (
 	order: number,
 ): typeof TaskMutation.Type => ({
 	_tag: "ReorderTask",
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	clientMutationId: nextMutationId(),
 	clientId: uuid(),
 	taskId,

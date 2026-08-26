@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Effect } from "effect";
+import { DateTime, Effect } from "effect";
 import { useState } from "react";
 import type { TaskMutation } from "#/domain/mutation";
 import { StoreService, useSyncEngineStore } from "#/lib/store";
@@ -38,6 +38,7 @@ function Home() {
 			clientMutationId: ++nextClientMutationId,
 			clientId: CLIENT_ID,
 			taskId: crypto.randomUUID(),
+			issuedAt: DateTime.makeUnsafe(new Date()),
 			task: { title: trimmed },
 		});
 		setTitle("");
@@ -49,6 +50,7 @@ function Home() {
 			clientMutationId: ++nextClientMutationId,
 			clientId: CLIENT_ID,
 			taskId,
+			issuedAt: DateTime.makeUnsafe(new Date()),
 			changes: { completed: !completed },
 		});
 
@@ -57,6 +59,7 @@ function Home() {
 			_tag: "DeleteTask",
 			clientMutationId: ++nextClientMutationId,
 			clientId: CLIENT_ID,
+			issuedAt: DateTime.makeUnsafe(new Date()),
 			taskId,
 		});
 

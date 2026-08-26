@@ -1,6 +1,6 @@
 import { PgClient } from "@effect/sql-pg";
 import { it } from "@effect/vitest";
-import { Config, Context, Effect, Exit, Layer, Scope } from "effect";
+import { Config, Context, DateTime, Effect, Exit, Layer, Scope } from "effect";
 import { SqlClient } from "effect/unstable/sql";
 import { describe, expect } from "vitest";
 import type { TaskMutation } from "../domain/mutation";
@@ -24,16 +24,20 @@ const nextMutationId = () => ++nextClientMutationId;
 const createTaskMutation = (title: string): typeof TaskMutation.Type => ({
 	_tag: "CreateTask",
 	clientMutationId: nextMutationId(),
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	clientId: uuid(),
 	taskId: uuid(),
 	task: { title },
 });
 
-const completeTaskMutation = (
+const setTaskCompletedMutation = (
 	clientId: string,
 	taskId: string,
+	completed: boolean,
 ): typeof TaskMutation.Type => ({
-	_tag: "CompleteTask",
+	_tag: "SetTaskCompleted",
+	issuedAt: DateTime.makeUnsafe(new Date()),
+	completed,
 	clientMutationId: nextMutationId(),
 	clientId,
 	taskId,
@@ -45,6 +49,7 @@ const editTaskMutation = (
 	changes: { title?: string; completed?: boolean },
 ): typeof TaskMutation.Type => ({
 	_tag: "EditTask",
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	clientMutationId: nextMutationId(),
 	clientId,
 	taskId,
@@ -56,6 +61,8 @@ const deleteTaskMutation = (
 	taskId: string,
 ): typeof TaskMutation.Type => ({
 	_tag: "DeleteTask",
+
+	issuedAt: DateTime.makeUnsafe(new Date()),
 	clientMutationId: nextMutationId(),
 	clientId,
 	taskId,
@@ -65,6 +72,7 @@ const logEntry = (appliedVersion: number, payload: typeof TaskMutation.Type) =>
 	new MutationLogEntry({
 		id: uuid(),
 		clientId: payload.clientId,
+		issuedAt: DateTime.makeUnsafe(new Date()),
 		clientMutationId: payload.clientMutationId,
 		appliedVersion,
 		payload,
@@ -85,7 +93,7 @@ describe("TaskRepoService", () => {
 					const repo = yield* TaskRepoService;
 					const created = createTaskMutation("buy oat milk");
 
-					yield* repo.insertAppliedMutation(logEntry(1, created));
+					yield* repo.applyMutations([logEntry(1, created)]);
 
 					const tasks = yield* repo.getAllTasks();
 					expect(tasks).toHaveLength(1);
@@ -106,11 +114,14 @@ describe("TaskRepoService", () => {
 					yield* resetTables;
 					const repo = yield* TaskRepoService;
 					const created = createTaskMutation("wash dishes");
-					yield* repo.insertAppliedMutation(logEntry(1, created));
+					yield* repo.applyMutations([logEntry(1, created)]);
 
-					yield* repo.insertAppliedMutation(
-						logEntry(2, completeTaskMutation(created.clientId, created.taskId)),
-					);
+					yield* repo.applyMutations([
+						logEntry(
+							2,
+							setTaskCompletedMutation(created.clientId, created.taskId, true),
+						),
+					]);
 
 					const tasks = yield* repo.getAllTasks();
 					expect(tasks[0].completed).toBe(true);
@@ -122,16 +133,16 @@ describe("TaskRepoService", () => {
 					yield* resetTables;
 					const repo = yield* TaskRepoService;
 					const created = createTaskMutation("mlik");
-					yield* repo.insertAppliedMutation(logEntry(1, created));
+					yield* repo.applyMutations([logEntry(1, created)]);
 
-					yield* repo.insertAppliedMutation(
+					yield* repo.applyMutations([
 						logEntry(
 							2,
 							editTaskMutation(created.clientId, created.taskId, {
 								title: "milk",
 							}),
 						),
-					);
+					]);
 
 					const tasks = yield* repo.getAllTasks();
 					expect(tasks[0].title).toBe("milk");
@@ -143,11 +154,11 @@ describe("TaskRepoService", () => {
 					yield* resetTables;
 					const repo = yield* TaskRepoService;
 					const created = createTaskMutation("expired coupon");
-					yield* repo.insertAppliedMutation(logEntry(1, created));
+					yield* repo.applyMutations([logEntry(1, created)]);
 
-					yield* repo.insertAppliedMutation(
+					yield* repo.applyMutations([
 						logEntry(2, deleteTaskMutation(created.clientId, created.taskId)),
-					);
+					]);
 
 					expect(yield* repo.getAllTasks()).toHaveLength(0);
 				}),
@@ -161,9 +172,9 @@ describe("TaskRepoService", () => {
 						const repo = yield* TaskRepoService;
 
 						const result = yield* repo
-							.insertAppliedMutation(
-								logEntry(1, completeTaskMutation(uuid(), uuid())),
-							)
+							.applyMutations([
+								logEntry(1, setTaskCompletedMutation(uuid(), uuid(), true)),
+							])
 							.pipe(
 								Effect.catchTag("NoSuchElementError", (error) =>
 									Effect.succeed({ caught: error._tag }),

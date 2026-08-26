@@ -22,9 +22,10 @@ export const TaskMutation = Schema.TaggedUnion({
 		taskId: Schema.String,
 		task: CreateTaskChanges,
 	},
-	CompleteTask: {
+	SetTaskCompleted: {
 		...BaseMutation,
 		taskId: Schema.String,
+		completed: Schema.Boolean,
 	},
 	EditTask: {
 		...BaseMutation,
@@ -46,3 +47,9 @@ export interface OutboxEntry {
 	readonly mutation: typeof TaskMutation.Type;
 	readonly timestamp: DateTime.Utc;
 }
+
+export const PushRequest = Schema.Struct({
+	clientId: Schema.String.check(Schema.isUUID(4)),
+	lastAppliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+	mutations: Schema.Array(TaskMutation),
+});
