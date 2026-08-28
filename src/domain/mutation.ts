@@ -1,5 +1,6 @@
 import { type DateTime, Schema } from "effect";
 import { BaseMutation } from "./BaseMutation";
+import { Task } from "./task";
 
 const CreateTaskChanges = Schema.Struct({
 	title: Schema.String.check(Schema.isLengthBetween(1, 50)),
@@ -51,5 +52,20 @@ export interface OutboxEntry {
 export const PushRequest = Schema.Struct({
 	clientId: Schema.String.check(Schema.isUUID(4)),
 	lastAppliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-	mutations: Schema.Array(TaskMutation),
+	mutations: Schema.Array(TaskMutation).check(Schema.isNonEmpty()),
+});
+
+export const PushResponse = Schema.Struct({
+	serverVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+	acked: Schema.Array(Schema.Int),
+});
+
+export const PullRequest = Schema.Struct({
+	clientId: Schema.String.check(Schema.isUUID(4)),
+	lastAppliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+});
+
+export const PullResponse = Schema.Struct({
+	serverVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+	tasks: Schema.Array(Task),
 });

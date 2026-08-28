@@ -1,6 +1,5 @@
 import {
 	Context,
-	DateTime,
 	Effect,
 	Fiber,
 	Layer,
@@ -10,10 +9,10 @@ import {
 	SubscriptionRef,
 } from "effect";
 import React from "react";
+import type { TaskNotFoundError } from "#/domain/errors";
 import type { OutboxEntry, TaskMutation } from "#/domain/mutation";
-import { Task } from "#/domain/task";
-import { TaskNotFoundError } from "#/domain/errors";
 import { apply, decide } from "#/domain/reduce";
+import type { Task } from "#/domain/task";
 
 interface StoreState {
 	tasks: Map<string, Task>;
@@ -24,7 +23,7 @@ interface Store {
 	getTasks: () => Effect.Effect<Task[]>;
 	applyMutation: (
 		mutation: typeof TaskMutation.Type,
-	) => Effect.Effect<void, TaskNotFoundError, never>;
+	) => Effect.Effect<StoreState, TaskNotFoundError, never>;
 }
 
 export const STORE = Effect.runSync(

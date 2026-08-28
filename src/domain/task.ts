@@ -7,4 +7,5 @@ export class Task extends Model.Class<Task>("Task")({
 	createdAt: Schema.DateTimeUtcFromDate,
 	completed: Schema.Boolean,
 	order: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+	version: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 }) {}

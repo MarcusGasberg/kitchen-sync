@@ -18,6 +18,7 @@ export default Effect.gen(function* () {
 			"clientId" text not null,
 			"clientMutationId" integer not null,
 			"appliedVersion" integer not null,
+      "issuedAt" timestamptz not null,
 			payload text not null
 		)`;
 });

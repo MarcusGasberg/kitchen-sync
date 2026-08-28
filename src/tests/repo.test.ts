@@ -176,12 +176,12 @@ describe("TaskRepoService", () => {
 								logEntry(1, setTaskCompletedMutation(uuid(), uuid(), true)),
 							])
 							.pipe(
-								Effect.catchTag("NoSuchElementError", (error) =>
+								Effect.catchTag("TaskNotFoundError", (error) =>
 									Effect.succeed({ caught: error._tag }),
 								),
 							);
 
-						expect(result).toEqual({ caught: "NoSuchElementError" });
+						expect(result).toEqual({ caught: "TaskNotFoundError" });
 					}),
 			);
 		},

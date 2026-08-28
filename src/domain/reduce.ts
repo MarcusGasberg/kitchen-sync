@@ -1,7 +1,7 @@
 import { Result } from "effect";
 import { TaskNotFoundError } from "./errors";
-import type { Task } from "./task";
 import { TaskMutation } from "./mutation";
+import type { Task } from "./task";
 
 export type TaskState = ReadonlyMap<string, Task>;
 
@@ -31,6 +31,7 @@ export const decide: (
 						title: m.task.title,
 						createdAt: m.issuedAt,
 						completed: false,
+						version: 1,
 						order:
 							Math.max(
 								...Array.from(state.values()).map((task) => task.order),
@@ -60,6 +61,7 @@ export const decide: (
 					_tag: "Update",
 					task: {
 						...existing,
+						version: existing.version + 1,
 						completed: m.completed,
 					},
 				},
@@ -81,6 +83,7 @@ export const decide: (
 						task: {
 							...task,
 							order: task.order - 1,
+							version: task.version + 1,
 						},
 					});
 				}
@@ -116,6 +119,7 @@ export const decide: (
 			const updatedTask: Task = {
 				...existing,
 				...m.changes,
+				version: existing.version + 1,
 			};
 
 			const results: ReadonlyArray<TaskPatch> = [
@@ -152,6 +156,7 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
+							version: task.version + 1,
 							order: clampedOrder,
 						},
 					});
@@ -160,6 +165,7 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
+							version: task.version + 1,
 							order: task.order + 1,
 						},
 					});
@@ -168,6 +174,7 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
+							version: task.version + 1,
 							order: task.order - 1,
 						},
 					});
@@ -185,21 +192,24 @@ export const apply: (
 	state: TaskState,
 	patches: ReadonlyArray<TaskPatch>,
 ) => TaskState = (state, patches) => {
-	return patches.reduce((curr, acc) => {
-		switch (acc._tag) {
+	const nextState = new Map(state);
+	for (const patch of patches) {
+		switch (patch._tag) {
 			case "Insert":
 			case "Update": {
-				return new Map(curr).set(acc.task.id, acc.task);
+				nextState.set(patch.task.id, patch.task);
+				break;
 			}
 
 			case "Delete": {
-				const next = new Map(curr);
-				next.delete(acc.id);
-				return next;
+				nextState.delete(patch.id);
+				break;
 			}
 			default: {
-				return acc;
+				break;
 			}
 		}
-	}, state);
+	}
+
+	return nextState;
 };

@@ -14,6 +14,7 @@ describe("verification", () => {
 			title: "buy milk",
 			createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
 			completed: false,
+			version: 1,
 			order: 1,
 		});
 		const wire = Schema.encodeSync(Task)(task);
@@ -28,6 +29,7 @@ describe("verification", () => {
 			Schema.decodeUnknownEffect(TaskMutation)({
 				_tag: "CreateTask",
 				clientMutationId: 1,
+				issuedAt: "2026-01-01T00:00:00.000Z",
 				clientId: crypto.randomUUID(),
 				taskId: crypto.randomUUID(),
 				task: {},
@@ -44,6 +46,7 @@ describe("verification", () => {
 		const edit = Schema.decodeUnknownSync(TaskMutation)({
 			_tag: "EditTask",
 			clientMutationId: 2,
+			issuedAt: "2026-01-01T00:00:00.000Z",
 			clientId: crypto.randomUUID(),
 			taskId: "t1",
 			changes: { completed: true },
@@ -60,6 +63,7 @@ describe("verification", () => {
 		const result = Schema.decodeUnknownExit(TaskMutation)({
 			_tag: "EditTask",
 			clientMutationId: 3,
+			issuedAt: "2026-01-01T00:00:00.000Z",
 			clientId: crypto.randomUUID(),
 			taskId: "t1",
 			changes: {},

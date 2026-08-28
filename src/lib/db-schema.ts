@@ -17,5 +17,4 @@ export class TaskTableEntry extends Model.Class<TaskTableEntry>(
 	"TaskTableEntry",
 )({
 	...Task.fields,
-	version: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 }) {}

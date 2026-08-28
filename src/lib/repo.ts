@@ -1,4 +1,4 @@
-import { type Cause, Context, Effect, Layer, Schema, pipe } from "effect";
+import { Context, Effect, Layer, pipe, Schema } from "effect";
 import type { SchemaError } from "effect/Schema";
 import {
 	SqlClient,
@@ -6,10 +6,10 @@ import {
 	SqlModel,
 	SqlSchema,
 } from "effect/unstable/sql";
-import { TaskMutation } from "#/domain/mutation";
-import { MutationLogEntry, TaskTableEntry } from "./db-schema";
+import type { TaskNotFoundError } from "#/domain/errors";
+import { apply, decide, type TaskState } from "#/domain/reduce";
 import type { Task } from "#/domain/task";
-import { apply, decide } from "#/domain/reduce";
+import { MutationLogEntry, TaskTableEntry } from "./db-schema";
 
 interface TaskRepo {
 	getAllTasks(): Effect.Effect<
@@ -18,10 +18,7 @@ interface TaskRepo {
 	>;
 	applyMutations(
 		mutations: MutationLogEntry[],
-	): Effect.Effect<
-		void,
-		SqlError.SqlError | SchemaError | Cause.NoSuchElementError
-	>;
+	): Effect.Effect<void, SqlError.SqlError | SchemaError | TaskNotFoundError>;
 	getMutationLogEntries(): Effect.Effect<
 		MutationLogEntry[],
 		SqlError.SqlError | SchemaError
@@ -52,7 +49,8 @@ export class TaskRepoService extends Context.Service<
 			const getAllTasksQuery = SqlSchema.findAll({
 				Request: Schema.Void,
 				Result: TaskTableEntry,
-				execute: () => sql.unsafe(`select * from ${taskTableName}`),
+				execute: () =>
+					sql.unsafe(`select * from ${taskTableName} order by "order"`),
 			});
 			const getMutationLogQuery = SqlSchema.findAll({
 				Request: Schema.Void,
@@ -67,50 +65,43 @@ export class TaskRepoService extends Context.Service<
 					return getMutationLogQuery(undefined);
 				},
 				applyMutations(mutationLogEntries) {
-					return Effect.gen(function* () {
-						const allTasks = yield* getAllTasksQuery();
-						const state = allTasks.reduce((acc, task) => {
-							acc.set(task.id, task);
-							return acc;
-						}, new Map<string, Task>());
+					return sql.withTransaction(
+						Effect.gen(function* () {
+							const allTasks = yield* getAllTasksQuery();
+							const state: TaskState = allTasks.reduce((acc, task) => {
+								acc.set(task.id, task);
+								return acc;
+							}, new Map<string, Task>());
 
-						const logentries = yield* getMutationLogQuery();
-						const versions = logentries.reduce((acc, entry) => {
-							acc.set(entry.id, entry.appliedVersion);
-							return acc;
-						}, new Map<string, number>());
-
-						yield* Effect.forEach(mutationLogEntries, (mutationLogEntry) => {
-							return pipe(
-								Effect.fromResult(decide(state, mutationLogEntry.payload)),
-
-								Effect.flatMap((patches) => {
-									return Effect.forEach(patches, (patch) => {
-										switch (patch._tag) {
-											case "Update": {
-												return tasks.updateVoid({
-													...patch.task,
-													version: (versions.get(patch.task.id) ?? 1) + 1,
-												});
-											}
-											case "Insert": {
-												return tasks.insertVoid({
-													...patch.task,
-													version: 1,
-												});
-											}
-											case "Delete": {
-												return tasks.delete(patch.id);
-											}
-										}
-									});
-								}),
-								Effect.andThen(() => log.insertVoid(mutationLogEntry)),
+							return yield* Effect.reduce(
+								mutationLogEntries,
+								() => state,
+								(acc, mutationLogEntry) => {
+									return pipe(
+										Effect.fromResult(decide(acc, mutationLogEntry.payload)),
+										Effect.flatMap((patches) => {
+											return Effect.forEach(patches, (patch) => {
+												switch (patch._tag) {
+													case "Update": {
+														return tasks.updateVoid(patch.task);
+													}
+													case "Insert": {
+														return tasks.insertVoid(patch.task);
+													}
+													case "Delete": {
+														return tasks.delete(patch.id);
+													}
+												}
+											}).pipe(
+												Effect.map(() => apply(acc, patches)),
+												Effect.tap(() => log.insertVoid(mutationLogEntry)),
+											);
+										}),
+									);
+								},
 							);
-						});
-
-						return;
-					});
+						}),
+					);
 				},
 			});
 		}),
