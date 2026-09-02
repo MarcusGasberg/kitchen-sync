@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Effect, Schema } from "effect";
 import { PushRequest, PushResponse } from "#/domain/mutation";
-import { JsonError } from "#/lib/api";
+import { ClientMismatchError, errorResponse, JsonError } from "#/lib/api";
 import { TaskRepoService } from "#/lib/repo";
 import { runtime } from "#/lib/runtime";
 
@@ -16,30 +16,38 @@ export const Route = createFileRoute("/api/push")({
 					});
 					const pushRequest =
 						yield* Schema.decodeUnknownEffect(PushRequest)(body);
+
+					const foreign = pushRequest.mutations.find(
+						(mutation) => mutation.clientId !== pushRequest.clientId,
+					);
+					if (foreign) {
+						return yield* new ClientMismatchError({
+							expected: pushRequest.clientId,
+							actual: foreign.clientId,
+						});
+					}
+
 					const repo = yield* TaskRepoService;
 					const state = yield* repo.applyMutations(
 						pushRequest.clientId,
 						pushRequest.mutations,
 					);
 
-					const response = yield* Schema.encodeEffect(PushResponse)({
-						acked: state.acked,
-						serverVersion: state.serverVersion,
-					});
+					const response = yield* Schema.encodeEffect(PushResponse)(state);
 
 					return Response.json(response, { status: 200 });
 				}).pipe(
 					Effect.catchTags({
-						NoSuchElementError: (e) =>
-							Effect.succeed(Response.json(e.message, { status: 404 })),
 						JsonError: (e) =>
-							Effect.succeed(Response.json(e.message, { status: 400 })),
+							Effect.succeed(errorResponse(400, e._tag, e.message)),
 						SchemaError: (e) =>
-							Effect.succeed(Response.json(e.message, { status: 400 })),
-						TaskNotFoundError: (e) =>
-							Effect.succeed(Response.json(e.message, { status: 404 })),
+							Effect.succeed(errorResponse(400, e._tag, e.message)),
+						ClientMismatchError: (e) =>
+							Effect.succeed(errorResponse(400, e._tag, e.message)),
+						NoSuchElementError: (e) =>
+							Effect.succeed(errorResponse(500, e._tag, e.message)),
 						SqlError: (e) =>
-							Effect.succeed(Response.json(e.message, { status: 500 })),
+							Effect.succeed(errorResponse(500, e._tag, e.message)),
 					}),
 				);
 

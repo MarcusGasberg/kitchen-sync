@@ -79,7 +79,8 @@ const resetStore = () =>
 	SubscriptionRef.set(STORE, {
 		tasks: new Map(),
 		outbox: [],
-		currentVersion: 0,
+		lastAppliedServerVersion: 0,
+		lastMutationId: 0,
 	});
 
 describe("createTask", () => {

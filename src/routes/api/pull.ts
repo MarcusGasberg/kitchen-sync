@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Effect, Schema } from "effect";
-import { runtime } from "#/lib/runtime";
-import { JsonError } from "#/lib/api";
 import { PullRequest, PullResponse } from "#/domain/mutation";
+import { errorResponse, JsonError } from "#/lib/api";
 import { TaskRepoService } from "#/lib/repo";
+import { runtime } from "#/lib/runtime";
 
 export const Route = createFileRoute("/api/pull")({
 	server: {
@@ -18,26 +18,23 @@ export const Route = createFileRoute("/api/pull")({
 						yield* Schema.decodeUnknownEffect(PullRequest)(body);
 
 					const repo = yield* TaskRepoService;
-					const serverVersion = yield* repo.getSyncVersion();
-					if (pullRequest.lastAppliedVersion < serverVersion) {
-						const logEntries = yield* repo.getMutationLogEntries();
-						const mutationsToSend = logEntries.filter(
-							(entry) => entry.appliedVersion > pullRequest.lastAppliedVersion,
-						);
+					const truth = yield* repo.pull(pullRequest.clientId);
 
-						const pullResponse = yield* Schema.encodeEffect(PullResponse)({
-							serverVersion,
-							mutations: mutationsToSend.map((m) => m.payload),
-						});
+					const response = yield* Schema.encodeEffect(PullResponse)(truth);
 
-						return Response.json(pullResponse, { status: 200 });
-					}
-
-					return Response.json(
-						{ serverVersion, mutations: [] },
-						{ status: 200 },
-					);
-				});
+					return Response.json(response, { status: 200 });
+				}).pipe(
+					Effect.catchTags({
+						JsonError: (e) =>
+							Effect.succeed(errorResponse(400, e._tag, e.message)),
+						SchemaError: (e) =>
+							Effect.succeed(errorResponse(400, e._tag, e.message)),
+						NoSuchElementError: (e) =>
+							Effect.succeed(errorResponse(500, e._tag, e.message)),
+						SqlError: (e) =>
+							Effect.succeed(errorResponse(500, e._tag, e.message)),
+					}),
+				);
 
 				return await runtime.runPromise(program);
 			},

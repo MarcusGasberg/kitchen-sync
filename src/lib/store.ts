@@ -1,6 +1,5 @@
 import {
 	Context,
-	DateTime,
 	Effect,
 	Fiber,
 	Layer,
@@ -18,7 +17,8 @@ import type { Task } from "#/domain/task";
 interface StoreState {
 	tasks: Map<string, Task>;
 	outbox: Array<OutboxEntry>;
-	currentVersion: number;
+	lastAppliedServerVersion: number;
+	lastMutationId: number;
 }
 
 interface Store {
@@ -32,7 +32,8 @@ export const STORE = Effect.runSync(
 	SubscriptionRef.make<StoreState>({
 		tasks: new Map<string, Task>(),
 		outbox: [],
-		currentVersion: 0,
+		lastAppliedServerVersion: 0,
+		lastMutationId: 0,
 	}),
 );
 
@@ -47,9 +48,13 @@ export class StoreService extends Context.Service<StoreService, Store>()(
 						mutation,
 						timestamp: mutation.issuedAt,
 					};
-					const nextVersion = s.currentVersion + 1;
 					return pipe(
-						decide(s.tasks, mutation, nextVersion, mutation.issuedAt),
+						decide(
+							s.tasks,
+							mutation,
+							s.lastAppliedServerVersion,
+							mutation.issuedAt,
+						),
 						Result.map((res) => apply(s.tasks, res)),
 						Result.map((res) => {
 							const nextOrdered = new Map(
@@ -58,9 +63,9 @@ export class StoreService extends Context.Service<StoreService, Store>()(
 								),
 							);
 							return {
+								...s,
 								tasks: nextOrdered,
 								outbox: s.outbox.concat(outboxEntry),
-								currentVersion: nextVersion,
 							};
 						}),
 						Effect.fromResult,

@@ -82,7 +82,10 @@ const reorderTaskMutation = (
 
 const resetTables = Effect.gen(function* () {
 	const sql = yield* SqlClient.SqlClient;
-	yield* sql`truncate table mutation_log, tasks, sync_state`;
+	yield* sql`delete from mutation_log`;
+	yield* sql`delete from tasks`;
+	yield* sql`delete from sync_client`;
+	yield* sql`delete from sync_state`;
 	yield* sql`Insert into sync_state (id, version) values (1, 0);`;
 });
 
@@ -163,24 +166,52 @@ describe("TaskRepoService", () => {
 				}),
 			);
 
+			it.effect("rejects a mutation against a missing task", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const missing = setTaskCompletedMutation(uuid(), uuid(), true);
+
+					const response = yield* repo.applyMutations(uuid(), [missing]);
+
+					expect(response.rejected).toEqual([
+						{
+							clientMutationId: missing.clientMutationId,
+							reason: `task ${missing.taskId} not found`,
+						},
+					]);
+					expect(response.acked).toEqual([missing.clientMutationId]);
+					expect(response.serverVersion).toBe(0);
+				}),
+			);
+
 			it.effect(
-				"surfaces NoSuchElementError for a mutation against a missing task",
+				"rejects only the unresolvable mutation, applying the rest",
 				() =>
 					Effect.gen(function* () {
 						yield* resetTables;
 						const repo = yield* TaskRepoService;
+						const clientId = uuid();
+						const first = createTaskMutation("first");
+						const doomed = editTaskMutation(clientId, uuid(), {
+							title: "never lands",
+						});
+						const last = createTaskMutation("last");
 
-						const result = yield* repo
-							.applyMutations(uuid(), [
-								setTaskCompletedMutation(uuid(), uuid(), true),
-							])
-							.pipe(
-								Effect.catchTag("TaskNotFoundError", (error) =>
-									Effect.succeed({ caught: error._tag }),
-								),
-							);
+						const response = yield* repo.applyMutations(clientId, [
+							{ ...first, clientId },
+							doomed,
+							{ ...last, clientId },
+						]);
 
-						expect(result).toEqual({ caught: "TaskNotFoundError" });
+						const tasks = yield* repo.getAllTasks();
+
+						expect(tasks.map((task) => task.title)).toEqual(["first", "last"]);
+						expect(response.rejected.map((r) => r.clientMutationId)).toEqual([
+							doomed.clientMutationId,
+						]);
+						expect(response.acked).toHaveLength(3);
+						expect(response.serverVersion).toBe(2);
 					}),
 			);
 		},
@@ -332,8 +363,6 @@ describe("version accounting", () => {
 					const created = createTaskMutation("first");
 					yield* repo.applyMutations(created.clientId, [created]);
 
-					// A redelivered CreateTask is a no-op: it must not consume a version,
-					// and it must not push the next mutation's appliedVersion up.
 					const redelivered = {
 						...created,
 						clientMutationId: nextMutationId(),
@@ -365,8 +394,6 @@ describe("version accounting", () => {
 				Effect.gen(function* () {
 					yield* resetTables;
 					const repo = yield* TaskRepoService;
-					// A fixed issuedAt in the past: a server-clock reading can never
-					// coincide with it, so this cannot pass by accident.
 					const created = {
 						...createTaskMutation("oat milk"),
 						issuedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
@@ -404,7 +431,6 @@ describe("version accounting", () => {
 						expect(
 							log.map((entry) => entry.appliedVersion).sort((a, b) => a - b),
 						).toEqual([1, 2, 3]);
-						// What we return must be what we persisted.
 						expect(syncVersion).toBe(response.serverVersion);
 					}),
 			);
@@ -420,8 +446,6 @@ describe("version accounting", () => {
 							created,
 						]);
 
-						// Two redeliveries of a create that already exists: both decide to
-						// nothing, so the counter must not move and neither must the row.
 						const response = yield* repo.applyMutations(created.clientId, [
 							{ ...created, clientMutationId: nextMutationId() },
 							{ ...created, clientMutationId: nextMutationId() },
@@ -459,6 +483,199 @@ describe("version accounting", () => {
 						response.serverVersion,
 					]);
 					expect(tasks.map((task) => task.order)).toEqual([0, 1, 2]);
+				}),
+			);
+		},
+	);
+});
+
+describe("idempotency", () => {
+	it.layer(TestLayer, { timeout: "30 seconds" })(
+		"against real Postgres, migrated",
+		(it) => {
+			it.effect("applies a redelivered batch once", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const clientId = uuid();
+					const batch = [
+						{ ...createTaskMutation("first"), clientId },
+						{ ...createTaskMutation("second"), clientId },
+					];
+
+					const first = yield* repo.applyMutations(clientId, batch);
+					const redelivered = yield* repo.applyMutations(clientId, batch);
+
+					const tasks = yield* repo.getAllTasks();
+					const log = yield* repo.getMutationLogEntries();
+
+					expect(tasks).toHaveLength(2);
+					expect(log).toHaveLength(2);
+					expect(redelivered.serverVersion).toBe(first.serverVersion);
+					expect(redelivered.acked).toEqual(
+						batch.map((m) => m.clientMutationId),
+					);
+				}),
+			);
+
+			it.effect(
+				"does not resurrect a task deleted after the original push",
+				() =>
+					Effect.gen(function* () {
+						yield* resetTables;
+						const repo = yield* TaskRepoService;
+						const clientId = uuid();
+						const created = { ...createTaskMutation("oat milk"), clientId };
+
+						yield* repo.applyMutations(clientId, [created]);
+						yield* repo.applyMutations(clientId, [
+							deleteTaskMutation(clientId, created.taskId),
+						]);
+						yield* repo.applyMutations(clientId, [created]);
+
+						expect(yield* repo.getAllTasks()).toHaveLength(0);
+					}),
+			);
+
+			it.effect("keeps watermarks per client", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const a = uuid();
+					const b = uuid();
+					const fromA = { ...createTaskMutation("from a"), clientId: a };
+					const fromB = { ...createTaskMutation("from b"), clientId: b };
+
+					yield* repo.applyMutations(a, [fromA]);
+					yield* repo.applyMutations(b, [fromB]);
+
+					expect(yield* repo.getLastMutationId(a)).toBe(fromA.clientMutationId);
+					expect(yield* repo.getLastMutationId(b)).toBe(fromB.clientMutationId);
+					expect(yield* repo.getAllTasks()).toHaveLength(2);
+				}),
+			);
+
+			it.effect("orders the mutation log by the version it applied at", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const clientId = uuid();
+					const first = { ...createTaskMutation("first"), clientId };
+					yield* repo.applyMutations(clientId, [
+						first,
+						{ ...createTaskMutation("second"), clientId },
+						{ ...createTaskMutation("third"), clientId },
+					]);
+					yield* repo.applyMutations(clientId, [
+						deleteTaskMutation(clientId, first.taskId),
+					]);
+
+					const log = yield* repo.getMutationLogEntries();
+					const versions = log.map((entry) => entry.appliedVersion);
+
+					expect(versions).toEqual([...versions].sort((a, b) => a - b));
+					expect(versions).toEqual([1, 2, 3, 4]);
+				}),
+			);
+
+			it.effect("never logs a version sync_state has not reached", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const clientId = uuid();
+					const created = { ...createTaskMutation("first"), clientId };
+					yield* repo.applyMutations(clientId, [created]);
+
+					yield* repo.applyMutations(clientId, [
+						{ ...created, clientMutationId: nextMutationId() },
+					]);
+
+					const log = yield* repo.getMutationLogEntries();
+					const syncVersion = yield* repo.getSyncVersion();
+
+					expect(
+						log.every((entry) => entry.appliedVersion <= syncVersion),
+					).toBe(true);
+				}),
+			);
+		},
+	);
+});
+
+describe("pull", () => {
+	it.layer(TestLayer, { timeout: "30 seconds" })(
+		"against real Postgres, migrated",
+		(it) => {
+			it.effect("returns server truth plus the caller's watermark", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const writer = uuid();
+					const created = {
+						...createTaskMutation("oat milk"),
+						clientId: writer,
+					};
+					yield* repo.applyMutations(writer, [created]);
+
+					const mine = yield* repo.pull(writer);
+					const theirs = yield* repo.pull(uuid());
+
+					expect(mine.serverVersion).toBe(1);
+					expect(mine.tasks.map((task) => task.title)).toEqual(["oat milk"]);
+					expect(mine.lastMutationId).toBe(created.clientMutationId);
+					expect(theirs.lastMutationId).toBe(0);
+					expect(theirs.tasks).toHaveLength(1);
+				}),
+			);
+
+			it.effect("returns an empty task list rather than short-circuiting", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+
+					const truth = yield* repo.pull(uuid());
+
+					expect(truth).toMatchObject({
+						serverVersion: 0,
+						lastMutationId: 0,
+						tasks: [],
+					});
+				}),
+			);
+		},
+	);
+});
+
+describe("concurrent pushes", () => {
+	it.layer(TestLayer, { timeout: "30 seconds" })(
+		"against real Postgres, migrated",
+		(it) => {
+			it.effect("assigns every one of them a distinct version", () =>
+				Effect.gen(function* () {
+					yield* resetTables;
+					const repo = yield* TaskRepoService;
+					const clients = Array.from({ length: 5 }, () => uuid());
+
+					yield* Effect.all(
+						clients.map((clientId) =>
+							repo.applyMutations(clientId, [
+								{ ...createTaskMutation(`from ${clientId}`), clientId },
+							]),
+						),
+						{ concurrency: clients.length },
+					);
+
+					const tasks = yield* repo.getAllTasks();
+					const log = yield* repo.getMutationLogEntries();
+					const syncVersion = yield* repo.getSyncVersion();
+
+					const expected = [1, 2, 3, 4, 5];
+					expect(
+						tasks.map((task) => task.version).sort((a, b) => a - b),
+					).toEqual(expected);
+					expect(log.map((entry) => entry.appliedVersion)).toEqual(expected);
+					expect(syncVersion).toBe(5);
+					expect(tasks.map((task) => task.order)).toEqual([0, 1, 2, 3, 4]);
 				}),
 			);
 		},
