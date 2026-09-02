@@ -67,5 +67,5 @@ export const PullRequest = Schema.Struct({
 
 export const PullResponse = Schema.Struct({
 	serverVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-	tasks: Schema.Array(Task),
+	mutations: Schema.Array(TaskMutation).check(Schema.isNonEmpty()),
 });

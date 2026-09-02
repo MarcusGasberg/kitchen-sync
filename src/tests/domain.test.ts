@@ -14,8 +14,8 @@ describe("verification", () => {
 			title: "buy milk",
 			createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
 			completed: false,
-			version: 1,
 			order: 1,
+			version: 1,
 		});
 		const wire = Schema.encodeSync(Task)(task);
 		const back = Schema.decodeUnknownSync(Task)(wire);

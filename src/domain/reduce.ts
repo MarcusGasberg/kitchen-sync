@@ -1,4 +1,4 @@
-import { Result } from "effect";
+import { DateTime, Result } from "effect";
 import { TaskNotFoundError } from "./errors";
 import { TaskMutation } from "./mutation";
 import type { Task } from "./task";
@@ -13,9 +13,13 @@ export type TaskPatch =
 export const decide: (
 	state: TaskState,
 	mutation: typeof TaskMutation.Type,
+	version: number,
+	now: DateTime.Utc,
 ) => Result.Result<ReadonlyArray<TaskPatch>, TaskNotFoundError> = (
 	state,
 	mutation,
+	version,
+	now,
 ) => {
 	const result = TaskMutation.match(mutation, {
 		CreateTask: (m) => {
@@ -29,9 +33,9 @@ export const decide: (
 					task: {
 						id: m.taskId,
 						title: m.task.title,
-						createdAt: m.issuedAt,
+						createdAt: now,
 						completed: false,
-						version: 1,
+						version,
 						order:
 							Math.max(
 								...Array.from(state.values()).map((task) => task.order),
@@ -61,7 +65,7 @@ export const decide: (
 					_tag: "Update",
 					task: {
 						...existing,
-						version: existing.version + 1,
+						version,
 						completed: m.completed,
 					},
 				},
@@ -82,8 +86,8 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
+							version: version,
 							order: task.order - 1,
-							version: task.version + 1,
 						},
 					});
 				}
@@ -119,7 +123,7 @@ export const decide: (
 			const updatedTask: Task = {
 				...existing,
 				...m.changes,
-				version: existing.version + 1,
+				version,
 			};
 
 			const results: ReadonlyArray<TaskPatch> = [
@@ -156,8 +160,8 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
-							version: task.version + 1,
 							order: clampedOrder,
+							version: version,
 						},
 					});
 				} else if (from > to && task.order >= to && task.order < from) {
@@ -165,8 +169,8 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
-							version: task.version + 1,
 							order: task.order + 1,
+							version: version,
 						},
 					});
 				} else if (from < to && task.order > from && task.order <= to) {
@@ -174,8 +178,8 @@ export const decide: (
 						_tag: "Update",
 						task: {
 							...task,
-							version: task.version + 1,
 							order: task.order - 1,
+							version: version,
 						},
 					});
 				}

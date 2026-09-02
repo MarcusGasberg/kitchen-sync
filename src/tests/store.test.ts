@@ -76,7 +76,11 @@ const getTasks = () =>
 const getOutbox = () => Effect.sync(() => STORE.value.outbox);
 
 const resetStore = () =>
-	SubscriptionRef.set(STORE, { tasks: new Map(), outbox: [] });
+	SubscriptionRef.set(STORE, {
+		tasks: new Map(),
+		outbox: [],
+		currentVersion: 0,
+	});
 
 describe("createTask", () => {
 	it.effect("adds a task with the next order and appends to the outbox", () =>

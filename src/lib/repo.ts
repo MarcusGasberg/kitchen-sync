@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, pipe, Schema } from "effect";
+import { Context, DateTime, Effect, Layer, pipe, Schema } from "effect";
 import type { SchemaError } from "effect/Schema";
 import {
 	SqlClient,
@@ -8,8 +8,10 @@ import {
 } from "effect/unstable/sql";
 import type { TaskNotFoundError } from "#/domain/errors";
 import { apply, decide, type TaskState } from "#/domain/reduce";
+import { TaskMutation, type PushResponse } from "#/domain/mutation";
 import type { Task } from "#/domain/task";
 import { MutationLogEntry, TaskTableEntry } from "./db-schema";
+import type { NoSuchElementError } from "effect/Cause";
 
 interface TaskRepo {
 	getAllTasks(): Effect.Effect<
@@ -17,12 +19,24 @@ interface TaskRepo {
 		SqlError.SqlError | SchemaError
 	>;
 	applyMutations(
-		mutations: MutationLogEntry[],
-	): Effect.Effect<void, SqlError.SqlError | SchemaError | TaskNotFoundError>;
+		clientId: string,
+		mutations: ReadonlyArray<typeof TaskMutation.Type>,
+	): Effect.Effect<
+		typeof PushResponse.Type,
+		SqlError.SqlError | SchemaError | TaskNotFoundError | NoSuchElementError
+	>;
 	getMutationLogEntries(): Effect.Effect<
 		MutationLogEntry[],
 		SqlError.SqlError | SchemaError
 	>;
+	getSyncVersion(): Effect.Effect<
+		number,
+		SqlError.SqlError | Schema.SchemaError | NoSuchElementError,
+		never
+	>;
+	setSyncVersion(
+		version: number,
+	): Effect.Effect<void, SqlError.SqlError | Schema.SchemaError>;
 }
 
 export class TaskRepoService extends Context.Service<
@@ -57,6 +71,20 @@ export class TaskRepoService extends Context.Service<
 				Result: MutationLogEntry,
 				execute: () => sql.unsafe(`select * from ${mutationLogTableName}`),
 			});
+
+			const getSyncVersionQuery = SqlSchema.findOne({
+				Request: Schema.Void,
+				Result: Schema.Struct({ version: Schema.Number }),
+				execute: () =>
+					sql.unsafe(`select version from sync_state where id = 1`),
+			});
+
+			const setSyncVersionQuery = SqlSchema.void({
+				Request: Schema.Number,
+				execute: (version) =>
+					sql`update sync_state set version = ${version} where id = 1`,
+			});
+
 			return TaskRepoService.of({
 				getAllTasks() {
 					return getAllTasksQuery(undefined);
@@ -64,21 +92,48 @@ export class TaskRepoService extends Context.Service<
 				getMutationLogEntries() {
 					return getMutationLogQuery(undefined);
 				},
-				applyMutations(mutationLogEntries) {
+				applyMutations(clientId, mutations) {
 					return sql.withTransaction(
 						Effect.gen(function* () {
+							const version = yield* getSyncVersionQuery().pipe(
+								Effect.map((result) => result.version),
+							);
 							const allTasks = yield* getAllTasksQuery();
-							const state: TaskState = allTasks.reduce((acc, task) => {
-								acc.set(task.id, task);
-								return acc;
-							}, new Map<string, Task>());
+							const state: {
+								taskState: TaskState;
+								serverVersion: number;
+								acked: ReadonlyArray<number>;
+							} = {
+								taskState: allTasks.reduce((acc, task) => {
+									acc.set(task.id, task);
+									return acc;
+								}, new Map<string, Task>()),
+								serverVersion: version,
+								acked: [],
+							};
 
-							return yield* Effect.reduce(
+							const mutationLogEntries = mutations?.map((mutation) => ({
+								id: crypto.randomUUID(),
+								clientId,
+								clientMutationId: mutation.clientMutationId,
+								issuedAt: mutation.issuedAt,
+								payload: mutation,
+							}));
+
+							const result = yield* Effect.reduce(
 								mutationLogEntries,
 								() => state,
 								(acc, mutationLogEntry) => {
+									const nextVersion = acc.serverVersion + 1;
 									return pipe(
-										Effect.fromResult(decide(acc, mutationLogEntry.payload)),
+										Effect.fromResult(
+											decide(
+												acc.taskState,
+												mutationLogEntry.payload,
+												nextVersion,
+												mutationLogEntry.issuedAt,
+											),
+										),
 										Effect.flatMap((patches) => {
 											return Effect.forEach(patches, (patch) => {
 												switch (patch._tag) {
@@ -93,15 +148,49 @@ export class TaskRepoService extends Context.Service<
 													}
 												}
 											}).pipe(
-												Effect.map(() => apply(acc, patches)),
-												Effect.tap(() => log.insertVoid(mutationLogEntry)),
+												Effect.tap(() =>
+													log.insertVoid({
+														...mutationLogEntry,
+														appliedVersion: nextVersion,
+													}),
+												),
+												Effect.map(() => {
+													const taskState = apply(acc.taskState, patches);
+													return {
+														taskState,
+														acked: [
+															...acc.acked,
+															mutationLogEntry.clientMutationId,
+														],
+														serverVersion: patches.length
+															? acc.serverVersion + 1
+															: acc.serverVersion,
+													};
+												}),
 											);
 										}),
 									);
 								},
+							).pipe(
+								Effect.map(({ serverVersion, acked }) => ({
+									serverVersion,
+									acked,
+								})),
 							);
+
+							yield* setSyncVersionQuery(result.serverVersion);
+
+							return result;
 						}),
 					);
+				},
+				getSyncVersion() {
+					return getSyncVersionQuery(undefined).pipe(
+						Effect.map((result) => result.version),
+					);
+				},
+				setSyncVersion(version) {
+					return setSyncVersionQuery(version);
 				},
 			});
 		}),

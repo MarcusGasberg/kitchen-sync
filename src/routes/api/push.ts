@@ -17,30 +17,33 @@ export const Route = createFileRoute("/api/push")({
 					const pushRequest =
 						yield* Schema.decodeUnknownEffect(PushRequest)(body);
 					const repo = yield* TaskRepoService;
-					yield* repo.applyMutations(
-						pushRequest.mutations.map((mutation, i) => ({
-							id: crypto.randomUUID(),
-							appliedVersion: pushRequest.lastAppliedVersion + i + 1,
-							clientId: mutation.clientId,
-							clientMutationId: mutation.clientMutationId,
-							issuedAt: mutation.issuedAt,
-							payload: mutation,
-						})),
+					const state = yield* repo.applyMutations(
+						pushRequest.clientId,
+						pushRequest.mutations,
 					);
 
-					const response = yield* Schema.encodeEffect(PushResponse)({});
+					const response = yield* Schema.encodeEffect(PushResponse)({
+						acked: state.acked,
+						serverVersion: state.serverVersion,
+					});
 
 					return Response.json(response, { status: 200 });
 				}).pipe(
 					Effect.catchTags({
+						NoSuchElementError: (e) =>
+							Effect.succeed(Response.json(e.message, { status: 404 })),
+						JsonError: (e) =>
+							Effect.succeed(Response.json(e.message, { status: 400 })),
 						SchemaError: (e) =>
 							Effect.succeed(Response.json(e.message, { status: 400 })),
 						TaskNotFoundError: (e) =>
 							Effect.succeed(Response.json(e.message, { status: 404 })),
+						SqlError: (e) =>
+							Effect.succeed(Response.json(e.message, { status: 500 })),
 					}),
 				);
 
-				await runtime.runPromise(program);
+				return await runtime.runPromise(program);
 			},
 		},
 	},
