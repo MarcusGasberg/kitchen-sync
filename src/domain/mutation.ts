@@ -55,9 +55,16 @@ export const PushRequest = Schema.Struct({
   mutations: Schema.Array(TaskMutation).check(Schema.isNonEmpty()),
 });
 
+export const MutationRejection = Schema.Struct({
+  clientMutationId: Schema.Int.check(Schema.isGreaterThan(0)),
+  reason: Schema.String,
+});
+
 export const PushResponse = Schema.Struct({
   serverVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   acked: Schema.Array(Schema.Int),
+  rejected: Schema.Array(MutationRejection),
+  lastMutationId: Schema.Int,
 });
 
 export const PullRequest = Schema.Struct({
@@ -65,7 +72,13 @@ export const PullRequest = Schema.Struct({
   lastAppliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 
+const TaskWire = Schema.Struct({
+  ...Task.fields,
+  createdAt: Schema.DateTimeUtcFromString,
+});
+
 export const PullResponse = Schema.Struct({
   serverVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  mutations: Schema.Array(TaskMutation).check(Schema.isNonEmpty()),
+  lastMutationId: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  tasks: Schema.Array(TaskWire),
 });

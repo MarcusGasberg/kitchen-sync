@@ -22,10 +22,7 @@ export const Route = createFileRoute("/api/push")({
             pushRequest.mutations,
           );
 
-          const response = yield* Schema.encodeEffect(PushResponse)({
-            acked: state.acked,
-            serverVersion: state.serverVersion,
-          });
+          const response = yield* Schema.encodeEffect(PushResponse)(state);
 
           return Response.json(response, { status: 200 });
         }).pipe(

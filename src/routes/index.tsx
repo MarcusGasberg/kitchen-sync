@@ -8,7 +8,13 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const CLIENT_ID = crypto.randomUUID();
+const CLIENT_ID = (() => {
+  const stored = localStorage.getItem("kitchen-sync/clientId");
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  localStorage.setItem("kitchen-sync/clientId", id);
+  return id;
+})();
 let nextClientMutationId = 0;
 
 function Home() {

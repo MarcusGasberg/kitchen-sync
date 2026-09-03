@@ -1,4 +1,5 @@
-import { Context, DateTime, Effect, Layer, pipe, Schema } from "effect";
+import { Context, Effect, Layer, pipe, Schema } from "effect";
+import type { NoSuchElementError } from "effect/Cause";
 import type { SchemaError } from "effect/Schema";
 import {
   SqlClient,
@@ -7,11 +8,15 @@ import {
   SqlSchema,
 } from "effect/unstable/sql";
 import type { TaskNotFoundError } from "#/domain/errors";
+import type {
+  MutationRejection,
+  PullResponse,
+  PushResponse,
+  TaskMutation,
+} from "#/domain/mutation";
 import { apply, decide, type TaskState } from "#/domain/reduce";
-import { TaskMutation, type PushResponse } from "#/domain/mutation";
 import type { Task } from "#/domain/task";
 import { MutationLogEntry, TaskTableEntry } from "./db-schema";
-import type { NoSuchElementError } from "effect/Cause";
 
 interface TaskRepo {
   getAllTasks(): Effect.Effect<
@@ -25,6 +30,18 @@ interface TaskRepo {
     typeof PushResponse.Type,
     SqlError.SqlError | SchemaError | TaskNotFoundError | NoSuchElementError
   >;
+  pull(
+    clientId: string,
+  ): Effect.Effect<
+    typeof PullResponse.Type,
+    SqlError.SqlError | SchemaError | NoSuchElementError
+  >;
+  getLastMutationId(
+    clientId: string,
+  ): Effect.Effect<
+    number,
+    SqlError.SqlError | SchemaError | NoSuchElementError
+  >;
   getMutationLogEntries(): Effect.Effect<
     MutationLogEntry[],
     SqlError.SqlError | SchemaError
@@ -37,6 +54,14 @@ interface TaskRepo {
   setSyncVersion(
     version: number,
   ): Effect.Effect<void, SqlError.SqlError | Schema.SchemaError>;
+}
+
+interface ApplyState {
+  readonly taskState: TaskState;
+  readonly serverVersion: number;
+  readonly lastMutationId: number;
+  readonly acked: ReadonlyArray<number>;
+  readonly rejected: ReadonlyArray<typeof MutationRejection.Type>;
 }
 
 export class TaskRepoService extends Context.Service<
@@ -79,6 +104,57 @@ export class TaskRepoService extends Context.Service<
           sql.unsafe(`select version from sync_state where id = 1`),
       });
 
+      const lockSyncVersionSharedQuery = () =>
+        SqlSchema.findOne({
+          Request: Schema.Void,
+          Result: Schema.Struct({ version: Schema.Number }),
+          execute: () =>
+            sql.unsafe(`select version from sync_state where id = 1 for share`),
+        })().pipe(Effect.map((result) => result.version));
+
+      const lockSyncVersionMutation = () =>
+        SqlSchema.findOne({
+          Request: Schema.Void,
+          Result: Schema.Struct({ version: Schema.Number }),
+          execute: () =>
+            sql.unsafe(
+              `select version from sync_state where id = 1 for update`,
+            ),
+        })().pipe(Effect.map((result) => result.version));
+
+      const lockClientMutation = (clientId: string) =>
+        SqlSchema.findOne({
+          Request: Schema.String,
+          Result: Schema.Struct({ lastMutationId: Schema.Number }),
+          execute: (clientId) => sql`
+					insert into sync_client ("clientId", "lastMutationId")
+					values (${clientId}, 0)
+					on conflict ("clientId") do update set "clientId" = excluded."clientId"
+					returning "lastMutationId"`,
+        })(clientId).pipe(Effect.map(({ lastMutationId }) => lastMutationId));
+
+      const getClientQuery = SqlSchema.findOne({
+        Request: Schema.String,
+        Result: Schema.Struct({ lastMutationId: Schema.Number }),
+        execute: (clientId) =>
+          sql`select "lastMutationId" from sync_client where "clientId" = ${clientId}`,
+      });
+
+      const setClientMutationIdQuery = SqlSchema.void({
+        Request: Schema.Struct({
+          clientId: Schema.String,
+          lastMutationId: Schema.Number,
+        }),
+        execute: ({ clientId, lastMutationId }) =>
+          sql`update sync_client set "lastMutationId" = ${lastMutationId} where "clientId" = ${clientId}`,
+      });
+
+      const readLastMutationId = (clientId: string) =>
+        getClientQuery(clientId).pipe(
+          Effect.map((row) => row.lastMutationId),
+          Effect.catchTag("NoSuchElementError", () => Effect.succeed(0)),
+        );
+
       const setSyncVersionQuery = SqlSchema.void({
         Request: Schema.Number,
         execute: (version) =>
@@ -92,95 +168,142 @@ export class TaskRepoService extends Context.Service<
         getMutationLogEntries() {
           return getMutationLogQuery(undefined);
         },
+        pull(clientId) {
+          return sql.withTransaction(
+            Effect.gen(function* () {
+              const version = yield* lockSyncVersionSharedQuery();
+              const tasks = yield* getAllTasksQuery();
+              const lastMutationId = yield* readLastMutationId(clientId);
+
+              return { serverVersion: version, lastMutationId, tasks };
+            }),
+          );
+        },
+        getLastMutationId(clientId) {
+          return readLastMutationId(clientId);
+        },
         applyMutations(clientId, mutations) {
           return sql.withTransaction(
             Effect.gen(function* () {
-              const version = yield* getSyncVersionQuery().pipe(
-                Effect.map((result) => result.version),
-              );
+              const version = yield* lockSyncVersionMutation();
+              const lastMutationId = yield* lockClientMutation(clientId);
               const allTasks = yield* getAllTasksQuery();
-              const state: {
-                taskState: TaskState;
-                serverVersion: number;
-                acked: ReadonlyArray<number>;
-              } = {
+              const state: ApplyState = {
                 taskState: allTasks.reduce((acc, task) => {
                   acc.set(task.id, task);
                   return acc;
                 }, new Map<string, Task>()),
                 serverVersion: version,
+                lastMutationId,
                 acked: [],
+                rejected: [],
               };
 
-              const mutationLogEntries = mutations?.map((mutation) => ({
-                id: crypto.randomUUID(),
-                clientId,
-                clientMutationId: mutation.clientMutationId,
-                issuedAt: mutation.issuedAt,
-                payload: mutation,
-              }));
-
               const result = yield* Effect.reduce(
-                mutationLogEntries,
+                mutations,
                 () => state,
-                (acc, mutationLogEntry) => {
+                (acc, mutation) => {
+                  const expectedMutationId = acc.lastMutationId + 1;
+                  if (mutation.clientMutationId < expectedMutationId) {
+                    return Effect.succeed({
+                      ...acc,
+                      acked: [...acc.acked, mutation.clientMutationId],
+                    } satisfies ApplyState);
+                  }
+
+                  if (mutation.clientMutationId > expectedMutationId) {
+                    return Effect.succeed({
+                      ...acc,
+                      rejected: [
+                        ...acc.rejected,
+                        {
+                          clientMutationId: mutation.clientMutationId,
+                          reason: `out of order: expected ${expectedMutationId}`,
+                        },
+                      ],
+                    } satisfies ApplyState);
+                  }
+
+                  const consumed: ApplyState = {
+                    ...acc,
+                    lastMutationId: mutation.clientMutationId,
+                    acked: [...acc.acked, mutation.clientMutationId],
+                  };
+
                   const nextVersion = acc.serverVersion + 1;
                   return pipe(
                     Effect.fromResult(
                       decide(
                         acc.taskState,
-                        mutationLogEntry.payload,
+                        mutation,
                         nextVersion,
-                        mutationLogEntry.issuedAt,
+                        mutation.issuedAt,
                       ),
                     ),
                     Effect.flatMap((patches) => {
-                      return Effect.forEach(patches, (patch) => {
-                        switch (patch._tag) {
-                          case "Update": {
-                            return tasks.updateVoid(patch.task);
-                          }
-                          case "Insert": {
-                            return tasks.insertVoid(patch.task);
-                          }
-                          case "Delete": {
-                            return tasks.delete(patch.id);
-                          }
-                        }
-                      }).pipe(
-                        Effect.tap(() =>
-                          log.insertVoid({
-                            ...mutationLogEntry,
-                            appliedVersion: nextVersion,
+                      if (!patches.length) {
+                        return Effect.succeed(consumed satisfies ApplyState);
+                      } else {
+                        return pipe(
+                          Effect.forEach(patches, (patch) => {
+                            switch (patch._tag) {
+                              case "Update": {
+                                return tasks.updateVoid(patch.task);
+                              }
+                              case "Insert": {
+                                return tasks.insertVoid(patch.task);
+                              }
+                              case "Delete": {
+                                return tasks.delete(patch.id);
+                              }
+                            }
                           }),
-                        ),
-                        Effect.map(() => {
-                          const taskState = apply(acc.taskState, patches);
-                          return {
-                            taskState,
-                            acked: [
-                              ...acc.acked,
-                              mutationLogEntry.clientMutationId,
-                            ],
-                            serverVersion: patches.length
-                              ? acc.serverVersion + 1
-                              : acc.serverVersion,
-                          };
-                        }),
-                      );
+                          Effect.tap(() =>
+                            log.insertVoid({
+                              id: crypto.randomUUID(),
+                              clientId,
+                              clientMutationId: mutation.clientMutationId,
+                              issuedAt: mutation.issuedAt,
+                              payload: mutation,
+                              appliedVersion: nextVersion,
+                            }),
+                          ),
+                          Effect.as({
+                            ...consumed,
+                            taskState: apply(acc.taskState, patches),
+                            serverVersion: nextVersion,
+                          } satisfies ApplyState),
+                        );
+                      }
                     }),
+                    Effect.catchTag("TaskNotFoundError", (error) =>
+                      Effect.succeed({
+                        ...acc,
+                        rejected: [
+                          ...acc.rejected,
+                          {
+                            clientMutationId: mutation.clientMutationId,
+                            reason: `task ${error.taskId} not found`,
+                          },
+                        ],
+                      } satisfies ApplyState),
+                    ),
                   );
                 },
-              ).pipe(
-                Effect.map(({ serverVersion, acked }) => ({
-                  serverVersion,
-                  acked,
-                })),
               );
 
               yield* setSyncVersionQuery(result.serverVersion);
+              yield* setClientMutationIdQuery({
+                clientId,
+                lastMutationId: result.lastMutationId,
+              });
 
-              return result;
+              return {
+                serverVersion: result.serverVersion,
+                lastMutationId: result.lastMutationId,
+                acked: result.acked,
+                rejected: result.rejected,
+              };
             }),
           );
         },

@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Effect, Schema } from "effect";
-import { runtime } from "#/lib/runtime";
-import { JsonError } from "#/lib/api";
 import { PullRequest, PullResponse } from "#/domain/mutation";
+import { JsonError } from "#/lib/api";
 import { TaskRepoService } from "#/lib/repo";
+import { runtime } from "#/lib/runtime";
 
 export const Route = createFileRoute("/api/pull")({
   server: {
@@ -18,26 +18,30 @@ export const Route = createFileRoute("/api/pull")({
             yield* Schema.decodeUnknownEffect(PullRequest)(body);
 
           const repo = yield* TaskRepoService;
-          const serverVersion = yield* repo.getSyncVersion();
-          if (pullRequest.lastAppliedVersion < serverVersion) {
-            const logEntries = yield* repo.getMutationLogEntries();
-            const mutationsToSend = logEntries.filter(
-              (entry) => entry.appliedVersion > pullRequest.lastAppliedVersion,
-            );
 
-            const pullResponse = yield* Schema.encodeEffect(PullResponse)({
-              serverVersion,
-              mutations: mutationsToSend.map((m) => m.payload),
-            });
-
-            return Response.json(pullResponse, { status: 200 });
-          }
-
-          return Response.json(
-            { serverVersion, mutations: [] },
-            { status: 200 },
+          const { lastMutationId, serverVersion, tasks } = yield* repo.pull(
+            pullRequest.clientId,
           );
-        });
+
+          const upToDate = pullRequest.lastAppliedVersion === serverVersion;
+          const pullResponse = yield* Schema.encodeEffect(PullResponse)({
+            serverVersion,
+            lastMutationId,
+            tasks: upToDate ? [] : tasks,
+          });
+          return Response.json(pullResponse, { status: 200 });
+        }).pipe(
+          Effect.catchTags({
+            NoSuchElementError: (e) =>
+              Effect.succeed(Response.json(e.message, { status: 404 })),
+            JsonError: (e) =>
+              Effect.succeed(Response.json(e.message, { status: 400 })),
+            SchemaError: (e) =>
+              Effect.succeed(Response.json(e.message, { status: 400 })),
+            SqlError: (e) =>
+              Effect.succeed(Response.json(e.message, { status: 500 })),
+          }),
+        );
 
         return await runtime.runPromise(program);
       },
