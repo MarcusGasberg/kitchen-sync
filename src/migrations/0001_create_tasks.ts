@@ -2,8 +2,8 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql";
 
 export default Effect.gen(function* () {
-	const sql = yield* SqlClient.SqlClient;
-	yield* sql`
+  const sql = yield* SqlClient.SqlClient;
+  yield* sql`
 		create table tasks (
 			id text primary key,
 			title text not null,
@@ -12,7 +12,7 @@ export default Effect.gen(function* () {
 			"order" integer not null default 0,
 			version integer not null default 0
 		)`;
-	yield* sql`
+  yield* sql`
 		create table mutation_log (
 			id text primary key,
 			"clientId" text not null,
