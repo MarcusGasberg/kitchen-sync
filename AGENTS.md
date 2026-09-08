@@ -12,13 +12,14 @@ Before substantial work:
 
 ## Project Overview
 
-A minimal, blank TanStack Start app deployed to Cloudflare Workers.
+A minimal TanStack Start app served by Nitro on Node.
 
 ## Scaffolding Commands
 
 ```bash
 # Initial scaffold
 npx @tanstack/cli@latest create kitchen-sync --agent --deployment cloudflare
+# (the Cloudflare deployment was later replaced by Nitro/Node -- see Deployment Notes)
 
 # TanStack Intent skill management
 npx @tanstack/intent@latest install
@@ -33,16 +34,15 @@ npx @tanstack/intent@latest list
 - **Language**: TypeScript 6
 - **Package Manager**: pnpm
 - **Toolchain**: Biome (formatting + linting + import sorting)
-- **Deployment**: Cloudflare Workers via Wrangler + @cloudflare/vite-plugin
+- **Deployment**: Nitro (`nitro/vite`) building a Node server to `.output/`
 - **Testing**: Vitest + jsdom + @testing-library/react
 
 ## Architecture
 
 - `src/routes/` — File-based routes (`__root.tsx`, `index.tsx`, `about.tsx`)
 - `src/router.tsx` — Router factory with type-safe registration
-- `vite.config.ts` — Vite + Cloudflare plugin + TanStack Start plugin + React plugin
-- `vitest.config.ts` — Vitest config (excludes Cloudflare plugin to avoid SSR external resolution conflict)
-- `wrangler.jsonc` — Cloudflare Workers config
+- `vite.config.ts` — Vite + TanStack Start plugin + Nitro plugin + React plugin
+- `vitest.config.ts` — Vitest config (jsdom environment; no Nitro plugin, tests don't need a server build)
 - `biome.json` — Single source of truth for formatting, linting, and import organization
 
 ## Scripts
@@ -53,23 +53,24 @@ npx @tanstack/intent@latest list
 | build | `pnpm build` — Production build |
 | preview | `pnpm preview` — Preview production build |
 | test | `pnpm test` — Run Vitest |
-| deploy | `pnpm deploy` — Build + deploy to Cloudflare Workers |
+| start | `pnpm start` — Serve the production build from `.output/` |
 | lint | `pnpm lint` — Run Biome check |
 | lint:fix | `pnpm lint:fix` — Run Biome check with auto-fix |
 | format | `pnpm format` — Format with Biome |
 
 ## Environment Variables
 
-- Public (non-secret) vars: configure in `wrangler.jsonc` under `vars`
-- Secrets: use `wrangler secret put <NAME>` after authenticating with `wrangler login`
+- Local development and the production server both read `.env` (gitignored). Copy `.env.example` to `.env`.
+- `DATABASE_URL` is required; without it every API route fails with a `ConfigError`.
 - Client-side env vars: must use `VITE_` prefix; server-side can use `process.env`
 
 ## Deployment Notes
 
-1. Authenticate: `wrangler login`
-2. Deploy: `pnpm deploy` (or `npx wrangler deploy` after building)
-3. Compatibility date/flags are set in `wrangler.jsonc`
-4. The Cloudflare Vite plugin handles the Worker build; `main` points to `@tanstack/react-start/server-entry`
+1. `pnpm build` — Nitro emits a Node server to `.output/server/index.mjs`
+2. `pnpm start` — runs it (`node --env-file-if-exists=.env .output/server/index.mjs`)
+3. `PORT` selects the listen port (default 3000)
+4. Nitro is host-agnostic: the same `.output/` runs on any Node host, and Nitro
+   presets can retarget other platforms without touching app code
 
 ## Key Dependencies Removed (Intentionally)
 
@@ -82,12 +83,13 @@ The following were present in the default TanStack CLI scaffold but removed to k
 
 ## Known Gotchas
 
-- The Cloudflare Vite plugin must come **before** `tanstackStart()` in the Vite plugins array.
-- `wrangler.jsonc` uses `"main": "@tanstack/react-start/server-entry"` — do not change this unless you provide a custom server entry.
+- Plugin order in `vite.config.ts` follows the TanStack docs: `tanstackStart()`, then `nitro()`, then `viteReact()`.
+- `nitro` is currently a beta release (3.0.x-beta), which is the version the TanStack Start docs target.
 - File-based routing is automatic; adding a file to `src/routes/` creates a route. Run `pnpm dev` to regenerate `routeTree.gen.ts`.
 - Biome ignores `node_modules`, `dist`, and generated `*.gen.ts` files.
 - `tsconfig.json` sets `verbatimModuleSyntax: true` — use `import type {}` for type-only imports.
-- **Vitest + Cloudflare plugin conflict**: The Cloudflare Vite plugin conflicts with Vitest's default SSR external resolution. A separate `vitest.config.ts` is provided that excludes the Cloudflare plugin. Do not merge the Cloudflare plugin into Vitest config.
+- Nitro does **not** load `.env` by itself in production, which is why `pnpm start` passes `--env-file-if-exists=.env`. Vitest reads `DATABASE_URL` from the shell.
+- An unhandled failure in a route handler (e.g. a missing `DATABASE_URL` producing a `ConfigError`) currently returns **HTTP 200** with the error text as the body, instead of a 500. See the open review item.
 
 ## Next Steps
 
@@ -95,5 +97,5 @@ The following were present in the default TanStack CLI scaffold but removed to k
 - Add styling by editing `src/styles.css` or bringing in a CSS framework
 - Add TanStack Query if data fetching is needed
 - Add authentication using `createServerFn` and session cookies
-- Configure Cloudflare bindings (KV, D1, R2, Durable Objects) in `wrangler.jsonc`
+- Pick a Node host for deployment, or a Nitro preset if you want to target a specific platform
 - Run `pnpm exec biome check --write .` after any bulk edits to auto-format and lint

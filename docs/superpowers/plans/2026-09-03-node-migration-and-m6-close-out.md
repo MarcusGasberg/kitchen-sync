@@ -43,129 +43,68 @@ this repo's session on 2026-09-03.
 
 ---
 
-## Task 1: Move the server from Cloudflare Workers to Node
+## Task 1: Move the server from Cloudflare Workers to Node — DONE (2026-09-08)
 
-**Why this is first:** it is currently broken in a way that invalidates every
-later task. On workerd, the module-scope `ManagedRuntime` in `src/lib/runtime.ts`
+Done in the commit that carries this edit. Kept as the record of what changed.
+
+**Why.** On workerd the module-scope `ManagedRuntime` in `src/lib/runtime.ts`
 holds a pg connection pool across requests; workerd forbids reusing I/O objects
-across request contexts and kills the request. Measured: six identical
-`POST /api/pull` calls returned `200, 500, 200, 500, 200, 500`. A background
-sync fiber (M7) built on that transport would fail every other tick.
+across request contexts and kills the request. Measured before: six identical
+`POST /api/pull` calls returned `200, 500, 200, 500, 200, 500`.
 
-**Already verified for you** (so you don't rediscover it):
-- Removing the `cloudflare()` plugin from `vite.config.ts` builds cleanly and
-  emits `dist/server/server.js`.
-- That bundle exports `{ fetch }` — a handler, **not** a listening server. It
-  needs a host adapter.
-- `srvx`'s node adapter serves it correctly. `srvx` is present as a transitive
-  dep but is **not** hoisted, so it must become a direct dependency.
-- With that in place, six consecutive pulls returned `200` six times, and a
-  replayed push returned the identical body — **`src/lib/runtime.ts` needs no
-  change at all.**
+**How.** Nitro — TanStack Start's documented server engine — via the
+`nitro/vite` plugin. It builds a host-agnostic Node server to
+`.output/server/index.mjs`. **`src/lib/runtime.ts` needed no change at all**;
+the runtime was always fine, the platform wasn't.
 
-**Files:**
-- Modify: `vite.config.ts` — drop the `cloudflare` import and plugin entry
-- Delete: `wrangler.jsonc`
-- Create: `server.ts` (repo root) — the Node host entry
-- Modify: `package.json` — deps and scripts
-- Modify: `vitest.config.ts` — the CF-conflict workaround is now obsolete
-- Modify: `AGENTS.md`, `README.md` — stack, deployment, gotchas
-- Modify: `.gitignore` — drop the stray `repos/` line (see note below)
+> **Correction to the original draft of this task.** It hand-rolled an HTTP host
+> using srvx's `serve()` on top of the raw `{ fetch }` bundle. That worked, but
+> it was a workaround for a first-class feature I had failed to find. Nitro
+> already bundles srvx internally as its host (you can see
+> `.output/server/_libs/h3+rou3+srvx.mjs` in the build output). srvx's only
+> documented *direct* use here is the optional `FastResponse` throughput tweak —
+> see "Deferred, deliberately".
 
-**Interfaces:**
-- Produces: a `pnpm start` that serves the built app on Node, and a `pnpm dev`
-  that reads `DATABASE_URL` from `.env`.
+**What changed:**
+- `package.json` — added `nitro` (devDep), removed `@cloudflare/vite-plugin` and
+  `wrangler`; `deploy` replaced by `start`
+- `vite.config.ts` — `cloudflare()` out, `nitro()` in, per the TanStack docs:
+  `plugins: [tanstackStart(), nitro(), viteReact()]`
+- Deleted `wrangler.jsonc`
+- `.env` (from `.env.example`) replaces the workerd-only `.dev.vars`
+- `.gitignore` — dropped the stray `repos/` line
+- `AGENTS.md`, `README.md` — stack, scripts, deployment, gotchas
 
-- [ ] **Step 1: Reproduce the failure you are fixing**
-
-Get it on the record before you change anything, so you know the fix worked.
-
-```bash
-docker compose up -d
-printf 'DATABASE_URL=postgres://kitchen_sync:kitchen_sync@localhost:5433/kitchen_sync\n' > .dev.vars
-pnpm dev &
-CID=$(python3 -c "import uuid;print(uuid.uuid4())")
-for i in 1 2 3 4 5 6; do
-  curl -s -o /dev/null -w "pull #$i -> HTTP %{http_code}\n" \
-    -X POST http://localhost:3000/api/pull -H 'content-type: application/json' \
-    -d "{\"clientId\":\"$CID\",\"lastAppliedVersion\":0}"
-done
-```
-
-Expected: alternating `200` / `500`. (`.dev.vars` is needed because workerd
-ignores `.env` and your shell — that whole problem disappears in this task.)
-
-- [ ] **Step 2: Add the Node host dependency, drop the Cloudflare ones**
-
-```bash
-pnpm add srvx
-pnpm remove @cloudflare/vite-plugin wrangler
-rm wrangler.jsonc .dev.vars
-```
-
-- [ ] **Step 3: Remove the Cloudflare plugin from Vite**
-
-`vite.config.ts` — delete the `cloudflare` import and its plugins entry. The
-`AGENTS.md` gotcha about plugin ordering ("must come before `tanstackStart()`")
-dies with it; delete that too.
-
-- [ ] **Step 4: Write the Node server entry**
-
-Create `server.ts` at the repo root. It imports the built handler and serves it.
-You write the body; the shape is:
-
-```ts
-import { serve } from "srvx";
-import handler from "./dist/server/server.js";
-// serve handler.fetch on Number(process.env.PORT ?? 3000)
-```
-
-Note the import is from `dist/`, so `server.ts` only runs after `pnpm build`.
-
-- [ ] **Step 5: Wire the scripts**
-
-`package.json`. Node 22 reads env files natively — no `dotenv` dependency:
+**Scripts:**
 
 ```json
 "dev": "node --env-file-if-exists=.env node_modules/vite/bin/vite.js dev --port 3000",
 "build": "vite build",
-"start": "node --env-file-if-exists=.env server.ts",
-"deploy": "echo 'TODO: pick a Node host' && exit 1"
+"start": "node --env-file-if-exists=.env .output/server/index.mjs"
 ```
 
-`--env-file-if-exists` is confirmed available on your Node v22.19.0. Copy
-`.env.example` to `.env` — `.env` is already gitignored, unlike `.dev.vars` was.
+**Two findings worth carrying forward:**
 
-- [ ] **Step 6: Verify the fix**
+1. **Nitro does not load `.env` in production.** Without `--env-file-if-exists`
+   every route fails with `ConfigError(SchemaError(Expected string at
+   ["DATABASE_URL"]))`. Vitest still reads `DATABASE_URL` from the shell.
 
-```bash
-pnpm build && pnpm start &
-# then the same six-pull loop from Step 1, against port 3000
-```
+2. **An unhandled failure returns HTTP 200, not 500.** That `ConfigError` came
+   back with a `200` status and the error text as the body — on Node as well as
+   on workerd, so it is not a platform quirk. `Effect.catchTags` in the handlers
+   does not cover it and something upstream is swallowing it. This is exactly
+   what M5's review criteria warn against ("do not turn defects into 200s").
+   **Not fixed here** — it deserves its own task. Add it before M7 ships.
 
-Expected: **six `200`s.** If you still see alternation, you have a stale
-`dist/` — rebuild.
+**Verification (all re-run on Node):**
+- Six consecutive `POST /api/pull` → six `200`s **with real payload bodies**
+- Replayed push → byte-identical response, `serverVersion` unchanged
+- Malformed `clientId` → `400` with the formatted schema issue
+- `pnpm lint`, `npx tsc --noEmit`, `pnpm test` (39/39) all clean
 
-Then confirm idempotency survives the move: push a `CreateTask` batch twice and
-assert both responses are byte-identical with an unchanged `serverVersion`.
-
-- [ ] **Step 7: Update the docs and drop the stray gitignore line**
-
-`AGENTS.md`: stack (no Workers/Wrangler), scripts table, deployment, and the
-Vitest/Cloudflare gotcha (now obsolete — `vitest.config.ts` no longer needs to
-exist separately from `vite.config.ts` for that reason, though keeping it split
-is harmless).
-
-`.gitignore`: remove the `repos/` line. `repos/effect` is committed and
-`CLAUDE.md` calls it the source of truth — that line was almost certainly a slip.
-
-- [ ] **Step 8: Commit**
-
-```bash
-pnpm lint:fix && pnpm test && npx tsc --noEmit
-git add -A
-git commit -m "chore: move server from cloudflare workers to node"
-```
+**Gotcha for your machine:** port 3000 was already occupied by another local
+service, which answered with an unrelated `401 auth.unauthorized`. If the app
+looks broken in a way that makes no sense, check the port before the code.
 
 ---
 
@@ -632,11 +571,20 @@ per mount and never during SSR's module evaluation.
 
 ```bash
 pnpm build && pnpm start &
-curl -s http://localhost:3000/ | grep -c "server rendering errored"
+# React strips error messages in production builds, so "server rendering
+# errored" is a FALSE NEGATIVE against .output. The reliable marker is the
+# errored-boundary comment React emits instead:
+curl -s http://localhost:3000/ | grep -c -- '<!--\$!-->'
 ```
 
-Expected: `0`. This assertion is the whole task — a passing unit test alone
-does not prove the route module stopped touching `localStorage` at import time.
+Expected: `0`. Verified on 2026-09-08 that a prod build currently emits
+`<!--$!--><template></template>` for this route — an errored boundary with the
+message stripped — while `grep "server rendering errored"` returns 0 and looks
+like a pass. Positively assert your rendered task markup is present too; that
+is the only check that can't lie to you.
+
+This assertion is the whole task — a passing unit test alone does not prove the
+route module stopped touching `localStorage` at import time.
 
 - [ ] **Step 5: Commit**
 
@@ -802,8 +750,8 @@ git add -A && git commit -m "refactor: own store state in a layer instead of a m
 
 ## Done means
 
-- [ ] Six consecutive API requests all return 200 (Task 1)
-- [ ] `curl / | grep -c "server rendering errored"` returns 0 (Task 4)
+- [x] Six consecutive API requests all return 200 with real bodies (Task 1)
+- [ ] A prod build of `/` emits no errored-boundary marker (Task 4)
 - [ ] M6 DoD fully met: idempotency ✅ (done 2026-09-03), stale-reorder
       rejection (Task 2), transient retry (Task 3)
 - [ ] A reload no longer silently drops mutations (Task 5)
@@ -823,5 +771,16 @@ which is exactly what "two tabs sync within seconds" needs.
 - **`TaskMutation.clientId` vs the push-level `clientId`.** They can disagree
   and the server ignores the former. Decide whether the field earns its place
   before M8 builds rebase on top of it.
-- **Deployment target.** Task 1 leaves `pnpm deploy` failing loudly on purpose
-  rather than guessing at a host.
+- **Deployment target.** Task 1 ships `pnpm start` for a generic Node host and
+  no `deploy` script. Nitro presets can retarget a specific platform later
+  without touching application code.
+- **srvx `FastResponse`.** The TanStack docs note ~5% throughput by setting
+  `globalThis.Response = FastResponse` from srvx in a `src/server.ts` entry.
+  Not applied: it needs a direct srvx dependency and mutates a global, and this
+  project has no throughput problem to solve yet.
+- **Unhandled failures returning HTTP 200.** See Task 1, finding 2. Needs its
+  own task; it makes every server-side defect look like a success to the client,
+  which will badly confuse M7's sync loop.
+- **`@tanstack/react-router` and `@tanstack/react-start` are pinned to
+  `"latest"`** in `package.json`, so installs are not reproducible. Both moved
+  during this task's install. Pin them.

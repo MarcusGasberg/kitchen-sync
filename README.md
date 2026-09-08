@@ -39,17 +39,26 @@ If you prefer not to use Tailwind CSS:
 4. Uninstall the packages: `npm install @tailwindcss/vite tailwindcss -D`
 
 
-## Deploy to Cloudflare Workers
+## Running the server
 
-This project uses the Cloudflare Vite plugin (configured in `vite.config.ts`) and `wrangler.jsonc`:
+This project builds a Node server with [Nitro](https://nitro.build/) via the
+`nitro/vite` plugin (configured in `vite.config.ts`).
 
-1. Install Wrangler: `npm install -g wrangler`
-2. Authenticate: `wrangler login`
-3. Deploy: `npx wrangler deploy`
+```bash
+cp .env.example .env   # DATABASE_URL is required
+docker compose up -d   # Postgres on localhost:5433
+pnpm dev               # dev server on port 3000
+```
 
-For production env vars, run `wrangler secret put MY_VAR` for each secret listed in `.env.example`. Public (non-secret) vars go in `wrangler.jsonc` under `vars`.
+For production:
 
-KV, D1, R2, and Durable Object bindings are configured in `wrangler.jsonc` — see https://developers.cloudflare.com/workers/wrangler/configuration/.
+```bash
+pnpm build             # Nitro emits .output/server/index.mjs
+pnpm start             # serves it; PORT selects the port (default 3000)
+```
+
+Nitro is host-agnostic — the same `.output/` runs on any Node host, and Nitro
+presets can retarget other platforms without changing application code.
 
 
 
