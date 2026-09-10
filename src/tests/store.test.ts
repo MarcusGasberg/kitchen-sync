@@ -239,7 +239,7 @@ describe("reorderTask", () => {
         a.taskId,
       ]);
 
-      yield* apply(reorderMutation(a.taskId, -5, 1));
+      yield* apply(reorderMutation(a.taskId, -5, 4));
       expect((yield* getTasks()).map((task) => task.id)).toEqual([
         a.taskId,
         b.taskId,
