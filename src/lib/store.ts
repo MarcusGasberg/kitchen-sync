@@ -9,7 +9,7 @@ import {
   SubscriptionRef,
 } from "effect";
 import React from "react";
-import type { TaskNotFoundError } from "#/domain/errors";
+import type { StaleMutationError, TaskNotFoundError } from "#/domain/errors";
 import type { OutboxEntry, TaskMutation } from "#/domain/mutation";
 import { apply, decide } from "#/domain/reduce";
 import type { Task } from "#/domain/task";
@@ -24,7 +24,7 @@ interface Store {
   getTasks: () => Effect.Effect<Task[]>;
   applyMutation: (
     mutation: typeof TaskMutation.Type,
-  ) => Effect.Effect<StoreState, TaskNotFoundError, never>;
+  ) => Effect.Effect<StoreState, TaskNotFoundError | StaleMutationError, never>;
 }
 
 export const STORE = Effect.runSync(
