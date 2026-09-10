@@ -52,12 +52,13 @@ const deleteMutation = (taskId: string): typeof TaskMutation.Type => ({
 const reorderMutation = (
   taskId: string,
   order: number,
+  baseVersion: number,
 ): typeof TaskMutation.Type => ({
   _tag: "ReorderTask",
   issuedAt: DateTime.makeUnsafe(new Date()),
   clientMutationId: nextMutationId(),
   clientId: uuid(),
-  baseVersion: 3,
+  baseVersion,
   taskId,
   order,
 });
@@ -209,7 +210,7 @@ describe("reorderTask", () => {
       yield* apply(b);
       yield* apply(c);
 
-      yield* apply(reorderMutation(c.taskId, 0));
+      yield* apply(reorderMutation(c.taskId, 0, 3));
 
       const tasks = yield* getTasks();
       expect(tasks.map((task) => task.id)).toEqual([
@@ -231,14 +232,14 @@ describe("reorderTask", () => {
       yield* apply(b);
       yield* apply(c);
 
-      yield* apply(reorderMutation(a.taskId, 99));
+      yield* apply(reorderMutation(a.taskId, 99, 3));
       expect((yield* getTasks()).map((task) => task.id)).toEqual([
         b.taskId,
         c.taskId,
         a.taskId,
       ]);
 
-      yield* apply(reorderMutation(a.taskId, -5));
+      yield* apply(reorderMutation(a.taskId, -5, 4));
       expect((yield* getTasks()).map((task) => task.id)).toEqual([
         a.taskId,
         b.taskId,
@@ -250,7 +251,7 @@ describe("reorderTask", () => {
   it.effect("fails with TaskNotFoundError when the task is missing", () =>
     Effect.gen(function* () {
       yield* resetStore();
-      const result = yield* apply(reorderMutation("missing", 0)).pipe(
+      const result = yield* apply(reorderMutation("missing", 0, 1)).pipe(
         Effect.catchTag("TaskNotFoundError", (error) =>
           Effect.succeed({ caught: error.taskId }),
         ),
