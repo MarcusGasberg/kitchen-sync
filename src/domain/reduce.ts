@@ -1,5 +1,5 @@
 import { type DateTime, Result } from "effect";
-import { TaskNotFoundError } from "./errors";
+import { StaleMutationError, TaskNotFoundError } from "./errors";
 import { TaskMutation } from "./mutation";
 import type { Task } from "./task";
 
@@ -15,12 +15,10 @@ export const decide: (
   mutation: typeof TaskMutation.Type,
   version: number,
   now: DateTime.Utc,
-) => Result.Result<ReadonlyArray<TaskPatch>, TaskNotFoundError> = (
-  state,
-  mutation,
-  version,
-  now,
-) => {
+) => Result.Result<
+  ReadonlyArray<TaskPatch>,
+  TaskNotFoundError | StaleMutationError
+> = (state, mutation, version, now) => {
   const result = TaskMutation.match(mutation, {
     CreateTask: (m) => {
       if (state.has(m.taskId)) {
@@ -134,11 +132,26 @@ export const decide: (
       ];
       return Result.succeed(results);
     },
-    ReorderTask: (m) => {
+    ReorderTask: (
+      m,
+    ): Result.Result<
+      ReadonlyArray<TaskPatch>,
+      TaskNotFoundError | StaleMutationError
+    > => {
       const moved = state.get(m.taskId);
       if (!moved) {
         return Result.fail(
           new TaskNotFoundError({
+            taskId: m.taskId,
+          }),
+        );
+      }
+
+      if (m.baseVersion !== moved.version) {
+        return Result.fail(
+          new StaleMutationError({
+            actual: moved.version,
+            expected: m.baseVersion,
             taskId: m.taskId,
           }),
         );

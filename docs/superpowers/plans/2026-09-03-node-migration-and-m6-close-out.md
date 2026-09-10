@@ -148,7 +148,7 @@ meaningless.
   `baseVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))`
 - Rejection reason string must contain the word `stale` (the test asserts on it)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `src/tests/repo.test.ts`. Note the local two-client helper — the file's
 `testClientId` models one client, and this is the first test that needs two.
@@ -265,7 +265,7 @@ describe("concurrent reorders", () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail for the right reason**
+- [x] **Step 2: Run it and watch it fail for the right reason**
 
 ```bash
 DATABASE_URL=postgres://kitchen_sync:kitchen_sync@localhost:5433/kitchen_sync \

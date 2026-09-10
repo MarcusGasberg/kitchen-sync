@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, pipe, Schema } from "effect";
 import type { NoSuchElementError } from "effect/Cause";
 import type { SchemaError } from "effect/Schema";
+import type { Apply } from "effect/Struct";
 import {
   SqlClient,
   type SqlError,
@@ -284,6 +285,18 @@ export class TaskRepoService extends Context.Service<
                           {
                             clientMutationId: mutation.clientMutationId,
                             reason: `task ${error.taskId} not found`,
+                          },
+                        ],
+                      } satisfies ApplyState),
+                    ),
+                    Effect.catchTag("StaleMutationError", (error) =>
+                      Effect.succeed({
+                        ...acc,
+                        rejected: [
+                          ...acc.rejected,
+                          {
+                            clientMutationId: mutation.clientMutationId,
+                            reason: `stale mutation for ${error.taskId}. Expected: ${error.expected}. Actual: ${error.actual}`,
                           },
                         ],
                       } satisfies ApplyState),

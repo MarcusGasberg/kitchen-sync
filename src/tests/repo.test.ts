@@ -81,6 +81,7 @@ const reorderTaskMutation = (
   _tag: "ReorderTask",
   issuedAt: DateTime.makeUnsafe(new Date()),
   clientMutationId: nextMutationId(),
+  baseVersion: 1,
   clientId,
   taskId,
   order,
@@ -608,4 +609,127 @@ describe("idempotency", () => {
       );
     },
   );
+  interface ClientGenerator {
+    clientId: ReturnType<typeof uuid>;
+    nextId: () => number;
+  }
+  describe("concurrent reorders", () => {
+    it.layer(TestLayer, { timeout: "30  seconds" })(
+      "against real Postgres, migrated",
+      (it) => {
+        const makeClient = (): ClientGenerator => {
+          const clientId = uuid();
+          let n = 0;
+          return { clientId, nextId: () => ++n };
+        };
+
+        it.effect(
+          "reject the loser and leaves the winner's order intact",
+          () => {
+            return Effect.gen(function* () {
+              yield* resetTables;
+              const repo = yield* TaskRepoService;
+
+              const first = createTaskMutation("first");
+              yield* repo.applyMutations(testClientId, [
+                first,
+                createTaskMutation("second"),
+                createTaskMutation("third"),
+              ]);
+
+              const seeded = yield* repo.getAllTasks();
+              const target = seeded.find((t) => t.id === first.taskId);
+              if (!target) throw new Error("seed failed");
+
+              const clientA = makeClient();
+              const clientB = makeClient();
+
+              const reorder = (c: ClientGenerator, order: number) => ({
+                _tag: "ReorderTask" as const,
+                clientMutationId: c.nextId(),
+                clientId: c.clientId,
+                issuedAt: DateTime.makeUnsafe(new Date()),
+                taskId: target.id,
+                order,
+                baseVersion: target.version,
+              });
+
+              const winner = yield* repo.applyMutations(clientA.clientId, [
+                reorder(clientA, 2),
+              ]);
+              const loser = yield* repo.applyMutations(clientB.clientId, [
+                reorder(clientB, 1),
+              ]);
+
+              expect(winner.rejected).toEqual([]);
+              expect(winner.acked).toHaveLength(1);
+
+              // The loser is told, per-mutation, that it lost. It is NOT acked:
+              // the client must not retire a mutation the server refused.
+              expect(loser.acked).toEqual([]);
+              expect(loser.rejected).toHaveLength(1);
+              expect(loser.rejected[0].reason).toContain("stale");
+
+              // State reflects the winner only, and orders stay a dense 0..n-1.
+              const tasks = yield* repo.getAllTasks();
+              expect(tasks.map((t) => t.order)).toEqual([0, 1, 2]);
+              expect(tasks[2].id).toBe(target.id);
+            });
+          },
+        );
+
+        it.effect("lets exactly one of two simultaneous reorders win", () =>
+          Effect.gen(function* () {
+            yield* resetTables;
+            const repo = yield* TaskRepoService;
+
+            const first = createTaskMutation("first");
+            yield* repo.applyMutations(testClientId, [
+              first,
+              createTaskMutation("second"),
+              createTaskMutation("third"),
+            ]);
+
+            const seeded = yield* repo.getAllTasks();
+            const target = seeded.find((t) => t.id === first.taskId);
+            if (!target) throw new Error("seed failed");
+
+            const a = makeClient();
+            const b = makeClient();
+            const reorder = (
+              c: { clientId: string; nextId: () => number },
+              order: number,
+            ) => ({
+              _tag: "ReorderTask" as const,
+              clientMutationId: c.nextId(),
+              clientId: c.clientId,
+              issuedAt: DateTime.makeUnsafe(new Date()),
+              taskId: target.id,
+              order,
+              baseVersion: target.version,
+            });
+
+            // Genuinely concurrent: FOR UPDATE serialises them, but which one
+            // arrives first is not ours to choose. The invariant is that the
+            // outcome is *a* winner, never two, and never an oscillation.
+            const [ra, rb] = yield* Effect.all(
+              [
+                repo.applyMutations(a.clientId, [reorder(a, 2)]),
+                repo.applyMutations(b.clientId, [reorder(b, 1)]),
+              ],
+              { concurrency: 2 },
+            );
+
+            const applied = [ra, rb].filter((r) => r.rejected.length === 0);
+            const refused = [ra, rb].filter((r) => r.rejected.length > 0);
+            expect(applied).toHaveLength(1);
+            expect(refused).toHaveLength(1);
+
+            const tasks = yield* repo.getAllTasks();
+            expect(tasks.map((t) => t.order)).toEqual([0, 1, 2]);
+          }),
+        );
+      },
+    );
+  });
 });

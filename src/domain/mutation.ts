@@ -39,6 +39,7 @@ export const TaskMutation = Schema.TaggedUnion({
   },
   ReorderTask: {
     ...BaseMutation,
+    baseVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
     taskId: Schema.String,
     order: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   },
