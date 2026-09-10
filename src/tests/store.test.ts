@@ -57,7 +57,7 @@ const reorderMutation = (
   issuedAt: DateTime.makeUnsafe(new Date()),
   clientMutationId: nextMutationId(),
   clientId: uuid(),
-  baseVersion: 4,
+  baseVersion: 3,
   taskId,
   order,
 });
