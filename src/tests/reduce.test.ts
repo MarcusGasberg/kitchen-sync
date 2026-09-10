@@ -34,11 +34,13 @@ const deleteTaskMutation = (taskId: string): typeof TaskMutation.Type => ({
 const reorderTaskMutation = (
   taskId: string,
   order: number,
+  baseVersion: number,
 ): typeof TaskMutation.Type => ({
   _tag: "ReorderTask",
   clientMutationId: nextMutationId(),
   clientId: uuid(),
   issuedAt: AT,
+  baseVersion,
   taskId,
   order,
 });
@@ -75,7 +77,7 @@ describe("decide stamps one version per mutation", () => {
     const patches = Result.getOrThrow(
       decide(
         stateOf(first, second, third),
-        reorderTaskMutation(first.id, 2),
+        reorderTaskMutation(first.id, 2, 3),
         4,
         AT,
       ),
