@@ -1,7 +1,6 @@
 import { Context, Effect, Layer, pipe, Schema } from "effect";
 import type { NoSuchElementError } from "effect/Cause";
 import type { SchemaError } from "effect/Schema";
-import type { Apply } from "effect/Struct";
 import {
   SqlClient,
   type SqlError,
