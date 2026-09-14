@@ -275,7 +275,7 @@ DATABASE_URL=postgres://kitchen_sync:kitchen_sync@localhost:5433/kitchen_sync \
 Expected first failure: a **type error** — `baseVersion` is not a field of
 `ReorderTask`. That is the test telling you where to start.
 
-- [ ] **Step 3: You implement**
+- [x] **Step 3: You implement**
 
 In order: add the schema field, add `StaleMutationError`, make `decide`'s
 `ReorderTask` branch fail with it when `moved.version !== m.baseVersion`, then
@@ -288,7 +288,7 @@ Two things to get right, both of which I will review:
   `consumed`.
 - `decide` stays pure and returns `Result`. No effects leak into it.
 
-- [ ] **Step 4: Watch it pass, then check you didn't break the reducer**
+- [x] **Step 4: Watch it pass, then check you didn't break the reducer**
 
 ```bash
 DATABASE_URL=... npx vitest run
@@ -298,12 +298,12 @@ DATABASE_URL=... npx vitest run
 compile until you add `baseVersion` there too. Add a reducer-level unit test
 while you're in the file: same version → patches; stale version → `Result.fail`.
 
-- [ ] **Step 5: Update the client**
+- [x] **Step 5: Update the client**
 
 `src/routes/index.tsx` issues `ReorderTask` — it must now pass the `version` of
 the task being moved.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 pnpm lint:fix && pnpm test && npx tsc --noEmit
