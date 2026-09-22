@@ -5,7 +5,15 @@ import { defineConfig } from "vite";
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
-  plugins: [tanstackStart(), nitro(), viteReact()],
+  plugins: [
+    tanstackStart({
+      spa: {
+        enabled: true,
+      },
+    }),
+    nitro(),
+    viteReact(),
+  ],
 });
 
 export default config;

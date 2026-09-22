@@ -358,7 +358,7 @@ real `40001` here would be a day of your life for a worse test.
 **Interfaces:**
 - Produces: `retryTransientSql: <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/tests/retry.test.ts`. This uses `TestClock`, so it runs without
 Postgres and without real timers.
@@ -443,7 +443,7 @@ These spellings are verified against `4.0.0-rc.108`: `Fiber.join` /
 the `Exit` module (`Exit.isFailure`), **not** on `Effect`. `src/tests/repo.test.ts`
 already uses `Exit.isFailure` this way — follow that file if anything drifts.
 
-- [ ] **Step 2: Run it, confirm it fails on the missing module**
+- [x] **Step 2: Run it, confirm it fails on the missing module**
 
 ```bash
 npx vitest run src/tests/retry.test.ts
@@ -464,13 +464,13 @@ Build the schedule from `Schedule.exponential`, piped through
 `Schedule.upTo` (so it terminates). Gate with `while`. Jitter is why the third
 test asserts a *range* of attempts rather than an exact count.
 
-- [ ] **Step 4: Apply it in the repo**
+- [x] **Step 4: Apply it in the repo**
 
 `src/lib/repo.ts` — wrap the `sql.withTransaction(...)` in `applyMutations`
 from the **outside**. `pull` is a read-only `for share` transaction and can have
 it too, but that is your call to argue for.
 
-- [ ] **Step 5: Verify nothing regressed**
+- [x] **Step 5: Verify nothing regressed**
 
 ```bash
 DATABASE_URL=... pnpm test
@@ -480,7 +480,7 @@ The M6 idempotency tests are the ones to watch: a retry that re-runs a
 transaction must not double-apply. If `lastMutationId` bookkeeping is right,
 they stay green — that is the whole point of having built idempotency first.
 
-- [ ] **Step 6: Commit**
+- [6] **Step 6: Commit**
 
 ```bash
 pnpm lint:fix && pnpm test && npx tsc --noEmit
@@ -520,7 +520,7 @@ DOM.
   — returns the stored id, or mints, stores and returns a fresh UUID; with
   `undefined` storage it returns a fresh UUID and does not throw.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";

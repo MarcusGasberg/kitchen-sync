@@ -2,20 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DateTime, Effect } from "effect";
 import { useState } from "react";
 import type { TaskMutation } from "#/domain/mutation";
+import { ensureClientId } from "#/lib/client-identity";
 import { StoreService, useSyncEngineStore } from "#/lib/store";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const CLIENT_ID = (() => {
-  const stored = localStorage.getItem("kitchen-sync/clientId");
-  if (stored) return stored;
-  const id = crypto.randomUUID();
-  localStorage.setItem("kitchen-sync/clientId", id);
-  return id;
-})();
 let nextClientMutationId = 0;
+const CLIENT_ID = ensureClientId(localStorage);
 
 function Home() {
   const { tasks } = useSyncEngineStore();
