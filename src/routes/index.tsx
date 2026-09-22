@@ -2,15 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DateTime, Effect } from "effect";
 import { useState } from "react";
 import type { TaskMutation } from "#/domain/mutation";
-import { ensureClientId } from "#/lib/client-identity";
+import { ensureClientId, nextMutationId } from "#/lib/client-identity";
 import { StoreService, useSyncEngineStore } from "#/lib/store";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
-let nextClientMutationId = 0;
 const CLIENT_ID = ensureClientId(localStorage);
+const nextClientMutationId = () => nextMutationId(localStorage);
 
 function Home() {
   const { tasks } = useSyncEngineStore();
@@ -36,7 +36,7 @@ function Home() {
     if (!trimmed) return;
     applyMutation({
       _tag: "CreateTask",
-      clientMutationId: ++nextClientMutationId,
+      clientMutationId: nextClientMutationId(),
       clientId: CLIENT_ID,
       taskId: crypto.randomUUID(),
       issuedAt: DateTime.makeUnsafe(new Date()),
@@ -48,7 +48,7 @@ function Home() {
   const toggleCompleted = (taskId: string, completed: boolean) =>
     applyMutation({
       _tag: "EditTask",
-      clientMutationId: ++nextClientMutationId,
+      clientMutationId: nextClientMutationId(),
       clientId: CLIENT_ID,
       taskId,
       issuedAt: DateTime.makeUnsafe(new Date()),
@@ -58,7 +58,7 @@ function Home() {
   const deleteTask = (taskId: string) =>
     applyMutation({
       _tag: "DeleteTask",
-      clientMutationId: ++nextClientMutationId,
+      clientMutationId: nextClientMutationId(),
       clientId: CLIENT_ID,
       issuedAt: DateTime.makeUnsafe(new Date()),
       taskId,

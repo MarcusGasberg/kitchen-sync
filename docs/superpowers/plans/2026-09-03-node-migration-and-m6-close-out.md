@@ -555,19 +555,19 @@ describe("ensureClientId", () => {
 });
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 ```bash
 npx vitest run src/tests/client-identity.test.ts
 ```
 
-- [ ] **Step 3: You implement, then rewire the route**
+- [x] **Step 3: You implement, then rewire the route**
 
 In `index.tsx`, the module-scope `CLIENT_ID` const must go. Read it inside the
 component — a `useState` initialiser is the idiomatic place, since it runs once
 per mount and never during SSR's module evaluation.
 
-- [ ] **Step 4: Verify SSR is actually fixed**
+- [x] **Step 4: Verify SSR is actually fixed**
 
 ```bash
 pnpm build && pnpm start &
@@ -586,7 +586,7 @@ is the only check that can't lie to you.
 This assertion is the whole task — a passing unit test alone does not prove the
 route module stopped touching `localStorage` at import time.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 pnpm lint:fix && pnpm test && npx tsc --noEmit
@@ -634,9 +634,9 @@ it("never hands out the same id twice", () => {
 });
 ```
 
-- [ ] **Step 2: Run, fail, implement, pass.**
+- [x] **Step 2: Run, fail, implement, pass.**
 
-- [ ] **Step 3: Rewire `index.tsx`** to call it instead of `++nextClientMutationId`.
+- [x] **Step 3: Rewire `index.tsx`** to call it instead of `++nextClientMutationId`.
 
 - [ ] **Step 4: Commit**
 
