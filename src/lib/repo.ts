@@ -65,6 +65,24 @@ interface ApplyState {
   readonly rejected: ReadonlyArray<typeof MutationRejection.Type>;
 }
 
+const rejectMutation = (
+  acc: ApplyState,
+  mutation: typeof TaskMutation.Type,
+  reason: string,
+): ApplyState => {
+  return {
+    ...acc,
+    lastMutationId: mutation.clientMutationId,
+    rejected: [
+      ...acc.rejected,
+      {
+        clientMutationId: mutation.clientMutationId,
+        reason,
+      },
+    ],
+  };
+};
+
 export class TaskRepoService extends Context.Service<
   TaskRepoService,
   TaskRepo
@@ -217,6 +235,7 @@ export class TaskRepoService extends Context.Service<
                     }
 
                     if (mutation.clientMutationId > expectedMutationId) {
+                      // Out of order shouldn't advance lastMutationId due to batch internal corruption
                       return Effect.succeed({
                         ...acc,
                         rejected: [
@@ -282,28 +301,22 @@ export class TaskRepoService extends Context.Service<
                         }
                       }),
                       Effect.catchTag("TaskNotFoundError", (error) =>
-                        Effect.succeed({
-                          ...acc,
-                          rejected: [
-                            ...acc.rejected,
-                            {
-                              clientMutationId: mutation.clientMutationId,
-                              reason: `task ${error.taskId} not found`,
-                            },
-                          ],
-                        } satisfies ApplyState),
+                        Effect.succeed(
+                          rejectMutation(
+                            acc,
+                            mutation,
+                            `task ${error.taskId} not found`,
+                          ),
+                        ),
                       ),
                       Effect.catchTag("StaleMutationError", (error) =>
-                        Effect.succeed({
-                          ...acc,
-                          rejected: [
-                            ...acc.rejected,
-                            {
-                              clientMutationId: mutation.clientMutationId,
-                              reason: `stale mutation for ${error.taskId}. Expected: ${error.expected}. Actual: ${error.actual}`,
-                            },
-                          ],
-                        } satisfies ApplyState),
+                        Effect.succeed(
+                          rejectMutation(
+                            acc,
+                            mutation,
+                            `stale mutation for ${error.taskId}. Expected: ${error.expected}. Actual: ${error.actual}`,
+                          ),
+                        ),
                       ),
                     );
                   },

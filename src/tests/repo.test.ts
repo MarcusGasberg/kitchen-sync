@@ -733,3 +733,139 @@ describe("idempotency", () => {
     );
   });
 });
+
+describe("rejection bookkeeping", () => {
+  it.layer(TestLayer, { timeout: "30 seconds" })(
+    "against real Postgres, migrated",
+    (it) => {
+      // Every other rejection test in this file mints a client, pushes one
+      // mutation, and throws the client away -- so none of them can see what
+      // happens to the *next* mutation. That is the whole subject here.
+      it.effect(
+        "lets a client keep pushing after one of its mutations is rejected",
+        () =>
+          Effect.gen(function* () {
+            yield* resetTables;
+            const repo = yield* TaskRepoService;
+
+            // Seed a task, then bump its version, so a reorder quoting the
+            // original version is genuinely stale rather than merely wrong.
+            const seed = createTaskMutation("seed");
+            yield* repo.applyMutations(testClientId, [seed]);
+            const afterCreate = (yield* repo.getAllTasks())[0];
+            yield* repo.applyMutations(testClientId, [
+              setTaskCompletedMutation(testClientId, seed.taskId, true),
+            ]);
+            const target = (yield* repo.getAllTasks())[0];
+            expect(target.version).toBeGreaterThan(afterCreate.version);
+
+            // A second client with its own sequence, starting at 1.
+            const clientId = uuid();
+            let n = 0;
+            const nextId = () => ++n;
+
+            const stale: typeof TaskMutation.Type = {
+              _tag: "ReorderTask",
+              clientMutationId: nextId(),
+              clientId,
+              issuedAt: DateTime.makeUnsafe(new Date()),
+              taskId: target.id,
+              order: 0,
+              baseVersion: afterCreate.version,
+            };
+
+            const first = yield* repo.applyMutations(clientId, [stale]);
+            expect(first.acked).toEqual([]);
+            expect(first.rejected).toHaveLength(1);
+            expect(first.rejected[0].reason).toContain("stale");
+
+            // The id is consumed even though nothing was applied: it is a
+            // delivery sequence number, not a success counter. Leaving
+            // lastMutationId behind here is what wedges the client -- the
+            // server would forever expect an id the client has already spent.
+            expect(first.lastMutationId).toBe(stale.clientMutationId);
+
+            const followUp: typeof TaskMutation.Type = {
+              _tag: "CreateTask",
+              clientMutationId: nextId(),
+              clientId,
+              issuedAt: DateTime.makeUnsafe(new Date()),
+              taskId: uuid(),
+              task: { title: "after the rejection" },
+            };
+
+            const second = yield* repo.applyMutations(clientId, [followUp]);
+            expect(second.rejected).toEqual([]);
+            expect(second.acked).toEqual([followUp.clientMutationId]);
+            expect(second.lastMutationId).toBe(followUp.clientMutationId);
+
+            const titles = (yield* repo.getAllTasks()).map((t) => t.title);
+            expect(titles).toContain("after the rejection");
+          }),
+      );
+
+      // The mirror image of the test above, and the reason the out-of-order
+      // branch must NOT reuse `rejectMutation`. A rejection the server decided
+      // on spends its id; a gap is the one case where the server refuses to
+      // decide at all -- it is asking for a resend, not refusing the mutation.
+      it.effect(
+        "refuses an entire batch that starts with a gap, applying none of it",
+        () =>
+          Effect.gen(function* () {
+            yield* resetTables;
+            const repo = yield* TaskRepoService;
+
+            const clientId = uuid();
+            const create = (
+              clientMutationId: number,
+              title: string,
+            ): typeof TaskMutation.Type => ({
+              _tag: "CreateTask",
+              clientMutationId,
+              clientId,
+              issuedAt: DateTime.makeUnsafe(new Date()),
+              taskId: uuid(),
+              task: { title },
+            });
+
+            // Establish the sequence: id 1 applies normally.
+            const opening = yield* repo.applyMutations(clientId, [
+              create(1, "opening"),
+            ]);
+            expect(opening.acked).toEqual([1]);
+            expect(opening.lastMutationId).toBe(1);
+
+            // Now a batch whose first id skips 2. Consuming 3's id here would
+            // do two separate kinds of damage: a later-arriving 2 would land in
+            // the duplicate branch and be acked WITHOUT being applied, and 4
+            // would line up as "expected" and commit on top of a task state
+            // that never saw 2 or 3. The second is corruption, not loss.
+            const gapped = yield* repo.applyMutations(clientId, [
+              create(3, "after the gap"),
+              create(4, "further after the gap"),
+            ]);
+
+            expect(gapped.acked).toEqual([]);
+            expect(gapped.rejected.map((r) => r.clientMutationId)).toEqual([
+              3, 4,
+            ]);
+            expect(gapped.lastMutationId).toBe(1);
+            expect(gapped.serverVersion).toBe(opening.serverVersion);
+
+            // Nothing from the gapped batch reached the table.
+            expect((yield* repo.getAllTasks()).map((t) => t.title)).toEqual([
+              "opening",
+            ]);
+
+            // And the server is still willing to take the id it actually owes,
+            // which is what "resend, don't discard" has to mean in practice.
+            const resend = yield* repo.applyMutations(clientId, [
+              create(2, "the one it asked for"),
+            ]);
+            expect(resend.acked).toEqual([2]);
+            expect(resend.lastMutationId).toBe(2);
+          }),
+      );
+    },
+  );
+});
