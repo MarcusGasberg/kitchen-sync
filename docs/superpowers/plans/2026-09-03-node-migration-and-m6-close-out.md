@@ -451,7 +451,7 @@ npx vitest run src/tests/retry.test.ts
 
 Expected: cannot resolve `#/lib/retry`.
 
-- [ ] **Step 3: You implement `src/lib/retry.ts`**
+- [x] **Step 3: You implement `src/lib/retry.ts`**
 
 Signature is fixed by the test:
 
@@ -615,7 +615,7 @@ response. No error anywhere.
   — monotonic, persisted, starting at 1; with `undefined` storage it still
   returns increasing numbers within the session.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it("keeps counting across a reload", () => {
@@ -723,7 +723,7 @@ it.effect("gives two independently provided stores separate state", () =>
 With today's module-scope `STORE`, the second store sees the first's task and
 you get length 2. That failure *is* the cross-request leak, reproduced.
 
-- [ ] **Step 3: You implement**
+- [x] **Step 3: You implement**
 
 Move the `SubscriptionRef` inside `Layer.effect`. Then the harder half: React.
 `useSyncEngineStore` currently closes over `STORE` directly. It needs the
@@ -732,14 +732,14 @@ React context at the root, with the hook subscribing through it. Keep
 `Effect.runFork` for the subscription and keep interrupting the fiber on
 cleanup; that part is already right.
 
-- [ ] **Step 4: Verify by hand as well as by test**
+- [x] **Step 4: Verify by hand as well as by test**
 
 `pnpm test` green, then `pnpm build && pnpm start` and check two browser tabs
 hold *independent* state before any sync exists. Then confirm the server no
 longer shares state across requests: hit `/` twice and confirm neither response
 carries the other's tasks.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 pnpm lint:fix && pnpm test && npx tsc --noEmit
@@ -751,8 +751,8 @@ git add -A && git commit -m "refactor: own store state in a layer instead of a m
 ## Done means
 
 - [x] Six consecutive API requests all return 200 with real bodies (Task 1)
-- [ ] A prod build of `/` emits no errored-boundary marker (Task 4)
-- [ ] M6 DoD fully met: idempotency ✅ (done 2026-09-03), stale-reorder
+- [x] A prod build of `/` emits no errored-boundary marker (Task 4)
+- [x] M6 DoD fully met: idempotency ✅ (done 2026-09-03), stale-reorder
       rejection (Task 2), transient retry (Task 3)
 - [ ] A reload no longer silently drops mutations (Task 5)
 - [ ] Two store layers are independent (Task 6)

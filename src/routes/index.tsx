@@ -13,8 +13,8 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const CLIENT_ID = ensureClientId(localStorage);
 const nextClientMutationId = () => nextMutationId(localStorage);
+const ensureClientIdBrowser = () => ensureClientId(localStorage);
 
 function Home() {
   const { tasks } = useSyncEngineStore();
@@ -41,7 +41,7 @@ function Home() {
     applyMutation({
       _tag: "CreateTask",
       clientMutationId: nextClientMutationId(),
-      clientId: CLIENT_ID,
+      clientId: ensureClientIdBrowser(),
       taskId: crypto.randomUUID(),
       issuedAt: DateTime.makeUnsafe(new Date()),
       task: { title: trimmed },
@@ -53,7 +53,7 @@ function Home() {
     applyMutation({
       _tag: "EditTask",
       clientMutationId: nextClientMutationId(),
-      clientId: CLIENT_ID,
+      clientId: ensureClientIdBrowser(),
       taskId,
       issuedAt: DateTime.makeUnsafe(new Date()),
       changes: { completed: !completed },
@@ -63,7 +63,7 @@ function Home() {
     applyMutation({
       _tag: "DeleteTask",
       clientMutationId: nextClientMutationId(),
-      clientId: CLIENT_ID,
+      clientId: ensureClientIdBrowser(),
       issuedAt: DateTime.makeUnsafe(new Date()),
       taskId,
     });
