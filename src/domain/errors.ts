@@ -9,3 +9,7 @@ export class StaleMutationError extends Data.TaggedError("StaleMutationError")<{
   readonly expected: number;
   readonly actual: number;
 }> {}
+
+export class TransportFailure extends Data.TaggedError("TransportFailure")<{
+  retryable: boolean;
+}> {}

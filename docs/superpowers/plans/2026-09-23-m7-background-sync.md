@@ -169,7 +169,7 @@ against the unified version before being accepted.
 ("must not advance `lastMutationId`"), so without one sentence about ids being
 spent on *decision* rather than on *success*, the next reader reverts it.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 pnpm lint:fix && pnpm test && npx tsc --noEmit
