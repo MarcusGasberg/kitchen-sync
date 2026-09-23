@@ -3,6 +3,7 @@ import {
   Effect,
   Fiber,
   Layer,
+  type ManagedRuntime,
   pipe,
   Result,
   Stream,
@@ -14,32 +15,40 @@ import type { OutboxEntry, TaskMutation } from "#/domain/mutation";
 import { apply, decide } from "#/domain/reduce";
 import type { Task } from "#/domain/task";
 
-interface StoreState {
+export interface StoreState {
   tasks: Map<string, Task>;
   outbox: Array<OutboxEntry>;
   currentVersion: number;
 }
 
+const EMPTY_STATE = {
+  currentVersion: 0,
+  outbox: [],
+  tasks: new Map(),
+} satisfies StoreState;
+
 interface Store {
-  getTasks: () => Effect.Effect<Task[]>;
+  getSnapShot: () => Effect.Effect<StoreState>;
   applyMutation: (
     mutation: typeof TaskMutation.Type,
   ) => Effect.Effect<StoreState, TaskNotFoundError | StaleMutationError, never>;
+  changes: Stream.Stream<StoreState>;
 }
-
-export const STORE = Effect.runSync(
-  SubscriptionRef.make<StoreState>({
-    tasks: new Map<string, Task>(),
-    outbox: [],
-    currentVersion: 0,
-  }),
-);
 
 export class StoreService extends Context.Service<StoreService, Store>()(
   "kitchen-sync/lib/store/StoreService",
 ) {
-  static readonly Live = Layer.sync(StoreService, () =>
-    StoreService.of({
+  static readonly Live = Layer.sync(StoreService, () => {
+    const STORE = Effect.runSync(
+      SubscriptionRef.make<StoreState>({
+        tasks: new Map<string, Task>(),
+        outbox: [],
+        currentVersion: 0,
+      }),
+    );
+
+    return StoreService.of({
+      changes: SubscriptionRef.changes(STORE),
       applyMutation: (mutation) =>
         SubscriptionRef.updateAndGetEffect(STORE, (s) => {
           const outboxEntry: OutboxEntry = {
@@ -65,24 +74,36 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             Effect.fromResult,
           );
         }),
-      getTasks: () =>
-        SubscriptionRef.get(STORE).pipe(
-          Effect.map((storeState) => Array.from(storeState.tasks.values())),
-        ),
-    }),
-  );
+      getSnapShot: () => SubscriptionRef.get(STORE),
+    });
+  });
 }
 
+export const StoreRuntimeContext =
+  React.createContext<ManagedRuntime.ManagedRuntime<
+    StoreService,
+    never
+  > | null>(null);
+
 export function useSyncEngineStore() {
+  const runtime = React.useContext(StoreRuntimeContext);
+
+  const onChangeCallback = (onChange: () => void) =>
+    runtime?.runSync(
+      Effect.map(StoreService, (storeService) => {
+        const fiber = Effect.runFork(
+          storeService.changes.pipe(
+            Stream.runForEach(() => Effect.sync(onChange)),
+          ),
+        );
+        return () => Effect.runFork(Fiber.interrupt(fiber));
+      }),
+    ) ?? (() => {});
+
   return React.useSyncExternalStore(
-    (onChange) => {
-      const fiber = Effect.runFork(
-        SubscriptionRef.changes(STORE).pipe(
-          Stream.runForEach(() => Effect.sync(onChange)),
-        ),
-      );
-      return () => Effect.runFork(Fiber.interrupt(fiber));
-    },
-    () => STORE.value,
+    (onChange) => onChangeCallback(onChange),
+    () =>
+      runtime?.runSync(Effect.flatMap(StoreService, (s) => s.getSnapShot())) ??
+      EMPTY_STATE,
   );
 }

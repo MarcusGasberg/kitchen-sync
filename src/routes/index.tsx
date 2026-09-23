@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DateTime, Effect } from "effect";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import type { TaskMutation } from "#/domain/mutation";
 import { ensureClientId, nextMutationId } from "#/lib/client-identity";
-import { StoreService, useSyncEngineStore } from "#/lib/store";
+import {
+  StoreRuntimeContext,
+  StoreService,
+  useSyncEngineStore,
+} from "#/lib/store";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -15,14 +19,14 @@ const nextClientMutationId = () => nextMutationId(localStorage);
 function Home() {
   const { tasks } = useSyncEngineStore();
   const [title, setTitle] = useState("");
+  const runtime = useContext(StoreRuntimeContext);
 
   const applyMutation = (mutation: typeof TaskMutation.Type) =>
-    Effect.runPromise(
+    runtime?.runPromise(
       Effect.gen(function* () {
         const store = yield* StoreService;
         yield* store.applyMutation(mutation);
       }).pipe(
-        Effect.provide(StoreService.Live),
         Effect.catch((error) => {
           console.error("Mutation failed", error);
           return Effect.void;
@@ -79,11 +83,11 @@ function Home() {
           Add
         </button>
       </form>
-      {tasks.size === 0 ? (
+      {tasks?.size === 0 ? (
         <p>No tasks yet.</p>
       ) : (
         <ul>
-          {Array.from(tasks.values()).map((task) => (
+          {Array.from(tasks?.values() ?? []).map((task) => (
             <li key={task.id}>
               <label>
                 <input

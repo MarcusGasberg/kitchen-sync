@@ -638,7 +638,7 @@ it("never hands out the same id twice", () => {
 
 - [x] **Step 3: Rewire `index.tsx`** to call it instead of `++nextClientMutationId`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 pnpm lint:fix && pnpm test && npx tsc --noEmit
@@ -695,7 +695,7 @@ ownership now or the fiber work inherits it.
   `snapshot(): StoreState`, so `useSyncExternalStore` never reaches for a
   module global.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it.effect("gives two independently provided stores separate state", () =>
@@ -718,7 +718,7 @@ it.effect("gives two independently provided stores separate state", () =>
 );
 ```
 
-- [ ] **Step 2: Run it and confirm it fails**
+- [x] **Step 2: Run it and confirm it fails**
 
 With today's module-scope `STORE`, the second store sees the first's task and
 you get length 2. That failure *is* the cross-request leak, reproduced.
