@@ -20,27 +20,3 @@ export const ensureClientId = (() => {
     return clientId;
   };
 })();
-
-export const nextMutationId = (() => {
-  let nextClientMutationId = 0;
-  let cachedStorage: Storage | undefined;
-
-  return (storage: Storage | undefined) => {
-    if (storage !== cachedStorage) {
-      nextClientMutationId = 0;
-      cachedStorage?.removeItem("kitchen-sync/mutationId");
-      cachedStorage = storage;
-    }
-
-    nextClientMutationId = +(
-      cachedStorage?.getItem("kitchen-sync/mutationId") ?? "0"
-    );
-
-    ++nextClientMutationId;
-    cachedStorage?.setItem(
-      "kitchen-sync/mutationId",
-      `${nextClientMutationId}`,
-    );
-    return nextClientMutationId;
-  };
-})();
