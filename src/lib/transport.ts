@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, pipe, Schema } from "effect";
+import { Context, Effect, Layer, pipe, Result, Schema } from "effect";
 import {
   HttpBody,
   HttpClient,
@@ -6,6 +6,7 @@ import {
 } from "effect/unstable/http";
 import { TransportFailure } from "#/domain/errors";
 import {
+  type MutationRejection,
   type PullRequest,
   PullResponse,
   type PushRequest,
@@ -95,91 +96,75 @@ export class SyncTransportService extends Context.Service<
       });
     }),
   );
-  static Fake = Layer.effect(
-    SyncTransportService,
-    Effect.gen(function* () {
-      let cache: TaskState = new Map();
-      let serverVersion = 0;
-      const lastMutationIds = new Map<string, number>();
+  // The sync tests run against this, so it answers the way
+  // `TaskRepoService.applyMutations` and `/api/pull` do.
+  static readonly Fake = Layer.sync(SyncTransportService, () => {
+    let cache: TaskState = new Map();
+    let serverVersion = 0;
+    const lastMutationIds = new Map<string, number>();
 
-      return SyncTransportService.of({
-        pull: (req) => {
-          return Effect.gen(function* () {
-            const wire = yield* Schema.encodeEffect(PullResponse)({
-              serverVersion,
-              lastMutationId: lastMutationIds.get(req.clientId) ?? 0,
-              tasks: [...cache.values()],
-            });
-            const pullResponse =
-              yield* Schema.decodeUnknownEffect(PullResponse)(wire);
+    return SyncTransportService.of({
+      pull: (req) =>
+        Schema.encodeEffect(PullResponse)({
+          serverVersion,
+          lastMutationId: lastMutationIds.get(req.clientId) ?? 0,
+          tasks:
+            req.lastAppliedVersion === serverVersion ? [] : [...cache.values()],
+        }).pipe(
+          Effect.flatMap(Schema.decodeUnknownEffect(PullResponse)),
+          Effect.catchTag(
+            "SchemaError",
+            () => new TransportFailure({ retryable: false }),
+          ),
+        ),
+      push: (req) =>
+        Effect.sync(() => {
+          let lastMutationId = lastMutationIds.get(req.clientId) ?? 0;
+          const acked: Array<number> = [];
+          const rejected: Array<typeof MutationRejection.Type> = [];
 
-            return pullResponse;
-          }).pipe(
-            Effect.catchTag(
-              "SchemaError",
-              () => new TransportFailure({ retryable: false }),
-            ),
-          );
-        },
+          for (const mutation of req.mutations) {
+            const id = mutation.clientMutationId;
+            const expected = lastMutationId + 1;
+            if (id < expected) {
+              // Decided on an earlier delivery: ack, never decide again.
+              acked.push(id);
+              continue;
+            }
+            if (id > expected) {
+              // A gap: refuse without spending the id.
+              rejected.push({
+                clientMutationId: id,
+                reason: `out of order: expected ${expected}`,
+              });
+              continue;
+            }
 
-        push: (req) => {
-          return Effect.gen(function* () {
-            const rejected: { clientMutationId: number; reason: string }[] = [];
-            const acked: number[] = [];
-
-            yield* Effect.forEach(req.mutations, (mut) => {
-              const nextVersion = serverVersion + 1;
-              return Effect.fromResult(
-                decide(cache, mut, nextVersion, mut.issuedAt),
-              ).pipe(
-                Effect.tap((patches) => {
-                  if (patches.length > 0) {
-                    cache = apply(cache, patches);
-                    serverVersion = nextVersion;
-                  }
-                  acked.push(mut.clientMutationId);
-                  return Effect.void;
-                }),
-                Effect.catchTags({
-                  StaleMutationError: (err) => {
-                    rejected.push({
-                      reason: err.message,
-                      clientMutationId: mut.clientMutationId,
-                    });
-                    return Effect.void;
-                  },
-
-                  TaskNotFoundError: (err) => {
-                    rejected.push({
-                      reason: err.message,
-                      clientMutationId: mut.clientMutationId,
-                    });
-                    return Effect.void;
-                  },
-                }),
-              );
-            });
-
-            const lastMutationId = req.mutations.reduce(
-              (max, mut) => Math.max(max, mut.clientMutationId),
-              lastMutationIds.get(req.clientId) ?? 0,
+            lastMutationId = id;
+            const nextVersion = serverVersion + 1;
+            const decided = decide(
+              cache,
+              mutation,
+              nextVersion,
+              mutation.issuedAt,
             );
-            lastMutationIds.set(req.clientId, lastMutationId);
+            if (Result.isFailure(decided)) {
+              rejected.push({
+                clientMutationId: id,
+                reason: decided.failure._tag,
+              });
+              continue;
+            }
+            acked.push(id);
+            if (decided.success.length > 0) {
+              cache = apply(cache, decided.success);
+              serverVersion = nextVersion;
+            }
+          }
 
-            const pushResponse = yield* Schema.decodeEffect(PushResponse)({
-              acked,
-              lastMutationId,
-              rejected,
-              serverVersion,
-            });
-            return pushResponse;
-          }).pipe(
-            Effect.catchTags({
-              SchemaError: () => new TransportFailure({ retryable: false }),
-            }),
-          );
-        },
-      });
-    }),
-  );
+          lastMutationIds.set(req.clientId, lastMutationId);
+          return { serverVersion, acked, rejected, lastMutationId };
+        }),
+    });
+  });
 }

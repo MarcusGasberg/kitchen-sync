@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ensureClientId, nextMutationId } from "#/lib/client-identity";
+import { ensureClientId } from "#/lib/client-identity";
 
 const fakeStorage = (): Storage => {
   const map = new Map<string, string>();
@@ -30,22 +30,5 @@ describe("ensureClientId", () => {
     expect(ensureClientId(fakeStorage())).not.toBe(
       ensureClientId(fakeStorage()),
     );
-  });
-});
-
-describe("nextClientMutationId", () => {
-  it("keeps counting across a reload", () => {
-    const storage = fakeStorage();
-    expect(nextMutationId(storage)).toBe(1);
-    expect(nextMutationId(storage)).toBe(2);
-    // A reload loses module state but not storage. The counter must not restart:
-    // restarting is what makes the server silently swallow every mutation.
-    expect(nextMutationId(storage)).toBe(3);
-  });
-
-  it("never hands out the same id twice", () => {
-    const storage = fakeStorage();
-    const ids = Array.from({ length: 50 }, () => nextMutationId(storage));
-    expect(new Set(ids).size).toBe(50);
   });
 });

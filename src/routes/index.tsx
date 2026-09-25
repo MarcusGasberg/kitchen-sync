@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DateTime, Effect } from "effect";
 import { useContext, useState } from "react";
-import type { TaskMutation } from "#/domain/mutation";
-import { ensureClientId, nextMutationId } from "#/lib/client-identity";
+import type { MutationIntent } from "#/domain/mutation";
+import { ensureClientId } from "#/lib/client-identity";
 import {
   StoreRuntimeContext,
   StoreService,
@@ -13,7 +13,6 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const nextClientMutationId = () => nextMutationId(localStorage);
 const ensureClientIdBrowser = () => ensureClientId(localStorage);
 
 function Home() {
@@ -21,11 +20,11 @@ function Home() {
   const [title, setTitle] = useState("");
   const runtime = useContext(StoreRuntimeContext);
 
-  const applyMutation = (mutation: typeof TaskMutation.Type) =>
+  const applyMutation = (intent: MutationIntent) =>
     runtime?.runPromise(
       Effect.gen(function* () {
         const store = yield* StoreService;
-        yield* store.applyMutation(mutation);
+        yield* store.applyMutation(intent);
       }).pipe(
         Effect.catch((error) => {
           console.error("Mutation failed", error);
@@ -40,7 +39,6 @@ function Home() {
     if (!trimmed) return;
     applyMutation({
       _tag: "CreateTask",
-      clientMutationId: nextClientMutationId(),
       clientId: ensureClientIdBrowser(),
       taskId: crypto.randomUUID(),
       issuedAt: DateTime.makeUnsafe(new Date()),
@@ -52,7 +50,6 @@ function Home() {
   const toggleCompleted = (taskId: string, completed: boolean) =>
     applyMutation({
       _tag: "EditTask",
-      clientMutationId: nextClientMutationId(),
       clientId: ensureClientIdBrowser(),
       taskId,
       issuedAt: DateTime.makeUnsafe(new Date()),
@@ -62,7 +59,6 @@ function Home() {
   const deleteTask = (taskId: string) =>
     applyMutation({
       _tag: "DeleteTask",
-      clientMutationId: nextClientMutationId(),
       clientId: ensureClientIdBrowser(),
       issuedAt: DateTime.makeUnsafe(new Date()),
       taskId,

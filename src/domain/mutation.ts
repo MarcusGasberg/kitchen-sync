@@ -1,5 +1,5 @@
 import { type DateTime, Schema } from "effect";
-import { BaseMutation } from "./BaseMutation";
+import { BaseIntent, MutationId } from "./BaseMutation";
 import { Task } from "./task";
 
 const CreateTaskChanges = Schema.Struct({
@@ -17,33 +17,38 @@ const EditTaskChanges = Schema.Struct({
   ),
 );
 
-export const TaskMutation = Schema.TaggedUnion({
-  CreateTask: {
-    ...BaseMutation,
-    taskId: Schema.String,
-    task: CreateTaskChanges,
-  },
+const intentCases = {
+  CreateTask: { ...BaseIntent, taskId: Schema.String, task: CreateTaskChanges },
   SetTaskCompleted: {
-    ...BaseMutation,
+    ...BaseIntent,
     taskId: Schema.String,
     completed: Schema.Boolean,
   },
-  EditTask: {
-    ...BaseMutation,
-    taskId: Schema.String,
-    changes: EditTaskChanges,
-  },
-  DeleteTask: {
-    ...BaseMutation,
-    taskId: Schema.String,
-  },
+  EditTask: { ...BaseIntent, taskId: Schema.String, changes: EditTaskChanges },
+  DeleteTask: { ...BaseIntent, taskId: Schema.String },
   ReorderTask: {
-    ...BaseMutation,
+    ...BaseIntent,
     baseVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
     taskId: Schema.String,
     order: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   },
-});
+};
+
+const withMutationId = <C extends Record<string, Schema.Struct.Fields>>(
+  cases: C,
+) =>
+  Object.fromEntries(
+    Object.entries(cases).map(([k, fields]) => [
+      k,
+      { ...fields, ...MutationId },
+    ]),
+  ) as { [K in keyof C]: C[K] & typeof MutationId };
+
+export const MutationIntent = Schema.TaggedUnion(intentCases);
+export const TaskMutation = Schema.TaggedUnion(withMutationId(intentCases));
+
+export type MutationIntent = typeof MutationIntent.Type;
+export type TaskMutation = typeof TaskMutation.Type;
 
 export interface OutboxEntry {
   readonly mutation: typeof TaskMutation.Type;

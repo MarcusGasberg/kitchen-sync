@@ -1,6 +1,6 @@
 import { type DateTime, Result } from "effect";
 import { StaleMutationError, TaskNotFoundError } from "./errors";
-import { TaskMutation } from "./mutation";
+import { MutationIntent } from "./mutation";
 import type { Task } from "./task";
 
 export type TaskState = ReadonlyMap<string, Task>;
@@ -12,14 +12,14 @@ export type TaskPatch =
 
 export const decide: (
   state: TaskState,
-  mutation: typeof TaskMutation.Type,
+  mutation: typeof MutationIntent.Type,
   version: number,
   now: DateTime.Utc,
 ) => Result.Result<
   ReadonlyArray<TaskPatch>,
   TaskNotFoundError | StaleMutationError
 > = (state, mutation, version, now) => {
-  const result = TaskMutation.match(mutation, {
+  const result = MutationIntent.match(mutation, {
     CreateTask: (m) => {
       if (state.has(m.taskId)) {
         return Result.succeed([]);
