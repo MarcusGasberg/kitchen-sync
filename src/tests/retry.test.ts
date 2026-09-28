@@ -23,7 +23,7 @@ describe("retryTransientSql", () => {
         const attempts = yield* Ref.make(0);
         const flaky = Effect.gen(function* () {
           const n = yield* Ref.updateAndGet(attempts, (x) => x + 1);
-          if (n < 3) return yield* Effect.fail(serialization());
+          if (n < 3) return yield* serialization();
           return "committed";
         });
 
@@ -47,7 +47,7 @@ describe("retryTransientSql", () => {
         const attempts = yield* Ref.make(0);
         const broken = Effect.gen(function* () {
           yield* Ref.update(attempts, (x) => x + 1);
-          return yield* Effect.fail(syntax());
+          return yield* syntax();
         });
 
         const exit = yield* Effect.exit(retryTransientSql(broken));
@@ -68,7 +68,7 @@ describe("retryTransientSql", () => {
         const attempts = yield* Ref.make(0);
         const always = Effect.gen(function* () {
           yield* Ref.update(attempts, (x) => x + 1);
-          return yield* Effect.fail(serialization());
+          return yield* serialization();
         });
 
         const fiber = yield* Effect.forkChild(

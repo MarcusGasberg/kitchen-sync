@@ -115,11 +115,11 @@ export const useSyncService = (
     if (runtime === null) return;
 
     const clientId = ensureClientId(storage);
-    runtime?.runFork(
+    runtime.runFork(
       Effect.flatMap(SyncEngineService, (sync) => sync.start(clientId)),
     );
 
     return () => {
-      runtime?.runFork(Effect.flatMap(SyncEngineService, (sync) => sync.stop));
+      runtime.runFork(Effect.flatMap(SyncEngineService, (sync) => sync.stop));
     };
   }, [runtime, storage]);

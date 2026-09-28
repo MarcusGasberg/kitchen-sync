@@ -95,15 +95,13 @@ The **Primitive index** table below names the file each primitive lands in; cros
 | `Stream` / `Stream.callback` | M9 | `src/lib/sync.ts`, `/api/pull/stream` |
 | `TestClock` | M10 | `src/tests/sync.e2e.test.ts` |
 
-## Stack facts (as of 2026-08-15)
+## Stack facts (as of 2026-09-28)
 
-- `effect@4.0.0-rc.108` (exact pin), `@effect/sql-pg@4.0.0-rc.108`, `@effect/vitest@4.0.0-rc.108`, `@effect/language-service@0.87.2` (LSP patch runs via `pnpm prepare`). All Effect packages share one version number in v4 — bump them together or not at all.
-- TanStack Start (React 19) on Cloudflare Workers, `@effect/sql-pg` (v4) + hand-written SQL migrations, Vitest 4, Biome, TypeScript strict. **No drizzle-orm.**
-- **M1 is landed:** `src/lib/db.ts` holds `DatabaseService` (`Live` built on `PgClient.layerConfig`, plus `Fake`) with tests in `src/tests/database.test.ts`. Read it before M1 — it is the reference implementation of the layer pattern for the rest of the milestones. M4 retires this hand-rolled wrapper in favour of Model-based repos.
-- **M2 is in progress:** `src/domain/task.ts` and `src/domain/mutation.ts` exist as first drafts (`Schema.Class`, `Schema.TaggedUnion`). Both have open defects — see M2.
-- `src/lib/store.ts` is empty — M3 fills it.
-- `postgres` (postgres-js) is in package.json but unused — M4 removes it. `pg` and `@types/pg` **stay**: `@effect/sql-pg` v4 is built on node-postgres.
-- `.env` is gitignored; `docker-compose.yml` provides local Postgres for integration tests.
+- `effect@4.0.0-rc.108` (exact pin), `@effect/sql-pg@4.0.0-rc.108`, `@effect/vitest@4.0.0-rc.108`, `@effect/language-service@0.87.2` (LSP patch runs via `pnpm prepare`). All Effect packages share one version number in v4 — bump them together or not at all. TanStack packages are pinned exact too.
+- TanStack Start (React 19) served on **Node via nitro** (moved off Cloudflare Workers in M6 — see `docs/superpowers/plans/2026-09-03-node-migration-and-m6-close-out.md`). `@effect/sql-pg` (v4) + migrations as TS modules under `src/migrations/`, loaded with `Migrator.fromGlob`. Vitest 4, Biome, TypeScript strict. **No drizzle-orm.**
+- **M0–M7 are landed.** The engine is three services: `StoreService` (`src/lib/store.ts` — `base` + `outbox` in one `SubscriptionRef`, `tasks` = `rebase(base, outbox)`), `SyncTransportService` (`src/lib/transport.ts` — a port with `Live` over `HttpClient` and an in-memory `Fake`), and `SyncEngineService` (`src/lib/sync.ts` — push and pull loops, each in its own `FiberHandle`). Server side: `TaskRepoService` (`src/lib/repo.ts`, `SqlModel.makeRepository` over `Model.Class` tables in `src/lib/db-schema.ts`) behind `/api/push` and `/api/pull`. M1's hand-rolled `DatabaseService` and `postgres` (postgres-js) are gone; `pg` stays because `@effect/sql-pg` is built on it.
+- **M8 is partly landed by M7** — see the status note under M8.
+- Local Postgres: `docker compose up -d`. Dev uses the `kitchen_sync` database (`.env`); **tests use `kitchen_sync_test`** (set in `vitest.config.ts`, override with `TEST_DATABASE_URL`). They are separate because the repo tests truncate tables, and a running dev server's pull loop deadlocks against the truncate. A fresh volume creates the test database via `docker/init-test-db.sql`; on an existing volume run `docker compose exec postgres psql -U kitchen_sync -c "CREATE DATABASE kitchen_sync_test"` once.
 
 ## M0 — Setup (done by me, 2026-08-13)
 
@@ -374,6 +372,18 @@ Also decide deliberately: `Task` is currently `Schema.Class`, but M4 wants it as
 
 - **Deterministic tie-breaking** — conflict resolution must be a pure comparator (e.g. last-writer-wins by `serverVersion`, ties broken by hashing `clientId` + `clientMutationId`). Two clients fighting over the same reorder must converge to the same state, not oscillate — the anti-ping-pong check is a DoD assertion.
 
+**Status (2026-09-28): partly done in M7.** Already in place: server truth kept as `base`, the outbox replayed on top by `rebase` (`store.ts`), outbox entries retired by id, rejections moved to a `rejected` list the UI shows and can dismiss, and the server-side "exactly one of two simultaneous reorders wins" test (`repo.test.ts`). What remains:
+
+1. **The convergence test.** Two clients (each with its own `StoreService` + `SyncEngineService`) against one shared `SyncTransportService.Fake`: diverge, sync, and assert identical `tasks`, an empty outbox, and no oscillation. Nothing covers this on the client side yet.
+2. **Enforce the invariant.** `applyMutation` writes `tasks` directly (`sortByOrder(apply(s.tasks, patches))`), not through `rebase`. Either derive it from `rebase`, or prove with a test that the two agree.
+3. **Rejection vs transport failure.** A non-retryable `TransportFailure` (for example a 400 from a schema mismatch) is logged and retried every minute by `forever` in `sync.ts`. It is terminal and should reach the UI like a rejection.
+4. **`TaskMutation.clientId` vs the push-level `clientId`** (deferred since M6): keep one, or have the server check that they match.
+5. **Stop re-sending acked mutations.** Acked entries stay in the outbox until a pull confirms them, and the push loop wakes at least every 300 ms, so the same batch is sent again until then. The server dedupes it, but it is wasted traffic. Tracking an "acked up to" id fixes it without adding per-entry status.
+
+Also carried from M7 review: move the React bindings (`StoreRuntimeContext`, `useSyncEngineStore`, `useSyncService`) out of `store.ts` / `sync.ts` into their own module, so the engine files have no React import.
+
+**Deferred past M9:** a durable outbox (a reload loses unsynced edits, but nothing wedges), and the poisoned `ManagedRuntime` (a failed layer build is cached forever — `ManagedRuntime.ts:310`; a code read, not yet reproduced).
+
 **You write:** the rebase step in the store/sync code, plus UI surfacing for rejected mutations (dropped from outbox, flagged in UI). Reordering with stale positions must deterministically resolve, not oscillate.
 
 **I review for:** outbox loss on reset (replay must read from the same outbox the optimistic UI used), double-application, and ping-pong divergence.
@@ -448,8 +458,8 @@ Ordered by trustworthiness. Everything below the line is v3 and needs translatin
 
 ## Friction points (flagged up front)
 
-1. **`process.env.DATABASE_URL` at module scope** — M1 fixed this: the URL now lives in a `Config`-driven layer. On Workers env comes from bindings, not `process.env` — the `Config` seam stays isolated to one file. Note: `vite dev` / Vitest don't always auto-load `.env` into `process.env`; export it in the shell if tests can't find `DATABASE_URL`.
-2. **Postgres over TCP from a Worker** — external TCP needs `nodejs_compat` (present) and likely Hyperdrive for production. M4's layer design keeps that swap local to one file. Related: `Migrator.fromFileSystem` needs a real filesystem, so migrations run from a Node script or `fromRecord`, not from the worker.
+1. **Config and `.env`** — the database URL lives in a `Config`-driven layer (`src/lib/runtime.ts`), never read at module scope. Vitest and `vite dev` load `.env` on their own; `pnpm dev` / `pnpm start` also pass `--env-file-if-exists=.env`. Tests get their `DATABASE_URL` from `vitest.config.ts`, not `.env`.
+2. **Deployment target** — the server now runs on Node via nitro, so the Workers constraints (TCP to Postgres, `Migrator.fromFileSystem` without a filesystem) no longer apply. Migrations still use `fromGlob`, which works anywhere.
 3. **v3 vs v4 is the dominant tax on this project.** Effect v4 consolidated packages (`@effect/platform`, `@effect/rpc`, `@effect/cluster` folded into `effect`), moved unstable APIs under `effect/unstable/*`, and renamed a large fraction of the surface. Nearly every third-party example you find is v3 and will not compile. Workflow when something doesn't typecheck: (a) grep `repos/effect/migration/v3-to-v4.md` for the symbol, (b) read the real signature in `repos/effect/packages/effect/src/`, (c) only then search the web. The LSP (`@effect/language-service`) understands v4 and catches most of it inline.
 4. **Unstable module paths move.** `effect/unstable/*` (schema/Model, sql, http, httpapi, encoding) can break in *minor* releases, and modules graduate to top-level as they stabilise. Since we're pinned exact, that's a controlled cost — but expect import paths to change when we bump.
 5. **Biome vs Effect chains** — generators and `pipe` chains can trip the formatter; run `pnpm lint:fix` early and often, and match existing file style in reviews.

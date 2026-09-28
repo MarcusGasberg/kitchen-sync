@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: kitchen_sync
     volumes:
       - kitchen-sync-pg:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
 
 volumes:
   kitchen-sync-pg:
