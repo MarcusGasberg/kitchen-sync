@@ -23,29 +23,37 @@ export function retryTransientSql<A, E, R>(
   );
 }
 
-export function retryTransportFailure<A, E, R>(
+// One HTTP attempt, bounded. A hung socket never fails on its own, so without
+// this the sync loop's retry would wait on it forever.
+export function timeoutAsTransportFailure<A, E, R>(
   self: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | TransportFailure, R> {
-  const schedule = Schedule.jittered(
-    Schedule.exponential("300 millis").pipe(Schedule.upTo({ times: 5 })),
-  );
-
   return self.pipe(
-    // Per attempt, inside the retry: a hung socket only becomes retryable once
-    // it is a failure, and outside the loop it would just end the call.
     Effect.timeout("10 seconds"),
     Effect.catchTag(
       "TimeoutError",
       () => new TransportFailure({ retryable: true }),
     ),
-    Effect.retry({
-      while: (err) => {
-        if (err instanceof TransportFailure) {
-          return err.retryable;
-        }
+  );
+}
 
-        return false;
-      },
+// Retries a transient failure for as long as it takes: an outage ends when the
+// server comes back, not when a counter runs out. Only the delay is bounded,
+// so a recovered server is noticed within about 30 seconds. `Schedule.min`
+// keeps recurring while either schedule does, at the shorter of the delays.
+export function retrySyncLoop<A, R>(
+  self: Effect.Effect<A, TransportFailure, R>,
+): Effect.Effect<A, TransportFailure, R> {
+  const schedule = Schedule.jittered(
+    Schedule.min([
+      Schedule.exponential("300 millis"),
+      Schedule.spaced("30 seconds"),
+    ]),
+  );
+
+  return self.pipe(
+    Effect.retry({
+      while: (err) => err.retryable,
       schedule,
     }),
   );

@@ -13,7 +13,7 @@ import {
   PushResponse,
 } from "#/domain/mutation";
 import { apply, decide, type TaskState } from "#/domain/reduce";
-import { retryTransportFailure } from "./retry";
+import { timeoutAsTransportFailure } from "./retry";
 
 interface SyncTransport {
   push(
@@ -40,7 +40,9 @@ const classifyHttpClientError = (
   return new TransportFailure({ retryable });
 };
 
-const withTransportRetry = <A, R>(
+// Classifies, never retries: the sync loops own retrying, so one outage is
+// one backoff rather than a backoff nested inside another.
+const asTransportFailure = <A, R>(
   effect: Effect.Effect<
     A,
     | Schema.SchemaError
@@ -56,7 +58,7 @@ const withTransportRetry = <A, R>(
       HttpBodyError: () => new TransportFailure({ retryable: false }),
       HttpClientError: classifyHttpClientError,
     }),
-    retryTransportFailure,
+    timeoutAsTransportFailure,
   );
 
 export class SyncTransportService extends Context.Service<
@@ -72,7 +74,7 @@ export class SyncTransportService extends Context.Service<
 
       return SyncTransportService.of({
         pull: (req) =>
-          withTransportRetry(
+          asTransportFailure(
             Effect.gen(function* () {
               const response = yield* httpClient.post("/api/pull", {
                 body: yield* HttpBody.json(req),
@@ -83,7 +85,7 @@ export class SyncTransportService extends Context.Service<
             }),
           ),
         push: (req) =>
-          withTransportRetry(
+          asTransportFailure(
             Effect.gen(function* () {
               const response = yield* httpClient.post("/api/push", {
                 body: yield* HttpBody.json(req),

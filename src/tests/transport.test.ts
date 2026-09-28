@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { DateTime, Effect, Exit, Fiber, Layer, Ref } from "effect";
+import { DateTime, Effect, Fiber, Layer, Ref } from "effect";
 import { TestClock } from "effect/testing";
 import {
   HttpClient,
@@ -129,92 +129,58 @@ describe("SyncTransportService.pull", () => {
     }),
   );
 
-  it.effect("retries a 500 whose JSON body is not a PullResponse", () =>
+  // The transport classifies; the sync loops retry. Each of these is one
+  // attempt that fails with `retryable: true`, and nothing more.
+  const retryable = (
+    respond: Parameters<typeof scripted>[0],
+    { hang = false } = {},
+  ) =>
     Effect.gen(function* () {
+      const { attempts, pull } = yield* scripted(respond);
+
+      const fiber = yield* Effect.forkChild(Effect.flip(pull));
+      if (hang) yield* TestClock.adjust("1 minute");
+      const error = yield* Fiber.join(fiber);
+
+      expect(error).toBeInstanceOf(TransportFailure);
+      expect(error.retryable).toBe(true);
+      expect(yield* Ref.get(attempts)).toBe(1);
+    });
+
+  it.effect(
+    "classifies a 500 whose JSON body is not a PullResponse as retryable",
+    () =>
       // What nitro sends when the failure is in layer construction -- valid
       // JSON, so decoding before checking the status would call it a bug.
-      const { attempts, pull } = yield* scripted((n) =>
+      retryable(() =>
         Effect.succeed(
-          n < 2
-            ? json({ status: 500, unhandled: true, message: "HTTPError" }, 500)
-            : json(body),
+          json({ status: 500, unhandled: true, message: "HTTPError" }, 500),
         ),
-      );
-
-      const fiber = yield* Effect.forkChild(pull);
-      yield* TestClock.adjust("1 minute");
-      const result = yield* Fiber.join(fiber);
-
-      expect(result.serverVersion).toBe(7);
-      expect(yield* Ref.get(attempts)).toBe(2);
-    }),
+      ),
   );
 
-  it.effect("retries a 503 until the server recovers", () =>
-    Effect.gen(function* () {
-      const { attempts, pull } = yield* scripted((n) =>
-        Effect.succeed(n < 3 ? status(503) : json(body)),
-      );
-
-      const fiber = yield* Effect.forkChild(pull);
-      // Backoff is virtual: without advancing the clock this never completes.
-      yield* TestClock.adjust("1 minute");
-      const result = yield* Fiber.join(fiber);
-
-      expect(result.serverVersion).toBe(7);
-      expect(yield* Ref.get(attempts)).toBe(3);
-    }),
+  it.effect("classifies a 503 as retryable", () =>
+    retryable(() => Effect.succeed(status(503))),
   );
 
-  it.effect("retries a 429 rather than treating it as fatal", () =>
-    Effect.gen(function* () {
-      const { attempts, pull } = yield* scripted((n) =>
-        Effect.succeed(n < 2 ? status(429) : json(body)),
-      );
-
-      const fiber = yield* Effect.forkChild(pull);
-      yield* TestClock.adjust("1 minute");
-      yield* Fiber.join(fiber);
-
-      expect(yield* Ref.get(attempts)).toBe(2);
-    }),
+  it.effect("classifies a 429 as retryable rather than fatal", () =>
+    retryable(() => Effect.succeed(status(429))),
   );
 
-  it.effect("retries a connection-level failure", () =>
-    Effect.gen(function* () {
-      const { attempts, pull } = yield* scripted((n, request) =>
-        n < 2
-          ? Effect.fail(
-              new HttpClientError.HttpClientError({
-                reason: new HttpClientError.TransportError({ request }),
-              }),
-            )
-          : Effect.succeed(json(body)),
-      );
-
-      const fiber = yield* Effect.forkChild(pull);
-      yield* TestClock.adjust("1 minute");
-      yield* Fiber.join(fiber);
-
-      expect(yield* Ref.get(attempts)).toBe(2);
-    }),
+  it.effect("classifies a connection-level failure as retryable", () =>
+    retryable((_, request) =>
+      Effect.fail(
+        new HttpClientError.HttpClientError({
+          reason: new HttpClientError.TransportError({ request }),
+        }),
+      ),
+    ),
   );
 
-  it.effect("times out a hung request and retries it", () =>
-    Effect.gen(function* () {
-      const { attempts, pull } = yield* scripted((n) =>
-        n < 2 ? Effect.never : Effect.succeed(json(body)),
-      );
-
-      const fiber = yield* Effect.forkChild(pull);
-      // A socket that never answers has to become a failure before the retry
-      // loop can see it -- that is what the per-attempt timeout is for.
-      yield* TestClock.adjust("1 minute");
-      const result = yield* Fiber.join(fiber);
-
-      expect(result.serverVersion).toBe(7);
-      expect(yield* Ref.get(attempts)).toBe(2);
-    }),
+  it.effect("times out a hung request as retryable", () =>
+    // A socket that never answers has to become a failure before the sync
+    // loop's retry can see it -- that is what the timeout is for.
+    retryable(() => Effect.never, { hang: true }),
   );
 
   it.effect("does not retry a 400", () =>
@@ -244,24 +210,6 @@ describe("SyncTransportService.pull", () => {
       expect(error).toBeInstanceOf(TransportFailure);
       expect(error.retryable).toBe(false);
       expect(yield* Ref.get(attempts)).toBe(1);
-    }),
-  );
-
-  it.effect("gives up rather than retrying a dead server forever", () =>
-    Effect.gen(function* () {
-      const { attempts, pull } = yield* scripted(() =>
-        Effect.succeed(status(503)),
-      );
-
-      const fiber = yield* Effect.forkChild(Effect.exit(pull));
-      yield* TestClock.adjust("5 minutes");
-      const exit = yield* Fiber.join(fiber);
-
-      // It gave up rather than looping forever -- that is the assertion.
-      expect(Exit.isFailure(exit)).toBe(true);
-      const bounded = yield* Ref.get(attempts);
-      expect(bounded).toBeGreaterThan(1);
-      expect(bounded).toBeLessThan(20);
     }),
   );
 });

@@ -48,14 +48,14 @@ The eleven decisions this plan implements:
 | 1 | `clientMutationId` is a **delivery sequence number**. A rejected mutation consumes its id without being acked. |
 | 2 | A rejected mutation is **never resent** — on redelivery the server's duplicate branch would silently ack it. |
 | 3 | The client **never mints a version**. `currentVersion` dies; `appliedVersion` replaces it, written only from server responses. |
-| 4 | `StoreState` = `{ tasks, outbox, appliedVersion, rejected }`. |
-| 5 | Outbox entries leave on confirmation **of either kind**, removed **by id, never by count**. |
+| 4 | `StoreState` = `{ base, tasks, outbox, appliedVersion, nextId, seeded, rejected }`. *(Amended 2026-09-26: `base`, `nextId`, `seeded` added — see Task 3.)* |
+| 5 | Outbox entries leave **by id, never by count** — a **rejection** retires its entry at `settle`, an **ack** does not: the entry stays until a pull whose `lastMutationId` covers it. *(Amended 2026-09-26.)* |
 | 6 | "In flight" is **not state** — no status field on `OutboxEntry`. |
-| 7 | `clientMutationId` is minted **inside** `applyMutation`'s atomic `modify`; the counter is seeded from `pullResponse.lastMutationId`, never from localStorage. |
-| 8 | `reconcile` does the **full rebase**, and is a **no-op** when `serverVersion <= appliedVersion`. |
+| 7 | `clientMutationId` is minted **inside** `applyMutation`'s atomic `modify`; the counter is seeded from `pullResponse.lastMutationId`, never from localStorage. Ids minted before the first pull are provisional and renumbered by it. |
+| 8 | `reconcile` does the **full rebase**, and is a **no-op** when `serverVersion < appliedVersion`. *(Amended 2026-09-26: `<`, not `<=`.)* |
 | 9 | Every transition is **one atomic `modify`** reading only the state handed in. HTTP never straddles the lock. |
-| 10 | `SyncTransport` is a **port**, with status checked **before** body decode. |
-| 11 | `SyncService` owns a `FiberHandle` in its layer scope; `start` forks one supervisor running two loops; `stop` clears the handle. |
+| 10 | `SyncTransport` is a **port**, with status checked **before** body decode. It **classifies, never retries**; the loops own retrying. *(Amended 2026-09-26.)* |
+| 11 | `SyncService` owns a `FiberHandle` **per loop** in its layer scope; `start(clientId)` runs both; `stop` clears both. *(Amended 2026-09-26.)* |
 | 12 | The hand-rolled React hook stays, with three fixes. |
 
 ### Out of scope, deliberately
@@ -235,6 +235,17 @@ so the loops never re-derive the classification. `SyncTransport.Live` is built
 on `HttpClient`; a `Fake` layer backed by an in-memory function is what the
 sync tests use.
 
+**Status (2026-09-26): done**, `src/lib/transport.ts`, with one change after
+review. The first version also *retried* inside the transport
+(`retryTransportFailure`, 5 attempts), and the sync loops retried around it —
+one outage became a backoff nested inside another, up to ~36 HTTP attempts per
+loop failure. The transport now only classifies, plus a 10-second
+per-request timeout (`timeoutAsTransportFailure` in `src/lib/retry.ts`) so a
+hung socket becomes a retryable failure the loop can see. The column "Loop
+behaviour" in the table above is literal: retrying is the loop's job. The
+retry tests in `src/tests/transport.test.ts` became classification tests —
+one attempt, `retryable: true`.
+
 ---
 
 ## Task 3: Reshape the store
@@ -330,6 +341,56 @@ states intent, the engine assigns identity.
    requires `tasks` to have exactly one theory of how it is computed.
 7. **Seed the counter:** `nextId := max(nextId, pullResponse.lastMutationId + 1)`.
 
+### As built (2026-09-26)
+
+`src/lib/store.ts` departs from rules 2, 3 and 7 and from the interface above.
+The departures are deliberate and correct; the rules as written were wrong.
+**Do not "fix" the code back to match them.**
+
+```ts
+interface StoreState {
+  base: TaskState            // server truth at appliedVersion; only a pull writes it
+  tasks: TaskState           // always rebase(base, outbox)
+  outbox: ReadonlyArray<OutboxEntry>
+  appliedVersion: number
+  nextId: number
+  seeded: boolean            // false until the first pull
+  rejected: ReadonlyArray<typeof MutationRejection.Type>
+}
+```
+
+(`getSnapShot`, capital S, is the name in the code.)
+
+- **`base` is new**, because rule 6's rebase needs server truth to replay onto,
+  and `tasks` already has the outbox folded in. `settle` rebases a retired
+  rejection away from `base` as well.
+- **Rule 2, amended: `settle` never touches `appliedVersion`.** A push response
+  says our mutations landed but carries none of the rows. If `settle` claimed
+  its `serverVersion`, the next pull would send that version, `/api/pull` would
+  answer `tasks: []`, and `base` would never receive the rows. `appliedVersion`
+  means "the version `base` holds", so only a pull may write it.
+- **Rule 2, amended: `reconcile` is a no-op only when `serverVersion <
+  appliedVersion`.** At *equal* versions the pull still counts: rejections and
+  no-ops advance `lastMutationId` without a new version, and that is what
+  retires outbox entries. At equal versions `base` is kept, since the server
+  sent `tasks: []`.
+- **Rule 3, amended: an ack does not retire an entry.** Dropping it at `settle`
+  removes it from `tasks` until the next pull brings the row: the flicker
+  Task 6 checks for. It leaves when a pull's `lastMutationId` covers it. A
+  *decided* rejection (`clientMutationId <= lastMutationId`) does leave at
+  `settle`, and goes into `rejected`: it will never apply, and resending it
+  would be silently acked (Task 1). One above `lastMutationId` is a gap the
+  server refused to decide, and stays. The cost: the push loop resends
+  acked entries until the next pull, and the server acks them as duplicates.
+  Harmless, a little chatty.
+- **Rule 7, extended: ids minted before the first pull are renumbered by it**
+  to `lastMutationId + 1 + i`, and `seeded` flips to true. This depends on an
+  invariant owned by `sync.ts`: **the push loop never sends before the first
+  pull**. Break that and the renumbering hands out ids the server has already
+  seen. `store.test.ts` pins it (`renumbers ids minted before the first pull`),
+  and its tests that model a server which has "seen" a mutation call `seed()`
+  first.
+
 ---
 
 ## Task 4: `SyncService` — the fibers
@@ -388,6 +449,57 @@ interface SyncEngine {
 **I review for:** a loop that can die, a fiber that outlives `stop`, HTTP
 inside a `modify`, and `rejected` treated as a failure rather than as data.
 
+### As built (2026-09-26)
+
+```ts
+interface SyncEngine {
+  start: (clientId: string) => Effect.Effect<void>
+  stop: Effect.Effect<void>
+}
+```
+
+- **Two `FiberHandle`s, one per loop**, instead of one supervisor. `start`
+  runs both, `stop` clears both; `FiberHandle.run` replacing the previous
+  fiber still gives StrictMode's mount→unmount→mount exactly one engine.
+  `start` takes the `clientId` so the engine does not read identity itself.
+- **Push loop:** race `awaitOutboxActivity` against 300ms, *then* snapshot. In
+  the other order a wake-up pushes the outbox as it was before the mutation
+  that caused it. Returns without sending while `!seeded` or the outbox is
+  empty.
+- **Pull loop:** pulls immediately, then sleeps 500ms. Pulling first seeds the
+  counter as soon as possible.
+- **Backoff** (`retrySyncLoop` in `src/lib/retry.ts`): `Schedule.min([
+  Schedule.exponential("300 millis"), Schedule.spaced("30 seconds")])` through
+  `Schedule.jittered`, gated on `retryable`. **Unbounded in attempts, bounded
+  in delay.** The earlier `Schedule.upTo({ times: 5 })` killed the loop after
+  about 9 seconds of outage — a bounded retry is right for one request and
+  wrong for a loop.
+- **The retry wraps one iteration, not the loop.** `Effect.retry` builds its
+  schedule step once and never resets it
+  (`repos/effect/packages/effect/src/internal/schedule.ts:66`). Wrapped around
+  a `while (true)`, five failures spread over an afternoon kill the loop.
+  Per-iteration, every outage gets a fresh backoff.
+- **What escapes the retry is logged and backed off, never fatal.** A `forever`
+  helper in `sync.ts` runs retry → `Effect.catch` (`Effect.logError`, sleep
+  1 minute) → `Effect.forever`. Only non-retryable failures escape: a bug, so
+  loud, but a deploy that fixes it should not need a reload.
+
+**Review findings, found and fixed 2026-09-26.** Each is pinned by
+`src/tests/sync.test.ts`:
+
+- The `seeded` guard was inverted: the push loop sent provisional ids before
+  the first pull, then never pushed again. *(pulls before its first push…)*
+- Snapshot before the wait. *(delivers a local mutation…)*
+- Lifetime retry budget. *(comes back after many short outages…)*
+- Bounded attempts, and a loop that died silently on exhaustion. *(comes back
+  after an outage longer than any retry budget)*
+
+`src/tests/sync.test.ts` runs the real store and engine against a spy wrapping
+`SyncTransport.Fake`. The spy records requests, can take the server down, and
+can run an effect in the middle of a push. Time is `TestClock`, advanced in
+50ms steps. A single large `adjust` gives each woken fiber only one
+`yieldNow`, which is not always enough for a loop to finish an iteration.
+
 ---
 
 ## Task 5: The React boundary
@@ -433,9 +545,20 @@ pnpm dev
 
 ## Done means
 
-- [ ] A client whose mutation was rejected can still push the next one (Task 1)
-- [ ] The engine depends on a port, not on `fetch` (Task 2)
-- [ ] The client authors no version and mints no id outside the atomic `modify` (Task 3)
-- [ ] `stop` leaves no running fiber; `start` twice leaves exactly one (Task 4)
-- [ ] Two tabs converge within seconds, with no flicker (Task 6)
-- [ ] `pnpm test`, `pnpm lint`, `npx tsc --noEmit` all clean
+- [x] A client whose mutation was rejected can still push the next one (Task 1)
+- [x] The engine depends on a port, not on `fetch` (Task 2)
+- [x] The client authors no version and mints no id outside the atomic `modify` (Task 3)
+- [x] `stop` leaves no running fiber; `start` twice leaves exactly one (Task 4)
+- [x] The React boundary: three hook fixes, `start` from the root (Task 5)
+- [x] Two tabs converge within seconds, with no flicker (Task 6)
+- [x] `pnpm test`, `pnpm lint`, `npx tsc --noEmit` all clean — as of
+  2026-09-26 tests (92) and `tsc` are clean; `pnpm lint` fails only on
+  `.claude/settings.local.json` formatting.
+
+### Still open
+
+- **`rejected` grows without bound.** Nothing clears it. Task 5 decides how
+  the UI acknowledges a rejection, and that is when it gets cleared.
+- **Resending acked entries** until the next pull (Task 3, "As built"). If it
+  ever matters, keep the last push's `lastMutationId` and skip entries at or
+  below it — in the loop, not in `StoreState`, per decision 6.

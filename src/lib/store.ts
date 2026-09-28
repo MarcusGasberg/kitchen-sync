@@ -10,7 +10,8 @@ import {
   Stream,
   SubscriptionRef,
 } from "effect";
-import React from "react";
+import type { HttpClient } from "effect/unstable/http/HttpClient";
+import React, { useCallback } from "react";
 import type { StaleMutationError, TaskNotFoundError } from "#/domain/errors";
 import type {
   MutationIntent,
@@ -20,6 +21,8 @@ import type {
   PushResponse,
 } from "#/domain/mutation";
 import { apply, decide, type TaskState } from "#/domain/reduce";
+import type { SyncEngineService } from "./sync";
+import type { SyncTransportService } from "./transport";
 
 export interface StoreState {
   // Server truth at `appliedVersion`. Only a pull writes it: a push response
@@ -54,6 +57,7 @@ interface Store {
   awaitOutboxActivity: Effect.Effect<void>;
   settle: (response: typeof PushResponse.Type) => Effect.Effect<StoreState>;
   reconcile: (response: typeof PullResponse.Type) => Effect.Effect<StoreState>;
+  dismissRejected(ids: ReadonlyArray<number>): Effect.Effect<StoreState>;
 }
 
 const sortByOrder = (tasks: TaskState): TaskState => {
@@ -145,12 +149,11 @@ export class StoreService extends Context.Service<StoreService, Store>()(
           }),
         reconcile: (response) =>
           SubscriptionRef.updateAndGet(STORE, (s) => {
-            // Answered before a pull we have already applied.
             if (response.serverVersion < s.appliedVersion) return s;
 
             // At the same version the rows are unchanged, and `/api/pull` sends
             // an up-to-date client `tasks: []`. The pull still counts:
-            // rejections and no-ops advance `lastMutationId` but no version.
+            // rejections and no-ops advance `lastMutationId` but not the version.
             const base: TaskState =
               response.serverVersion > s.appliedVersion
                 ? new Map(response.tasks.map((task) => [task.id, task]))
@@ -184,6 +187,14 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               seeded: true,
             };
           }),
+        dismissRejected(ids) {
+          return SubscriptionRef.updateAndGet(STORE, (s) => ({
+            ...s,
+            rejected: s.rejected.filter(
+              (r) => !ids.includes(r.clientMutationId),
+            ),
+          }));
+        },
       });
     }),
   );
@@ -191,29 +202,33 @@ export class StoreService extends Context.Service<StoreService, Store>()(
 
 export const StoreRuntimeContext =
   React.createContext<ManagedRuntime.ManagedRuntime<
-    StoreService,
+    StoreService | SyncTransportService | HttpClient | SyncEngineService,
     never
   > | null>(null);
 
 export function useSyncEngineStore() {
   const runtime = React.useContext(StoreRuntimeContext);
 
-  const onChangeCallback = (onChange: () => void) =>
-    runtime?.runSync(
-      Effect.map(StoreService, (storeService) => {
-        const fiber = Effect.runFork(
-          storeService.changes.pipe(
-            Stream.runForEach(() => Effect.sync(onChange)),
-          ),
-        );
-        return () => Effect.runFork(Fiber.interrupt(fiber));
-      }),
-    ) ?? (() => {});
+  const onChangeCallback = useCallback(
+    (onChange: () => void) =>
+      runtime?.runSync(
+        Effect.map(StoreService, (storeService) => {
+          const fiber = runtime.runFork(
+            storeService.changes.pipe(
+              Stream.runForEach(() => Effect.sync(onChange)),
+            ),
+          );
+          return () => Effect.runFork(Fiber.interrupt(fiber));
+        }),
+      ) ?? (() => {}),
+    [runtime],
+  );
 
   return React.useSyncExternalStore(
-    (onChange) => onChangeCallback(onChange),
+    onChangeCallback,
     () =>
       runtime?.runSync(Effect.flatMap(StoreService, (s) => s.getSnapShot())) ??
       EMPTY_STATE,
+    () => EMPTY_STATE,
   );
 }

@@ -79,6 +79,14 @@ const settle = (response: typeof PushResponse.Type) =>
 const reconcile = (response: typeof PullResponse.Type) =>
   Effect.flatMap(StoreService, (s) => s.reconcile(response));
 
+// The first pull, from an empty server. Until it lands the store's ids are
+// provisional, and `reconcile` renumbers them on the assumption that none has
+// been pushed yet (the push loop waits for it). A test whose server has
+// already "seen" a mutation must seed first, or it describes a push that
+// cannot happen.
+const seed = () =>
+  reconcile({ serverVersion: 0, lastMutationId: 0, tasks: [] });
+
 const getTasks = () =>
   Effect.map(snapshot(), (state) => Array.from(state.tasks.values()));
 
@@ -355,8 +363,25 @@ describe("clientMutationId", () => {
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
+  it.effect("renumbers ids minted before the first pull", () =>
+    Effect.gen(function* () {
+      // Typed before the engine heard from the server: 1 and 2 are guesses.
+      yield* apply(createMutation("a"));
+      yield* apply(createMutation("b"));
+
+      yield* reconcile({ serverVersion: 3, lastMutationId: 41, tasks: [] });
+      yield* apply(createMutation("c"));
+
+      // Sent as 1 and 2, they would land in the duplicate branch: acked,
+      // never applied.
+      expect(yield* getOutboxIds()).toEqual([42, 43, 44]);
+      expect(yield* getTitles()).toEqual(["a", "b", "c"]);
+    }).pipe(Effect.provide(StoreService.Live)),
+  );
+
   it.effect("never reissues an id still waiting in the outbox", () =>
     Effect.gen(function* () {
+      yield* seed();
       const a = createMutation("a");
       yield* apply(a);
       yield* apply(createMutation("b"));
@@ -414,6 +439,7 @@ describe("settle", () => {
     "removes entries by id, so a pull landing mid-push cannot eat a newer mutation",
     () =>
       Effect.gen(function* () {
+        yield* seed();
         const a = createMutation("a");
         yield* apply(a);
         yield* apply(createMutation("b"));
@@ -428,17 +454,24 @@ describe("settle", () => {
           ],
         });
 
+        // ...and the push comes back with 2 rejected.
         yield* settle(
-          pushResponse({ serverVersion: 2, acked: [1, 2], lastMutationId: 2 }),
+          pushResponse({
+            serverVersion: 1,
+            acked: [1],
+            rejected: [{ clientMutationId: 2, reason: "stale" }],
+            lastMutationId: 2,
+          }),
         );
 
-        // `outbox.slice(acked.length)` would leave [] and lose "c".
+        // Removing two entries by count would leave [] and lose "c".
         expect(yield* getOutboxIds()).toEqual([3]);
       }).pipe(Effect.provide(StoreService.Live)),
   );
 
   it.effect("retires a rejected mutation for good and surfaces it", () =>
     Effect.gen(function* () {
+      yield* seed();
       yield* apply(createMutation("a"));
       yield* apply(createMutation("b"));
 
@@ -452,15 +485,17 @@ describe("settle", () => {
       );
 
       // Left in the outbox, 2 is pushed again -- and the server's duplicate
-      // branch acks it without applying it.
-      expect(yield* getOutboxIds()).toEqual([]);
+      // branch acks it without applying it. 1 stays: an ack carries no rows,
+      // so dropping it now would make "a" vanish until the next pull.
+      expect(yield* getOutboxIds()).toEqual([1]);
+      expect(yield* getTitles()).toEqual(["a"]);
       expect((yield* snapshot()).rejected).toEqual([
         { clientMutationId: 2, reason: "stale" },
       ]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
-  it.effect("advances appliedVersion but never rewinds it", () =>
+  it.effect("leaves appliedVersion to the pulls", () =>
     Effect.gen(function* () {
       yield* reconcile({ serverVersion: 5, lastMutationId: 0, tasks: [] });
 
@@ -468,8 +503,10 @@ describe("settle", () => {
       yield* settle(pushResponse({ serverVersion: 3 }));
       expect((yield* snapshot()).appliedVersion).toBe(5);
 
+      // Newer, but it carries no rows. Claiming version 7 would make the next
+      // pull answer `tasks: []`, and `base` would never get the rows.
       yield* settle(pushResponse({ serverVersion: 7 }));
-      expect((yield* snapshot()).appliedVersion).toBe(7);
+      expect((yield* snapshot()).appliedVersion).toBe(5);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 });
@@ -515,6 +552,7 @@ describe("reconcile", () => {
 
   it.effect("retires entries the server has already confirmed", () =>
     Effect.gen(function* () {
+      yield* seed();
       const a = createMutation("a");
       yield* apply(a);
       yield* apply(createMutation("b"));
@@ -534,6 +572,7 @@ describe("reconcile", () => {
     "keeps a mutation that no longer applies, so its id still reaches the server",
     () =>
       Effect.gen(function* () {
+        yield* seed();
         const create = createMutation("doomed");
         yield* apply(create);
         yield* apply(editMutation(create.taskId, { title: "renamed" }));

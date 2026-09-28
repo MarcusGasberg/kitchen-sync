@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
 const ensureClientIdBrowser = () => ensureClientId(localStorage);
 
 function Home() {
-  const { tasks } = useSyncEngineStore();
+  const { tasks, rejected } = useSyncEngineStore();
   const [title, setTitle] = useState("");
   const runtime = useContext(StoreRuntimeContext);
 
@@ -64,6 +64,14 @@ function Home() {
       taskId,
     });
 
+  const dismissRejected = () =>
+    runtime?.runPromise(
+      Effect.gen(function* () {
+        const store = yield* StoreService;
+        yield* store.dismissRejected(rejected.map((r) => r.clientMutationId));
+      }),
+    );
+
   return (
     <main>
       <h1>Kitchen Sync</h1>
@@ -99,6 +107,21 @@ function Home() {
             </li>
           ))}
         </ul>
+      )}
+
+      {rejected.length && (
+        <>
+          {rejected.map((rej) => (
+            <>
+              <p key={rej.clientMutationId} style={{ color: "red" }}>
+                Mutation {rej.clientMutationId} rejected: {rej.reason}
+              </p>
+            </>
+          ))}
+          <button type="button" onClick={() => dismissRejected()}>
+            Dismiss
+          </button>
+        </>
       )}
     </main>
   );
