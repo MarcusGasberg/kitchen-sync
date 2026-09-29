@@ -24,42 +24,33 @@ const uuid = (): string => globalThis.crypto.randomUUID();
 
 const now = () => DateTime.makeUnsafe(new Date());
 
-const create = (clientId: string, title: string): MutationIntent => ({
+const create = (title: string): MutationIntent => ({
   _tag: "CreateTask",
-  clientId,
   issuedAt: now(),
   taskId: uuid(),
   task: { title },
 });
 
-const complete = (clientId: string, taskId: string): MutationIntent => ({
+const complete = (taskId: string): MutationIntent => ({
   _tag: "SetTaskCompleted",
-  clientId,
   issuedAt: now(),
   taskId,
   completed: true,
 });
 
-const edit = (
-  clientId: string,
-  taskId: string,
-  title: string,
-): MutationIntent => ({
+const edit = (taskId: string, title: string): MutationIntent => ({
   _tag: "EditTask",
-  clientId,
   issuedAt: now(),
   taskId,
   changes: { title },
 });
 
 const reorder = (
-  clientId: string,
   taskId: string,
   baseVersion: number,
   order: number,
 ): MutationIntent => ({
   _tag: "ReorderTask",
-  clientId,
   issuedAt: now(),
   taskId,
   baseVersion,
@@ -110,7 +101,7 @@ describe("SyncClient", () => {
       const a = Context.get(yield* build, StoreService);
       const b = Context.get(yield* build, StoreService);
 
-      yield* a.applyMutation(create(uuid(), "only in a"));
+      yield* a.applyMutation(create("only in a"));
 
       expect((yield* b.getSnapShot()).tasks.size).toBe(0);
     }),
@@ -131,9 +122,9 @@ describe("convergence", () => {
         yield* b.start;
         yield* tick(500);
         const [one, two, three] = [
-          create(a.clientId, "one"),
-          create(a.clientId, "two"),
-          create(a.clientId, "three"),
+          create("one"),
+          create("two"),
+          create("three"),
         ];
         yield* a.apply(one);
         yield* a.apply(two);
@@ -156,11 +147,11 @@ describe("convergence", () => {
         }
         // The same task moved to two different places from the same version:
         // exactly one of them can win.
-        yield* a.apply(reorder(a.clientId, three.taskId, seenByA.version, 0));
-        yield* b.apply(reorder(b.clientId, three.taskId, seenByB.version, 1));
-        yield* a.apply(edit(a.clientId, one.taskId, "one, edited by a"));
-        yield* b.apply(complete(b.clientId, two.taskId));
-        yield* b.apply(create(b.clientId, "four"));
+        yield* a.apply(reorder(three.taskId, seenByA.version, 0));
+        yield* b.apply(reorder(three.taskId, seenByB.version, 1));
+        yield* a.apply(edit(one.taskId, "one, edited by a"));
+        yield* b.apply(complete(two.taskId));
+        yield* b.apply(create("four"));
 
         expect(view(yield* a.state)).not.toEqual(view(yield* b.state));
 

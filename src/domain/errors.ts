@@ -12,4 +12,6 @@ export class StaleMutationError extends Data.TaggedError("StaleMutationError")<{
 
 export class TransportFailure extends Data.TaggedError("TransportFailure")<{
   retryable: boolean;
+  // For people: what the UI shows when a failure stops sync.
+  reason: string;
 }> {}

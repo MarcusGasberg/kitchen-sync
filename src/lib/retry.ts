@@ -32,7 +32,8 @@ export function timeoutAsTransportFailure<A, E, R>(
     Effect.timeout("10 seconds"),
     Effect.catchTag(
       "TimeoutError",
-      () => new TransportFailure({ retryable: true }),
+      () =>
+        new TransportFailure({ retryable: true, reason: "request timed out" }),
     ),
   );
 }

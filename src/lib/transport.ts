@@ -31,13 +31,22 @@ const classifyHttpClientError = (
     err.reason._tag !== "TransportError" &&
     err.reason._tag !== "StatusCodeError"
   ) {
-    return new TransportFailure({ retryable: false });
+    return new TransportFailure({
+      retryable: false,
+      reason: `request failed: ${err.reason._tag}`,
+    });
   }
   const retryable =
     err.reason._tag === "TransportError"
       ? true
       : err.reason.response.status >= 500 || err.reason.response.status === 429;
-  return new TransportFailure({ retryable });
+  return new TransportFailure({
+    retryable,
+    reason:
+      err.reason._tag === "TransportError"
+        ? "network error"
+        : `HTTP ${err.reason.response.status}`,
+  });
 };
 
 // Classifies, never retries: the sync loops own retrying, so one outage is
@@ -54,8 +63,16 @@ const asTransportFailure = <A, R>(
   pipe(
     effect,
     Effect.catchTags({
-      SchemaError: () => new TransportFailure({ retryable: false }),
-      HttpBodyError: () => new TransportFailure({ retryable: false }),
+      SchemaError: () =>
+        new TransportFailure({
+          retryable: false,
+          reason: "unexpected response from the server",
+        }),
+      HttpBodyError: () =>
+        new TransportFailure({
+          retryable: false,
+          reason: "could not encode the request",
+        }),
       HttpClientError: classifyHttpClientError,
     }),
     timeoutAsTransportFailure,
@@ -116,7 +133,11 @@ export class SyncTransportService extends Context.Service<
           Effect.flatMap(Schema.decodeUnknownEffect(PullResponse)),
           Effect.catchTag(
             "SchemaError",
-            () => new TransportFailure({ retryable: false }),
+            () =>
+              new TransportFailure({
+                retryable: false,
+                reason: "unexpected response from the server",
+              }),
           ),
         ),
       push: (req) =>

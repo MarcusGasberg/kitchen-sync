@@ -30,13 +30,11 @@ const createTaskMutation = (title: string): typeof TaskMutation.Type => ({
   _tag: "CreateTask",
   clientMutationId: nextMutationId(),
   issuedAt: DateTime.makeUnsafe(new Date()),
-  clientId: testClientId,
   taskId: uuid(),
   task: { title },
 });
 
 const setTaskCompletedMutation = (
-  clientId: string,
   taskId: string,
   completed: boolean,
 ): typeof TaskMutation.Type => ({
@@ -44,37 +42,29 @@ const setTaskCompletedMutation = (
   issuedAt: DateTime.makeUnsafe(new Date()),
   completed,
   clientMutationId: nextMutationId(),
-  clientId,
   taskId,
 });
 
 const editTaskMutation = (
-  clientId: string,
   taskId: string,
   changes: { title?: string; completed?: boolean },
 ): typeof TaskMutation.Type => ({
   _tag: "EditTask",
   issuedAt: DateTime.makeUnsafe(new Date()),
   clientMutationId: nextMutationId(),
-  clientId,
   taskId,
   changes,
 });
 
-const deleteTaskMutation = (
-  clientId: string,
-  taskId: string,
-): typeof TaskMutation.Type => ({
+const deleteTaskMutation = (taskId: string): typeof TaskMutation.Type => ({
   _tag: "DeleteTask",
 
   issuedAt: DateTime.makeUnsafe(new Date()),
   clientMutationId: nextMutationId(),
-  clientId,
   taskId,
 });
 
 const reorderTaskMutation = (
-  clientId: string,
   taskId: string,
   order: number,
 ): typeof TaskMutation.Type => ({
@@ -82,7 +72,6 @@ const reorderTaskMutation = (
   issuedAt: DateTime.makeUnsafe(new Date()),
   clientMutationId: nextMutationId(),
   baseVersion: 1,
-  clientId,
   taskId,
   order,
 });
@@ -129,7 +118,7 @@ describe("TaskRepoService", () => {
           yield* repo.applyMutations(testClientId, [created]);
 
           yield* repo.applyMutations(testClientId, [
-            setTaskCompletedMutation(created.clientId, created.taskId, true),
+            setTaskCompletedMutation(created.taskId, true),
           ]);
 
           const tasks = yield* repo.getAllTasks();
@@ -145,7 +134,7 @@ describe("TaskRepoService", () => {
           yield* repo.applyMutations(testClientId, [created]);
 
           yield* repo.applyMutations(testClientId, [
-            editTaskMutation(created.clientId, created.taskId, {
+            editTaskMutation(created.taskId, {
               title: "milk",
             }),
           ]);
@@ -168,7 +157,7 @@ describe("TaskRepoService", () => {
           expect(yield* repo.getAllTasks()).toHaveLength(1);
 
           const remove = yield* repo.applyMutations(testClientId, [
-            deleteTaskMutation(created.clientId, created.taskId),
+            deleteTaskMutation(created.taskId),
           ]);
 
           expect(remove.rejected).toEqual([]);
@@ -182,11 +171,7 @@ describe("TaskRepoService", () => {
           Effect.gen(function* () {
             yield* resetTables;
             const repo = yield* TaskRepoService;
-            const missing = setTaskCompletedMutation(
-              testClientId,
-              uuid(),
-              true,
-            );
+            const missing = setTaskCompletedMutation(uuid(), true);
 
             const response = yield* repo.applyMutations(testClientId, [
               missing,
@@ -284,7 +269,7 @@ describe("version accounting", () => {
             ]);
 
             const response = yield* repo.applyMutations(testClientId, [
-              deleteTaskMutation(first.clientId, first.taskId),
+              deleteTaskMutation(first.taskId),
             ]);
 
             const tasks = yield* repo.getAllTasks();
@@ -309,7 +294,7 @@ describe("version accounting", () => {
           ]);
 
           yield* repo.applyMutations(testClientId, [
-            deleteTaskMutation(first.clientId, first.taskId),
+            deleteTaskMutation(first.taskId),
           ]);
 
           const tasks = yield* repo.getAllTasks();
@@ -333,7 +318,7 @@ describe("version accounting", () => {
           ]);
 
           yield* repo.applyMutations(testClientId, [
-            deleteTaskMutation(first.clientId, first.taskId),
+            deleteTaskMutation(first.taskId),
           ]);
 
           const fourth = createTaskMutation("fourth");
@@ -354,7 +339,7 @@ describe("version accounting", () => {
           yield* resetTables;
           const repo = yield* TaskRepoService;
           const created = createTaskMutation("first");
-          yield* repo.applyMutations(created.clientId, [created]);
+          yield* repo.applyMutations(testClientId, [created]);
 
           // A redelivered CreateTask is a no-op: it must not consume a version,
           // and it must not push the next mutation's appliedVersion up.
@@ -362,13 +347,9 @@ describe("version accounting", () => {
             ...created,
             clientMutationId: nextMutationId(),
           };
-          const completed = setTaskCompletedMutation(
-            created.clientId,
-            created.taskId,
-            true,
-          );
+          const completed = setTaskCompletedMutation(created.taskId, true);
 
-          const response = yield* repo.applyMutations(created.clientId, [
+          const response = yield* repo.applyMutations(testClientId, [
             redelivered,
             completed,
           ]);
@@ -396,7 +377,7 @@ describe("version accounting", () => {
             issuedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
           };
 
-          yield* repo.applyMutations(created.clientId, [created]);
+          yield* repo.applyMutations(testClientId, [created]);
 
           const tasks = yield* repo.getAllTasks();
 
@@ -440,13 +421,11 @@ describe("version accounting", () => {
             yield* resetTables;
             const repo = yield* TaskRepoService;
             const created = createTaskMutation("first");
-            const applied = yield* repo.applyMutations(created.clientId, [
-              created,
-            ]);
+            const applied = yield* repo.applyMutations(testClientId, [created]);
 
             // Two redeliveries of a create that already exists: both decide to
             // nothing, so the counter must not move and neither must the row.
-            const response = yield* repo.applyMutations(created.clientId, [
+            const response = yield* repo.applyMutations(testClientId, [
               { ...created, clientMutationId: nextMutationId() },
               { ...created, clientMutationId: nextMutationId() },
             ]);
@@ -472,7 +451,7 @@ describe("version accounting", () => {
           ]);
 
           const response = yield* repo.applyMutations(testClientId, [
-            reorderTaskMutation(first.clientId, first.taskId, 2),
+            reorderTaskMutation(first.taskId, 2),
           ]);
 
           const tasks = yield* repo.getAllTasks();
@@ -542,11 +521,7 @@ describe("idempotency", () => {
 
           // A client that retries an in-flight mutation and appends a new one
           // in the same push: the old id is a no-op, the new id applies.
-          const fresh = setTaskCompletedMutation(
-            testClientId,
-            created.taskId,
-            true,
-          );
+          const fresh = setTaskCompletedMutation(created.taskId, true);
           const response = yield* repo.applyMutations(testClientId, [
             created,
             fresh,
@@ -573,16 +548,8 @@ describe("idempotency", () => {
           yield* resetTables;
           const repo = yield* TaskRepoService;
           const created = createTaskMutation("oat milk");
-          const complete = setTaskCompletedMutation(
-            testClientId,
-            created.taskId,
-            true,
-          );
-          const uncomplete = setTaskCompletedMutation(
-            testClientId,
-            created.taskId,
-            false,
-          );
+          const complete = setTaskCompletedMutation(created.taskId, true);
+          const uncomplete = setTaskCompletedMutation(created.taskId, false);
 
           yield* repo.applyMutations(testClientId, [created, complete]);
           const settled = yield* repo.applyMutations(testClientId, [
@@ -647,7 +614,6 @@ describe("idempotency", () => {
               const reorder = (c: ClientGenerator, order: number) => ({
                 _tag: "ReorderTask" as const,
                 clientMutationId: c.nextId(),
-                clientId: c.clientId,
                 issuedAt: DateTime.makeUnsafe(new Date()),
                 taskId: target.id,
                 order,
@@ -702,7 +668,6 @@ describe("idempotency", () => {
             ) => ({
               _tag: "ReorderTask" as const,
               clientMutationId: c.nextId(),
-              clientId: c.clientId,
               issuedAt: DateTime.makeUnsafe(new Date()),
               taskId: target.id,
               order,
@@ -754,7 +719,7 @@ describe("rejection bookkeeping", () => {
             yield* repo.applyMutations(testClientId, [seed]);
             const afterCreate = (yield* repo.getAllTasks())[0];
             yield* repo.applyMutations(testClientId, [
-              setTaskCompletedMutation(testClientId, seed.taskId, true),
+              setTaskCompletedMutation(seed.taskId, true),
             ]);
             const target = (yield* repo.getAllTasks())[0];
             expect(target.version).toBeGreaterThan(afterCreate.version);
@@ -767,7 +732,6 @@ describe("rejection bookkeeping", () => {
             const stale: typeof TaskMutation.Type = {
               _tag: "ReorderTask",
               clientMutationId: nextId(),
-              clientId,
               issuedAt: DateTime.makeUnsafe(new Date()),
               taskId: target.id,
               order: 0,
@@ -788,7 +752,6 @@ describe("rejection bookkeeping", () => {
             const followUp: typeof TaskMutation.Type = {
               _tag: "CreateTask",
               clientMutationId: nextId(),
-              clientId,
               issuedAt: DateTime.makeUnsafe(new Date()),
               taskId: uuid(),
               task: { title: "after the rejection" },
@@ -822,7 +785,6 @@ describe("rejection bookkeeping", () => {
             ): typeof TaskMutation.Type => ({
               _tag: "CreateTask",
               clientMutationId,
-              clientId,
               issuedAt: DateTime.makeUnsafe(new Date()),
               taskId: uuid(),
               task: { title },

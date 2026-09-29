@@ -42,6 +42,20 @@ describe("verification", () => {
     expect(error).toMatchObject({ _tag: "SchemaError" });
   });
 
+  it("leaves the client's identity to the push, not to each mutation", () => {
+    // A mutation-level clientId could disagree with the push that carries it
+    // (and, on a page hosting many clients, with the engine that sends it).
+    const decoded = Schema.decodeUnknownSync(TaskMutation)({
+      _tag: "DeleteTask",
+      clientMutationId: 1,
+      issuedAt: "2026-01-01T00:00:00.000Z",
+      clientId: crypto.randomUUID(),
+      taskId: "t1",
+    });
+
+    expect(decoded).not.toHaveProperty("clientId");
+  });
+
   it("accepts an edit with a task id and at least one change", () => {
     const edit = Schema.decodeUnknownSync(TaskMutation)({
       _tag: "EditTask",

@@ -20,9 +20,17 @@ import type {
   PullResponse,
   PushResponse,
 } from "#/domain/mutation";
-import { apply, decide, type TaskState } from "#/domain/reduce";
+import { rebase } from "#/domain/rebase";
+import { decide, type TaskState } from "#/domain/reduce";
 import type { SyncEngineService } from "./sync";
 import type { SyncTransportService } from "./transport";
+
+// Sync stopped on a failure retrying cannot fix. The UI shows it until the
+// user retries.
+export interface SyncFailure {
+  readonly loop: "push" | "pull";
+  readonly reason: string;
+}
 
 export interface StoreState {
   // Server truth at `appliedVersion`. Only a pull writes it: a push response
@@ -39,6 +47,7 @@ export interface StoreState {
   // False until the first pull. Ids minted before it are provisional.
   seeded: boolean;
   rejected: ReadonlyArray<typeof MutationRejection.Type>;
+  syncFailure: SyncFailure | null;
 }
 
 const EMPTY_STATE = {
@@ -50,6 +59,7 @@ const EMPTY_STATE = {
   ackedThrough: 0,
   seeded: false,
   rejected: [],
+  syncFailure: null,
 } satisfies StoreState;
 
 interface Store {
@@ -62,33 +72,8 @@ interface Store {
   settle: (response: typeof PushResponse.Type) => Effect.Effect<StoreState>;
   reconcile: (response: typeof PullResponse.Type) => Effect.Effect<StoreState>;
   dismissRejected(ids: ReadonlyArray<number>): Effect.Effect<StoreState>;
+  setSyncFailure(failure: SyncFailure | null): Effect.Effect<StoreState>;
 }
-
-const sortByOrder = (tasks: TaskState): TaskState => {
-  return new Map(
-    Array.from(tasks.entries()).sort(([, a], [, b]) => a.order - b.order),
-  );
-};
-
-// The one theory of how `tasks` is computed (M7 plan, rule 6). A mutation that
-// no longer applies is skipped here but stays in the outbox: its id still has
-// to reach the server, which will reject it.
-const rebase = (
-  base: TaskState,
-  outbox: ReadonlyArray<OutboxEntry>,
-  version: number,
-): TaskState =>
-  sortByOrder(
-    outbox.reduce(
-      (tasks, entry) =>
-        pipe(
-          decide(tasks, entry.mutation, version, entry.mutation.issuedAt),
-          Result.map((patches) => apply(tasks, patches)),
-          Result.getOrElse(() => tasks),
-        ),
-      base,
-    ),
-  );
 
 export class StoreService extends Context.Service<StoreService, Store>()(
   "kitchen-sync/lib/store/StoreService",
@@ -111,20 +96,23 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               // that enqueues it: no id is spent on a mutation that never
               // reaches the outbox, so the server never sees a gap. A failure
               // leaves the state untouched and reaches the caller.
-              Result.map(
-                (patches): StoreState => ({
+              // `decide` only validates against what the user sees; `tasks`
+              // itself comes from `rebase`, like every other write of it.
+              Result.map((): StoreState => {
+                const outbox = [
+                  ...s.outbox,
+                  {
+                    mutation: { ...intent, clientMutationId: s.nextId },
+                    timestamp: intent.issuedAt,
+                  },
+                ];
+                return {
                   ...s,
-                  tasks: sortByOrder(apply(s.tasks, patches)),
-                  outbox: [
-                    ...s.outbox,
-                    {
-                      mutation: { ...intent, clientMutationId: s.nextId },
-                      timestamp: intent.issuedAt,
-                    },
-                  ],
+                  tasks: rebase(s.base, outbox, s.appliedVersion),
+                  outbox,
                   nextId: s.nextId + 1,
-                }),
-              ),
+                };
+              }),
               Effect.fromResult,
             ),
           ).pipe(Effect.tap(() => Queue.offer(QUEUE, undefined))),
@@ -197,6 +185,12 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               seeded: true,
             };
           }),
+        setSyncFailure(syncFailure) {
+          return SubscriptionRef.updateAndGet(STORE, (s) => ({
+            ...s,
+            syncFailure,
+          }));
+        },
         dismissRejected(ids) {
           return SubscriptionRef.updateAndGet(STORE, (s) => ({
             ...s,

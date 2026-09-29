@@ -4,6 +4,7 @@ import {
   FiberHandle,
   Layer,
   type ManagedRuntime,
+  Ref,
 } from "effect";
 import type { HttpClient } from "effect/unstable/http/HttpClient";
 import { useEffect } from "react";
@@ -11,26 +12,15 @@ import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
 import { ensureClientId } from "./client-identity";
 import { retrySyncLoop } from "./retry";
-import { StoreService } from "./store";
+import { StoreService, type SyncFailure } from "./store";
 import { SyncTransportService } from "./transport";
 
 interface SyncEngine {
   start: (clientId: string) => Effect.Effect<void>;
   stop: Effect.Effect<void>;
+  // Clears a sync failure and starts again as the last `start` did.
+  retry: Effect.Effect<void>;
 }
-
-const forever =
-  (loop: string) =>
-  <R>(iteration: Effect.Effect<void, TransportFailure, R>) =>
-    iteration.pipe(
-      retrySyncLoop,
-      Effect.catch((failure) =>
-        Effect.logError(`sync ${loop} loop: unretryable failure`, failure).pipe(
-          Effect.andThen(Effect.sleep("1 minute")),
-        ),
-      ),
-      Effect.forever,
-    );
 
 export class SyncEngineService extends Context.Service<
   SyncEngineService,
@@ -44,8 +34,30 @@ export class SyncEngineService extends Context.Service<
 
       const pushLoopHandle = yield* FiberHandle.make();
       const pullLoopHandle = yield* FiberHandle.make();
+      const lastClientId = yield* Ref.make<string | null>(null);
+
+      // Runs one loop until a failure that retrying cannot fix (a 4xx, a
+      // response that does not decode). That is a bug, not weather: the loop
+      // stops, and the UI says so, rather than resending the same doomed
+      // request every so often forever.
+      const untilFatal =
+        (loop: SyncFailure["loop"]) =>
+        <R>(iteration: Effect.Effect<void, TransportFailure, R>) =>
+          iteration.pipe(
+            retrySyncLoop,
+            Effect.forever,
+            Effect.catch((failure) =>
+              Effect.logError(`sync ${loop} loop stopped`, failure).pipe(
+                Effect.andThen(
+                  store.setSyncFailure({ loop, reason: failure.reason }),
+                ),
+                Effect.asVoid,
+              ),
+            ),
+          );
+
       const pushLoop = (clientId: string) =>
-        forever("push")(
+        untilFatal("push")(
           Effect.gen(function* () {
             yield* Effect.race(
               store.awaitOutboxActivity,
@@ -76,7 +88,7 @@ export class SyncEngineService extends Context.Service<
           }),
         );
       const pullLoop = (clientId: string) =>
-        forever("pull")(
+        untilFatal("pull")(
           Effect.gen(function* () {
             const { appliedVersion } = yield* store.getSnapShot();
             const request = PullRequest.make({
@@ -91,12 +103,19 @@ export class SyncEngineService extends Context.Service<
           }),
         );
 
+      const start = (clientId: string) =>
+        Effect.all([
+          Ref.set(lastClientId, clientId),
+          store.setSyncFailure(null),
+          FiberHandle.run(pushLoopHandle, pushLoop(clientId)),
+          FiberHandle.run(pullLoopHandle, pullLoop(clientId)),
+        ]).pipe(Effect.asVoid);
+
       return {
-        start: (clientId) =>
-          Effect.all([
-            FiberHandle.run(pushLoopHandle, pushLoop(clientId)),
-            FiberHandle.run(pullLoopHandle, pullLoop(clientId)),
-          ]),
+        start,
+        retry: Effect.flatMap(Ref.get(lastClientId), (clientId) =>
+          clientId === null ? Effect.void : start(clientId),
+        ),
         stop: Effect.all(
           [
             FiberHandle.clear(pushLoopHandle),

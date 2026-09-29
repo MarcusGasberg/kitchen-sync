@@ -26,7 +26,6 @@ const stateOf = (...tasks: ReadonlyArray<Task>): TaskState =>
 const deleteTaskMutation = (taskId: string): typeof TaskMutation.Type => ({
   _tag: "DeleteTask",
   clientMutationId: nextMutationId(),
-  clientId: uuid(),
   issuedAt: AT,
   taskId,
 });
@@ -38,7 +37,6 @@ const reorderTaskMutation = (
 ): typeof TaskMutation.Type => ({
   _tag: "ReorderTask",
   clientMutationId: nextMutationId(),
-  clientId: uuid(),
   issuedAt: AT,
   baseVersion,
   taskId,

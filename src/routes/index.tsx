@@ -2,21 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DateTime, Effect } from "effect";
 import { useContext, useState } from "react";
 import type { MutationIntent } from "#/domain/mutation";
-import { ensureClientId } from "#/lib/client-identity";
 import {
   StoreRuntimeContext,
   StoreService,
   useSyncEngineStore,
 } from "#/lib/store";
+import { SyncEngineService } from "#/lib/sync";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const ensureClientIdBrowser = () => ensureClientId(localStorage);
-
 function Home() {
-  const { tasks, rejected } = useSyncEngineStore();
+  const { tasks, rejected, syncFailure } = useSyncEngineStore();
   const [title, setTitle] = useState("");
   const runtime = useContext(StoreRuntimeContext);
 
@@ -39,7 +37,6 @@ function Home() {
     if (!trimmed) return;
     applyMutation({
       _tag: "CreateTask",
-      clientId: ensureClientIdBrowser(),
       taskId: crypto.randomUUID(),
       issuedAt: DateTime.makeUnsafe(new Date()),
       task: { title: trimmed },
@@ -50,7 +47,6 @@ function Home() {
   const toggleCompleted = (taskId: string, completed: boolean) =>
     applyMutation({
       _tag: "EditTask",
-      clientId: ensureClientIdBrowser(),
       taskId,
       issuedAt: DateTime.makeUnsafe(new Date()),
       changes: { completed: !completed },
@@ -59,7 +55,6 @@ function Home() {
   const deleteTask = (taskId: string) =>
     applyMutation({
       _tag: "DeleteTask",
-      clientId: ensureClientIdBrowser(),
       issuedAt: DateTime.makeUnsafe(new Date()),
       taskId,
     });
@@ -72,9 +67,23 @@ function Home() {
       }),
     );
 
+  const retrySync = () =>
+    runtime?.runPromise(
+      Effect.flatMap(SyncEngineService, (engine) => engine.retry),
+    );
+
   return (
     <main>
       <h1>Kitchen Sync</h1>
+      {syncFailure && (
+        <p role="alert" style={{ color: "red" }}>
+          Sync stopped ({syncFailure.loop}): {syncFailure.reason}. Your changes
+          are kept on this device.{" "}
+          <button type="button" onClick={() => retrySync()}>
+            Retry
+          </button>
+        </p>
+      )}
       <form onSubmit={createTask}>
         <input
           type="text"
@@ -109,14 +118,12 @@ function Home() {
         </ul>
       )}
 
-      {rejected.length && (
+      {rejected.length > 0 && (
         <>
           {rejected.map((rej) => (
-            <>
-              <p key={rej.clientMutationId} style={{ color: "red" }}>
-                Mutation {rej.clientMutationId} rejected: {rej.reason}
-              </p>
-            </>
+            <p key={rej.clientMutationId} style={{ color: "red" }}>
+              Mutation {rej.clientMutationId} rejected: {rej.reason}
+            </p>
           ))}
           <button type="button" onClick={() => dismissRejected()}>
             Dismiss

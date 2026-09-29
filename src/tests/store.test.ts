@@ -7,6 +7,7 @@ import type {
   PullResponse,
   PushResponse,
 } from "../domain/mutation";
+import { rebase } from "../domain/rebase";
 import { StoreService, type StoreState } from "../lib/store";
 
 const uuid = (): string =>
@@ -18,7 +19,6 @@ const uuid = (): string =>
 // mutation that did not make it into the outbox (plan decision 7).
 const createMutation = (title: string): MutationIntent => ({
   _tag: "CreateTask",
-  clientId: uuid(),
   issuedAt: DateTime.makeUnsafe(new Date()),
   taskId: uuid(),
   task: { title },
@@ -26,7 +26,6 @@ const createMutation = (title: string): MutationIntent => ({
 
 const completeMutation = (taskId: string): MutationIntent => ({
   _tag: "SetTaskCompleted",
-  clientId: uuid(),
   issuedAt: DateTime.makeUnsafe(new Date()),
   taskId,
   completed: true,
@@ -37,7 +36,6 @@ const editMutation = (
   changes: { title?: string; completed?: boolean },
 ): MutationIntent => ({
   _tag: "EditTask",
-  clientId: uuid(),
   issuedAt: DateTime.makeUnsafe(new Date()),
   taskId,
   changes,
@@ -46,7 +44,6 @@ const editMutation = (
 const deleteMutation = (taskId: string): MutationIntent => ({
   _tag: "DeleteTask",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  clientId: uuid(),
   taskId,
 });
 
@@ -57,7 +54,6 @@ const reorderMutation = (
 ): MutationIntent => ({
   _tag: "ReorderTask",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  clientId: uuid(),
   baseVersion,
   taskId,
   order,
@@ -327,7 +323,6 @@ describe("outbox", () => {
         "DeleteTask",
       ]);
       for (const entry of outbox) {
-        expect(entry.mutation.clientId).toBeTypeOf("string");
         expect(entry.mutation.clientMutationId).toBeGreaterThan(0);
         expect(DateTime.isUtc(entry.timestamp)).toBe(true);
       }
@@ -528,6 +523,64 @@ describe("rejected", () => {
       expect((yield* snapshot()).rejected).toEqual([
         { clientMutationId: 1, reason: "stale" },
       ]);
+    }).pipe(Effect.provide(StoreService.Live)),
+  );
+});
+
+describe("the rebase invariant", () => {
+  it.effect("every state the store publishes is rebase(base, outbox)", () =>
+    Effect.gen(function* () {
+      const store = yield* StoreService;
+      const seen: Array<StoreState> = [];
+      const watcher = yield* Effect.forkChild(
+        store.changes.pipe(
+          Stream.runForEach((state) => Effect.sync(() => seen.push(state))),
+        ),
+      );
+      yield* Effect.yieldNow;
+
+      // Optimistic writes before and after seeding, a pull carrying someone
+      // else's rows, a decided rejection, a partial confirmation.
+      const a = createMutation("a");
+      yield* apply(a);
+      yield* seed();
+      const b = createMutation("b");
+      yield* apply(b);
+      const theirs = serverTask({ title: "theirs", order: 0, version: 1 });
+      yield* reconcile({
+        serverVersion: 1,
+        lastMutationId: 0,
+        tasks: [theirs],
+      });
+      yield* apply(reorderMutation(b.taskId, 0, yield* versionOf(b.taskId)));
+      yield* apply(completeMutation(theirs.id));
+      yield* settle(
+        pushResponse({
+          serverVersion: 3,
+          acked: [1, 2],
+          rejected: [{ clientMutationId: 3, reason: "StaleMutationError" }],
+          lastMutationId: 4,
+        }),
+      );
+      yield* reconcile({
+        serverVersion: 3,
+        lastMutationId: 4,
+        tasks: [
+          serverTask({ id: theirs.id, title: "theirs", order: 0, version: 3 }),
+          serverTask({ id: a.taskId, title: "a", order: 1, version: 2 }),
+          serverTask({ id: b.taskId, title: "b", order: 2, version: 3 }),
+        ],
+      });
+      yield* apply(editMutation(a.taskId, { title: "a, again" }));
+      yield* Effect.yieldNow;
+      yield* Fiber.interrupt(watcher);
+
+      expect(seen.length).toBeGreaterThan(8);
+      for (const state of seen) {
+        expect([...state.tasks]).toEqual([
+          ...rebase(state.base, state.outbox, state.appliedVersion),
+        ]);
+      }
     }).pipe(Effect.provide(StoreService.Live)),
   );
 });

@@ -42,6 +42,7 @@ class Wire extends Context.Service<
     readonly outage: Ref.Ref<Option.Option<TransportFailure>>;
     // The same, for pulls only: pushes still land, nothing confirms them.
     readonly pullOutage: Ref.Ref<Option.Option<TransportFailure>>;
+    readonly pushOutage: Ref.Ref<Option.Option<TransportFailure>>;
     // Runs once, before the next push reaches the server, then resets.
     readonly duringNextPush: Ref.Ref<Effect.Effect<void>>;
   }
@@ -53,6 +54,7 @@ class Wire extends Context.Service<
         log: yield* Ref.make<ReadonlyArray<Sent>>([]),
         outage: yield* Ref.make(Option.none<TransportFailure>()),
         pullOutage: yield* Ref.make(Option.none<TransportFailure>()),
+        pushOutage: yield* Ref.make(Option.none<TransportFailure>()),
         duringNextPush: yield* Ref.make<Effect.Effect<void>>(Effect.void),
       });
     }),
@@ -92,6 +94,7 @@ const SpyTransport = Layer.effect(
             ids: req.mutations.map((m) => m.clientMutationId),
           });
           yield* gate;
+          yield* gateOn(wire.pushOutage);
           yield* Effect.flatten(
             Ref.getAndSet(wire.duringNextPush, Effect.void),
           );
@@ -121,25 +124,22 @@ const THEM = uuid();
 // always ask from version 0 and get every row.
 const OBSERVER = uuid();
 
-const create = (title: string, clientId = ME): MutationIntent => ({
+const create = (title: string): MutationIntent => ({
   _tag: "CreateTask",
-  clientId,
   issuedAt: DateTime.makeUnsafe(new Date()),
   taskId: uuid(),
   task: { title },
 });
 
-const complete = (taskId: string, clientId = ME): MutationIntent => ({
+const complete = (taskId: string): MutationIntent => ({
   _tag: "SetTaskCompleted",
-  clientId,
   issuedAt: DateTime.makeUnsafe(new Date()),
   taskId,
   completed: true,
 });
 
-const remove = (taskId: string, clientId = ME): MutationIntent => ({
+const remove = (taskId: string): MutationIntent => ({
   _tag: "DeleteTask",
-  clientId,
   issuedAt: DateTime.makeUnsafe(new Date()),
   taskId,
 });
@@ -204,6 +204,11 @@ const setOutage = (failure: Option.Option<TransportFailure>) =>
 const setPullOutage = (failure: Option.Option<TransportFailure>) =>
   Effect.flatMap(Wire, (wire) => Ref.set(wire.pullOutage, failure));
 
+const setPushOutage = (failure: Option.Option<TransportFailure>) =>
+  Effect.flatMap(Wire, (wire) => Ref.set(wire.pushOutage, failure));
+
+const retry = Effect.flatMap(SyncEngineService, (engine) => engine.retry);
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -224,7 +229,7 @@ describe("SyncEngineService", () => {
 
     it.effect("brings another client's changes into the store", () =>
       Effect.gen(function* () {
-        yield* pushAs(THEM, [create("theirs", THEM)], 1);
+        yield* pushAs(THEM, [create("theirs")], 1);
 
         yield* start;
         yield* tick(2000);
@@ -264,7 +269,9 @@ describe("SyncEngineService", () => {
           // Pushes land and are acked; no pull confirms them, so they stay in
           // the outbox for the whole window.
           yield* setPullOutage(
-            Option.some(new TransportFailure({ retryable: true })),
+            Option.some(
+              new TransportFailure({ retryable: true, reason: "server down" }),
+            ),
           );
           const { outbox } = yield* applyLocal(create("once"));
           const id = outbox[0].mutation.clientMutationId;
@@ -331,10 +338,10 @@ describe("SyncEngineService", () => {
         yield* start;
         yield* tick(500);
         // Someone else writing keeps the pulls carrying rows.
-        yield* pushAs(THEM, [create("noise 1", THEM)], 1);
+        yield* pushAs(THEM, [create("noise 1")], 1);
         yield* applyLocal(intent);
         yield* tick(1000);
-        yield* pushAs(THEM, [create("noise 2", THEM)], 2);
+        yield* pushAs(THEM, [create("noise 2")], 2);
         yield* tick(2000);
         yield* Fiber.interrupt(watcher);
 
@@ -376,7 +383,7 @@ describe("SyncEngineService", () => {
       "settles a rejection as data, never resends it, and keeps syncing",
       () =>
         Effect.gen(function* () {
-          const theirs = create("theirs", THEM);
+          const theirs = create("theirs");
           yield* pushAs(THEM, [theirs], 1);
 
           yield* start;
@@ -386,7 +393,7 @@ describe("SyncEngineService", () => {
           // While we are not looking, they delete it; we still see it and
           // tick its checkbox. Locally valid, on the server a TaskNotFound.
           yield* stop;
-          yield* pushAs(THEM, [remove(theirs.taskId, THEM)], 2);
+          yield* pushAs(THEM, [remove(theirs.taskId)], 2);
           const doomed = yield* applyLocal(complete(theirs.taskId));
           const doomedId = doomed.outbox[0].mutation.clientMutationId;
 
@@ -454,7 +461,14 @@ describe("SyncEngineService", () => {
   });
 
   describe("failure", () => {
-    const serverDown = Option.some(new TransportFailure({ retryable: true }));
+    // A broken contract (decode error, 4xx) is a bug, not weather.
+    const brokenContract = new TransportFailure({
+      retryable: false,
+      reason: "HTTP 400",
+    });
+    const serverDown = Option.some(
+      new TransportFailure({ retryable: true, reason: "server down" }),
+    );
 
     it.effect("comes back after an outage longer than any retry budget", () =>
       Effect.gen(function* () {
@@ -494,7 +508,7 @@ describe("SyncEngineService", () => {
           }
 
           // Both directions still work: ours goes out, theirs comes in.
-          const theirs = create("theirs", THEM);
+          const theirs = create("theirs");
           yield* pushAs(THEM, [theirs], 1);
           yield* applyLocal(create("after the blips"));
           yield* tick(60_000);
@@ -508,15 +522,62 @@ describe("SyncEngineService", () => {
       "does not hammer the server with a request that cannot succeed",
       () =>
         Effect.gen(function* () {
-          // A broken contract (decode error, 4xx) is a bug, not weather.
-          yield* setOutage(
-            Option.some(new TransportFailure({ retryable: false })),
-          );
+          yield* setOutage(Option.some(brokenContract));
           yield* start;
           yield* tick(10_000);
 
           expect((yield* sentBy(ME, "pull")).length).toBeLessThanOrEqual(2);
         }).pipe(Effect.provide(TestLayer)),
+    );
+
+    it.effect(
+      "stops a loop whose request cannot succeed, and tells the UI why",
+      () =>
+        Effect.gen(function* () {
+          yield* start;
+          yield* tick(500);
+
+          yield* setPushOutage(Option.some(brokenContract));
+          yield* applyLocal(create("never accepted"));
+          yield* tick(2000);
+
+          expect((yield* snapshot).syncFailure).toEqual({
+            loop: "push",
+            reason: "HTTP 400",
+          });
+          // Terminal: waiting a long time sends it no more often.
+          const pushes = (yield* sentBy(ME, "push")).length;
+          yield* tick(5 * 60_000);
+          expect((yield* sentBy(ME, "push")).length).toBe(pushes);
+          // Stopped means stopped, even once the server would accept it:
+          // only the user's Retry starts it again.
+          yield* setPushOutage(Option.none());
+          yield* tick(5000);
+          expect((yield* sentBy(ME, "push")).length).toBe(pushes);
+          // The pull loop is unaffected: other clients' changes still arrive.
+          const theirs = create("theirs");
+          yield* pushAs(THEM, [theirs], 1);
+          yield* tick(2000);
+          expect((yield* snapshot).tasks.has(theirs.taskId)).toBe(true);
+        }).pipe(Effect.provide(TestLayer)),
+    );
+
+    it.effect("retry clears the failure and syncs again", () =>
+      Effect.gen(function* () {
+        yield* setOutage(Option.some(brokenContract));
+        yield* start;
+        yield* tick(2000);
+        expect((yield* snapshot).syncFailure?.loop).toBe("pull");
+
+        // Say the user reloaded the fixed deploy's config and pressed Retry.
+        yield* setOutage(Option.none());
+        yield* retry;
+        yield* applyLocal(create("after retry"));
+        yield* tick(3000);
+
+        expect((yield* snapshot).syncFailure).toBeNull();
+        expect(yield* serverTitles).toEqual(["after retry"]);
+      }).pipe(Effect.provide(TestLayer)),
     );
   });
 });
