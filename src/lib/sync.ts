@@ -133,12 +133,13 @@ export const useSyncService = (
     StoreService | SyncTransportService | HttpClient | SyncEngineService,
     never
   > | null,
-  storage: Storage,
 ) =>
   useEffect(() => {
     if (runtime === null) return;
 
-    const clientId = ensureClientId(storage);
+    // Read here, never during render: effects run only in the browser, and
+    // on the server there is no `localStorage` to name.
+    const clientId = ensureClientId(localStorage);
     runtime.runFork(
       Effect.flatMap(SyncEngineService, (sync) => sync.start(clientId)),
     );
@@ -146,4 +147,4 @@ export const useSyncService = (
     return () => {
       runtime.runFork(Effect.flatMap(SyncEngineService, (sync) => sync.stop));
     };
-  }, [runtime, storage]);
+  }, [runtime]);

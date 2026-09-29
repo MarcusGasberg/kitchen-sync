@@ -51,7 +51,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     runtimeRef.current = ManagedRuntime.make(mergedLayer);
   }
 
-  useSyncService(runtimeRef.current, localStorage);
+  useSyncService(runtimeRef.current);
 
   return (
     <html lang="en">
