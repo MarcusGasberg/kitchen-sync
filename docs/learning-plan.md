@@ -406,6 +406,8 @@ Also decide deliberately: `Task` is currently `Schema.Class`, but M4 wants it as
 
 - **SSE output** — `effect/unstable/encoding/Sse` (v3's `@effect/experimental/Sse`) does the wire encoding; `HttpServerResponse.stream(...)` or `Stream.toReadableStream` turns the stream into a response body. Connection-drop recovery stays client-side (reconnect + resume by `appliedVersion`).
 
+**Design (2026-09-29):** `docs/superpowers/specs/2026-09-29-m9-realtime-design.md` — pokes as version hints, a `ChangeFeed` port on the server, `pokes` on the client transport port, build order and review checklist.
+
 **You write:** `/api/pull/stream` that pushes changes as they commit (or at minimum a `Stream`-driven client replacing the polling interval).
 
 **DoD:** Mutations appear near-realtime across tabs, with connection-drop recovery. Skip if M1–8 ran long.

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiPushRouteImport } from './routes/api/push'
+import { Route as ApiPullStreamRouteImport } from './routes/api/pull/stream'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,38 +35,52 @@ const ApiPushRoute = ApiPushRouteImport.update({
   path: '/api/push',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPullStreamRoute = ApiPullStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiPullRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/api/pull': typeof ApiPullRoute
+  '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
+  '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/api/pull': typeof ApiPullRoute
+  '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
+  '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/api/pull': typeof ApiPullRoute
+  '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
+  '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/api/pull' | '/api/push'
+  fullPaths: '/' | '/about' | '/api/pull' | '/api/push' | '/api/pull/stream'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/api/pull' | '/api/push'
-  id: '__root__' | '/' | '/about' | '/api/pull' | '/api/push'
+  to: '/' | '/about' | '/api/pull' | '/api/push' | '/api/pull/stream'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/api/pull'
+    | '/api/push'
+    | '/api/pull/stream'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  ApiPullRoute: typeof ApiPullRoute
+  ApiPullRoute: typeof ApiPullRouteWithChildren
   ApiPushRoute: typeof ApiPushRoute
 }
 
@@ -99,13 +114,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pull/stream': {
+      id: '/api/pull/stream'
+      path: '/stream'
+      fullPath: '/api/pull/stream'
+      preLoaderRoute: typeof ApiPullStreamRouteImport
+      parentRoute: typeof ApiPullRoute
+    }
   }
 }
+
+interface ApiPullRouteChildren {
+  ApiPullStreamRoute: typeof ApiPullStreamRoute
+}
+
+const ApiPullRouteChildren: ApiPullRouteChildren = {
+  ApiPullStreamRoute: ApiPullStreamRoute,
+}
+
+const ApiPullRouteWithChildren =
+  ApiPullRoute._addFileChildren(ApiPullRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  ApiPullRoute: ApiPullRoute,
+  ApiPullRoute: ApiPullRouteWithChildren,
   ApiPushRoute: ApiPushRoute,
 }
 export const routeTree = rootRouteImport

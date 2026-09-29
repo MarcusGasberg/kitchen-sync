@@ -1,4 +1,5 @@
-import { Context, Effect, Layer, pipe, Result, Schema } from "effect";
+import { Context, Effect, Layer, pipe, Result, Schema, Stream } from "effect";
+import { Sse } from "effect/unstable/encoding";
 import {
   HttpBody,
   HttpClient,
@@ -14,6 +15,7 @@ import {
 } from "#/domain/mutation";
 import { apply, decide, type TaskState } from "#/domain/reduce";
 import { timeoutAsTransportFailure } from "./retry";
+import type { Retry, SseError } from "effect/unstable/encoding/Sse";
 
 interface SyncTransport {
   push(
@@ -22,6 +24,7 @@ interface SyncTransport {
   pull(
     request: typeof PullRequest.Type,
   ): Effect.Effect<typeof PullResponse.Type, TransportFailure>;
+  pokes: Stream.Stream<number, TransportFailure>;
 }
 
 const classifyHttpClientError = (
@@ -78,6 +81,29 @@ const asTransportFailure = <A, R>(
     timeoutAsTransportFailure,
   );
 
+const asStreamTransportFailure = <A, R>(
+  effect: Stream.Stream<
+    A,
+    HttpClientError.HttpClientError | Retry | SseError,
+    R
+  >,
+) =>
+  pipe(
+    effect,
+    Stream.catchTags({
+      HttpClientError: (err) => Stream.fail(classifyHttpClientError(err)),
+      Retry: () =>
+        Stream.fail(
+          new TransportFailure({ reason: "retry failure", retryable: false }),
+        ),
+      SseError: (err) =>
+        Stream.fail(
+          new TransportFailure({ reason: err.message, retryable: false }),
+        ),
+    }),
+    Stream.timeout("10 seconds"),
+  );
+
 export class SyncTransportService extends Context.Service<
   SyncTransportService,
   SyncTransport
@@ -112,6 +138,40 @@ export class SyncTransportService extends Context.Service<
               return yield* Schema.decodeUnknownEffect(PushResponse)(body);
             }),
           ),
+        pokes: Stream.unwrap(
+          Effect.gen(function* () {
+            const response = yield* httpClient
+              .get("/api/pull/stream")
+              .pipe(asTransportFailure);
+
+            return response.stream.pipe(
+              Stream.decodeText(),
+              Stream.pipeThroughChannel(Sse.decode()),
+              asStreamTransportFailure,
+              Stream.mapEffect((s) =>
+                Schema.decodeUnknownEffect(Schema.FiniteFromString)(s),
+              ),
+              Stream.catchTag("SchemaError", () =>
+                Stream.fail(
+                  new TransportFailure({
+                    retryable: false,
+                    reason: "schema error",
+                  }),
+                ),
+              ),
+              Stream.filter((n) => n !== null),
+              Stream.timeout("10 seconds"),
+              Stream.concat(
+                Stream.fail(
+                  new TransportFailure({
+                    reason: "stream closed",
+                    retryable: true,
+                  }),
+                ),
+              ),
+            );
+          }),
+        ),
       });
     }),
   );
