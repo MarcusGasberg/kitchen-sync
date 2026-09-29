@@ -380,7 +380,7 @@ Also decide deliberately: `Task` is currently `Schema.Class`, but M4 wants it as
 4. ~~**`TaskMutation.clientId` vs the push-level `clientId`**~~ **Done (2026-09-29)** — mutations no longer carry `clientId`; the push-level one is the only one. (deferred since M6): keep one, or have the server check that they match.
 5. ~~**Stop re-sending acked mutations.**~~ **Done (2026-09-29)** — `StoreState.ackedThrough`; the push loop sends only ids above it. Acked entries stay in the outbox until a pull confirms them, and the push loop wakes at least every 300 ms, so the same batch is sent again until then. The server dedupes it, but it is wasted traffic. Tracking an "acked up to" id fixes it without adding per-entry status.
 
-Also carried from M7 review: move the React bindings (`StoreRuntimeContext`, `useSyncEngineStore`, `useSyncService`) out of `store.ts` / `sync.ts` into their own module, so the engine files have no React import.
+~~Also carried from M7 review: move the React bindings (`StoreRuntimeContext`, `useSyncEngineStore`, `useSyncService`) out of `store.ts` / `sync.ts` into their own module, so the engine files have no React import.~~ **Done (2026-09-29)** — they live in `src/lib/react.ts`, with a `ClientRuntime` type for the per-client runtime.
 
 **Deferred past M9:** a durable outbox (a reload loses unsynced edits, but nothing wedges), and the poisoned `ManagedRuntime` (a failed layer build is cached forever — `ManagedRuntime.ts:310`; a code read, not yet reproduced).
 

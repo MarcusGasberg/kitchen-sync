@@ -2,11 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DateTime, Effect } from "effect";
 import { useContext, useState } from "react";
 import type { MutationIntent } from "#/domain/mutation";
-import {
-  StoreRuntimeContext,
-  StoreService,
-  useSyncEngineStore,
-} from "#/lib/store";
+import { StoreRuntimeContext, useSyncEngineStore } from "#/lib/react";
+import { StoreService } from "#/lib/store";
 import { SyncEngineService } from "#/lib/sync";
 
 export const Route = createFileRoute("/")({

@@ -1,10 +1,14 @@
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Layer, ManagedRuntime } from "effect";
 import { FetchHttpClient } from "effect/unstable/http";
-import type { HttpClient } from "effect/unstable/http/HttpClient";
 import { useRef } from "react";
-import { StoreRuntimeContext, StoreService } from "#/lib/store";
-import { SyncEngineService, useSyncService } from "#/lib/sync";
+import {
+  type ClientRuntime,
+  StoreRuntimeContext,
+  useSyncService,
+} from "#/lib/react";
+import { StoreService } from "#/lib/store";
+import { SyncEngineService } from "#/lib/sync";
 import { SyncTransportService } from "#/lib/transport";
 import appCss from "../styles.css?url";
 
@@ -33,10 +37,7 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const runtimeRef = useRef<ManagedRuntime.ManagedRuntime<
-    StoreService | SyncTransportService | HttpClient | SyncEngineService,
-    never
-  > | null>(null);
+  const runtimeRef = useRef<ClientRuntime | null>(null);
   if (runtimeRef.current === null) {
     const mergedLayer = SyncEngineService.Live.pipe(
       Layer.provideMerge(

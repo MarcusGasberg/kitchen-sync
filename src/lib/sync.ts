@@ -1,16 +1,6 @@
-import {
-  Context,
-  Effect,
-  FiberHandle,
-  Layer,
-  type ManagedRuntime,
-  Ref,
-} from "effect";
-import type { HttpClient } from "effect/unstable/http/HttpClient";
-import { useEffect } from "react";
+import { Context, Effect, FiberHandle, Layer, Ref } from "effect";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
-import { ensureClientId } from "./client-identity";
 import { retrySyncLoop } from "./retry";
 import { StoreService, type SyncFailure } from "./store";
 import { SyncTransportService } from "./transport";
@@ -127,24 +117,3 @@ export class SyncEngineService extends Context.Service<
     }),
   );
 }
-
-export const useSyncService = (
-  runtime: ManagedRuntime.ManagedRuntime<
-    StoreService | SyncTransportService | HttpClient | SyncEngineService,
-    never
-  > | null,
-) =>
-  useEffect(() => {
-    if (runtime === null) return;
-
-    // Read here, never during render: effects run only in the browser, and
-    // on the server there is no `localStorage` to name.
-    const clientId = ensureClientId(localStorage);
-    runtime.runFork(
-      Effect.flatMap(SyncEngineService, (sync) => sync.start(clientId)),
-    );
-
-    return () => {
-      runtime.runFork(Effect.flatMap(SyncEngineService, (sync) => sync.stop));
-    };
-  }, [runtime]);

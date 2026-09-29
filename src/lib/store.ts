@@ -1,17 +1,13 @@
 import {
   Context,
   Effect,
-  Fiber,
   Layer,
-  type ManagedRuntime,
   pipe,
   Queue,
   Result,
-  Stream,
+  type Stream,
   SubscriptionRef,
 } from "effect";
-import type { HttpClient } from "effect/unstable/http/HttpClient";
-import React, { useCallback } from "react";
 import type { StaleMutationError, TaskNotFoundError } from "#/domain/errors";
 import type {
   MutationIntent,
@@ -22,8 +18,6 @@ import type {
 } from "#/domain/mutation";
 import { rebase } from "#/domain/rebase";
 import { decide, type TaskState } from "#/domain/reduce";
-import type { SyncEngineService } from "./sync";
-import type { SyncTransportService } from "./transport";
 
 // Sync stopped on a failure retrying cannot fix. The UI shows it until the
 // user retries.
@@ -50,7 +44,7 @@ export interface StoreState {
   syncFailure: SyncFailure | null;
 }
 
-const EMPTY_STATE = {
+export const EMPTY_STATE = {
   base: new Map(),
   tasks: new Map(),
   outbox: [],
@@ -201,38 +195,5 @@ export class StoreService extends Context.Service<StoreService, Store>()(
         },
       });
     }),
-  );
-}
-
-export const StoreRuntimeContext =
-  React.createContext<ManagedRuntime.ManagedRuntime<
-    StoreService | SyncTransportService | HttpClient | SyncEngineService,
-    never
-  > | null>(null);
-
-export function useSyncEngineStore() {
-  const runtime = React.useContext(StoreRuntimeContext);
-
-  const onChangeCallback = useCallback(
-    (onChange: () => void) =>
-      runtime?.runSync(
-        Effect.map(StoreService, (storeService) => {
-          const fiber = runtime.runFork(
-            storeService.changes.pipe(
-              Stream.runForEach(() => Effect.sync(onChange)),
-            ),
-          );
-          return () => Effect.runFork(Fiber.interrupt(fiber));
-        }),
-      ) ?? (() => {}),
-    [runtime],
-  );
-
-  return React.useSyncExternalStore(
-    onChangeCallback,
-    () =>
-      runtime?.runSync(Effect.flatMap(StoreService, (s) => s.getSnapShot())) ??
-      EMPTY_STATE,
-    () => EMPTY_STATE,
   );
 }
