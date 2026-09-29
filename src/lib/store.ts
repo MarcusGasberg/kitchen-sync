@@ -33,6 +33,9 @@ export interface StoreState {
   outbox: ReadonlyArray<OutboxEntry>;
   appliedVersion: number;
   nextId: number;
+  // The highest id the server has decided. Entries at or below it stay in the
+  // outbox until a pull confirms them, but are never pushed again.
+  ackedThrough: number;
   // False until the first pull. Ids minted before it are provisional.
   seeded: boolean;
   rejected: ReadonlyArray<typeof MutationRejection.Type>;
@@ -44,6 +47,7 @@ const EMPTY_STATE = {
   outbox: [],
   appliedVersion: 0,
   nextId: 1,
+  ackedThrough: 0,
   seeded: false,
   rejected: [],
 } satisfies StoreState;
@@ -131,10 +135,14 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             // A rejection at or below `lastMutationId` was decided: its id is
             // spent and it will never apply, so it leaves now and is rebased
             // away. One above it is a gap the server refused to decide at all.
+            const ackedThrough = Math.max(
+              s.ackedThrough,
+              response.lastMutationId,
+            );
             const decided = response.rejected.filter(
               (r) => r.clientMutationId <= response.lastMutationId,
             );
-            if (decided.length === 0) return s;
+            if (decided.length === 0) return { ...s, ackedThrough };
 
             const retired = new Set(decided.map((r) => r.clientMutationId));
             const outbox = s.outbox.filter(
@@ -143,6 +151,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             return {
               ...s,
               outbox,
+              ackedThrough,
               tasks: rebase(s.base, outbox, s.appliedVersion),
               rejected: [...s.rejected, ...decided],
             };
@@ -184,6 +193,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               nextId: s.seeded
                 ? Math.max(s.nextId, response.lastMutationId + 1)
                 : response.lastMutationId + 1 + outbox.length,
+              ackedThrough: Math.max(s.ackedThrough, response.lastMutationId),
               seeded: true,
             };
           }),

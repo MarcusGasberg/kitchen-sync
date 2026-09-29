@@ -40,6 +40,8 @@ class Wire extends Context.Service<
     readonly log: Ref.Ref<ReadonlyArray<Sent>>;
     // Some(failure): every request fails with it until set back to None.
     readonly outage: Ref.Ref<Option.Option<TransportFailure>>;
+    // The same, for pulls only: pushes still land, nothing confirms them.
+    readonly pullOutage: Ref.Ref<Option.Option<TransportFailure>>;
     // Runs once, before the next push reaches the server, then resets.
     readonly duringNextPush: Ref.Ref<Effect.Effect<void>>;
   }
@@ -50,6 +52,7 @@ class Wire extends Context.Service<
       return Wire.of({
         log: yield* Ref.make<ReadonlyArray<Sent>>([]),
         outage: yield* Ref.make(Option.none<TransportFailure>()),
+        pullOutage: yield* Ref.make(Option.none<TransportFailure>()),
         duringNextPush: yield* Ref.make<Effect.Effect<void>>(Effect.void),
       });
     }),
@@ -65,17 +68,20 @@ const SpyTransport = Layer.effect(
     const record = (sent: Sent) =>
       Ref.update(wire.log, (log) => [...log, sent]);
 
-    const gate = Effect.flatMap(Ref.get(wire.outage), (outage) =>
-      Option.match(outage, {
-        onNone: () => Effect.void,
-        onSome: (failure) => Effect.fail(failure),
-      }),
-    );
+    const gateOn = (ref: Ref.Ref<Option.Option<TransportFailure>>) =>
+      Effect.flatMap(Ref.get(ref), (outage) =>
+        Option.match(outage, {
+          onNone: () => Effect.void,
+          onSome: (failure) => Effect.fail(failure),
+        }),
+      );
+    const gate = gateOn(wire.outage);
 
     return SyncTransportService.of({
       pull: (req) =>
         record({ kind: "pull", clientId: req.clientId, ids: [] }).pipe(
           Effect.andThen(gate),
+          Effect.andThen(gateOn(wire.pullOutage)),
           Effect.andThen(server.pull(req)),
         ),
       push: (req) =>
@@ -195,6 +201,9 @@ const sentBy = (clientId: string, kind?: Sent["kind"]) =>
 const setOutage = (failure: Option.Option<TransportFailure>) =>
   Effect.flatMap(Wire, (wire) => Ref.set(wire.outage, failure));
 
+const setPullOutage = (failure: Option.Option<TransportFailure>) =>
+  Effect.flatMap(Wire, (wire) => Ref.set(wire.pullOutage, failure));
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -240,6 +249,36 @@ describe("SyncEngineService", () => {
           expect(state.outbox).toEqual([]);
           expect(state.appliedVersion).toBe(yield* serverVersion);
           expect(state.appliedVersion).toBeGreaterThan(0);
+        }).pipe(Effect.provide(TestLayer)),
+    );
+  });
+
+  describe("acks", () => {
+    it.effect(
+      "sends an acked mutation once, even before a pull confirms it",
+      () =>
+        Effect.gen(function* () {
+          yield* start;
+          yield* tick(500);
+
+          // Pushes land and are acked; no pull confirms them, so they stay in
+          // the outbox for the whole window.
+          yield* setPullOutage(
+            Option.some(new TransportFailure({ retryable: true })),
+          );
+          const { outbox } = yield* applyLocal(create("once"));
+          const id = outbox[0].mutation.clientMutationId;
+          yield* tick(3000);
+
+          const pushes = yield* sentBy(ME, "push");
+          expect(pushes.filter((p) => p.ids.includes(id))).toHaveLength(1);
+          // Acked is not confirmed: the entry waits for a pull.
+          expect((yield* snapshot).outbox).toHaveLength(1);
+
+          yield* setPullOutage(Option.none());
+          yield* tick(60_000);
+          expect((yield* snapshot).outbox).toEqual([]);
+          expect(yield* serverTitles).toEqual(["once"]);
         }).pipe(Effect.provide(TestLayer)),
     );
   });

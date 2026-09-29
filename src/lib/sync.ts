@@ -52,18 +52,23 @@ export class SyncEngineService extends Context.Service<
               Effect.sleep("300 millis"),
             );
 
-            const { outbox, appliedVersion, seeded } =
+            const { outbox, appliedVersion, seeded, ackedThrough } =
               yield* store.getSnapShot();
             // Ids minted before the first pull are provisional; `reconcile`
             // renumbers them on the assumption that none was ever sent.
             if (!seeded) return;
 
-            if (outbox.length === 0) return;
+            // Acked entries wait in the outbox for a pull to confirm them;
+            // sending them again would only be deduped.
+            const pending = outbox.filter(
+              (o) => o.mutation.clientMutationId > ackedThrough,
+            );
+            if (pending.length === 0) return;
 
             const request = PushRequest.make({
               clientId,
               lastAppliedVersion: appliedVersion,
-              mutations: outbox.map((o) => o.mutation),
+              mutations: pending.map((o) => o.mutation),
             });
 
             const response = yield* transport.push(request);
