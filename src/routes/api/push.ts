@@ -4,6 +4,7 @@ import { PushRequest, PushResponse } from "#/domain/mutation";
 import { JsonError } from "#/lib/api";
 import { TaskRepoService } from "#/lib/repo";
 import { runtime } from "#/lib/runtime";
+import { ChangeFeed } from "#/lib/change-feed";
 
 export const Route = createFileRoute("/api/push")({
   server: {
@@ -21,6 +22,9 @@ export const Route = createFileRoute("/api/push")({
             pushRequest.clientId,
             pushRequest.mutations,
           );
+          const changeFeed = yield* ChangeFeed;
+
+          yield* changeFeed.publish(state.serverVersion);
 
           const response = yield* Schema.encodeEffect(PushResponse)(state);
 

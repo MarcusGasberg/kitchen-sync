@@ -1,9 +1,10 @@
-import { Context, Effect, FiberHandle, Layer, Ref } from "effect";
+import { Context, Effect, FiberHandle, Layer, Ref, Stream } from "effect";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
 import { retrySyncLoop } from "./retry";
 import { StoreService, type SyncFailure } from "./store";
 import { SyncTransportService } from "./transport";
+import { merge } from "effect/Stream";
 
 interface SyncEngine {
   start: (clientId: string) => Effect.Effect<void>;
@@ -79,18 +80,26 @@ export class SyncEngineService extends Context.Service<
         );
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
-          Effect.gen(function* () {
-            const { appliedVersion } = yield* store.getSnapShot();
-            const request = PullRequest.make({
-              clientId,
-              lastAppliedVersion: appliedVersion,
-            });
+          merge(transport.pokes, Stream.tick("30 seconds")).pipe(
+            Stream.buffer({ capacity: 1, strategy: "sliding" }),
+            Stream.runForEach((poke) => {
+              return Effect.gen(function* () {
+                const { appliedVersion } = yield* store.getSnapShot();
+                console.log(poke, appliedVersion);
+                if (poke === appliedVersion) {
+                  return;
+                }
 
-            const response = yield* transport.pull(request);
-            yield* store.reconcile(response);
+                const request = PullRequest.make({
+                  clientId,
+                  lastAppliedVersion: appliedVersion,
+                });
 
-            yield* Effect.sleep("500 millis");
-          }),
+                const response = yield* transport.pull(request);
+                yield* store.reconcile(response);
+              });
+            }),
+          ),
         );
 
       const start = (clientId: string) =>

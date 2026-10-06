@@ -100,6 +100,8 @@ const SpyTransport = Layer.effect(
           );
           return yield* server.push(req);
         }),
+      // Not spied on: the Fake's pokes are the real signal that a push landed.
+      pokes: server.pokes,
     });
   }),
 ).pipe(Layer.provide(SyncTransportService.Fake));
@@ -238,6 +240,23 @@ describe("SyncEngineService", () => {
           (task) => task.title,
         );
         expect(titles).toEqual(["theirs"]);
+      }).pipe(Effect.provide(TestLayer)),
+    );
+
+    it.effect("pulls on a poke instead of waiting for the fallback tick", () =>
+      Effect.gen(function* () {
+        yield* start;
+        // Let the initial pull happen; after this only a poke (or the 30s
+        // fallback tick) can trigger another one.
+        yield* tick(500);
+        const before = (yield* sentBy(ME, "pull")).length;
+
+        const theirs = create("poked");
+        yield* pushAs(THEM, [theirs], 1);
+        yield* tick(1000);
+
+        expect((yield* sentBy(ME, "pull")).length).toBeGreaterThan(before);
+        expect((yield* snapshot).tasks.has(theirs.taskId)).toBe(true);
       }).pipe(Effect.provide(TestLayer)),
     );
 

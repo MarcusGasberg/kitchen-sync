@@ -1,4 +1,13 @@
-import { Context, Effect, Layer, pipe, Result, Schema, Stream } from "effect";
+import {
+  Context,
+  Effect,
+  Layer,
+  pipe,
+  PubSub,
+  Result,
+  Schema,
+  Stream,
+} from "effect";
 import { Sse } from "effect/unstable/encoding";
 import {
   HttpBody,
@@ -94,11 +103,11 @@ const asStreamTransportFailure = <A, R>(
       HttpClientError: (err) => Stream.fail(classifyHttpClientError(err)),
       Retry: () =>
         Stream.fail(
-          new TransportFailure({ reason: "retry failure", retryable: false }),
+          new TransportFailure({ reason: `retry failure`, retryable: true }),
         ),
       SseError: (err) =>
         Stream.fail(
-          new TransportFailure({ reason: err.message, retryable: false }),
+          new TransportFailure({ reason: err.message, retryable: true }),
         ),
     }),
     Stream.timeout("10 seconds"),
@@ -148,24 +157,15 @@ export class SyncTransportService extends Context.Service<
               Stream.decodeText(),
               Stream.pipeThroughChannel(Sse.decode()),
               asStreamTransportFailure,
+              Stream.filter((s) => s.event === "poke"),
               Stream.mapEffect((s) =>
-                Schema.decodeUnknownEffect(Schema.FiniteFromString)(s),
+                Schema.decodeUnknownEffect(Schema.FiniteFromString)(s.data),
               ),
               Stream.catchTag("SchemaError", () =>
                 Stream.fail(
                   new TransportFailure({
                     retryable: false,
                     reason: "schema error",
-                  }),
-                ),
-              ),
-              Stream.filter((n) => n !== null),
-              Stream.timeout("10 seconds"),
-              Stream.concat(
-                Stream.fail(
-                  new TransportFailure({
-                    reason: "stream closed",
-                    retryable: true,
                   }),
                 ),
               ),
@@ -181,6 +181,7 @@ export class SyncTransportService extends Context.Service<
     let cache: TaskState = new Map();
     let serverVersion = 0;
     const lastMutationIds = new Map<string, number>();
+    const pokePubSub = Effect.runSync(PubSub.sliding<number>(1));
 
     return SyncTransportService.of({
       pull: (req) =>
@@ -201,7 +202,7 @@ export class SyncTransportService extends Context.Service<
           ),
         ),
       push: (req) =>
-        Effect.sync(() => {
+        Effect.gen(function* () {
           let lastMutationId = lastMutationIds.get(req.clientId) ?? 0;
           const acked: Array<number> = [];
           const rejected: Array<typeof MutationRejection.Type> = [];
@@ -246,8 +247,10 @@ export class SyncTransportService extends Context.Service<
           }
 
           lastMutationIds.set(req.clientId, lastMutationId);
+          yield* PubSub.publish(pokePubSub, serverVersion);
           return { serverVersion, acked, rejected, lastMutationId };
         }),
+      pokes: Stream.fromPubSub(pokePubSub),
     });
   });
 }
