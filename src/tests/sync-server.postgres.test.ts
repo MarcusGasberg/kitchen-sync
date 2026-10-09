@@ -4,14 +4,23 @@ import { Config, Context, DateTime, Effect, Exit, Layer, Scope } from "effect";
 import { SqlClient } from "effect/unstable/sql";
 import { describe, expect } from "vitest";
 import type { TaskMutation } from "../domain/mutation";
+import { ChangeFeed } from "../lib/change-feed";
 import { Migrations } from "../lib/migrations";
-import { TaskRepoService } from "../lib/repo";
+import { SyncServerService } from "../lib/sync-server";
+import { SyncStoreService } from "../lib/sync-store";
+import {
+  getAllTasks,
+  getMutationLogEntries,
+  getSyncVersion,
+} from "./pg-inspect";
 
 const PgLive = PgClient.layerConfig(
   Config.redacted("DATABASE_URL").pipe(Config.map((url) => ({ url }))),
 );
 
-const TestLayer = Layer.merge(Migrations, TaskRepoService.Live).pipe(
+const TestLayer = Layer.merge(Migrations, SyncServerService.Live).pipe(
+  Layer.provideMerge(SyncStoreService.Postgres),
+  Layer.provideMerge(ChangeFeed.InProcess),
   Layer.provideMerge(PgLive),
 );
 
@@ -84,19 +93,19 @@ const resetTables = Effect.gen(function* () {
   nextClientMutationId = 0;
 });
 
-describe("TaskRepoService", () => {
+describe("SyncServer over Postgres", () => {
   it.layer(TestLayer, { timeout: "30 seconds" })(
     "against real Postgres, migrated",
     (it) => {
       it.effect("applies a CreateTask mutation and logs it", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("buy oat milk");
 
-          yield* repo.applyMutations(testClientId, [created]);
+          yield* server.push(testClientId, [created]);
 
-          const tasks = yield* repo.getAllTasks();
+          const tasks = yield* getAllTasks();
           expect(tasks).toHaveLength(1);
           expect(tasks[0]).toMatchObject({
             id: created.taskId,
@@ -104,7 +113,7 @@ describe("TaskRepoService", () => {
             completed: false,
           });
 
-          const log = yield* repo.getMutationLogEntries();
+          const log = yield* getMutationLogEntries();
           expect(log).toHaveLength(1);
           expect(log[0].appliedVersion).toBe(1);
         }),
@@ -113,15 +122,15 @@ describe("TaskRepoService", () => {
       it.effect("applies a CompleteTask mutation", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("wash dishes");
-          yield* repo.applyMutations(testClientId, [created]);
+          yield* server.push(testClientId, [created]);
 
-          yield* repo.applyMutations(testClientId, [
+          yield* server.push(testClientId, [
             setTaskCompletedMutation(created.taskId, true),
           ]);
 
-          const tasks = yield* repo.getAllTasks();
+          const tasks = yield* getAllTasks();
           expect(tasks[0].completed).toBe(true);
         }),
       );
@@ -129,17 +138,17 @@ describe("TaskRepoService", () => {
       it.effect("applies an EditTask mutation", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("mlik");
-          yield* repo.applyMutations(testClientId, [created]);
+          yield* server.push(testClientId, [created]);
 
-          yield* repo.applyMutations(testClientId, [
+          yield* server.push(testClientId, [
             editTaskMutation(created.taskId, {
               title: "milk",
             }),
           ]);
 
-          const tasks = yield* repo.getAllTasks();
+          const tasks = yield* getAllTasks();
           expect(tasks[0].title).toBe("milk");
         }),
       );
@@ -147,21 +156,21 @@ describe("TaskRepoService", () => {
       it.effect("applies a DeleteTask mutation", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("expired coupon");
-          const create = yield* repo.applyMutations(testClientId, [created]);
+          const create = yield* server.push(testClientId, [created]);
 
           // Guard the premise: with no create, the table is empty anyway and
           // the assertion below passes for entirely the wrong reason.
           expect(create.rejected).toEqual([]);
-          expect(yield* repo.getAllTasks()).toHaveLength(1);
+          expect(yield* getAllTasks()).toHaveLength(1);
 
-          const remove = yield* repo.applyMutations(testClientId, [
+          const remove = yield* server.push(testClientId, [
             deleteTaskMutation(created.taskId),
           ]);
 
           expect(remove.rejected).toEqual([]);
-          expect(yield* repo.getAllTasks()).toHaveLength(0);
+          expect(yield* getAllTasks()).toHaveLength(0);
         }),
       );
 
@@ -170,12 +179,10 @@ describe("TaskRepoService", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
             const missing = setTaskCompletedMutation(uuid(), true);
 
-            const response = yield* repo.applyMutations(testClientId, [
-              missing,
-            ]);
+            const response = yield* server.push(testClientId, [missing]);
 
             // M6 contract: a mutation the server cannot apply is reported in
             // `rejected` rather than raised as a failed effect -- one bad
@@ -189,7 +196,7 @@ describe("TaskRepoService", () => {
             ]);
             // Nothing applied, so nothing consumed a version.
             expect(response.serverVersion).toBe(0);
-            expect(yield* repo.getSyncVersion()).toBe(0);
+            expect(yield* getSyncVersion()).toBe(0);
           }),
       );
     },
@@ -221,14 +228,14 @@ describe("version accounting", () => {
       it.effect("stamps the assigned version on the row it writes", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
 
-          const response = yield* repo.applyMutations(testClientId, [
+          const response = yield* server.push(testClientId, [
             createTaskMutation("oat milk"),
           ]);
 
-          const tasks = yield* repo.getAllTasks();
-          const log = yield* repo.getMutationLogEntries();
+          const tasks = yield* getAllTasks();
+          const log = yield* getMutationLogEntries();
 
           expect(response.serverVersion).toBe(1);
           expect(tasks[0].version).toBe(1);
@@ -241,14 +248,14 @@ describe("version accounting", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
 
-            const response = yield* repo.applyMutations(testClientId, [
+            const response = yield* server.push(testClientId, [
               createTaskMutation("first"),
               createTaskMutation("second"),
             ]);
 
-            const tasks = yield* repo.getAllTasks();
+            const tasks = yield* getAllTasks();
 
             expect(response.serverVersion).toBe(2);
             expect(tasks.map((task) => task.version)).toEqual([1, 2]);
@@ -260,19 +267,19 @@ describe("version accounting", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
             const first = createTaskMutation("first");
-            yield* repo.applyMutations(testClientId, [
+            yield* server.push(testClientId, [
               first,
               createTaskMutation("second"),
               createTaskMutation("third"),
             ]);
 
-            const response = yield* repo.applyMutations(testClientId, [
+            const response = yield* server.push(testClientId, [
               deleteTaskMutation(first.taskId),
             ]);
 
-            const tasks = yield* repo.getAllTasks();
+            const tasks = yield* getAllTasks();
 
             expect(tasks.map((task) => task.version)).toEqual([
               response.serverVersion,
@@ -284,21 +291,19 @@ describe("version accounting", () => {
       it.effect("keeps sync_state.version at the highest row version", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const first = createTaskMutation("first");
-          yield* repo.applyMutations(testClientId, [
+          yield* server.push(testClientId, [
             first,
             createTaskMutation("second"),
             createTaskMutation("third"),
             createTaskMutation("fourth"),
           ]);
 
-          yield* repo.applyMutations(testClientId, [
-            deleteTaskMutation(first.taskId),
-          ]);
+          yield* server.push(testClientId, [deleteTaskMutation(first.taskId)]);
 
-          const tasks = yield* repo.getAllTasks();
-          const syncVersion = yield* repo.getSyncVersion();
+          const tasks = yield* getAllTasks();
+          const syncVersion = yield* getSyncVersion();
 
           expect(syncVersion).toBe(
             Math.max(...tasks.map((task) => task.version)),
@@ -309,22 +314,20 @@ describe("version accounting", () => {
       it.effect("never reuses a version once it has been assigned", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const first = createTaskMutation("first");
-          yield* repo.applyMutations(testClientId, [
+          yield* server.push(testClientId, [
             first,
             createTaskMutation("second"),
             createTaskMutation("third"),
           ]);
 
-          yield* repo.applyMutations(testClientId, [
-            deleteTaskMutation(first.taskId),
-          ]);
+          yield* server.push(testClientId, [deleteTaskMutation(first.taskId)]);
 
           const fourth = createTaskMutation("fourth");
-          yield* repo.applyMutations(testClientId, [fourth]);
+          yield* server.push(testClientId, [fourth]);
 
-          const tasks = yield* repo.getAllTasks();
+          const tasks = yield* getAllTasks();
           const created = tasks.find((task) => task.id === fourth.taskId);
           const shifted = tasks
             .filter((task) => task.id !== fourth.taskId)
@@ -337,9 +340,9 @@ describe("version accounting", () => {
       it.effect("records in the log the version it actually stamped", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("first");
-          yield* repo.applyMutations(testClientId, [created]);
+          yield* server.push(testClientId, [created]);
 
           // A redelivered CreateTask is a no-op: it must not consume a version,
           // and it must not push the next mutation's appliedVersion up.
@@ -349,13 +352,13 @@ describe("version accounting", () => {
           };
           const completed = setTaskCompletedMutation(created.taskId, true);
 
-          const response = yield* repo.applyMutations(testClientId, [
+          const response = yield* server.push(testClientId, [
             redelivered,
             completed,
           ]);
 
-          const tasks = yield* repo.getAllTasks();
-          const log = yield* repo.getMutationLogEntries();
+          const tasks = yield* getAllTasks();
+          const log = yield* getMutationLogEntries();
           const entry = log.find(
             (e) => e.clientMutationId === completed.clientMutationId,
           );
@@ -369,7 +372,7 @@ describe("version accounting", () => {
       it.effect("stores createdAt from the mutation's issuedAt", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           // A fixed issuedAt in the past: a server-clock reading can never
           // coincide with it, so this cannot pass by accident.
           const created = {
@@ -377,9 +380,9 @@ describe("version accounting", () => {
             issuedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
           };
 
-          yield* repo.applyMutations(testClientId, [created]);
+          yield* server.push(testClientId, [created]);
 
-          const tasks = yield* repo.getAllTasks();
+          const tasks = yield* getAllTasks();
 
           expect(DateTime.toEpochMillis(tasks[0].createdAt)).toBe(
             DateTime.toEpochMillis(created.issuedAt),
@@ -392,17 +395,17 @@ describe("version accounting", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
 
-            const response = yield* repo.applyMutations(testClientId, [
+            const response = yield* server.push(testClientId, [
               createTaskMutation("first"),
               createTaskMutation("second"),
               createTaskMutation("third"),
             ]);
 
-            const tasks = yield* repo.getAllTasks();
-            const log = yield* repo.getMutationLogEntries();
-            const syncVersion = yield* repo.getSyncVersion();
+            const tasks = yield* getAllTasks();
+            const log = yield* getMutationLogEntries();
+            const syncVersion = yield* getSyncVersion();
 
             expect(response.serverVersion).toBe(3);
             expect(tasks.map((task) => task.version)).toEqual([1, 2, 3]);
@@ -419,19 +422,19 @@ describe("version accounting", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
             const created = createTaskMutation("first");
-            const applied = yield* repo.applyMutations(testClientId, [created]);
+            const applied = yield* server.push(testClientId, [created]);
 
             // Two redeliveries of a create that already exists: both decide to
             // nothing, so the counter must not move and neither must the row.
-            const response = yield* repo.applyMutations(testClientId, [
+            const response = yield* server.push(testClientId, [
               { ...created, clientMutationId: nextMutationId() },
               { ...created, clientMutationId: nextMutationId() },
             ]);
 
-            const tasks = yield* repo.getAllTasks();
-            const syncVersion = yield* repo.getSyncVersion();
+            const tasks = yield* getAllTasks();
+            const syncVersion = yield* getSyncVersion();
 
             expect(response.serverVersion).toBe(applied.serverVersion);
             expect(syncVersion).toBe(applied.serverVersion);
@@ -442,19 +445,19 @@ describe("version accounting", () => {
       it.effect("gives every row a ReorderTask moves the same version", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const first = createTaskMutation("first");
-          yield* repo.applyMutations(testClientId, [
+          yield* server.push(testClientId, [
             first,
             createTaskMutation("second"),
             createTaskMutation("third"),
           ]);
 
-          const response = yield* repo.applyMutations(testClientId, [
+          const response = yield* server.push(testClientId, [
             reorderTaskMutation(first.taskId, 2),
           ]);
 
-          const tasks = yield* repo.getAllTasks();
+          const tasks = yield* getAllTasks();
 
           expect(tasks.map((task) => task.version)).toEqual([
             response.serverVersion,
@@ -475,20 +478,20 @@ describe("idempotency", () => {
       it.effect("applies a redelivered batch exactly once", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const first = createTaskMutation("first");
           const second = createTaskMutation("second");
           // The same array, pushed twice -- same ids, same payloads. This is
           // what a client retry after a lost response actually looks like.
           const batch = [first, second];
 
-          const initial = yield* repo.applyMutations(testClientId, batch);
-          const tasksAfterInitial = yield* repo.getAllTasks();
-          const logAfterInitial = yield* repo.getMutationLogEntries();
+          const initial = yield* server.push(testClientId, batch);
+          const tasksAfterInitial = yield* getAllTasks();
+          const logAfterInitial = yield* getMutationLogEntries();
 
-          const replay = yield* repo.applyMutations(testClientId, batch);
-          const tasksAfterReplay = yield* repo.getAllTasks();
-          const logAfterReplay = yield* repo.getMutationLogEntries();
+          const replay = yield* server.push(testClientId, batch);
+          const tasksAfterReplay = yield* getAllTasks();
+          const logAfterReplay = yield* getMutationLogEntries();
 
           const ids = [first.clientMutationId, second.clientMutationId];
           const shape = (
@@ -504,7 +507,7 @@ describe("idempotency", () => {
           // ...but nothing may be applied a second time.
           expect(replay.serverVersion).toBe(initial.serverVersion);
           expect(replay.lastMutationId).toBe(initial.lastMutationId);
-          expect(yield* repo.getSyncVersion()).toBe(initial.serverVersion);
+          expect(yield* getSyncVersion()).toBe(initial.serverVersion);
           expect(shape(tasksAfterReplay)).toEqual(shape(tasksAfterInitial));
           // The log is the ledger: a second apply would add entries to it.
           expect(logAfterInitial).toHaveLength(2);
@@ -515,20 +518,17 @@ describe("idempotency", () => {
       it.effect("acks a redelivery interleaved with a fresh mutation", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("oat milk");
-          const initial = yield* repo.applyMutations(testClientId, [created]);
+          const initial = yield* server.push(testClientId, [created]);
 
           // A client that retries an in-flight mutation and appends a new one
           // in the same push: the old id is a no-op, the new id applies.
           const fresh = setTaskCompletedMutation(created.taskId, true);
-          const response = yield* repo.applyMutations(testClientId, [
-            created,
-            fresh,
-          ]);
+          const response = yield* server.push(testClientId, [created, fresh]);
 
-          const tasks = yield* repo.getAllTasks();
-          const log = yield* repo.getMutationLogEntries();
+          const tasks = yield* getAllTasks();
+          const log = yield* getMutationLogEntries();
 
           expect(response.acked).toEqual([
             created.clientMutationId,
@@ -546,31 +546,29 @@ describe("idempotency", () => {
       it.effect("ignores a stale redelivery whose payload would reapply", () =>
         Effect.gen(function* () {
           yield* resetTables;
-          const repo = yield* TaskRepoService;
+          const server = yield* SyncServerService;
           const created = createTaskMutation("oat milk");
           const complete = setTaskCompletedMutation(created.taskId, true);
           const uncomplete = setTaskCompletedMutation(created.taskId, false);
 
-          yield* repo.applyMutations(testClientId, [created, complete]);
-          const settled = yield* repo.applyMutations(testClientId, [
-            uncomplete,
-          ]);
+          yield* server.push(testClientId, [created, complete]);
+          const settled = yield* server.push(testClientId, [uncomplete]);
 
           // Every mutation in `decide` is payload-idempotent, so most
           // redeliveries are no-ops for a second reason and cannot tell us
           // whether sequencing works. This one can: `complete` is stale, but
           // the row is completed=false again, so the reducer WOULD apply it.
           // Only the lastMutationId check stops it.
-          const response = yield* repo.applyMutations(testClientId, [complete]);
+          const response = yield* server.push(testClientId, [complete]);
 
-          const tasks = yield* repo.getAllTasks();
-          const log = yield* repo.getMutationLogEntries();
+          const tasks = yield* getAllTasks();
+          const log = yield* getMutationLogEntries();
 
           expect(response.acked).toEqual([complete.clientMutationId]);
           expect(response.rejected).toEqual([]);
           expect(tasks[0].completed).toBe(false);
           expect(response.serverVersion).toBe(settled.serverVersion);
-          expect(yield* repo.getSyncVersion()).toBe(settled.serverVersion);
+          expect(yield* getSyncVersion()).toBe(settled.serverVersion);
           expect(log).toHaveLength(3);
         }),
       );
@@ -595,16 +593,16 @@ describe("idempotency", () => {
           () => {
             return Effect.gen(function* () {
               yield* resetTables;
-              const repo = yield* TaskRepoService;
+              const server = yield* SyncServerService;
 
               const first = createTaskMutation("first");
-              yield* repo.applyMutations(testClientId, [
+              yield* server.push(testClientId, [
                 first,
                 createTaskMutation("second"),
                 createTaskMutation("third"),
               ]);
 
-              const seeded = yield* repo.getAllTasks();
+              const seeded = yield* getAllTasks();
               const target = seeded.find((t) => t.id === first.taskId);
               if (!target) throw new Error("seed failed");
 
@@ -620,10 +618,10 @@ describe("idempotency", () => {
                 baseVersion: target.version,
               });
 
-              const winner = yield* repo.applyMutations(clientA.clientId, [
+              const winner = yield* server.push(clientA.clientId, [
                 reorder(clientA, 2),
               ]);
-              const loser = yield* repo.applyMutations(clientB.clientId, [
+              const loser = yield* server.push(clientB.clientId, [
                 reorder(clientB, 1),
               ]);
 
@@ -637,7 +635,7 @@ describe("idempotency", () => {
               expect(loser.rejected[0].reason).toContain("stale");
 
               // State reflects the winner only, and orders stay a dense 0..n-1.
-              const tasks = yield* repo.getAllTasks();
+              const tasks = yield* getAllTasks();
               expect(tasks.map((t) => t.order)).toEqual([0, 1, 2]);
               expect(tasks[2].id).toBe(target.id);
             });
@@ -647,16 +645,16 @@ describe("idempotency", () => {
         it.effect("lets exactly one of two simultaneous reorders win", () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
 
             const first = createTaskMutation("first");
-            yield* repo.applyMutations(testClientId, [
+            yield* server.push(testClientId, [
               first,
               createTaskMutation("second"),
               createTaskMutation("third"),
             ]);
 
-            const seeded = yield* repo.getAllTasks();
+            const seeded = yield* getAllTasks();
             const target = seeded.find((t) => t.id === first.taskId);
             if (!target) throw new Error("seed failed");
 
@@ -679,8 +677,8 @@ describe("idempotency", () => {
             // outcome is *a* winner, never two, and never an oscillation.
             const [ra, rb] = yield* Effect.all(
               [
-                repo.applyMutations(a.clientId, [reorder(a, 2)]),
-                repo.applyMutations(b.clientId, [reorder(b, 1)]),
+                server.push(a.clientId, [reorder(a, 2)]),
+                server.push(b.clientId, [reorder(b, 1)]),
               ],
               { concurrency: 2 },
             );
@@ -690,7 +688,7 @@ describe("idempotency", () => {
             expect(applied).toHaveLength(1);
             expect(refused).toHaveLength(1);
 
-            const tasks = yield* repo.getAllTasks();
+            const tasks = yield* getAllTasks();
             expect(tasks.map((t) => t.order)).toEqual([0, 1, 2]);
           }),
         );
@@ -711,17 +709,17 @@ describe("rejection bookkeeping", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
 
             // Seed a task, then bump its version, so a reorder quoting the
             // original version is genuinely stale rather than merely wrong.
             const seed = createTaskMutation("seed");
-            yield* repo.applyMutations(testClientId, [seed]);
-            const afterCreate = (yield* repo.getAllTasks())[0];
-            yield* repo.applyMutations(testClientId, [
+            yield* server.push(testClientId, [seed]);
+            const afterCreate = (yield* getAllTasks())[0];
+            yield* server.push(testClientId, [
               setTaskCompletedMutation(seed.taskId, true),
             ]);
-            const target = (yield* repo.getAllTasks())[0];
+            const target = (yield* getAllTasks())[0];
             expect(target.version).toBeGreaterThan(afterCreate.version);
 
             // A second client with its own sequence, starting at 1.
@@ -738,7 +736,7 @@ describe("rejection bookkeeping", () => {
               baseVersion: afterCreate.version,
             };
 
-            const first = yield* repo.applyMutations(clientId, [stale]);
+            const first = yield* server.push(clientId, [stale]);
             expect(first.acked).toEqual([]);
             expect(first.rejected).toHaveLength(1);
             expect(first.rejected[0].reason).toContain("stale");
@@ -757,12 +755,12 @@ describe("rejection bookkeeping", () => {
               task: { title: "after the rejection" },
             };
 
-            const second = yield* repo.applyMutations(clientId, [followUp]);
+            const second = yield* server.push(clientId, [followUp]);
             expect(second.rejected).toEqual([]);
             expect(second.acked).toEqual([followUp.clientMutationId]);
             expect(second.lastMutationId).toBe(followUp.clientMutationId);
 
-            const titles = (yield* repo.getAllTasks()).map((t) => t.title);
+            const titles = (yield* getAllTasks()).map((t) => t.title);
             expect(titles).toContain("after the rejection");
           }),
       );
@@ -776,7 +774,7 @@ describe("rejection bookkeeping", () => {
         () =>
           Effect.gen(function* () {
             yield* resetTables;
-            const repo = yield* TaskRepoService;
+            const server = yield* SyncServerService;
 
             const clientId = uuid();
             const create = (
@@ -791,7 +789,7 @@ describe("rejection bookkeeping", () => {
             });
 
             // Establish the sequence: id 1 applies normally.
-            const opening = yield* repo.applyMutations(clientId, [
+            const opening = yield* server.push(clientId, [
               create(1, "opening"),
             ]);
             expect(opening.acked).toEqual([1]);
@@ -802,7 +800,7 @@ describe("rejection bookkeeping", () => {
             // the duplicate branch and be acked WITHOUT being applied, and 4
             // would line up as "expected" and commit on top of a task state
             // that never saw 2 or 3. The second is corruption, not loss.
-            const gapped = yield* repo.applyMutations(clientId, [
+            const gapped = yield* server.push(clientId, [
               create(3, "after the gap"),
               create(4, "further after the gap"),
             ]);
@@ -815,13 +813,13 @@ describe("rejection bookkeeping", () => {
             expect(gapped.serverVersion).toBe(opening.serverVersion);
 
             // Nothing from the gapped batch reached the table.
-            expect((yield* repo.getAllTasks()).map((t) => t.title)).toEqual([
+            expect((yield* getAllTasks()).map((t) => t.title)).toEqual([
               "opening",
             ]);
 
             // And the server is still willing to take the id it actually owes,
             // which is what "resend, don't discard" has to mean in practice.
-            const resend = yield* repo.applyMutations(clientId, [
+            const resend = yield* server.push(clientId, [
               create(2, "the one it asked for"),
             ]);
             expect(resend.acked).toEqual([2]);

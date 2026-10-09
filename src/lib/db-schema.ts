@@ -3,6 +3,15 @@ import { Model } from "effect/unstable/schema";
 import { TaskMutation } from "#/domain/mutation";
 import { Task } from "#/domain/task";
 
+// The tables the sync store owns. Tests that inspect rows read the same names,
+// so a rename cannot leave them looking at a table the store no longer writes.
+export const TableName = {
+  tasks: "tasks",
+  mutationLog: "mutation_log",
+  syncState: "sync_state",
+  syncClient: "sync_client",
+} as const;
+
 export class MutationLogEntry extends Model.Class<MutationLogEntry>(
   "MutationLogEntry",
 )({

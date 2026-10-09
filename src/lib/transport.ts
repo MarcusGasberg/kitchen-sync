@@ -1,14 +1,6 @@
-import {
-  Context,
-  Effect,
-  Layer,
-  pipe,
-  PubSub,
-  Result,
-  Schema,
-  Stream,
-} from "effect";
+import { Context, Effect, Layer, pipe, Schema, Stream } from "effect";
 import { Sse } from "effect/unstable/encoding";
+import type { Retry, SseError } from "effect/unstable/encoding/Sse";
 import {
   HttpBody,
   HttpClient,
@@ -16,15 +8,15 @@ import {
 } from "effect/unstable/http";
 import { TransportFailure } from "#/domain/errors";
 import {
-  type MutationRejection,
   type PullRequest,
   PullResponse,
   type PushRequest,
   PushResponse,
 } from "#/domain/mutation";
-import { apply, decide, type TaskState } from "#/domain/reduce";
+import { ChangeFeed } from "./change-feed";
 import { timeoutAsTransportFailure } from "./retry";
-import type { Retry, SseError } from "effect/unstable/encoding/Sse";
+import { makeSyncServer } from "./sync-server";
+import { makeInMemorySyncStore } from "./sync-store";
 
 interface SyncTransport {
   push(
@@ -175,82 +167,32 @@ export class SyncTransportService extends Context.Service<
       });
     }),
   );
-  // The sync tests run against this, so it answers the way
-  // `TaskRepoService.applyMutations` and `/api/pull` do.
-  static readonly Fake = Layer.sync(SyncTransportService, () => {
-    let cache: TaskState = new Map();
-    let serverVersion = 0;
-    const lastMutationIds = new Map<string, number>();
-    const pokePubSub = Effect.runSync(PubSub.sliding<number>(1));
+  // The sync tests run against this. It is the real `SyncServer` over an
+  // in-memory store, so it answers exactly as the routes do; only the wire
+  // (encode, decode) is imitated here.
+  static readonly Fake = Layer.effect(
+    SyncTransportService,
+    Effect.gen(function* () {
+      const feed = yield* ChangeFeed.make;
+      const server = makeSyncServer(makeInMemorySyncStore(), feed);
 
-    return SyncTransportService.of({
-      pull: (req) =>
-        Schema.encodeEffect(PullResponse)({
-          serverVersion,
-          lastMutationId: lastMutationIds.get(req.clientId) ?? 0,
-          tasks:
-            req.lastAppliedVersion === serverVersion ? [] : [...cache.values()],
-        }).pipe(
-          Effect.flatMap(Schema.decodeUnknownEffect(PullResponse)),
-          Effect.catchTag(
-            "SchemaError",
-            () =>
-              new TransportFailure({
-                retryable: false,
-                reason: "unexpected response from the server",
-              }),
+      return SyncTransportService.of({
+        pull: (req) =>
+          server.pull(req.clientId, req.lastAppliedVersion).pipe(
+            Effect.flatMap(Schema.encodeEffect(PullResponse)),
+            Effect.flatMap(Schema.decodeUnknownEffect(PullResponse)),
+            Effect.catchTag(
+              "SchemaError",
+              () =>
+                new TransportFailure({
+                  retryable: false,
+                  reason: "unexpected response from the server",
+                }),
+            ),
           ),
-        ),
-      push: (req) =>
-        Effect.gen(function* () {
-          let lastMutationId = lastMutationIds.get(req.clientId) ?? 0;
-          const acked: Array<number> = [];
-          const rejected: Array<typeof MutationRejection.Type> = [];
-
-          for (const mutation of req.mutations) {
-            const id = mutation.clientMutationId;
-            const expected = lastMutationId + 1;
-            if (id < expected) {
-              // Decided on an earlier delivery: ack, never decide again.
-              acked.push(id);
-              continue;
-            }
-            if (id > expected) {
-              // A gap: refuse without spending the id.
-              rejected.push({
-                clientMutationId: id,
-                reason: `out of order: expected ${expected}`,
-              });
-              continue;
-            }
-
-            lastMutationId = id;
-            const nextVersion = serverVersion + 1;
-            const decided = decide(
-              cache,
-              mutation,
-              nextVersion,
-              mutation.issuedAt,
-            );
-            if (Result.isFailure(decided)) {
-              rejected.push({
-                clientMutationId: id,
-                reason: decided.failure._tag,
-              });
-              continue;
-            }
-            acked.push(id);
-            if (decided.success.length > 0) {
-              cache = apply(cache, decided.success);
-              serverVersion = nextVersion;
-            }
-          }
-
-          lastMutationIds.set(req.clientId, lastMutationId);
-          yield* PubSub.publish(pokePubSub, serverVersion);
-          return { serverVersion, acked, rejected, lastMutationId };
-        }),
-      pokes: Stream.fromPubSub(pokePubSub),
-    });
-  });
+        push: (req) => server.push(req.clientId, req.mutations),
+        pokes: feed.changes,
+      });
+    }),
+  );
 }

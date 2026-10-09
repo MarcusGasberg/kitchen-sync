@@ -176,7 +176,7 @@ describe("convergence", () => {
         // rejected and surfaced to the client that made it.
         const rejected = [...converged.rejected, ...other.rejected];
         expect(rejected).toHaveLength(1);
-        expect(rejected[0].reason).toBe("StaleMutationError");
+        expect(rejected[0].reason).toContain("stale mutation");
         expect([0, 1]).toContain(byTitle.get("three")?.order);
 
         // No oscillation: from here on neither client changes what it shows,
