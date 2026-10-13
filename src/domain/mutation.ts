@@ -1,13 +1,27 @@
 import { type DateTime, Schema } from "effect";
 import { BaseIntent, MutationId } from "./BaseMutation";
-import { GroceryItem } from "./grocery-item";
+import {
+  Category,
+  GroceryItem,
+  ItemName,
+  Quantity,
+  Unit,
+} from "./grocery-item";
 
 const AddItemChanges = Schema.Struct({
-  name: Schema.String.check(Schema.isLengthBetween(1, 50)),
+  name: ItemName,
+  quantity: Schema.optionalKey(Quantity),
+  unit: Schema.optionalKey(Unit),
+  category: Schema.optionalKey(Category),
 });
 
+// For `unit` and `category`, a missing key leaves the field alone and `null`
+// clears it.
 const EditItemChanges = Schema.Struct({
-  name: Schema.optionalKey(Schema.String.check(Schema.isLengthBetween(1, 50))),
+  name: Schema.optionalKey(ItemName),
+  quantity: Schema.optionalKey(Quantity),
+  unit: Schema.optionalKey(Schema.OptionFromNullOr(Unit)),
+  category: Schema.optionalKey(Schema.OptionFromNullOr(Category)),
   checked: Schema.optionalKey(Schema.Boolean),
 }).check(
   Schema.makeFilter((changes) =>

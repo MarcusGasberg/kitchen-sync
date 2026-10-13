@@ -1,9 +1,20 @@
 import { PgClient } from "@effect/sql-pg";
 import { it } from "@effect/vitest";
-import { Config, Context, DateTime, Effect, Exit, Layer, Scope } from "effect";
+import {
+  Config,
+  Context,
+  DateTime,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Schema,
+  Scope,
+} from "effect";
 import { SqlClient } from "effect/unstable/sql";
 import { describe, expect } from "vitest";
-import type { ItemMutation } from "../domain/mutation";
+import type { Category } from "../domain/grocery-item";
+import { ItemMutation } from "../domain/mutation";
 import { ChangeFeed } from "../lib/change-feed";
 import { Migrations } from "../lib/migrations";
 import { SyncServerService } from "../lib/sync-server";
@@ -35,12 +46,17 @@ let testClientId = uuid();
 let nextClientMutationId = 0;
 const nextMutationId = () => ++nextClientMutationId;
 
-const addItemMutation = (name: string): typeof ItemMutation.Type => ({
+const addItemMutation = (item: {
+  name: string;
+  quantity?: number;
+  unit?: string;
+  category?: Category;
+}): typeof ItemMutation.Type => ({
   _tag: "AddItem",
   clientMutationId: nextMutationId(),
   issuedAt: DateTime.makeUnsafe(new Date()),
   itemId: uuid(),
-  item: { name },
+  item,
 });
 
 const setItemCheckedMutation = (
@@ -56,7 +72,7 @@ const setItemCheckedMutation = (
 
 const editItemMutation = (
   itemId: string,
-  changes: { name?: string; checked?: boolean },
+  changes: Extract<typeof ItemMutation.Type, { _tag: "EditItem" }>["changes"],
 ): typeof ItemMutation.Type => ({
   _tag: "EditItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
@@ -101,7 +117,7 @@ describe("SyncServer over Postgres", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("buy oat milk");
+          const created = addItemMutation({ name: "buy oat milk" });
 
           yield* server.push(testClientId, [created]);
 
@@ -119,11 +135,61 @@ describe("SyncServer over Postgres", () => {
         }),
       );
 
+      it.effect("stores a fractional quantity, a unit and a category", () =>
+        Effect.gen(function* () {
+          yield* resetTables;
+          const server = yield* SyncServerService;
+          const flour = addItemMutation({
+            name: "flour",
+            quantity: 1.5,
+            unit: "kg",
+            category: "Pantry",
+          });
+          const lemons = addItemMutation({ name: "lemons" });
+
+          yield* server.push(testClientId, [flour, lemons]);
+
+          const [first, second] = yield* getAllItems();
+          expect(first).toMatchObject({
+            name: "flour",
+            quantity: 1.5,
+            unit: Option.some("kg"),
+            category: Option.some("Pantry"),
+          });
+          expect(second).toMatchObject({
+            name: "lemons",
+            quantity: 1,
+            unit: Option.none(),
+            category: Option.none(),
+          });
+        }),
+      );
+
+      it.effect("clears a unit sent as null over the wire", () =>
+        Effect.gen(function* () {
+          yield* resetTables;
+          const server = yield* SyncServerService;
+          const flour = addItemMutation({ name: "flour", unit: "kg" });
+          yield* server.push(testClientId, [flour]);
+
+          // What a client puts on the wire, decoded as the push route does.
+          const clear = Schema.decodeUnknownSync(ItemMutation)(
+            Schema.encodeSync(ItemMutation)(
+              editItemMutation(flour.itemId, { unit: Option.none() }),
+            ),
+          );
+          yield* server.push(testClientId, [clear]);
+
+          const [stored] = yield* getAllItems();
+          expect(stored.unit).toEqual(Option.none());
+        }),
+      );
+
       it.effect("applies a SetItemChecked mutation", () =>
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("wash dishes");
+          const created = addItemMutation({ name: "wash dishes" });
           yield* server.push(testClientId, [created]);
 
           yield* server.push(testClientId, [
@@ -139,7 +205,7 @@ describe("SyncServer over Postgres", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("mlik");
+          const created = addItemMutation({ name: "mlik" });
           yield* server.push(testClientId, [created]);
 
           yield* server.push(testClientId, [
@@ -157,7 +223,7 @@ describe("SyncServer over Postgres", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("expired coupon");
+          const created = addItemMutation({ name: "expired coupon" });
           const create = yield* server.push(testClientId, [created]);
 
           // Guard the premise: with no create, the table is empty anyway and
@@ -231,7 +297,7 @@ describe("version accounting", () => {
           const server = yield* SyncServerService;
 
           const response = yield* server.push(testClientId, [
-            addItemMutation("oat milk"),
+            addItemMutation({ name: "oat milk" }),
           ]);
 
           const items = yield* getAllItems();
@@ -251,8 +317,8 @@ describe("version accounting", () => {
             const server = yield* SyncServerService;
 
             const response = yield* server.push(testClientId, [
-              addItemMutation("first"),
-              addItemMutation("second"),
+              addItemMutation({ name: "first" }),
+              addItemMutation({ name: "second" }),
             ]);
 
             const items = yield* getAllItems();
@@ -268,11 +334,11 @@ describe("version accounting", () => {
           Effect.gen(function* () {
             yield* resetTables;
             const server = yield* SyncServerService;
-            const first = addItemMutation("first");
+            const first = addItemMutation({ name: "first" });
             yield* server.push(testClientId, [
               first,
-              addItemMutation("second"),
-              addItemMutation("third"),
+              addItemMutation({ name: "second" }),
+              addItemMutation({ name: "third" }),
             ]);
 
             const response = yield* server.push(testClientId, [
@@ -292,12 +358,12 @@ describe("version accounting", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const first = addItemMutation("first");
+          const first = addItemMutation({ name: "first" });
           yield* server.push(testClientId, [
             first,
-            addItemMutation("second"),
-            addItemMutation("third"),
-            addItemMutation("fourth"),
+            addItemMutation({ name: "second" }),
+            addItemMutation({ name: "third" }),
+            addItemMutation({ name: "fourth" }),
           ]);
 
           yield* server.push(testClientId, [removeItemMutation(first.itemId)]);
@@ -315,16 +381,16 @@ describe("version accounting", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const first = addItemMutation("first");
+          const first = addItemMutation({ name: "first" });
           yield* server.push(testClientId, [
             first,
-            addItemMutation("second"),
-            addItemMutation("third"),
+            addItemMutation({ name: "second" }),
+            addItemMutation({ name: "third" }),
           ]);
 
           yield* server.push(testClientId, [removeItemMutation(first.itemId)]);
 
-          const fourth = addItemMutation("fourth");
+          const fourth = addItemMutation({ name: "fourth" });
           yield* server.push(testClientId, [fourth]);
 
           const items = yield* getAllItems();
@@ -341,7 +407,7 @@ describe("version accounting", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("first");
+          const created = addItemMutation({ name: "first" });
           yield* server.push(testClientId, [created]);
 
           // A redelivered AddItem is a no-op: it must not consume a version,
@@ -376,7 +442,7 @@ describe("version accounting", () => {
           // A fixed issuedAt in the past: a server-clock reading can never
           // coincide with it, so this cannot pass by accident.
           const created = {
-            ...addItemMutation("oat milk"),
+            ...addItemMutation({ name: "oat milk" }),
             issuedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
           };
 
@@ -398,9 +464,9 @@ describe("version accounting", () => {
             const server = yield* SyncServerService;
 
             const response = yield* server.push(testClientId, [
-              addItemMutation("first"),
-              addItemMutation("second"),
-              addItemMutation("third"),
+              addItemMutation({ name: "first" }),
+              addItemMutation({ name: "second" }),
+              addItemMutation({ name: "third" }),
             ]);
 
             const items = yield* getAllItems();
@@ -423,7 +489,7 @@ describe("version accounting", () => {
           Effect.gen(function* () {
             yield* resetTables;
             const server = yield* SyncServerService;
-            const created = addItemMutation("first");
+            const created = addItemMutation({ name: "first" });
             const applied = yield* server.push(testClientId, [created]);
 
             // Two redeliveries of a create that already exists: both decide to
@@ -446,11 +512,11 @@ describe("version accounting", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const first = addItemMutation("first");
+          const first = addItemMutation({ name: "first" });
           yield* server.push(testClientId, [
             first,
-            addItemMutation("second"),
-            addItemMutation("third"),
+            addItemMutation({ name: "second" }),
+            addItemMutation({ name: "third" }),
           ]);
 
           const response = yield* server.push(testClientId, [
@@ -479,8 +545,8 @@ describe("idempotency", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const first = addItemMutation("first");
-          const second = addItemMutation("second");
+          const first = addItemMutation({ name: "first" });
+          const second = addItemMutation({ name: "second" });
           // The same array, pushed twice -- same ids, same payloads. This is
           // what a client retry after a lost response actually looks like.
           const batch = [first, second];
@@ -519,7 +585,7 @@ describe("idempotency", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("oat milk");
+          const created = addItemMutation({ name: "oat milk" });
           const initial = yield* server.push(testClientId, [created]);
 
           // A client that retries an in-flight mutation and appends a new one
@@ -547,7 +613,7 @@ describe("idempotency", () => {
         Effect.gen(function* () {
           yield* resetTables;
           const server = yield* SyncServerService;
-          const created = addItemMutation("oat milk");
+          const created = addItemMutation({ name: "oat milk" });
           const complete = setItemCheckedMutation(created.itemId, true);
           const uncomplete = setItemCheckedMutation(created.itemId, false);
 
@@ -595,11 +661,11 @@ describe("idempotency", () => {
               yield* resetTables;
               const server = yield* SyncServerService;
 
-              const first = addItemMutation("first");
+              const first = addItemMutation({ name: "first" });
               yield* server.push(testClientId, [
                 first,
-                addItemMutation("second"),
-                addItemMutation("third"),
+                addItemMutation({ name: "second" }),
+                addItemMutation({ name: "third" }),
               ]);
 
               const seeded = yield* getAllItems();
@@ -647,11 +713,11 @@ describe("idempotency", () => {
             yield* resetTables;
             const server = yield* SyncServerService;
 
-            const first = addItemMutation("first");
+            const first = addItemMutation({ name: "first" });
             yield* server.push(testClientId, [
               first,
-              addItemMutation("second"),
-              addItemMutation("third"),
+              addItemMutation({ name: "second" }),
+              addItemMutation({ name: "third" }),
             ]);
 
             const seeded = yield* getAllItems();
@@ -713,7 +779,7 @@ describe("rejection bookkeeping", () => {
 
             // Seed an item, then bump its version, so a reorder quoting the
             // original version is genuinely stale rather than merely wrong.
-            const seed = addItemMutation("seed");
+            const seed = addItemMutation({ name: "seed" });
             yield* server.push(testClientId, [seed]);
             const afterCreate = (yield* getAllItems())[0];
             yield* server.push(testClientId, [

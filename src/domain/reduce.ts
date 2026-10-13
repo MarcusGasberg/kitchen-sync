@@ -1,4 +1,4 @@
-import { type DateTime, Result } from "effect";
+import { type DateTime, Equal, Option, Result } from "effect";
 import { ItemNotFoundError, StaleMutationError } from "./errors";
 import type { GroceryItem } from "./grocery-item";
 import { MutationIntent } from "./mutation";
@@ -31,6 +31,9 @@ export const decide: (
           item: {
             id: m.itemId,
             name: m.item.name,
+            quantity: m.item.quantity ?? 1,
+            unit: Option.fromUndefinedOr(m.item.unit),
+            category: Option.fromUndefinedOr(m.item.category),
             createdAt: now,
             checked: false,
             version,
@@ -111,7 +114,7 @@ export const decide: (
       }
 
       const changed = Object.entries(m.changes).some(
-        ([k, v]) => existing[k as keyof typeof existing] !== v,
+        ([k, v]) => !Equal.equals(existing[k as keyof typeof existing], v),
       );
 
       if (!changed) {

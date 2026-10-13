@@ -11,7 +11,10 @@ describe("verification", () => {
   it("item roundtrip: encode then decode equals original", () => {
     const item = new GroceryItem({
       id: crypto.randomUUID(),
-      name: "buy milk",
+      name: "flour",
+      quantity: 1.5,
+      unit: Option.some("kg"),
+      category: Option.some("Pantry"),
       createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
       checked: false,
       order: 1,
@@ -21,10 +24,12 @@ describe("verification", () => {
     const back = Schema.decodeUnknownSync(GroceryItem)(wire);
 
     expect(wire.createdAt).toEqual(new Date("2026-01-01T00:00:00.000Z"));
+    expect(wire.unit).toBe("kg");
+    expect(wire.category).toBe("Pantry");
     expect(back).toEqual(item);
   });
 
-  it("rejects a add-item mutation missing its fields", () => {
+  it("rejects an add-item mutation missing its fields", () => {
     const exit = exitOf(
       Schema.decodeUnknownEffect(ItemMutation)({
         _tag: "AddItem",
@@ -88,5 +93,59 @@ describe("verification", () => {
       const error = Option.getOrThrow(Cause.findErrorOption(result.cause));
       expect(error).toMatchObject({ _tag: "SchemaError" });
     }
+  });
+});
+
+const addItem = (item: unknown) => ({
+  _tag: "AddItem",
+  clientMutationId: 1,
+  issuedAt: "2026-01-01T00:00:00.000Z",
+  itemId: crypto.randomUUID(),
+  item,
+});
+
+const editItem = (changes: unknown) => ({
+  _tag: "EditItem",
+  clientMutationId: 1,
+  issuedAt: "2026-01-01T00:00:00.000Z",
+  itemId: "i1",
+  changes,
+});
+
+describe("item details on the wire", () => {
+  const decodes = (input: unknown) =>
+    Exit.isSuccess(Schema.decodeUnknownExit(ItemMutation)(input));
+
+  it.each([
+    0,
+    -1,
+    Number.POSITIVE_INFINITY,
+    Number.NaN,
+  ])("rejects quantity %s", (quantity) => {
+    expect(decodes(addItem({ name: "milk", quantity }))).toBe(false);
+  });
+
+  it("rejects an unknown category", () => {
+    expect(decodes(addItem({ name: "milk", category: "Snacks" }))).toBe(false);
+  });
+
+  it("rejects an empty unit and one longer than 20 characters", () => {
+    expect(decodes(addItem({ name: "milk", unit: "" }))).toBe(false);
+    expect(decodes(addItem({ name: "milk", unit: "x".repeat(21) }))).toBe(
+      false,
+    );
+  });
+
+  it("reads null as 'clear' and a missing key as 'leave unchanged'", () => {
+    const decoded = Schema.decodeUnknownSync(ItemMutation)(
+      editItem({ unit: null, checked: true }),
+    );
+    if (decoded._tag !== "EditItem") throw new Error("expected EditItem");
+
+    expect(decoded.changes.unit).toEqual(Option.none());
+    expect(decoded.changes).not.toHaveProperty("category");
+    expect(Schema.encodeSync(ItemMutation)(decoded)).toMatchObject({
+      changes: { unit: null, checked: true },
+    });
   });
 });

@@ -113,6 +113,9 @@ const serverItem = (row: {
 }): (typeof PullResponse.Type)["items"][number] => ({
   id: row.id ?? uuid(),
   name: row.name,
+  quantity: 1,
+  unit: Option.none(),
+  category: Option.none(),
   order: row.order,
   version: row.version,
   checked: false,
