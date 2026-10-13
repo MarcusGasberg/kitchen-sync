@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { DateTime, Effect, Fiber, Layer, Ref } from "effect";
+import { DateTime, Effect, Fiber, Layer, Option, Ref } from "effect";
 import { TestClock } from "effect/testing";
 import {
   HttpClient,
@@ -9,6 +9,7 @@ import {
 } from "effect/unstable/http";
 import { describe, expect } from "vitest";
 import { TransportFailure } from "#/domain/errors";
+import type { PushRequest } from "#/domain/mutation";
 import { SyncTransportService } from "#/lib/transport";
 
 const pullRequest = {
@@ -25,7 +26,6 @@ const pushRequest = {
     {
       _tag: "RemoveItem",
       clientMutationId: 1,
-      clientId,
       issuedAt: DateTime.makeUnsafe("2026-09-25T08:00:00.000Z"),
       itemId: "item-1",
     },
@@ -75,12 +75,13 @@ const scripted = Effect.fnUntraced(function* (
     return yield* transport.pull(pullRequest);
   }).pipe(Effect.provide(live));
 
-  const push = Effect.gen(function* () {
-    const transport = yield* SyncTransportService;
-    return yield* transport.push(pushRequest);
-  }).pipe(Effect.provide(live));
+  const pushWith = (request: typeof PushRequest.Type) =>
+    Effect.gen(function* () {
+      const transport = yield* SyncTransportService;
+      return yield* transport.push(request);
+    }).pipe(Effect.provide(live));
 
-  return { attempts, pull, push } as const;
+  return { attempts, pull, push: pushWith(pushRequest), pushWith } as const;
 });
 
 type Sent = { method: string; url: string; json: unknown };
@@ -244,7 +245,6 @@ describe("SyncTransportService.push", () => {
               {
                 _tag: "RemoveItem",
                 clientMutationId: 1,
-                clientId,
                 issuedAt: "2026-09-25T08:00:00.000Z",
                 itemId: "item-1",
               },
@@ -252,6 +252,42 @@ describe("SyncTransportService.push", () => {
           },
         },
       ]);
+    }),
+  );
+
+  it.effect("sends an edit's unit and category as null or a value", () =>
+    Effect.gen(function* () {
+      const requests: Array<Sent> = [];
+      const { pushWith } = yield* scripted((_, request) => {
+        requests.push(sent(request));
+        return Effect.succeed(
+          json({
+            serverVersion: 1,
+            acked: [1],
+            rejected: [],
+            lastMutationId: 1,
+          }),
+        );
+      });
+
+      yield* pushWith({
+        clientId,
+        lastAppliedVersion: 0,
+        mutations: [
+          {
+            _tag: "EditItem",
+            clientMutationId: 1,
+            issuedAt: DateTime.makeUnsafe("2026-09-25T08:00:00.000Z"),
+            itemId: "item-1",
+            changes: { unit: Option.none(), category: Option.some("Dairy") },
+          },
+        ],
+      });
+
+      // `/api/push` decodes these with `OptionFromNullOr`: null clears.
+      expect(requests[0].json).toMatchObject({
+        mutations: [{ changes: { unit: null, category: "Dairy" } }],
+      });
     }),
   );
 

@@ -8,9 +8,9 @@ import {
 } from "effect/unstable/http";
 import { TransportFailure } from "#/domain/errors";
 import {
-  type PullRequest,
+  PullRequest,
   PullResponse,
-  type PushRequest,
+  PushRequest,
   PushResponse,
 } from "#/domain/mutation";
 import { ChangeFeed } from "./change-feed";
@@ -121,7 +121,7 @@ export class SyncTransportService extends Context.Service<
           asTransportFailure(
             Effect.gen(function* () {
               const response = yield* httpClient.post("/api/pull", {
-                body: yield* HttpBody.json(req),
+                body: yield* HttpBody.jsonSchema(PullRequest)(req),
               });
 
               const body = yield* response.json;
@@ -131,8 +131,10 @@ export class SyncTransportService extends Context.Service<
         push: (req) =>
           asTransportFailure(
             Effect.gen(function* () {
+              // Encode through the schema: a plain `JSON.stringify` writes an
+              // `Option` as `{"_id":"Option",…}`, which the route rejects.
               const response = yield* httpClient.post("/api/push", {
-                body: yield* HttpBody.json(req),
+                body: yield* HttpBody.jsonSchema(PushRequest)(req),
               });
 
               const body = yield* response.json;
