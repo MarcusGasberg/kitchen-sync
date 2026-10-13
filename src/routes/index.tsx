@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, Option } from "effect";
 import { useContext, useState } from "react";
+import { Categories, type Category } from "#/domain/grocery-item";
 import type { MutationIntent } from "#/domain/mutation";
 import { StoreRuntimeContext, useSyncEngineStore } from "#/lib/react";
 import { StoreService } from "#/lib/store";
@@ -13,6 +14,9 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { items, rejected, syncFailure } = useSyncEngineStore();
   const [name, setName] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [unit, setUnit] = useState("");
+  const [category, setCategory] = useState<Category | "">("");
   const runtime = useContext(StoreRuntimeContext);
 
   const applyMutation = (intent: MutationIntent) =>
@@ -28,17 +32,29 @@ function Home() {
       ),
     );
 
+  const parsedQuantity = Number(quantity);
+  const canAdd =
+    name.trim() !== "" && Number.isFinite(parsedQuantity) && parsedQuantity > 0;
+
   const addItem = (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!canAdd) return;
+    const trimmedUnit = unit.trim();
     applyMutation({
       _tag: "AddItem",
       itemId: crypto.randomUUID(),
       issuedAt: DateTime.makeUnsafe(new Date()),
-      item: { name: trimmed },
+      item: {
+        name: name.trim(),
+        quantity: parsedQuantity,
+        ...(trimmedUnit ? { unit: trimmedUnit } : {}),
+        ...(category ? { category } : {}),
+      },
     });
     setName("");
+    setQuantity("1");
+    setUnit("");
+    setCategory("");
   };
 
   const toggleChecked = (itemId: string, checked: boolean) =>
@@ -87,14 +103,45 @@ function Home() {
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Add an item"
+          aria-label="Item"
           maxLength={50}
         />
-        <button type="submit" disabled={!name.trim()}>
+        <input
+          type="number"
+          value={quantity}
+          onChange={(event) => setQuantity(event.target.value)}
+          aria-label="Quantity"
+          min="0"
+          step="any"
+          style={{ width: "5em" }}
+        />
+        <input
+          type="text"
+          value={unit}
+          onChange={(event) => setUnit(event.target.value)}
+          placeholder="Unit"
+          aria-label="Unit"
+          maxLength={20}
+          style={{ width: "5em" }}
+        />
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value as Category | "")}
+          aria-label="Category"
+        >
+          <option value="">No category</option>
+          {Categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <button type="submit" disabled={!canAdd}>
           Add
         </button>
       </form>
       {items?.size === 0 ? (
-        <p>No items yet.</p>
+        <p>Your grocery list is empty.</p>
       ) : (
         <ul>
           {Array.from(items?.values() ?? []).map((item) => (
@@ -105,10 +152,17 @@ function Home() {
                   checked={item.checked}
                   onChange={() => toggleChecked(item.id, item.checked)}
                 />
-                {item.name}
+                {[item.quantity, Option.getOrUndefined(item.unit), item.name]
+                  .filter((part) => part !== undefined)
+                  .join(" ")}
               </label>
+              {Option.isSome(item.category) && (
+                <small style={{ marginLeft: "0.5em", opacity: 0.7 }}>
+                  {item.category.value}
+                </small>
+              )}
               <button type="button" onClick={() => removeItem(item.id)}>
-                Delete
+                Remove
               </button>
             </li>
           ))}
