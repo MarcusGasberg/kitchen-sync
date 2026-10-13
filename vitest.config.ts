@@ -8,6 +8,7 @@ const databaseTests = [
   "src/tests/sync-server.contract.test.ts",
   "src/tests/sync-server.postgres.test.ts",
   "src/tests/json-route.test.ts",
+  "src/tests/migrations.postgres.test.ts",
 ];
 
 export default defineConfig({
