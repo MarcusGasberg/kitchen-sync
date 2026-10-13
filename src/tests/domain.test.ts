@@ -1,38 +1,38 @@
 import { Cause, DateTime, Effect, Exit, Option, Result, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { TaskMutation } from "../domain/mutation";
-import { Task } from "../domain/task";
+import { GroceryItem } from "../domain/grocery-item";
+import { ItemMutation } from "../domain/mutation";
 
 function exitOf<A, E>(effect: Effect.Effect<A, E>) {
   return Effect.runSync(Effect.exit(effect));
 }
 
 describe("verification", () => {
-  it("task roundtrip: encode then decode equals original", () => {
-    const task = new Task({
+  it("item roundtrip: encode then decode equals original", () => {
+    const item = new GroceryItem({
       id: crypto.randomUUID(),
-      title: "buy milk",
+      name: "buy milk",
       createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
-      completed: false,
+      checked: false,
       order: 1,
       version: 1,
     });
-    const wire = Schema.encodeSync(Task)(task);
-    const back = Schema.decodeUnknownSync(Task)(wire);
+    const wire = Schema.encodeSync(GroceryItem)(item);
+    const back = Schema.decodeUnknownSync(GroceryItem)(wire);
 
     expect(wire.createdAt).toEqual(new Date("2026-01-01T00:00:00.000Z"));
-    expect(back).toEqual(task);
+    expect(back).toEqual(item);
   });
 
-  it("rejects a create-task mutation missing its fields", () => {
+  it("rejects a add-item mutation missing its fields", () => {
     const exit = exitOf(
-      Schema.decodeUnknownEffect(TaskMutation)({
-        _tag: "CreateTask",
+      Schema.decodeUnknownEffect(ItemMutation)({
+        _tag: "AddItem",
         clientMutationId: 1,
         issuedAt: "2026-01-01T00:00:00.000Z",
         clientId: crypto.randomUUID(),
-        taskId: crypto.randomUUID(),
-        task: {},
+        itemId: crypto.randomUUID(),
+        item: {},
       }),
     );
     if (Exit.isSuccess(exit)) {
@@ -45,41 +45,41 @@ describe("verification", () => {
   it("leaves the client's identity to the push, not to each mutation", () => {
     // A mutation-level clientId could disagree with the push that carries it
     // (and, on a page hosting many clients, with the engine that sends it).
-    const decoded = Schema.decodeUnknownSync(TaskMutation)({
-      _tag: "DeleteTask",
+    const decoded = Schema.decodeUnknownSync(ItemMutation)({
+      _tag: "RemoveItem",
       clientMutationId: 1,
       issuedAt: "2026-01-01T00:00:00.000Z",
       clientId: crypto.randomUUID(),
-      taskId: "t1",
+      itemId: "t1",
     });
 
     expect(decoded).not.toHaveProperty("clientId");
   });
 
-  it("accepts an edit with a task id and at least one change", () => {
-    const edit = Schema.decodeUnknownSync(TaskMutation)({
-      _tag: "EditTask",
+  it("accepts an edit with an item id and at least one change", () => {
+    const edit = Schema.decodeUnknownSync(ItemMutation)({
+      _tag: "EditItem",
       clientMutationId: 2,
       issuedAt: "2026-01-01T00:00:00.000Z",
       clientId: crypto.randomUUID(),
-      taskId: "t1",
-      changes: { completed: true },
+      itemId: "t1",
+      changes: { checked: true },
     });
 
     expect(edit).toMatchObject({
-      _tag: "EditTask",
-      taskId: "t1",
-      changes: { completed: true },
+      _tag: "EditItem",
+      itemId: "t1",
+      changes: { checked: true },
     });
   });
 
   it("rejects an edit with no changes", () => {
-    const result = Schema.decodeUnknownExit(TaskMutation)({
-      _tag: "EditTask",
+    const result = Schema.decodeUnknownExit(ItemMutation)({
+      _tag: "EditItem",
       clientMutationId: 3,
       issuedAt: "2026-01-01T00:00:00.000Z",
       clientId: crypto.randomUUID(),
-      taskId: "t1",
+      itemId: "t1",
       changes: {},
     });
 

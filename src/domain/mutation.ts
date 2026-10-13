@@ -1,14 +1,14 @@
 import { type DateTime, Schema } from "effect";
 import { BaseIntent, MutationId } from "./BaseMutation";
-import { Task } from "./task";
+import { GroceryItem } from "./grocery-item";
 
-const CreateTaskChanges = Schema.Struct({
-  title: Schema.String.check(Schema.isLengthBetween(1, 50)),
+const AddItemChanges = Schema.Struct({
+  name: Schema.String.check(Schema.isLengthBetween(1, 50)),
 });
 
-const EditTaskChanges = Schema.Struct({
-  title: Schema.optionalKey(Schema.String.check(Schema.isLengthBetween(1, 50))),
-  completed: Schema.optionalKey(Schema.Boolean),
+const EditItemChanges = Schema.Struct({
+  name: Schema.optionalKey(Schema.String.check(Schema.isLengthBetween(1, 50))),
+  checked: Schema.optionalKey(Schema.Boolean),
 }).check(
   Schema.makeFilter((changes) =>
     Object.keys(changes).length > 0
@@ -18,18 +18,18 @@ const EditTaskChanges = Schema.Struct({
 );
 
 const intentCases = {
-  CreateTask: { ...BaseIntent, taskId: Schema.String, task: CreateTaskChanges },
-  SetTaskCompleted: {
+  AddItem: { ...BaseIntent, itemId: Schema.String, item: AddItemChanges },
+  SetItemChecked: {
     ...BaseIntent,
-    taskId: Schema.String,
-    completed: Schema.Boolean,
+    itemId: Schema.String,
+    checked: Schema.Boolean,
   },
-  EditTask: { ...BaseIntent, taskId: Schema.String, changes: EditTaskChanges },
-  DeleteTask: { ...BaseIntent, taskId: Schema.String },
-  ReorderTask: {
+  EditItem: { ...BaseIntent, itemId: Schema.String, changes: EditItemChanges },
+  RemoveItem: { ...BaseIntent, itemId: Schema.String },
+  ReorderItem: {
     ...BaseIntent,
     baseVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-    taskId: Schema.String,
+    itemId: Schema.String,
     order: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   },
 };
@@ -45,20 +45,20 @@ const withMutationId = <C extends Record<string, Schema.Struct.Fields>>(
   ) as { [K in keyof C]: C[K] & typeof MutationId };
 
 export const MutationIntent = Schema.TaggedUnion(intentCases);
-export const TaskMutation = Schema.TaggedUnion(withMutationId(intentCases));
+export const ItemMutation = Schema.TaggedUnion(withMutationId(intentCases));
 
 export type MutationIntent = typeof MutationIntent.Type;
-export type TaskMutation = typeof TaskMutation.Type;
+export type ItemMutation = typeof ItemMutation.Type;
 
 export interface OutboxEntry {
-  readonly mutation: typeof TaskMutation.Type;
+  readonly mutation: typeof ItemMutation.Type;
   readonly timestamp: DateTime.Utc;
 }
 
 export const PushRequest = Schema.Struct({
   clientId: Schema.String.check(Schema.isUUID(4)),
   lastAppliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  mutations: Schema.Array(TaskMutation).check(Schema.isNonEmpty()),
+  mutations: Schema.Array(ItemMutation).check(Schema.isNonEmpty()),
 });
 
 export const MutationRejection = Schema.Struct({
@@ -78,13 +78,13 @@ export const PullRequest = Schema.Struct({
   lastAppliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 
-const TaskWire = Schema.Struct({
-  ...Task.fields,
+const ItemWire = Schema.Struct({
+  ...GroceryItem.fields,
   createdAt: Schema.DateTimeUtcFromString,
 });
 
 export const PullResponse = Schema.Struct({
   serverVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   lastMutationId: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  tasks: Schema.Array(TaskWire),
+  items: Schema.Array(ItemWire),
 });

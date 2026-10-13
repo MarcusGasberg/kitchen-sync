@@ -1,12 +1,12 @@
 import { Schema } from "effect";
 import { Model } from "effect/unstable/schema";
-import { TaskMutation } from "#/domain/mutation";
-import { Task } from "#/domain/task";
+import { GroceryItem } from "#/domain/grocery-item";
+import { ItemMutation } from "#/domain/mutation";
 
 // The tables the sync store owns. Tests that inspect rows read the same names,
 // so a rename cannot leave them looking at a table the store no longer writes.
 export const TableName = {
-  tasks: "tasks",
+  groceryItems: "grocery_items",
   mutationLog: "mutation_log",
   syncState: "sync_state",
   syncClient: "sync_client",
@@ -20,11 +20,11 @@ export class MutationLogEntry extends Model.Class<MutationLogEntry>(
   clientId: Schema.String.check(Schema.isUUID(4)),
   issuedAt: Schema.DateTimeUtcFromDate,
   appliedVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  payload: Model.JsonFromString(TaskMutation),
+  payload: Model.JsonFromString(ItemMutation),
 }) {}
 
-export class TaskTableEntry extends Model.Class<TaskTableEntry>(
-  "TaskTableEntry",
+export class GroceryItemTableEntry extends Model.Class<GroceryItemTableEntry>(
+  "GroceryItemTableEntry",
 )({
-  ...Task.fields,
+  ...GroceryItem.fields,
 }) {}

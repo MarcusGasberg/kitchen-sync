@@ -1,10 +1,10 @@
 import { Context, Effect, FiberHandle, Layer, Ref, Stream } from "effect";
+import { merge } from "effect/Stream";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
 import { retrySyncLoop } from "./retry";
 import { StoreService, type SyncFailure } from "./store";
 import { SyncTransportService } from "./transport";
-import { merge } from "effect/Stream";
 
 interface SyncEngine {
   start: (clientId: string) => Effect.Effect<void>;

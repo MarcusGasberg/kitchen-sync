@@ -11,8 +11,8 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { tasks, rejected, syncFailure } = useSyncEngineStore();
-  const [title, setTitle] = useState("");
+  const { items, rejected, syncFailure } = useSyncEngineStore();
+  const [name, setName] = useState("");
   const runtime = useContext(StoreRuntimeContext);
 
   const applyMutation = (intent: MutationIntent) =>
@@ -28,32 +28,32 @@ function Home() {
       ),
     );
 
-  const createTask = (event: React.FormEvent) => {
+  const addItem = (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmed = title.trim();
+    const trimmed = name.trim();
     if (!trimmed) return;
     applyMutation({
-      _tag: "CreateTask",
-      taskId: crypto.randomUUID(),
+      _tag: "AddItem",
+      itemId: crypto.randomUUID(),
       issuedAt: DateTime.makeUnsafe(new Date()),
-      task: { title: trimmed },
+      item: { name: trimmed },
     });
-    setTitle("");
+    setName("");
   };
 
-  const toggleCompleted = (taskId: string, completed: boolean) =>
+  const toggleChecked = (itemId: string, checked: boolean) =>
     applyMutation({
-      _tag: "EditTask",
-      taskId,
+      _tag: "EditItem",
+      itemId,
       issuedAt: DateTime.makeUnsafe(new Date()),
-      changes: { completed: !completed },
+      changes: { checked: !checked },
     });
 
-  const deleteTask = (taskId: string) =>
+  const removeItem = (itemId: string) =>
     applyMutation({
-      _tag: "DeleteTask",
+      _tag: "RemoveItem",
       issuedAt: DateTime.makeUnsafe(new Date()),
-      taskId,
+      itemId,
     });
 
   const dismissRejected = () =>
@@ -81,33 +81,33 @@ function Home() {
           </button>
         </p>
       )}
-      <form onSubmit={createTask}>
+      <form onSubmit={addItem}>
         <input
           type="text"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="Add a task"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Add an item"
           maxLength={50}
         />
-        <button type="submit" disabled={!title.trim()}>
+        <button type="submit" disabled={!name.trim()}>
           Add
         </button>
       </form>
-      {tasks?.size === 0 ? (
-        <p>No tasks yet.</p>
+      {items?.size === 0 ? (
+        <p>No items yet.</p>
       ) : (
         <ul>
-          {Array.from(tasks?.values() ?? []).map((task) => (
-            <li key={task.id}>
+          {Array.from(items?.values() ?? []).map((item) => (
+            <li key={item.id}>
               <label>
                 <input
                   type="checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleCompleted(task.id, task.completed)}
+                  checked={item.checked}
+                  onChange={() => toggleChecked(item.id, item.checked)}
                 />
-                {task.title}
+                {item.name}
               </label>
-              <button type="button" onClick={() => deleteTask(task.id)}>
+              <button type="button" onClick={() => removeItem(item.id)}>
                 Delete
               </button>
             </li>

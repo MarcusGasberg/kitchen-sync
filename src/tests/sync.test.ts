@@ -126,24 +126,24 @@ const THEM = uuid();
 // always ask from version 0 and get every row.
 const OBSERVER = uuid();
 
-const create = (title: string): MutationIntent => ({
-  _tag: "CreateTask",
+const create = (name: string): MutationIntent => ({
+  _tag: "AddItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId: uuid(),
-  task: { title },
+  itemId: uuid(),
+  item: { name },
 });
 
-const complete = (taskId: string): MutationIntent => ({
-  _tag: "SetTaskCompleted",
+const complete = (itemId: string): MutationIntent => ({
+  _tag: "SetItemChecked",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId,
-  completed: true,
+  itemId,
+  checked: true,
 });
 
-const remove = (taskId: string): MutationIntent => ({
-  _tag: "DeleteTask",
+const remove = (itemId: string): MutationIntent => ({
+  _tag: "RemoveItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId,
+  itemId,
 });
 
 // Advance virtual time in small steps. A single big `adjust` wakes each
@@ -183,7 +183,7 @@ const pushAs = (
 
 const serverTitles = Effect.flatMap(SyncTransportService, (server) =>
   server.pull({ clientId: OBSERVER, lastAppliedVersion: 0 }),
-).pipe(Effect.map((response) => response.tasks.map((task) => task.title)));
+).pipe(Effect.map((response) => response.items.map((item) => item.name)));
 
 const serverVersion = Effect.flatMap(SyncTransportService, (server) =>
   server.pull({ clientId: OBSERVER, lastAppliedVersion: 0 }),
@@ -236,10 +236,10 @@ describe("SyncEngineService", () => {
         yield* start;
         yield* tick(2000);
 
-        const titles = Array.from((yield* snapshot).tasks.values()).map(
-          (task) => task.title,
+        const names = Array.from((yield* snapshot).items.values()).map(
+          (item) => item.name,
         );
-        expect(titles).toEqual(["theirs"]);
+        expect(names).toEqual(["theirs"]);
       }).pipe(Effect.provide(TestLayer)),
     );
 
@@ -256,7 +256,7 @@ describe("SyncEngineService", () => {
         yield* tick(1000);
 
         expect((yield* sentBy(ME, "pull")).length).toBeGreaterThan(before);
-        expect((yield* snapshot).tasks.has(theirs.taskId)).toBe(true);
+        expect((yield* snapshot).items.has(theirs.itemId)).toBe(true);
       }).pipe(Effect.provide(TestLayer)),
     );
 
@@ -349,7 +349,7 @@ describe("SyncEngineService", () => {
         const watcher = yield* Effect.forkChild(
           store.changes.pipe(
             Stream.runForEach((state) =>
-              Ref.update(seen, (xs) => [...xs, state.tasks.has(intent.taskId)]),
+              Ref.update(seen, (xs) => [...xs, state.items.has(intent.itemId)]),
             ),
           ),
         );
@@ -407,13 +407,13 @@ describe("SyncEngineService", () => {
 
           yield* start;
           yield* tick(1000);
-          expect((yield* snapshot).tasks.has(theirs.taskId)).toBe(true);
+          expect((yield* snapshot).items.has(theirs.itemId)).toBe(true);
 
           // While we are not looking, they delete it; we still see it and
-          // tick its checkbox. Locally valid, on the server a TaskNotFound.
+          // tick its checkbox. Locally valid, on the server an ItemNotFound.
           yield* stop;
-          yield* pushAs(THEM, [remove(theirs.taskId)], 2);
-          const doomed = yield* applyLocal(complete(theirs.taskId));
+          yield* pushAs(THEM, [remove(theirs.itemId)], 2);
+          const doomed = yield* applyLocal(complete(theirs.itemId));
           const doomedId = doomed.outbox[0].mutation.clientMutationId;
 
           yield* start;
@@ -424,7 +424,7 @@ describe("SyncEngineService", () => {
             doomedId,
           ]);
           expect(state.outbox).toEqual([]);
-          expect(state.tasks.has(theirs.taskId)).toBe(false);
+          expect(state.items.has(theirs.itemId)).toBe(false);
 
           // Resending it would land in the server's duplicate branch and be
           // acked -- a rejection silently turned into a success.
@@ -533,7 +533,7 @@ describe("SyncEngineService", () => {
           yield* tick(60_000);
 
           expect(yield* serverTitles).toContain("after the blips");
-          expect((yield* snapshot).tasks.has(theirs.taskId)).toBe(true);
+          expect((yield* snapshot).items.has(theirs.itemId)).toBe(true);
         }).pipe(Effect.provide(TestLayer)),
     );
 
@@ -577,7 +577,7 @@ describe("SyncEngineService", () => {
           const theirs = create("theirs");
           yield* pushAs(THEM, [theirs], 1);
           yield* tick(2000);
-          expect((yield* snapshot).tasks.has(theirs.taskId)).toBe(true);
+          expect((yield* snapshot).items.has(theirs.itemId)).toBe(true);
         }).pipe(Effect.provide(TestLayer)),
     );
 

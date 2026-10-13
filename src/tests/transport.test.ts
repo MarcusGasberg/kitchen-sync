@@ -23,11 +23,11 @@ const pushRequest = {
   lastAppliedVersion: 0,
   mutations: [
     {
-      _tag: "DeleteTask",
+      _tag: "RemoveItem",
       clientMutationId: 1,
       clientId,
       issuedAt: DateTime.makeUnsafe("2026-09-25T08:00:00.000Z"),
-      taskId: "task-1",
+      itemId: "item-1",
     },
   ],
 } as const;
@@ -35,7 +35,7 @@ const pushRequest = {
 const body = {
   serverVersion: 7,
   lastMutationId: 3,
-  tasks: [],
+  items: [],
 };
 
 const json = (payload: unknown, status = 200) =>
@@ -242,11 +242,11 @@ describe("SyncTransportService.push", () => {
             lastAppliedVersion: 0,
             mutations: [
               {
-                _tag: "DeleteTask",
+                _tag: "RemoveItem",
                 clientMutationId: 1,
                 clientId,
                 issuedAt: "2026-09-25T08:00:00.000Z",
-                taskId: "task-1",
+                itemId: "item-1",
               },
             ],
           },

@@ -8,7 +8,7 @@ import {
   type Stream,
   SubscriptionRef,
 } from "effect";
-import type { StaleMutationError, TaskNotFoundError } from "#/domain/errors";
+import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
 import type {
   MutationIntent,
   MutationRejection,
@@ -17,7 +17,7 @@ import type {
   PushResponse,
 } from "#/domain/mutation";
 import { rebase } from "#/domain/rebase";
-import { decide, type TaskState } from "#/domain/reduce";
+import { decide, type ItemState } from "#/domain/reduce";
 
 // Sync stopped on a failure retrying cannot fix. The UI shows it until the
 // user retries.
@@ -29,9 +29,9 @@ export interface SyncFailure {
 export interface StoreState {
   // Server truth at `appliedVersion`. Only a pull writes it: a push response
   // says our mutations landed, but carries none of the rows.
-  base: TaskState;
+  base: ItemState;
   // What the UI renders. Always `rebase(base, outbox)`.
-  tasks: TaskState;
+  items: ItemState;
   outbox: ReadonlyArray<OutboxEntry>;
   appliedVersion: number;
   nextId: number;
@@ -46,7 +46,7 @@ export interface StoreState {
 
 export const EMPTY_STATE = {
   base: new Map(),
-  tasks: new Map(),
+  items: new Map(),
   outbox: [],
   appliedVersion: 0,
   nextId: 1,
@@ -60,7 +60,7 @@ interface Store {
   getSnapShot: () => Effect.Effect<StoreState>;
   applyMutation: (
     mutation: typeof MutationIntent.Type,
-  ) => Effect.Effect<StoreState, TaskNotFoundError | StaleMutationError, never>;
+  ) => Effect.Effect<StoreState, ItemNotFoundError | StaleMutationError, never>;
   changes: Stream.Stream<StoreState>;
   awaitOutboxActivity: Effect.Effect<void>;
   settle: (response: typeof PushResponse.Type) => Effect.Effect<StoreState>;
@@ -85,12 +85,12 @@ export class StoreService extends Context.Service<StoreService, Store>()(
         applyMutation: (intent) =>
           SubscriptionRef.updateAndGetEffect(STORE, (s) =>
             pipe(
-              decide(s.tasks, intent, s.appliedVersion, intent.issuedAt),
+              decide(s.items, intent, s.appliedVersion, intent.issuedAt),
               // The id is minted only once `decide` accepts, in the same update
               // that enqueues it: no id is spent on a mutation that never
               // reaches the outbox, so the server never sees a gap. A failure
               // leaves the state untouched and reaches the caller.
-              // `decide` only validates against what the user sees; `tasks`
+              // `decide` only validates against what the user sees; `items`
               // itself comes from `rebase`, like every other write of it.
               Result.map((): StoreState => {
                 const outbox = [
@@ -102,7 +102,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
                 ];
                 return {
                   ...s,
-                  tasks: rebase(s.base, outbox, s.appliedVersion),
+                  items: rebase(s.base, outbox, s.appliedVersion),
                   outbox,
                   nextId: s.nextId + 1,
                 };
@@ -113,7 +113,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
         settle: (response) =>
           SubscriptionRef.updateAndGet(STORE, (s) => {
             // An ack is not a confirmation: the entry stays until a pull brings
-            // the rows that contain it, or `tasks` would drop it in between.
+            // the rows that contain it, or `items` would drop it in between.
             // A rejection at or below `lastMutationId` was decided: its id is
             // spent and it will never apply, so it leaves now and is rebased
             // away. One above it is a gap the server refused to decide at all.
@@ -134,7 +134,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               ...s,
               outbox,
               ackedThrough,
-              tasks: rebase(s.base, outbox, s.appliedVersion),
+              items: rebase(s.base, outbox, s.appliedVersion),
               rejected: [...s.rejected, ...decided],
             };
           }),
@@ -143,11 +143,11 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             if (response.serverVersion < s.appliedVersion) return s;
 
             // At the same version the rows are unchanged, and `/api/pull` sends
-            // an up-to-date client `tasks: []`. The pull still counts:
+            // an up-to-date client `items: []`. The pull still counts:
             // rejections and no-ops advance `lastMutationId` but not the version.
-            const base: TaskState =
+            const base: ItemState =
               response.serverVersion > s.appliedVersion
-                ? new Map(response.tasks.map((task) => [task.id, task]))
+                ? new Map(response.items.map((item) => [item.id, item]))
                 : s.base;
 
             const outbox = s.seeded
@@ -170,7 +170,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               ...s,
               base,
               outbox,
-              tasks: rebase(base, outbox, response.serverVersion),
+              items: rebase(base, outbox, response.serverVersion),
               appliedVersion: response.serverVersion,
               nextId: s.seeded
                 ? Math.max(s.nextId, response.lastMutationId + 1)

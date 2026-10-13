@@ -1,9 +1,9 @@
 import { Context, Effect, Layer } from "effect";
 import { applyBatch } from "#/domain/batch";
 import type {
+  ItemMutation,
   PullResponse,
   PushResponse,
-  TaskMutation,
 } from "#/domain/mutation";
 import { ChangeFeed, type IChangeFeed } from "./change-feed";
 import {
@@ -18,7 +18,7 @@ import {
 export interface SyncServer<E = SyncStoreFailure> {
   readonly push: (
     clientId: string,
-    mutations: ReadonlyArray<typeof TaskMutation.Type>,
+    mutations: ReadonlyArray<typeof ItemMutation.Type>,
   ) => Effect.Effect<typeof PushResponse.Type, E>;
   readonly pull: (
     clientId: string,
@@ -36,7 +36,7 @@ export const makeSyncServer = <E>(
       .pipe(
         // `update` returns only once the transaction has committed, so a poke
         // can never announce a version a puller cannot yet see. A batch that
-        // changed no task (redeliveries, rejections, no-ops) gives pullers
+        // changed no item (redeliveries, rejections, no-ops) gives pullers
         // nothing new, so it pokes no one.
         Effect.tap((outcome) =>
           outcome.applied.length > 0
@@ -50,7 +50,7 @@ export const makeSyncServer = <E>(
           rejected,
         })),
       ),
-  // A client already at the server version is sent no tasks.
+  // A client already at the server version is sent no items.
   pull: (clientId, lastAppliedVersion) =>
     store.read(clientId, (version) => version !== lastAppliedVersion),
 });

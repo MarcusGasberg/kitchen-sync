@@ -1,42 +1,42 @@
 import { type DateTime, Result } from "effect";
-import { StaleMutationError, TaskNotFoundError } from "./errors";
+import { ItemNotFoundError, StaleMutationError } from "./errors";
+import type { GroceryItem } from "./grocery-item";
 import { MutationIntent } from "./mutation";
-import type { Task } from "./task";
 
-export type TaskState = ReadonlyMap<string, Task>;
+export type ItemState = ReadonlyMap<string, GroceryItem>;
 
-export type TaskPatch =
-  | { readonly _tag: "Insert"; readonly task: Task }
-  | { readonly _tag: "Update"; readonly task: Task }
+export type ItemPatch =
+  | { readonly _tag: "Insert"; readonly item: GroceryItem }
+  | { readonly _tag: "Update"; readonly item: GroceryItem }
   | { readonly _tag: "Delete"; readonly id: string };
 
 export const decide: (
-  state: TaskState,
+  state: ItemState,
   mutation: typeof MutationIntent.Type,
   version: number,
   now: DateTime.Utc,
 ) => Result.Result<
-  ReadonlyArray<TaskPatch>,
-  TaskNotFoundError | StaleMutationError
+  ReadonlyArray<ItemPatch>,
+  ItemNotFoundError | StaleMutationError
 > = (state, mutation, version, now) => {
   const result = MutationIntent.match(mutation, {
-    CreateTask: (m) => {
-      if (state.has(m.taskId)) {
+    AddItem: (m) => {
+      if (state.has(m.itemId)) {
         return Result.succeed([]);
       }
 
-      const results: ReadonlyArray<TaskPatch> = [
+      const results: ReadonlyArray<ItemPatch> = [
         {
           _tag: "Insert",
-          task: {
-            id: m.taskId,
-            title: m.task.title,
+          item: {
+            id: m.itemId,
+            name: m.item.name,
             createdAt: now,
-            completed: false,
+            checked: false,
             version,
             order:
               Math.max(
-                ...Array.from(state.values()).map((task) => task.order),
+                ...Array.from(state.values()).map((item) => item.order),
                 -1,
               ) + 1,
           },
@@ -44,68 +44,68 @@ export const decide: (
       ];
       return Result.succeed(results);
     },
-    SetTaskCompleted: (m) => {
-      const existing = state.get(m.taskId);
+    SetItemChecked: (m) => {
+      const existing = state.get(m.itemId);
       if (!existing) {
         return Result.fail(
-          new TaskNotFoundError({
-            taskId: m.taskId,
+          new ItemNotFoundError({
+            itemId: m.itemId,
           }),
         );
       }
 
-      if (existing.completed === m.completed) {
+      if (existing.checked === m.checked) {
         return Result.succeed([]);
       }
 
-      const results: ReadonlyArray<TaskPatch> = [
+      const results: ReadonlyArray<ItemPatch> = [
         {
           _tag: "Update",
-          task: {
+          item: {
             ...existing,
             version,
-            completed: m.completed,
+            checked: m.checked,
           },
         },
       ];
 
       return Result.succeed(results);
     },
-    DeleteTask: (m) => {
-      const existing = state.get(m.taskId);
+    RemoveItem: (m) => {
+      const existing = state.get(m.itemId);
       if (!existing) {
         return Result.succeed([]);
       }
 
-      const updatedTaskAfterDeletion: Array<TaskPatch> = [];
-      for (const task of state.values()) {
-        if (task.order > existing.order) {
-          updatedTaskAfterDeletion.push({
+      const updatedItemsAfterRemoval: Array<ItemPatch> = [];
+      for (const item of state.values()) {
+        if (item.order > existing.order) {
+          updatedItemsAfterRemoval.push({
             _tag: "Update",
-            task: {
-              ...task,
+            item: {
+              ...item,
               version: version,
-              order: task.order - 1,
+              order: item.order - 1,
             },
           });
         }
       }
 
-      const results: ReadonlyArray<TaskPatch> = [
+      const results: ReadonlyArray<ItemPatch> = [
         {
           _tag: "Delete",
-          id: m.taskId,
+          id: m.itemId,
         },
-        ...updatedTaskAfterDeletion,
+        ...updatedItemsAfterRemoval,
       ];
       return Result.succeed(results);
     },
-    EditTask: (m) => {
-      const existing = state.get(m.taskId);
+    EditItem: (m) => {
+      const existing = state.get(m.itemId);
       if (!existing) {
         return Result.fail(
-          new TaskNotFoundError({
-            taskId: m.taskId,
+          new ItemNotFoundError({
+            itemId: m.itemId,
           }),
         );
       }
@@ -118,31 +118,31 @@ export const decide: (
         return Result.succeed([]);
       }
 
-      const updatedTask: Task = {
+      const updatedItem: GroceryItem = {
         ...existing,
         ...m.changes,
         version,
       };
 
-      const results: ReadonlyArray<TaskPatch> = [
+      const results: ReadonlyArray<ItemPatch> = [
         {
           _tag: "Update",
-          task: updatedTask,
+          item: updatedItem,
         },
       ];
       return Result.succeed(results);
     },
-    ReorderTask: (
+    ReorderItem: (
       m,
     ): Result.Result<
-      ReadonlyArray<TaskPatch>,
-      TaskNotFoundError | StaleMutationError
+      ReadonlyArray<ItemPatch>,
+      ItemNotFoundError | StaleMutationError
     > => {
-      const moved = state.get(m.taskId);
+      const moved = state.get(m.itemId);
       if (!moved) {
         return Result.fail(
-          new TaskNotFoundError({
-            taskId: m.taskId,
+          new ItemNotFoundError({
+            itemId: m.itemId,
           }),
         );
       }
@@ -152,7 +152,7 @@ export const decide: (
           new StaleMutationError({
             actual: moved.version,
             expected: m.baseVersion,
-            taskId: m.taskId,
+            itemId: m.itemId,
           }),
         );
       }
@@ -163,35 +163,35 @@ export const decide: (
         return Result.succeed([]);
       }
 
-      const results: Array<TaskPatch> = [];
+      const results: Array<ItemPatch> = [];
 
       const from = moved.order;
-      for (const task of state.values()) {
-        if (task.id === m.taskId) {
+      for (const item of state.values()) {
+        if (item.id === m.itemId) {
           const clampedOrder = Math.max(0, to);
           results.push({
             _tag: "Update",
-            task: {
-              ...task,
+            item: {
+              ...item,
               order: clampedOrder,
               version: version,
             },
           });
-        } else if (from > to && task.order >= to && task.order < from) {
+        } else if (from > to && item.order >= to && item.order < from) {
           results.push({
             _tag: "Update",
-            task: {
-              ...task,
-              order: task.order + 1,
+            item: {
+              ...item,
+              order: item.order + 1,
               version: version,
             },
           });
-        } else if (from < to && task.order > from && task.order <= to) {
+        } else if (from < to && item.order > from && item.order <= to) {
           results.push({
             _tag: "Update",
-            task: {
-              ...task,
-              order: task.order - 1,
+            item: {
+              ...item,
+              order: item.order - 1,
               version: version,
             },
           });
@@ -206,15 +206,15 @@ export const decide: (
 };
 
 export const apply: (
-  state: TaskState,
-  patches: ReadonlyArray<TaskPatch>,
-) => TaskState = (state, patches) => {
+  state: ItemState,
+  patches: ReadonlyArray<ItemPatch>,
+) => ItemState = (state, patches) => {
   const nextState = new Map(state);
   for (const patch of patches) {
     switch (patch._tag) {
       case "Insert":
       case "Update": {
-        nextState.set(patch.task.id, patch.task);
+        nextState.set(patch.item.id, patch.item);
         break;
       }
 

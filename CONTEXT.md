@@ -1,15 +1,15 @@
 # Kitchen Sync
 
-An offline-first task list. Clients apply changes locally at once and reconcile them with a single authoritative server later.
+An offline-first grocery list. Clients apply changes locally at once and reconcile them with a single authoritative server later.
 
 ## Language
 
-**Task**:
-A to-do item with a title, a completed flag and a position in the list.
-_Avoid_: Todo, item
+**Grocery item**:
+Something to buy, with a name, a quantity, an optional unit and category, a checked flag and a position in the list.
+_Avoid_: Task, todo, product
 
 **Mutation**:
-A client's request to change the task list, numbered by its client so the server can recognise redelivery.
+A client's request to change the grocery list, numbered by its client so the server can recognise redelivery.
 _Avoid_: Action, command, operation
 
 **Client mutation id**:
@@ -41,7 +41,7 @@ A mutation arriving with a client mutation id beyond the next expected one. It i
 _Avoid_: Out-of-order mutation
 
 **Server version**:
-The server's counter of how many state-changing mutations it has applied. Each task records the server version that last changed it.
+The server's counter of how many state-changing mutations it has applied. Each item records the server version that last changed it.
 _Avoid_: Revision, sequence
 
 **Poke**:
@@ -52,5 +52,5 @@ _Avoid_: Notification, event
 A client sending its batch to the server.
 
 **Pull**:
-A client asking the server for the current tasks. A client already at the server version receives none.
+A client asking the server for the current items. A client already at the server version receives none.
 _Avoid_: Fetch, sync down

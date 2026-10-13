@@ -8,9 +8,13 @@ import {
   SqlSchema,
 } from "effect/unstable/sql";
 import type { BatchBase, BatchOutcome } from "#/domain/batch";
-import type { TaskPatch } from "#/domain/reduce";
-import type { Task } from "#/domain/task";
-import { MutationLogEntry, TableName, TaskTableEntry } from "./db-schema";
+import type { GroceryItem } from "#/domain/grocery-item";
+import type { ItemPatch } from "#/domain/reduce";
+import {
+  GroceryItemTableEntry,
+  MutationLogEntry,
+  TableName,
+} from "./db-schema";
 import { retryTransientSql } from "./retry";
 
 export type SyncStoreFailure =
@@ -21,7 +25,7 @@ export type SyncStoreFailure =
 export interface ServerSnapshot {
   readonly serverVersion: number;
   readonly lastMutationId: number;
-  readonly tasks: ReadonlyArray<Task>;
+  readonly items: ReadonlyArray<GroceryItem>;
 }
 
 // Where the server keeps its state. It decides nothing: `update` hands the
@@ -34,16 +38,16 @@ export interface SyncStore<E = SyncStoreFailure> {
     clientId: string,
     step: (before: BatchBase) => BatchOutcome,
   ) => Effect.Effect<BatchOutcome, E>;
-  // Read a consistent snapshot. `wantTasks` is asked with the server version
-  // and may say the caller already has the tasks, so they are not loaded.
+  // Read a consistent snapshot. `wantItems` is asked with the server version
+  // and may say the caller already has the items, so they are not loaded.
   readonly read: (
     clientId: string,
-    wantTasks: (serverVersion: number) => boolean,
+    wantItems: (serverVersion: number) => boolean,
   ) => Effect.Effect<ServerSnapshot, E>;
 }
 
 export const makeInMemorySyncStore = (): SyncStore<never> => {
-  let taskState: BatchBase["taskState"] = new Map();
+  let itemState: BatchBase["itemState"] = new Map();
   let serverVersion = 0;
   const lastMutationIds = new Map<string, number>();
 
@@ -51,22 +55,22 @@ export const makeInMemorySyncStore = (): SyncStore<never> => {
     update: (clientId, step) =>
       Effect.sync(() => {
         const outcome = step({
-          taskState,
+          itemState,
           serverVersion,
           lastMutationId: lastMutationIds.get(clientId) ?? 0,
         });
-        taskState = outcome.taskState;
+        itemState = outcome.itemState;
         serverVersion = outcome.serverVersion;
         lastMutationIds.set(clientId, outcome.lastMutationId);
         return outcome;
       }),
-    read: (clientId, wantTasks) =>
+    read: (clientId, wantItems) =>
       Effect.sync(() => ({
         serverVersion,
         lastMutationId: lastMutationIds.get(clientId) ?? 0,
         // Postgres answers `order by "order"`; so does this.
-        tasks: wantTasks(serverVersion)
-          ? [...taskState.values()].sort((a, b) => a.order - b.order)
+        items: wantItems(serverVersion)
+          ? [...itemState.values()].sort((a, b) => a.order - b.order)
           : [],
       })),
   };
@@ -79,9 +83,9 @@ export class SyncStoreService extends Context.Service<
   static readonly Postgres = Layer.effect(
     SyncStoreService,
     Effect.gen(function* () {
-      const tasks = yield* SqlModel.makeRepository(TaskTableEntry, {
-        tableName: TableName.tasks,
-        spanPrefix: "tasks-repo",
+      const items = yield* SqlModel.makeRepository(GroceryItemTableEntry, {
+        tableName: TableName.groceryItems,
+        spanPrefix: "items-repo",
         idColumn: "id",
       });
       const log = yield* SqlModel.makeRepository(MutationLogEntry, {
@@ -91,11 +95,11 @@ export class SyncStoreService extends Context.Service<
       });
       const sql = yield* SqlClient.SqlClient;
 
-      const getAllTasksQuery = SqlSchema.findAll({
+      const getAllItemsQuery = SqlSchema.findAll({
         Request: Schema.Void,
-        Result: TaskTableEntry,
+        Result: GroceryItemTableEntry,
         execute: () =>
-          sql`select * from ${sql(TableName.tasks)} order by "order"`,
+          sql`select * from ${sql(TableName.groceryItems)} order by "order"`,
       });
 
       const SyncVersionRow = Schema.Struct({ version: Schema.Number });
@@ -152,14 +156,14 @@ export class SyncStoreService extends Context.Service<
           sql`update ${sql(TableName.syncClient)} set "lastMutationId" = ${lastMutationId} where "clientId" = ${clientId}`,
       });
 
-      const writePatch = (patch: TaskPatch) => {
+      const writePatch = (patch: ItemPatch) => {
         switch (patch._tag) {
           case "Update":
-            return tasks.updateVoid(patch.task);
+            return items.updateVoid(patch.item);
           case "Insert":
-            return tasks.insertVoid(patch.task);
+            return items.insertVoid(patch.item);
           case "Delete":
-            return tasks.delete(patch.id);
+            return items.delete(patch.id);
         }
       };
 
@@ -171,11 +175,11 @@ export class SyncStoreService extends Context.Service<
                 const { version: serverVersion } =
                   yield* lockSyncVersionQuery();
                 const { lastMutationId } = yield* lockClientQuery(clientId);
-                const allTasks = yield* getAllTasksQuery();
+                const allItems = yield* getAllItemsQuery();
 
                 const outcome = step({
-                  taskState: new Map<string, Task>(
-                    allTasks.map((task) => [task.id, task]),
+                  itemState: new Map<string, GroceryItem>(
+                    allItems.map((item) => [item.id, item]),
                   ),
                   serverVersion,
                   lastMutationId,
@@ -214,17 +218,17 @@ export class SyncStoreService extends Context.Service<
             ),
             retryTransientSql,
           ),
-        read: (clientId, wantTasks) =>
+        read: (clientId, wantItems) =>
           pipe(
             sql.withTransaction(
               Effect.gen(function* () {
                 const { version: serverVersion } =
                   yield* lockSyncVersionSharedQuery();
-                const taskRows = wantTasks(serverVersion)
-                  ? yield* getAllTasksQuery()
+                const itemRows = wantItems(serverVersion)
+                  ? yield* getAllItemsQuery()
                   : [];
                 const lastMutationId = yield* readLastMutationId(clientId);
-                return { serverVersion, lastMutationId, tasks: taskRows };
+                return { serverVersion, lastMutationId, items: itemRows };
               }),
             ),
             retryTransientSql,

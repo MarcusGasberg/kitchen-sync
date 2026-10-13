@@ -1,19 +1,19 @@
 import { Result } from "effect";
-import type { StaleMutationError, TaskNotFoundError } from "./errors";
-import type { MutationRejection, TaskMutation } from "./mutation";
-import { apply, decide, type TaskPatch, type TaskState } from "./reduce";
+import type { ItemNotFoundError, StaleMutationError } from "./errors";
+import type { ItemMutation, MutationRejection } from "./mutation";
+import { apply, decide, type ItemPatch, type ItemState } from "./reduce";
 
-// What the server knows before a batch: the tasks, the server version, and the
+// What the server knows before a batch: the items, the server version, and the
 // last client mutation id it settled for the pushing client.
 export interface BatchBase {
-  readonly taskState: TaskState;
+  readonly itemState: ItemState;
   readonly serverVersion: number;
   readonly lastMutationId: number;
 }
 
 // A mutation that changed something, with the server version it was stamped.
 export interface AppliedMutation {
-  readonly mutation: typeof TaskMutation.Type;
+  readonly mutation: typeof ItemMutation.Type;
   readonly appliedVersion: number;
 }
 
@@ -21,17 +21,17 @@ export interface AppliedMutation {
 export interface BatchOutcome extends BatchBase {
   readonly acked: ReadonlyArray<number>;
   readonly rejected: ReadonlyArray<typeof MutationRejection.Type>;
-  readonly patches: ReadonlyArray<TaskPatch>;
+  readonly patches: ReadonlyArray<ItemPatch>;
   readonly applied: ReadonlyArray<AppliedMutation>;
 }
 
 // The one wording of why the server refused a mutation. The UI shows it as is.
-const describeRefusal = (failure: TaskNotFoundError | StaleMutationError) => {
+const describeRefusal = (failure: ItemNotFoundError | StaleMutationError) => {
   switch (failure._tag) {
-    case "TaskNotFoundError":
-      return `task ${failure.taskId} not found`;
+    case "ItemNotFoundError":
+      return `item ${failure.itemId} not found`;
     case "StaleMutationError":
-      return `stale mutation for ${failure.taskId}. Expected: ${failure.expected}. Actual: ${failure.actual}`;
+      return `stale mutation for ${failure.itemId}. Expected: ${failure.expected}. Actual: ${failure.actual}`;
   }
 };
 
@@ -41,15 +41,15 @@ const describeRefusal = (failure: TaskNotFoundError | StaleMutationError) => {
 //  - A redelivery (id already settled) is acked and never decided again.
 //  - A gap is rejected without spending its id.
 //  - A rejection spends its id, so the client can move on.
-//  - The server version moves only when a mutation actually changes a task.
+//  - The server version moves only when a mutation actually changes an item.
 export const applyBatch = (
   before: BatchBase,
-  mutations: ReadonlyArray<typeof TaskMutation.Type>,
+  mutations: ReadonlyArray<typeof ItemMutation.Type>,
 ): BatchOutcome => {
-  let { taskState, serverVersion, lastMutationId } = before;
+  let { itemState, serverVersion, lastMutationId } = before;
   const acked: Array<number> = [];
   const rejected: Array<typeof MutationRejection.Type> = [];
-  const patches: Array<TaskPatch> = [];
+  const patches: Array<ItemPatch> = [];
   const applied: Array<AppliedMutation> = [];
 
   for (const mutation of mutations) {
@@ -71,7 +71,7 @@ export const applyBatch = (
 
     lastMutationId = id;
     const nextVersion = serverVersion + 1;
-    const decided = decide(taskState, mutation, nextVersion, mutation.issuedAt);
+    const decided = decide(itemState, mutation, nextVersion, mutation.issuedAt);
 
     if (Result.isFailure(decided)) {
       rejected.push({
@@ -83,7 +83,7 @@ export const applyBatch = (
 
     acked.push(id);
     if (decided.success.length > 0) {
-      taskState = apply(taskState, decided.success);
+      itemState = apply(itemState, decided.success);
       serverVersion = nextVersion;
       patches.push(...decided.success);
       applied.push({ mutation, appliedVersion: nextVersion });
@@ -91,7 +91,7 @@ export const applyBatch = (
   }
 
   return {
-    taskState,
+    itemState,
     serverVersion,
     lastMutationId,
     acked,

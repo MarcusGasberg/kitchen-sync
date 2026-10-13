@@ -1,8 +1,8 @@
 import { DateTime, Result } from "effect";
 import { describe, expect, it } from "vitest";
-import type { TaskMutation } from "../domain/mutation";
-import { decide, type TaskPatch, type TaskState } from "../domain/reduce";
-import type { Task } from "../domain/task";
+import type { GroceryItem } from "../domain/grocery-item";
+import type { ItemMutation } from "../domain/mutation";
+import { decide, type ItemPatch, type ItemState } from "../domain/reduce";
 
 const uuid = () => crypto.randomUUID();
 
@@ -11,54 +11,54 @@ const AT = DateTime.makeUnsafe("2026-01-01T00:00:00.000Z");
 let nextClientMutationId = 0;
 const nextMutationId = () => ++nextClientMutationId;
 
-const task = (order: number, version: number): Task => ({
+const item = (order: number, version: number): GroceryItem => ({
   id: uuid(),
-  title: `task ${order}`,
+  name: `item ${order}`,
   createdAt: AT,
-  completed: false,
+  checked: false,
   order,
   version,
 });
 
-const stateOf = (...tasks: ReadonlyArray<Task>): TaskState =>
-  new Map(tasks.map((t) => [t.id, t]));
+const stateOf = (...items: ReadonlyArray<GroceryItem>): ItemState =>
+  new Map(items.map((t) => [t.id, t]));
 
-const deleteTaskMutation = (taskId: string): typeof TaskMutation.Type => ({
-  _tag: "DeleteTask",
+const removeItemMutation = (itemId: string): typeof ItemMutation.Type => ({
+  _tag: "RemoveItem",
   clientMutationId: nextMutationId(),
   issuedAt: AT,
-  taskId,
+  itemId,
 });
 
-const reorderTaskMutation = (
-  taskId: string,
+const reorderItemMutation = (
+  itemId: string,
   order: number,
   baseVersion: number,
-): typeof TaskMutation.Type => ({
-  _tag: "ReorderTask",
+): typeof ItemMutation.Type => ({
+  _tag: "ReorderItem",
   clientMutationId: nextMutationId(),
   issuedAt: AT,
   baseVersion,
-  taskId,
+  itemId,
   order,
 });
 
 /** The versions `decide` stamped, in patch order. `Delete` patches carry none. */
-const stampedVersions = (patches: ReadonlyArray<TaskPatch>) =>
+const stampedVersions = (patches: ReadonlyArray<ItemPatch>) =>
   patches.flatMap((patch) =>
-    patch._tag === "Delete" ? [] : [patch.task.version],
+    patch._tag === "Delete" ? [] : [patch.item.version],
   );
 
 describe("decide stamps one version per mutation", () => {
-  it("stamps the supplied version on every row a DeleteTask shifts", () => {
-    const first = task(0, 3);
-    const second = task(1, 3);
-    const third = task(2, 3);
+  it("stamps the supplied version on every row a RemoveItem shifts", () => {
+    const first = item(0, 3);
+    const second = item(1, 3);
+    const third = item(2, 3);
 
     const patches = Result.getOrThrow(
       decide(
         stateOf(first, second, third),
-        deleteTaskMutation(first.id),
+        removeItemMutation(first.id),
         4,
         AT,
       ),
@@ -67,15 +67,15 @@ describe("decide stamps one version per mutation", () => {
     expect(stampedVersions(patches)).toEqual([4, 4]);
   });
 
-  it("stamps the supplied version on every row a ReorderTask moves", () => {
-    const first = task(0, 3);
-    const second = task(1, 3);
-    const third = task(2, 3);
+  it("stamps the supplied version on every row a ReorderItem moves", () => {
+    const first = item(0, 3);
+    const second = item(1, 3);
+    const third = item(2, 3);
 
     const patches = Result.getOrThrow(
       decide(
         stateOf(first, second, third),
-        reorderTaskMutation(first.id, 2, 3),
+        reorderItemMutation(first.id, 2, 3),
         4,
         AT,
       ),

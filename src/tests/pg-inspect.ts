@@ -1,18 +1,22 @@
 import { Effect, Schema } from "effect";
 import { SqlClient, SqlSchema } from "effect/unstable/sql";
-import { MutationLogEntry, TableName, TaskTableEntry } from "../lib/db-schema";
+import {
+  GroceryItemTableEntry,
+  MutationLogEntry,
+  TableName,
+} from "../lib/db-schema";
 
 // Test-only eyes on the Postgres rows the sync store writes. They live here
 // and not on the SyncStore interface so production code has no back doors.
 
-export const getAllTasks = () =>
+export const getAllItems = () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     return yield* SqlSchema.findAll({
       Request: Schema.Void,
-      Result: TaskTableEntry,
+      Result: GroceryItemTableEntry,
       execute: () =>
-        sql`select * from ${sql(TableName.tasks)} order by "order"`,
+        sql`select * from ${sql(TableName.groceryItems)} order by "order"`,
     })();
   });
 

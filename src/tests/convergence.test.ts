@@ -24,35 +24,35 @@ const uuid = (): string => globalThis.crypto.randomUUID();
 
 const now = () => DateTime.makeUnsafe(new Date());
 
-const create = (title: string): MutationIntent => ({
-  _tag: "CreateTask",
+const create = (name: string): MutationIntent => ({
+  _tag: "AddItem",
   issuedAt: now(),
-  taskId: uuid(),
-  task: { title },
+  itemId: uuid(),
+  item: { name },
 });
 
-const complete = (taskId: string): MutationIntent => ({
-  _tag: "SetTaskCompleted",
+const complete = (itemId: string): MutationIntent => ({
+  _tag: "SetItemChecked",
   issuedAt: now(),
-  taskId,
-  completed: true,
+  itemId,
+  checked: true,
 });
 
-const edit = (taskId: string, title: string): MutationIntent => ({
-  _tag: "EditTask",
+const edit = (itemId: string, name: string): MutationIntent => ({
+  _tag: "EditItem",
   issuedAt: now(),
-  taskId,
-  changes: { title },
+  itemId,
+  changes: { name },
 });
 
 const reorder = (
-  taskId: string,
+  itemId: string,
   baseVersion: number,
   order: number,
 ): MutationIntent => ({
-  _tag: "ReorderTask",
+  _tag: "ReorderItem",
   issuedAt: now(),
-  taskId,
+  itemId,
   baseVersion,
   order,
 });
@@ -84,7 +84,7 @@ const makeClient = (server: Context.Context<SyncTransportService>) =>
   });
 
 // What the UI renders, in render order.
-const view = (state: StoreState) => [...state.tasks.values()];
+const view = (state: StoreState) => [...state.items.values()];
 
 describe("SyncClient", () => {
   it.effect("builds independent clients even under one shared memo map", () =>
@@ -103,7 +103,7 @@ describe("SyncClient", () => {
 
       yield* a.applyMutation(create("only in a"));
 
-      expect((yield* b.getSnapShot()).tasks.size).toBe(0);
+      expect((yield* b.getSnapShot()).items.size).toBe(0);
     }),
   );
 });
@@ -117,7 +117,7 @@ describe("convergence", () => {
         const a = yield* makeClient(server);
         const b = yield* makeClient(server);
 
-        // Common ground: three tasks both clients have seen.
+        // Common ground: three items both clients have seen.
         yield* a.start;
         yield* b.start;
         yield* tick(500);
@@ -130,7 +130,7 @@ describe("convergence", () => {
         yield* a.apply(two);
         yield* a.apply(three);
         yield* tick(3000);
-        expect(view(yield* b.state).map((t) => t.title)).toEqual([
+        expect(view(yield* b.state).map((t) => t.name)).toEqual([
           "one",
           "two",
           "three",
@@ -140,17 +140,17 @@ describe("convergence", () => {
         yield* a.stop;
         yield* b.stop;
 
-        const seenByA = (yield* a.state).tasks.get(three.taskId);
-        const seenByB = (yield* b.state).tasks.get(three.taskId);
+        const seenByA = (yield* a.state).items.get(three.itemId);
+        const seenByB = (yield* b.state).items.get(three.itemId);
         if (seenByA === undefined || seenByB === undefined) {
-          return yield* Effect.die("both clients should see task three");
+          return yield* Effect.die("both clients should see item three");
         }
-        // The same task moved to two different places from the same version:
+        // The same item moved to two different places from the same version:
         // exactly one of them can win.
-        yield* a.apply(reorder(three.taskId, seenByA.version, 0));
-        yield* b.apply(reorder(three.taskId, seenByB.version, 1));
-        yield* a.apply(edit(one.taskId, "one, edited by a"));
-        yield* b.apply(complete(two.taskId));
+        yield* a.apply(reorder(three.itemId, seenByA.version, 0));
+        yield* b.apply(reorder(three.itemId, seenByB.version, 1));
+        yield* a.apply(edit(one.itemId, "one, edited by a"));
+        yield* b.apply(complete(two.itemId));
         yield* b.apply(create("four"));
 
         expect(view(yield* a.state)).not.toEqual(view(yield* b.state));
@@ -168,16 +168,16 @@ describe("convergence", () => {
         expect(other.appliedVersion).toBe(converged.appliedVersion);
 
         // Every non-conflicting change survived on both sides...
-        const byTitle = new Map(view(converged).map((t) => [t.title, t]));
-        expect(byTitle.has("one, edited by a")).toBe(true);
-        expect(byTitle.get("two")?.completed).toBe(true);
-        expect(byTitle.has("four")).toBe(true);
+        const byName = new Map(view(converged).map((t) => [t.name, t]));
+        expect(byName.has("one, edited by a")).toBe(true);
+        expect(byName.get("two")?.checked).toBe(true);
+        expect(byName.has("four")).toBe(true);
         // ...and the reorders were decided once: one landed, the other was
         // rejected and surfaced to the client that made it.
         const rejected = [...converged.rejected, ...other.rejected];
         expect(rejected).toHaveLength(1);
         expect(rejected[0].reason).toContain("stale mutation");
-        expect([0, 1]).toContain(byTitle.get("three")?.order);
+        expect([0, 1]).toContain(byName.get("three")?.order);
 
         // No oscillation: from here on neither client changes what it shows,
         // and the server applies nothing more.

@@ -17,45 +17,45 @@ const uuid = (): string =>
 // Intents carry no clientMutationId. The store assigns one inside the same
 // atomic update that accepts the mutation, so an id is never spent on a
 // mutation that did not make it into the outbox (plan decision 7).
-const createMutation = (title: string): MutationIntent => ({
-  _tag: "CreateTask",
+const createMutation = (name: string): MutationIntent => ({
+  _tag: "AddItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId: uuid(),
-  task: { title },
+  itemId: uuid(),
+  item: { name },
 });
 
-const completeMutation = (taskId: string): MutationIntent => ({
-  _tag: "SetTaskCompleted",
+const completeMutation = (itemId: string): MutationIntent => ({
+  _tag: "SetItemChecked",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId,
-  completed: true,
+  itemId,
+  checked: true,
 });
 
 const editMutation = (
-  taskId: string,
-  changes: { title?: string; completed?: boolean },
+  itemId: string,
+  changes: { name?: string; checked?: boolean },
 ): MutationIntent => ({
-  _tag: "EditTask",
+  _tag: "EditItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId,
+  itemId,
   changes,
 });
 
-const deleteMutation = (taskId: string): MutationIntent => ({
-  _tag: "DeleteTask",
+const deleteMutation = (itemId: string): MutationIntent => ({
+  _tag: "RemoveItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
-  taskId,
+  itemId,
 });
 
 const reorderMutation = (
-  taskId: string,
+  itemId: string,
   order: number,
   baseVersion: number,
 ): MutationIntent => ({
-  _tag: "ReorderTask",
+  _tag: "ReorderItem",
   issuedAt: DateTime.makeUnsafe(new Date()),
   baseVersion,
-  taskId,
+  itemId,
   order,
 });
 
@@ -81,13 +81,13 @@ const reconcile = (response: typeof PullResponse.Type) =>
 // already "seen" a mutation must seed first, or it describes a push that
 // cannot happen.
 const seed = () =>
-  reconcile({ serverVersion: 0, lastMutationId: 0, tasks: [] });
+  reconcile({ serverVersion: 0, lastMutationId: 0, items: [] });
 
-const getTasks = () =>
-  Effect.map(snapshot(), (state) => Array.from(state.tasks.values()));
+const getItems = () =>
+  Effect.map(snapshot(), (state) => Array.from(state.items.values()));
 
-const getTitles = () =>
-  Effect.map(getTasks(), (tasks) => tasks.map((task) => task.title));
+const getNames = () =>
+  Effect.map(getItems(), (items) => items.map((item) => item.name));
 
 const getOutbox = () => Effect.map(snapshot(), (state) => state.outbox);
 
@@ -96,26 +96,26 @@ const getOutboxIds = () =>
     outbox.map((entry) => entry.mutation.clientMutationId),
   );
 
-// What the UI would send as `baseVersion`: the version the task shows now.
-const versionOf = (taskId: string) =>
+// What the UI would send as `baseVersion`: the version the item shows now.
+const versionOf = (itemId: string) =>
   Effect.map(snapshot(), (state) => {
-    const task = state.tasks.get(taskId);
-    if (!task) throw new Error(`no task ${taskId} in the store`);
-    return task.version;
+    const item = state.items.get(itemId);
+    if (!item) throw new Error(`no item ${itemId} in the store`);
+    return item.version;
   });
 
 // A row as the server holds it -- possibly written by another client.
-const serverTask = (row: {
-  title: string;
+const serverItem = (row: {
+  name: string;
   order: number;
   version: number;
   id?: string;
-}): (typeof PullResponse.Type)["tasks"][number] => ({
+}): (typeof PullResponse.Type)["items"][number] => ({
   id: row.id ?? uuid(),
-  title: row.title,
+  name: row.name,
   order: row.order,
   version: row.version,
-  completed: false,
+  checked: false,
   createdAt: DateTime.makeUnsafe(new Date()),
 });
 
@@ -141,18 +141,18 @@ const outboxWoke = () =>
     return Option.isSome(yield* Fiber.join(fiber));
   });
 
-describe("createTask", () => {
-  it.effect("adds a task with the next order and appends to the outbox", () =>
+describe("addItem", () => {
+  it.effect("adds an item with the next order and appends to the outbox", () =>
     Effect.gen(function* () {
       const mutation = createMutation("milk");
       yield* apply(mutation);
 
-      const tasks = yield* getTasks();
-      expect(tasks).toHaveLength(1);
-      expect(tasks[0]).toMatchObject({
-        id: mutation.taskId,
-        title: "milk",
-        completed: false,
+      const items = yield* getItems();
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        id: mutation.itemId,
+        name: "milk",
+        checked: false,
         order: 0,
       });
 
@@ -160,7 +160,7 @@ describe("createTask", () => {
       expect(outbox).toHaveLength(1);
       expect(outbox[0].mutation).toEqual({ ...mutation, clientMutationId: 1 });
       expect(DateTime.isUtc(outbox[0].timestamp)).toBe(true);
-      expect(tasks[0].createdAt).toBe(outbox[0].timestamp);
+      expect(items[0].createdAt).toBe(outbox[0].timestamp);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
@@ -170,29 +170,29 @@ describe("createTask", () => {
       yield* apply(createMutation("b"));
       yield* apply(createMutation("c"));
 
-      const tasks = yield* getTasks();
-      expect(tasks.map((task) => task.order)).toEqual([0, 1, 2]);
+      const items = yield* getItems();
+      expect(items.map((item) => item.order)).toEqual([0, 1, 2]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 });
 
-describe("completeTask", () => {
-  it.effect("marks an existing task completed", () =>
+describe("checkItem", () => {
+  it.effect("marks an existing item checked", () =>
     Effect.gen(function* () {
       const create = createMutation("milk");
       yield* apply(create);
-      yield* apply(completeMutation(create.taskId));
+      yield* apply(completeMutation(create.itemId));
 
-      const tasks = yield* getTasks();
-      expect(tasks[0].completed).toBe(true);
+      const items = yield* getItems();
+      expect(items[0].checked).toBe(true);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
-  it.effect("fails with TaskNotFoundError when the task is missing", () =>
+  it.effect("fails with ItemNotFoundError when the item is missing", () =>
     Effect.gen(function* () {
       const result = yield* apply(completeMutation("missing")).pipe(
-        Effect.catchTag("TaskNotFoundError", (error) =>
-          Effect.succeed({ caught: error.taskId }),
+        Effect.catchTag("ItemNotFoundError", (error) =>
+          Effect.succeed({ caught: error.itemId }),
         ),
       );
 
@@ -202,23 +202,23 @@ describe("completeTask", () => {
   );
 });
 
-describe("editTask", () => {
-  it.effect("applies changes to an existing task", () =>
+describe("editItem", () => {
+  it.effect("applies changes to an existing item", () =>
     Effect.gen(function* () {
       const create = createMutation("milk");
       yield* apply(create);
-      yield* apply(editMutation(create.taskId, { title: "almond milk" }));
+      yield* apply(editMutation(create.itemId, { name: "almond milk" }));
 
-      const tasks = yield* getTasks();
-      expect(tasks[0].title).toBe("almond milk");
+      const items = yield* getItems();
+      expect(items[0].name).toBe("almond milk");
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
-  it.effect("fails with TaskNotFoundError when the task is missing", () =>
+  it.effect("fails with ItemNotFoundError when the item is missing", () =>
     Effect.gen(function* () {
-      const result = yield* apply(editMutation("missing", { title: "x" })).pipe(
-        Effect.catchTag("TaskNotFoundError", (error) =>
-          Effect.succeed({ caught: error.taskId }),
+      const result = yield* apply(editMutation("missing", { name: "x" })).pipe(
+        Effect.catchTag("ItemNotFoundError", (error) =>
+          Effect.succeed({ caught: error.itemId }),
         ),
       );
 
@@ -227,29 +227,29 @@ describe("editTask", () => {
   );
 });
 
-describe("deleteTask", () => {
-  it.effect("removes an existing task", () =>
+describe("removeItem", () => {
+  it.effect("removes an existing item", () =>
     Effect.gen(function* () {
       const create = createMutation("milk");
       yield* apply(create);
-      yield* apply(deleteMutation(create.taskId));
+      yield* apply(deleteMutation(create.itemId));
 
-      expect(yield* getTasks()).toHaveLength(0);
+      expect(yield* getItems()).toHaveLength(0);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
-  it.effect("is a no-op when the task is missing", () =>
+  it.effect("is a no-op when the item is missing", () =>
     Effect.gen(function* () {
       yield* apply(deleteMutation("missing"));
 
-      expect(yield* getTasks()).toHaveLength(0);
+      expect(yield* getItems()).toHaveLength(0);
       expect(yield* getOutbox()).toHaveLength(1);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 });
 
-describe("reorderTask", () => {
-  it.effect("moves a task toward the front and shifts the others", () =>
+describe("reorderItem", () => {
+  it.effect("moves an item toward the front and shifts the others", () =>
     Effect.gen(function* () {
       const a = createMutation("a");
       const b = createMutation("b");
@@ -258,15 +258,15 @@ describe("reorderTask", () => {
       yield* apply(b);
       yield* apply(c);
 
-      yield* apply(reorderMutation(c.taskId, 0, yield* versionOf(c.taskId)));
+      yield* apply(reorderMutation(c.itemId, 0, yield* versionOf(c.itemId)));
 
-      const tasks = yield* getTasks();
-      expect(tasks.map((task) => task.id)).toEqual([
-        c.taskId,
-        a.taskId,
-        b.taskId,
+      const items = yield* getItems();
+      expect(items.map((item) => item.id)).toEqual([
+        c.itemId,
+        a.itemId,
+        b.itemId,
       ]);
-      expect(tasks.map((task) => task.order)).toEqual([0, 1, 2]);
+      expect(items.map((item) => item.order)).toEqual([0, 1, 2]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
@@ -279,27 +279,27 @@ describe("reorderTask", () => {
       yield* apply(b);
       yield* apply(c);
 
-      yield* apply(reorderMutation(a.taskId, 99, yield* versionOf(a.taskId)));
-      expect((yield* getTasks()).map((task) => task.id)).toEqual([
-        b.taskId,
-        c.taskId,
-        a.taskId,
+      yield* apply(reorderMutation(a.itemId, 99, yield* versionOf(a.itemId)));
+      expect((yield* getItems()).map((item) => item.id)).toEqual([
+        b.itemId,
+        c.itemId,
+        a.itemId,
       ]);
 
-      yield* apply(reorderMutation(a.taskId, -5, yield* versionOf(a.taskId)));
-      expect((yield* getTasks()).map((task) => task.id)).toEqual([
-        a.taskId,
-        b.taskId,
-        c.taskId,
+      yield* apply(reorderMutation(a.itemId, -5, yield* versionOf(a.itemId)));
+      expect((yield* getItems()).map((item) => item.id)).toEqual([
+        a.itemId,
+        b.itemId,
+        c.itemId,
       ]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
-  it.effect("fails with TaskNotFoundError when the task is missing", () =>
+  it.effect("fails with ItemNotFoundError when the item is missing", () =>
     Effect.gen(function* () {
       const result = yield* apply(reorderMutation("missing", 0, 1)).pipe(
-        Effect.catchTag("TaskNotFoundError", (error) =>
-          Effect.succeed({ caught: error.taskId }),
+        Effect.catchTag("ItemNotFoundError", (error) =>
+          Effect.succeed({ caught: error.itemId }),
         ),
       );
 
@@ -313,14 +313,14 @@ describe("outbox", () => {
     Effect.gen(function* () {
       const create = createMutation("bread");
       yield* apply(create);
-      yield* apply(editMutation(create.taskId, { title: "toast" }));
-      yield* apply(deleteMutation(create.taskId));
+      yield* apply(editMutation(create.itemId, { name: "toast" }));
+      yield* apply(deleteMutation(create.itemId));
 
       const outbox = yield* getOutbox();
       expect(outbox.map((entry) => entry.mutation._tag)).toEqual([
-        "CreateTask",
-        "EditTask",
-        "DeleteTask",
+        "AddItem",
+        "EditItem",
+        "RemoveItem",
       ]);
       for (const entry of outbox) {
         expect(entry.mutation.clientMutationId).toBeGreaterThan(0);
@@ -334,10 +334,8 @@ describe("clientMutationId", () => {
   it.effect("is not spent on a mutation that fails locally", () =>
     Effect.gen(function* () {
       yield* apply(createMutation("a"));
-      // The pull fiber deleted this task a moment ago; the click still lands.
-      yield* Effect.exit(
-        apply(editMutation("deleted-by-pull", { title: "x" })),
-      );
+      // The pull fiber deleted this item a moment ago; the click still lands.
+      yield* Effect.exit(apply(editMutation("deleted-by-pull", { name: "x" })));
       yield* apply(createMutation("b"));
 
       // [1, 3] would be a gap, and the server never decides past a gap: every
@@ -349,7 +347,7 @@ describe("clientMutationId", () => {
   it.effect("resumes from the server's lastMutationId after a reload", () =>
     Effect.gen(function* () {
       // A reload: empty outbox, fresh counter, server remembers 41.
-      yield* reconcile({ serverVersion: 3, lastMutationId: 41, tasks: [] });
+      yield* reconcile({ serverVersion: 3, lastMutationId: 41, items: [] });
       yield* apply(createMutation("after reload"));
 
       // Restarting at 1 lands in the server's duplicate branch: acked, never
@@ -364,13 +362,13 @@ describe("clientMutationId", () => {
       yield* apply(createMutation("a"));
       yield* apply(createMutation("b"));
 
-      yield* reconcile({ serverVersion: 3, lastMutationId: 41, tasks: [] });
+      yield* reconcile({ serverVersion: 3, lastMutationId: 41, items: [] });
       yield* apply(createMutation("c"));
 
       // Sent as 1 and 2, they would land in the duplicate branch: acked,
       // never applied.
       expect(yield* getOutboxIds()).toEqual([42, 43, 44]);
-      expect(yield* getTitles()).toEqual(["a", "b", "c"]);
+      expect(yield* getNames()).toEqual(["a", "b", "c"]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
@@ -386,7 +384,7 @@ describe("clientMutationId", () => {
       yield* reconcile({
         serverVersion: 1,
         lastMutationId: 1,
-        tasks: [serverTask({ id: a.taskId, title: "a", order: 0, version: 1 })],
+        items: [serverItem({ id: a.itemId, name: "a", order: 0, version: 1 })],
       });
       yield* apply(createMutation("d"));
 
@@ -409,8 +407,8 @@ describe("awaitOutboxActivity", () => {
   it.effect("coalesces a burst of mutations into one wake-up", () =>
     Effect.gen(function* () {
       // Ten mutations typed offline are one push, not ten.
-      for (const title of "abcdefghij") {
-        yield* apply(createMutation(title));
+      for (const name of "abcdefghij") {
+        yield* apply(createMutation(name));
       }
 
       expect(yield* outboxWoke()).toBe(true);
@@ -421,7 +419,7 @@ describe("awaitOutboxActivity", () => {
   it.effect("is not woken by server responses", () =>
     Effect.gen(function* () {
       yield* settle(pushResponse({ serverVersion: 1 }));
-      yield* reconcile({ serverVersion: 2, lastMutationId: 0, tasks: [] });
+      yield* reconcile({ serverVersion: 2, lastMutationId: 0, items: [] });
 
       // A push whose own settle woke the push loop would spin forever.
       expect(yield* outboxWoke()).toBe(false);
@@ -444,8 +442,8 @@ describe("settle", () => {
         yield* reconcile({
           serverVersion: 1,
           lastMutationId: 1,
-          tasks: [
-            serverTask({ id: a.taskId, title: "a", order: 0, version: 1 }),
+          items: [
+            serverItem({ id: a.itemId, name: "a", order: 0, version: 1 }),
           ],
         });
 
@@ -483,7 +481,7 @@ describe("settle", () => {
       // branch acks it without applying it. 1 stays: an ack carries no rows,
       // so dropping it now would make "a" vanish until the next pull.
       expect(yield* getOutboxIds()).toEqual([1]);
-      expect(yield* getTitles()).toEqual(["a"]);
+      expect(yield* getNames()).toEqual(["a"]);
       expect((yield* snapshot()).rejected).toEqual([
         { clientMutationId: 2, reason: "stale" },
       ]);
@@ -492,14 +490,14 @@ describe("settle", () => {
 
   it.effect("leaves appliedVersion to the pulls", () =>
     Effect.gen(function* () {
-      yield* reconcile({ serverVersion: 5, lastMutationId: 0, tasks: [] });
+      yield* reconcile({ serverVersion: 5, lastMutationId: 0, items: [] });
 
       // A push response that lost the race with a newer pull.
       yield* settle(pushResponse({ serverVersion: 3 }));
       expect((yield* snapshot()).appliedVersion).toBe(5);
 
       // Newer, but it carries no rows. Claiming version 7 would make the next
-      // pull answer `tasks: []`, and `base` would never get the rows.
+      // pull answer `items: []`, and `base` would never get the rows.
       yield* settle(pushResponse({ serverVersion: 7 }));
       expect((yield* snapshot()).appliedVersion).toBe(5);
     }).pipe(Effect.provide(StoreService.Live)),
@@ -546,13 +544,13 @@ describe("the rebase invariant", () => {
       yield* seed();
       const b = createMutation("b");
       yield* apply(b);
-      const theirs = serverTask({ title: "theirs", order: 0, version: 1 });
+      const theirs = serverItem({ name: "theirs", order: 0, version: 1 });
       yield* reconcile({
         serverVersion: 1,
         lastMutationId: 0,
-        tasks: [theirs],
+        items: [theirs],
       });
-      yield* apply(reorderMutation(b.taskId, 0, yield* versionOf(b.taskId)));
+      yield* apply(reorderMutation(b.itemId, 0, yield* versionOf(b.itemId)));
       yield* apply(completeMutation(theirs.id));
       yield* settle(
         pushResponse({
@@ -565,19 +563,19 @@ describe("the rebase invariant", () => {
       yield* reconcile({
         serverVersion: 3,
         lastMutationId: 4,
-        tasks: [
-          serverTask({ id: theirs.id, title: "theirs", order: 0, version: 3 }),
-          serverTask({ id: a.taskId, title: "a", order: 1, version: 2 }),
-          serverTask({ id: b.taskId, title: "b", order: 2, version: 3 }),
+        items: [
+          serverItem({ id: theirs.id, name: "theirs", order: 0, version: 3 }),
+          serverItem({ id: a.itemId, name: "a", order: 1, version: 2 }),
+          serverItem({ id: b.itemId, name: "b", order: 2, version: 3 }),
         ],
       });
-      yield* apply(editMutation(a.taskId, { title: "a, again" }));
+      yield* apply(editMutation(a.itemId, { name: "a, again" }));
       yield* Effect.yieldNow;
       yield* Fiber.interrupt(watcher);
 
       expect(seen.length).toBeGreaterThan(8);
       for (const state of seen) {
-        expect([...state.tasks]).toEqual([
+        expect([...state.items]).toEqual([
           ...rebase(state.base, state.outbox, state.appliedVersion),
         ]);
       }
@@ -593,12 +591,12 @@ describe("reconcile", () => {
       yield* reconcile({
         serverVersion: 1,
         lastMutationId: 0,
-        tasks: [serverTask({ title: "theirs", order: 0, version: 1 })],
+        items: [serverItem({ name: "theirs", order: 0, version: 1 })],
       });
 
-      // Replacing tasks with the server's would make "mine" vanish until the
-      // push lands, then reappear: the flicker Task 6 checks for by hand.
-      expect(yield* getTitles()).toEqual(["theirs", "mine"]);
+      // Replacing items with the server's would make "mine" vanish until the
+      // push lands, then reappear: the flicker the M7 plan's two-tab check looks for.
+      expect(yield* getNames()).toEqual(["theirs", "mine"]);
       expect(yield* getOutboxIds()).toEqual([1]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
@@ -613,11 +611,11 @@ describe("reconcile", () => {
       yield* reconcile({
         serverVersion: 1,
         lastMutationId: 1,
-        tasks: [serverTask({ id: a.taskId, title: "a", order: 0, version: 1 })],
+        items: [serverItem({ id: a.itemId, name: "a", order: 0, version: 1 })],
       });
 
       expect(yield* getOutboxIds()).toEqual([2]);
-      expect(yield* getTitles()).toEqual(["a", "b"]);
+      expect(yield* getNames()).toEqual(["a", "b"]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
@@ -628,12 +626,12 @@ describe("reconcile", () => {
         yield* seed();
         const create = createMutation("doomed");
         yield* apply(create);
-        yield* apply(editMutation(create.taskId, { title: "renamed" }));
+        yield* apply(editMutation(create.itemId, { name: "renamed" }));
 
-        // The server has 1, but another client has since deleted the task.
-        yield* reconcile({ serverVersion: 2, lastMutationId: 1, tasks: [] });
+        // The server has 1, but another client has since deleted the item.
+        yield* reconcile({ serverVersion: 2, lastMutationId: 1, items: [] });
 
-        expect(yield* getTitles()).toEqual([]);
+        expect(yield* getNames()).toEqual([]);
         // Dropping 2 here would leave a hole the server never decides past.
         expect(yield* getOutboxIds()).toEqual([2]);
       }).pipe(Effect.provide(StoreService.Live)),
@@ -647,9 +645,9 @@ describe("reconcile", () => {
       );
 
       // Issued before the push landed, answered after it.
-      yield* reconcile({ serverVersion: 1, lastMutationId: 0, tasks: [] });
+      yield* reconcile({ serverVersion: 1, lastMutationId: 0, items: [] });
 
-      expect(yield* getTitles()).toEqual(["mine"]);
+      expect(yield* getNames()).toEqual(["mine"]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
@@ -658,26 +656,26 @@ describe("reconcile", () => {
       yield* reconcile({
         serverVersion: 3,
         lastMutationId: 0,
-        tasks: [serverTask({ title: "x", order: 0, version: 3 })],
+        items: [serverItem({ name: "x", order: 0, version: 3 })],
       });
 
-      // `/api/pull` answers an up-to-date client with `tasks: []`.
-      yield* reconcile({ serverVersion: 3, lastMutationId: 0, tasks: [] });
+      // `/api/pull` answers an up-to-date client with `items: []`.
+      yield* reconcile({ serverVersion: 3, lastMutationId: 0, items: [] });
 
-      expect(yield* getTitles()).toEqual(["x"]);
+      expect(yield* getNames()).toEqual(["x"]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
 
   it.effect(
-    "never stamps a replayed task with a version the server has not issued",
+    "never stamps a replayed item with a version the server has not issued",
     () =>
       Effect.gen(function* () {
         const create = createMutation("mine");
         yield* apply(create);
 
-        yield* reconcile({ serverVersion: 4, lastMutationId: 0, tasks: [] });
+        yield* reconcile({ serverVersion: 4, lastMutationId: 0, items: [] });
 
-        expect(yield* versionOf(create.taskId)).toBeLessThanOrEqual(4);
+        expect(yield* versionOf(create.itemId)).toBeLessThanOrEqual(4);
       }).pipe(Effect.provide(StoreService.Live)),
   );
 });
@@ -695,20 +693,18 @@ describe("subscription", () => {
         );
 
         const initial = yield* Queue.take(received);
-        expect(initial.tasks.size).toBe(0);
+        expect(initial.items.size).toBe(0);
         expect(initial.outbox).toHaveLength(0);
 
         const create = createMutation("milk");
         yield* apply(create);
         const afterCreate = yield* Queue.take(received);
-        expect(afterCreate.tasks.size).toBe(1);
+        expect(afterCreate.items.size).toBe(1);
         expect(afterCreate.outbox).toHaveLength(1);
 
-        yield* apply(completeMutation(create.taskId));
+        yield* apply(completeMutation(create.itemId));
         const afterComplete = yield* Queue.take(received);
-        expect(Array.from(afterComplete.tasks.values())[0]?.completed).toBe(
-          true,
-        );
+        expect(Array.from(afterComplete.items.values())[0]?.checked).toBe(true);
         expect(afterComplete.outbox).toHaveLength(2);
       }).pipe(Effect.provide(StoreService.Live)),
   );
@@ -719,7 +715,7 @@ describe("subscription", () => {
         const store = yield* StoreService;
         yield* store.applyMutation(createMutation("only mine"));
         return yield* store.getSnapShot();
-      }).pipe(Effect.map((state) => Array.from(state.tasks.values())));
+      }).pipe(Effect.map((state) => Array.from(state.items.values())));
 
       // Unlike every other test here, this one deliberately has no outer
       // `Effect.provide` — the two stores below must be the only ones. An
