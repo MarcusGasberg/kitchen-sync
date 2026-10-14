@@ -93,6 +93,23 @@ describe("diffClientState", () => {
     ]);
   });
 
+  // A client the server has never seen keeps its ids: #1 stays #1.
+  it("a first pull that keeps every id renumbers nothing", () => {
+    const before = state({
+      seeded: false,
+      outbox: [entry(1), entry(2)],
+      nextId: 3,
+    });
+    const after = state({
+      outbox: [entry(1), entry(2)],
+      nextId: 3,
+      appliedVersion: 3,
+    });
+    expect(diffClientState("A", before, after)).toEqual([
+      { _tag: "Reconciled", client: "A", appliedVersion: 3 },
+    ]);
+  });
+
   it("names sync stopping and being retried", () => {
     const failure = { loop: "push" as const, reason: "HTTP 400" };
     expect(

@@ -365,6 +365,128 @@ describe("World", () => {
     );
   }
 
+  it.effect(
+    "a reload keeps the client id, so its first pull renumbers what it made since",
+    () =>
+      inWorld({ clients: ["A", "B"], seed: "reload" }, (world) =>
+        Effect.gen(function* () {
+          // Held across the reload: a handle follows its client.
+          const a = world.client("A");
+          yield* world.clock.advance("1 second");
+          for (const name of ["Milk", "Eggs", "Bread"]) {
+            yield* a.apply(yield* add(world, name));
+          }
+          yield* world.clock.advance("3 seconds"); // #1–#3 pushed and pulled
+
+          // The page reloads offline: the same clientId, a fresh store.
+          yield* world.net.offline("A", true);
+          yield* a.reload;
+          expect(yield* names(world, "A")).toEqual([]);
+          yield* a.apply(yield* add(world, "Jam"));
+          yield* a.apply(yield* add(world, "Tea"));
+          const provisional = yield* a.state;
+          expect(provisional.seeded).toBe(false);
+          expect(
+            provisional.outbox.map((e) => e.mutation.clientMutationId),
+          ).toEqual([1, 2]);
+
+          yield* world.net.offline("A", false);
+          yield* world.clock.advance("5 seconds");
+
+          const timeline = yield* world.currentTimeline;
+          expect(tagged(timeline, "Reloaded").map((e) => e.client)).toEqual([
+            "A",
+          ]);
+          // Until it is back online, the fresh store only ever adds.
+          const [reloaded] = tagged(timeline, "Reloaded");
+          const [online] = tagged(timeline, "CameOnline");
+          expect(
+            events(timeline)
+              .filter(
+                (e) =>
+                  e.seq > (reloaded?.seq ?? 0) &&
+                  e.seq < (online?.seq ?? 0) &&
+                  "client" in e &&
+                  e.client === "A",
+              )
+              .map((e) => e._tag),
+          ).toEqual(["Applied", "Applied"]);
+          expect(
+            tagged(timeline, "Renumbered").map((e) => [e.client, e.from, e.to]),
+          ).toEqual([["A", [1, 2], [4, 5]]]);
+          expect(
+            tagged(timeline, "Decided")
+              .filter((e) => e.client === "A")
+              .map((e) => [e.clientMutationId, e.classification]),
+          ).toEqual([
+            [1, "applied"],
+            [2, "applied"],
+            [3, "applied"],
+            [4, "applied"],
+            [5, "applied"],
+          ]);
+          expect(yield* names(world, "B")).toEqual([
+            "Milk",
+            "Eggs",
+            "Bread",
+            "Jam",
+            "Tea",
+          ]);
+          expect(isConverged(yield* world.snapshot)).toBe(true);
+        }),
+      ),
+  );
+
+  it.effect(
+    "a reload throws away an outbox that never reached the server",
+    () =>
+      inWorld({ clients: ["A", "B"], seed: "reload-loss" }, (world) =>
+        Effect.gen(function* () {
+          yield* world.clock.advance("1 second");
+          yield* world.net.offline("A", true);
+          yield* world.client("A").apply(yield* add(world, "Milk"));
+          yield* world.client("A").reload;
+          yield* world.net.offline("A", false);
+          yield* world.clock.advance("5 seconds");
+
+          expect(yield* names(world, "A")).toEqual([]);
+          expect(yield* names(world, "B")).toEqual([]);
+          const timeline = yield* world.currentTimeline;
+          expect(tagged(timeline, "Decided")).toEqual([]);
+          // Lost, not confirmed; and nothing to renumber: the reloaded store
+          // started empty.
+          expect(tagged(timeline, "Confirmed")).toEqual([]);
+          expect(tagged(timeline, "Renumbered")).toEqual([]);
+          expect(isConverged(yield* world.snapshot)).toBe(true);
+        }),
+      ),
+  );
+
+  it.effect("a request in flight at a reload is abandoned after it", () =>
+    inWorld({ clients: ["A"], seed: "reload-in-flight" }, (world) =>
+      Effect.gen(function* () {
+        yield* world.clock.advance("1 second");
+        yield* world.net.hold({ client: "A", kind: "push" });
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("1 second"); // the push is sent and held
+        yield* world.client("A").reload;
+
+        const timeline = yield* world.currentTimeline;
+        expect(
+          events(timeline)
+            .filter((e) => e._tag === "Reloaded" || e._tag === "Abandoned")
+            .map((e) =>
+              e._tag === "Abandoned" ? `Abandoned ${e.message.kind}` : e._tag,
+            ),
+        ).toEqual(["Reloaded", "Abandoned push"]);
+        expect(
+          (yield* world.snapshot).messages.filter((m) => m.kind === "push"),
+        ).toEqual([]);
+        expect(tagged(timeline, "Decided")).toEqual([]);
+      }),
+    ),
+  );
+
   it.effect("a name that is not in the world fails loudly", () =>
     inWorld({ clients: ["A"], seed: "typo" }, (world) =>
       Effect.gen(function* () {

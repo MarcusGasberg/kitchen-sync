@@ -13,6 +13,7 @@ export type Input =
       readonly intent: MutationIntent;
     }
   | { readonly _tag: "Retry"; readonly client: ClientName }
+  | { readonly _tag: "Reload"; readonly client: ClientName }
   | {
       readonly _tag: "Offline";
       readonly client: ClientName;
@@ -46,6 +47,8 @@ export const applyInput = (
       return world.client(input.client).apply(input.intent).pipe(Effect.ignore);
     case "Retry":
       return world.client(input.client).retry;
+    case "Reload":
+      return world.client(input.client).reload;
     case "Offline":
       return world.net.offline(input.client, input.offline);
     case "Latency":

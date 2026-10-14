@@ -3,9 +3,12 @@ import {
   Deferred,
   Duration,
   Effect,
+  Exit,
+  Fiber,
   Layer,
   Ref,
   Scheduler,
+  Scope,
   Semaphore,
   Stream,
   SubscriptionRef,
@@ -51,6 +54,9 @@ export interface ClientHandle {
     intent: MutationIntent,
   ) => Effect.Effect<void, ItemNotFoundError | StaleMutationError>;
   readonly retry: Effect.Effect<void>;
+  // The page reloads, as in the app: the clientId survives (localStorage),
+  // the store and its outbox do not. The handle follows the new store.
+  readonly reload: Effect.Effect<void>;
   readonly state: Effect.Effect<StoreState>;
 }
 
@@ -230,43 +236,54 @@ const make = (options: WorldOptions) =>
         ),
       );
 
+    // One client's store and engine, in a scope of their own so a reload can
+    // end them and start a fresh pair under the same clientId.
+    const worldScope = yield* Effect.scope;
+    const boot = (name: ClientName, clientId: string) =>
+      Effect.gen(function* () {
+        const scope = yield* Scope.fork(worldScope);
+        const built = yield* Layer.buildWithScope(
+          SyncClient.pipe(
+            Layer.provide(
+              simulatedTransport({
+                client: name,
+                network,
+                server,
+                feed: tracedFeed,
+              }),
+            ),
+          ),
+          scope,
+        );
+        const store = Context.get(built, StoreService);
+        const engine = Context.get(built, SyncEngineService);
+
+        // Watch before starting, so no state the engine publishes goes
+        // missing: the first element is the replayed current state, which
+        // proves the subscription is live.
+        const watching = yield* Deferred.make<void>();
+        const watcher = yield* store.changes.pipe(
+          Stream.tap(() => Deferred.succeed(watching, undefined)),
+          Stream.runForEach((state) => recorder.observe(name, state)),
+          Effect.forkIn(scope),
+        );
+        yield* Deferred.await(watching);
+        yield* engine.start(clientId);
+        return { scope, store, engine, watcher };
+      });
+
     const clients = new Map<ClientName, ClientHandle>();
     for (const [name, clientId] of clientIds) {
-      const built = yield* Layer.build(
-        SyncClient.pipe(
-          Layer.provide(
-            simulatedTransport({
-              client: name,
-              network,
-              server,
-              feed: tracedFeed,
-            }),
-          ),
-        ),
-      );
-      const clientStore = Context.get(built, StoreService);
-      const engine = Context.get(built, SyncEngineService);
-
-      // Watch before starting, so no state the engine publishes goes missing:
-      // the first element is the replayed current state, which proves the
-      // subscription is live.
-      const watching = yield* Deferred.make<void>();
-      yield* clientStore.changes.pipe(
-        Stream.tap(() => Deferred.succeed(watching, undefined)),
-        Stream.runForEach((state) => recorder.observe(name, state)),
-        Effect.forkScoped,
-      );
-      yield* Deferred.await(watching);
-      yield* engine.start(clientId);
+      let running = yield* boot(name, clientId);
 
       clients.set(name, {
         name,
         clientId,
-        state: inWorld(clientStore.getSnapShot()),
+        state: inWorld(Effect.suspend(() => running.store.getSnapShot())),
         apply: (intent) =>
           input(
             { _tag: "Apply", client: name, intent },
-            clientStore.applyMutation(intent).pipe(
+            Effect.suspend(() => running.store.applyMutation(intent)).pipe(
               Effect.asVoid,
               Effect.tapError((failure) =>
                 recorder.record({
@@ -278,7 +295,22 @@ const make = (options: WorldOptions) =>
               ),
             ),
           ),
-        retry: input({ _tag: "Retry", client: name }, engine.retry),
+        retry: input(
+          { _tag: "Retry", client: name },
+          Effect.suspend(() => running.engine.retry),
+        ),
+        // The old store stops being watched before the reload is recorded,
+        // and the old engine stops after, so what it abandons (a request in
+        // flight) follows the reload that caused it.
+        reload: input(
+          { _tag: "Reload", client: name },
+          Effect.gen(function* () {
+            yield* Fiber.interrupt(running.watcher);
+            yield* recorder.reload(name);
+            yield* Scope.close(running.scope, Exit.void);
+            running = yield* boot(name, clientId);
+          }),
+        ),
       });
     }
 

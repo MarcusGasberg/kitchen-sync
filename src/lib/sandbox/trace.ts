@@ -105,6 +105,9 @@ export type TraceEventBody =
       readonly reason: string;
     }
   | { readonly _tag: "SyncRetried"; readonly client: ClientName }
+  // The client's page reloaded: the same clientId, a fresh store. Whatever
+  // its outbox held is gone from it.
+  | { readonly _tag: "Reloaded"; readonly client: ClientName }
   | MessageEvent
   | ({ readonly _tag: "Decided"; readonly client: ClientName } & Decision)
   | { readonly _tag: "Poked"; readonly serverVersion: number }
@@ -204,8 +207,14 @@ export const diffClientState = (
   const before = outboxIds(prev);
   const after = outboxIds(next);
 
-  if (!prev.seeded && next.seeded && before.length > 0) {
-    // The first pull renumbers every provisional id, in order (`reconcile`).
+  // The first pull renumbers every provisional id, in order (`reconcile`).
+  // From a client the server has never seen, #1 stays #1: nothing to name.
+  const renumbered =
+    !prev.seeded &&
+    next.seeded &&
+    before.length > 0 &&
+    before.some((id, i) => after[i] !== id);
+  if (renumbered) {
     events.push({ _tag: "Renumbered", client, from: before, to: after });
   } else {
     const removed = new Set(before.filter((id) => !after.includes(id)));

@@ -21,6 +21,9 @@ export interface Recorder {
     client: ClientName,
     state: StoreState,
   ) => Effect.Effect<void>;
+  // The client's page reloaded: record it, and diff its next state against a
+  // fresh store's rather than the old store's last.
+  readonly reload: (client: ClientName) => Effect.Effect<void>;
   readonly timeline: SubscriptionRef.SubscriptionRef<Timeline>;
   readonly snapshot: Effect.Effect<WorldSnapshot>;
 }
@@ -118,6 +121,13 @@ export const makeRecorder = (options: {
       timeline,
       snapshot: lock.withPermits(1)(snapshotNow),
       record: (body) => lock.withPermits(1)(appendOne(body)),
+      reload: (client) =>
+        lock.withPermits(1)(
+          Effect.suspend(() => {
+            clients.set(client, EMPTY_STATE);
+            return appendOne({ _tag: "Reloaded", client });
+          }),
+        ),
       observe: (client, state) =>
         lock.withPermits(1)(
           Effect.gen(function* () {

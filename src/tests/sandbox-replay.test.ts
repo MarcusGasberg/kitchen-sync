@@ -102,4 +102,36 @@ describe("replay", () => {
       expect(next).toBe(recorded.next);
     }),
   );
+
+  it.effect("a reload replays like any other input", () =>
+    Effect.gen(function* () {
+      const recorded = yield* Effect.gen(function* () {
+        const world = yield* World;
+        yield* world.clock.advance("1 second");
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("2 seconds");
+        yield* world.net.offline("A", true);
+        yield* world.client("A").reload;
+        yield* world.client("A").apply(yield* add(world, "Eggs"));
+        yield* world.clock.advance("1 second");
+        yield* world.net.offline("A", false);
+        yield* world.clock.advance("5 seconds");
+        return {
+          end: yield* world.clock.now,
+          timeline: yield* world.currentTimeline,
+          inputs: yield* world.inputs,
+        };
+      }).pipe(Effect.provide(World.layer(options)));
+
+      const rebuilt = yield* replay(recorded.inputs, recorded.end).pipe(
+        Effect.flatMap((world) => world.currentTimeline),
+        Effect.provide(World.layer(options)),
+      );
+
+      expect(recorded.inputs.some(({ input }) => input._tag === "Reload")).toBe(
+        true,
+      );
+      expect(events(rebuilt)).toEqual(events(recorded.timeline));
+    }),
+  );
 });
