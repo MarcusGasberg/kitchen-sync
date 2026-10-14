@@ -183,10 +183,13 @@ The engine stays as it is, apart from these, each landing with the work named:
   `Stream.timeout` against a heartbeat jittered around 15 s (12–18 s) ended
   the stream after any quiet spell, leaving the pull loop on its 30 s tick for
   good. Fixed and tested on branch `main-review-fixes`, not yet merged into
-  `main`: quiet means 40 s; a stream that lasted ends when it goes quiet or is
-  closed, and the pull loop subscribes again with a fresh backoff; one that
-  dies young fails, so the backoff applies. Worlds use the simulated
-  transport and cannot show this.
+  `main`: quiet means 40 s, and a lost poke stream (quiet, closed, or its
+  connection dropped mid-stream) fails retryably, so the pull loop
+  subscribes again. A sync loop iteration that ran 30 s before a retryable
+  failure ends instead (`endIfHealthy` in `src/lib/retry.ts`), so the next
+  starts with a fresh backoff; one that fails sooner keeps backing off.
+  Worlds use the simulated transport and cannot show the stream half of
+  this; they do run `endIfHealthy`.
 - **Sub-project 2:** `StoreState` reports transient failures, one slot per
   loop: `retrying: { push: string | null; pull: string | null }` (the
   reason). Each loop sets its own slot when it retries a transient failure,
@@ -194,8 +197,8 @@ The engine stays as it is, apart from these, each landing with the work named:
   iteration that completes, one with nothing left to send included (a pull
   may have emptied the outbox while a push waited on a lost ack). For the
   pull loop it is a pull that returns or a poke that arrives: its iteration
-  succeeds only when a poke stream that lasted ends, which says nothing about
-  health. "Offline" is a `network error` reason in the app; in a world it is
+  succeeds only when it ran 30 s before failing (`endIfHealthy`), which says
+  nothing about the loop's health now. "Offline" is a `network error` reason in the app; in a world it is
   the network model's `snapshot.offline`, and the offline band hides a
   `network error` retrying band. The trace gains `Retrying` and `Recovered`
   client events, with their loop, diffed from the field like the rest. Also:
