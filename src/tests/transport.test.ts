@@ -344,6 +344,7 @@ const sseBody = () => {
     poke: (version: number) =>
       write(`event: poke\ndata: ${version}\nid: ${version}\n\n`),
     end: () => controller?.close(),
+    break: () => controller?.error(new TypeError("terminated")),
   };
 };
 
@@ -404,36 +405,37 @@ describe("SyncTransportService.pokes", () => {
     }),
   );
 
-  // A dead connection sends nothing at all. The stream ends, rather than
-  // leave the pull loop on its 30 s tick for good, and the loop subscribes
-  // again from scratch.
-  it.effect("ends when the stream goes quiet past the timeout", () =>
+  // A dead connection sends nothing at all. Lost streams fail, rather than
+  // end, so the pull loop's retry subscribes again instead of falling back
+  // to its 30 s tick for good.
+  it.effect("fails retryably when the stream goes quiet past the timeout", () =>
     Effect.gen(function* () {
       const { fiber } = yield* subscribed;
       yield* TestClock.adjust("41 seconds");
       yield* settle;
 
-      expect(Exit.isSuccess(yield* Fiber.await(fiber))).toBe(true);
+      expect(failedRetryably(yield* Fiber.await(fiber))).toBe(true);
     }),
   );
 
-  it.effect("ends when the server closes a stream that lasted", () =>
+  it.effect("fails retryably when the server ends the stream", () =>
     Effect.gen(function* () {
       const { body, fiber } = yield* subscribed;
-      yield* TestClock.adjust("31 seconds");
       body.end();
       yield* settle;
 
-      expect(Exit.isSuccess(yield* Fiber.await(fiber))).toBe(true);
+      expect(failedRetryably(yield* Fiber.await(fiber))).toBe(true);
     }),
   );
 
-  // So the pull loop's backoff spaces out the retries against a server that
-  // keeps closing the stream at once.
-  it.effect("fails retryably when the server closes a stream at once", () =>
+  // The commonest disconnect: fetch reports a socket dropped mid-stream as a
+  // `DecodeError`, which outside a stream's body means a broken contract.
+  it.effect("fails retryably when the connection breaks mid-stream", () =>
     Effect.gen(function* () {
       const { body, fiber } = yield* subscribed;
-      body.end();
+      body.ping();
+      yield* settle;
+      body.break();
       yield* settle;
 
       expect(failedRetryably(yield* Fiber.await(fiber))).toBe(true);

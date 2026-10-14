@@ -158,6 +158,47 @@ const tick = (millis: number) =>
   });
 
 const start = Effect.flatMap(SyncEngineService, (engine) => engine.start(ME));
+
+// Runs the engine for `minutes` over a transport whose every poke
+// subscription runs `subscription`, and returns when each one started.
+const pokeSubscriptions = (
+  subscription: Effect.Effect<void, TransportFailure>,
+  minutes: number,
+) =>
+  Effect.gen(function* () {
+    const starts = yield* Ref.make<ReadonlyArray<number>>([]);
+    const transport = Layer.effect(
+      SyncTransportService,
+      Effect.gen(function* () {
+        const fake = yield* SyncTransportService;
+        return SyncTransportService.of({
+          pull: fake.pull,
+          push: fake.push,
+          pokes: Stream.unwrap(
+            Effect.gen(function* () {
+              const now = yield* Clock.currentTimeMillis;
+              yield* Ref.update(starts, (all) => [...all, now]);
+              return Stream.drain(Stream.fromEffect(subscription));
+            }),
+          ),
+        });
+      }),
+    ).pipe(Layer.provide(SyncTransportService.Fake));
+
+    yield* Effect.gen(function* () {
+      yield* start;
+      for (let t = 0; t < minutes * 60; t++) {
+        yield* TestClock.adjust("1 second");
+      }
+    }).pipe(
+      Effect.provide(
+        SyncEngineService.Live.pipe(
+          Layer.provideMerge(Layer.mergeAll(StoreService.Live, transport)),
+        ),
+      ),
+    );
+    return yield* Ref.get(starts);
+  });
 const stop = Effect.flatMap(SyncEngineService, (engine) => engine.stop);
 
 const snapshot = Effect.flatMap(StoreService, (store) => store.getSnapShot());
@@ -538,6 +579,46 @@ describe("SyncEngineService", () => {
             Array.from({ length: 13 }, (_, i) => i * 5 * 60_000),
           );
         }),
+    );
+
+    // The pull loop's iteration runs until its poke stream is lost. A loss
+    // after a healthy run is a new outage, so its retry starts at once and
+    // from the bottom of the backoff, however many came before.
+    it.effect(
+      "subscribes again at once each time a poke stream fails after a healthy run",
+      () =>
+        Effect.gen(function* () {
+          const starts = yield* pokeSubscriptions(
+            Effect.sleep("5 minutes").pipe(
+              Effect.andThen(
+                Effect.fail(
+                  new TransportFailure({
+                    retryable: true,
+                    reason: "poke stream lost its connection",
+                  }),
+                ),
+              ),
+            ),
+            61,
+          );
+          expect(starts.map((t) => t - (starts[0] ?? 0))).toEqual(
+            Array.from({ length: 13 }, (_, i) => i * 5 * 60_000),
+          );
+        }),
+    );
+
+    // A server that fails the stream at once meets the backoff instead.
+    it.effect("backs off from a poke stream that fails at once", () =>
+      Effect.gen(function* () {
+        const starts = yield* pokeSubscriptions(
+          Effect.fail(
+            new TransportFailure({ retryable: true, reason: "HTTP 503" }),
+          ),
+          1,
+        );
+        expect(starts.length).toBeGreaterThan(3);
+        expect(starts.length).toBeLessThan(15);
+      }),
     );
 
     it.effect("comes back after an outage longer than any retry budget", () =>

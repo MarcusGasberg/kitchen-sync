@@ -2,7 +2,7 @@ import { Context, Effect, FiberHandle, Layer, Ref, Stream } from "effect";
 import { merge } from "effect/Stream";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
-import { retrySyncLoop } from "./retry";
+import { endIfHealthy, retrySyncLoop } from "./retry";
 import { StoreService, type SyncFailure } from "./store";
 import { SyncTransportService } from "./transport";
 
@@ -35,6 +35,7 @@ export class SyncEngineService extends Context.Service<
         (loop: SyncFailure["loop"]) =>
         <R>(iteration: Effect.Effect<void, TransportFailure, R>) =>
           iteration.pipe(
+            endIfHealthy,
             retrySyncLoop,
             Effect.forever,
             Effect.catch((failure) =>
@@ -80,10 +81,8 @@ export class SyncEngineService extends Context.Service<
         );
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
-          // When the poke stream ends (it lasted, then went quiet or was
-          // closed) the iteration ends with it, and `untilFatal` subscribes
-          // again with its backoff fresh. A failure would keep the backoff
-          // growing over the tab's life, since this iteration never succeeds.
+          // A poke stream that ends ends the iteration with it, and
+          // `untilFatal` subscribes again; the tick alone never ends.
           merge(transport.pokes, Stream.tick("30 seconds"), {
             haltStrategy: "left",
           }).pipe(

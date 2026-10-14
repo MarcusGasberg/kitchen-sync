@@ -1,4 +1,4 @@
-import { Clock, Context, Effect, Layer, pipe, Schema, Stream } from "effect";
+import { Context, Effect, Layer, pipe, Schema, Stream } from "effect";
 import { Sse } from "effect/unstable/encoding";
 import type { Retry, SseError } from "effect/unstable/encoding/Sse";
 import {
@@ -92,7 +92,16 @@ const asStreamTransportFailure = <A, R>(
   pipe(
     effect,
     Stream.catchTags({
-      HttpClientError: (err) => Stream.fail(classifyHttpClientError(err)),
+      // The response is already in; an error reading its body is the
+      // connection breaking (fetch reports a socket dropped mid-stream as a
+      // `DecodeError`), so it is weather, not a broken contract.
+      HttpClientError: () =>
+        Stream.fail(
+          new TransportFailure({
+            reason: "poke stream lost its connection",
+            retryable: true,
+          }),
+        ),
       Retry: () =>
         Stream.fail(
           new TransportFailure({ reason: `retry failure`, retryable: true }),
@@ -103,9 +112,6 @@ const asStreamTransportFailure = <A, R>(
         ),
     }),
   );
-
-// A subscription this old was healthy when it was lost.
-const POKE_STREAM_LASTED_MILLIS = 30_000;
 
 export class SyncTransportService extends Context.Service<
   SyncTransportService,
@@ -148,31 +154,31 @@ export class SyncTransportService extends Context.Service<
             const response = yield* httpClient
               .get("/api/pull/stream")
               .pipe(asTransportFailure);
-            const since = yield* Clock.currentTimeMillis;
 
             return response.stream.pipe(
               Stream.decodeText(),
               Stream.pipeThroughChannel(Sse.decode()),
               asStreamTransportFailure,
-              // The route's heartbeat comes every 15 s, jittered to 12–18 s:
-              // quiet past two of the longest, the stream is dead and ends.
-              Stream.timeout("40 seconds"),
-              // However it ended, the pull loop subscribes again. After one
-              // that lasted it starts afresh; one that died young fails, so
-              // the loop's backoff spaces out the retries instead of
-              // hammering a server that keeps closing the stream.
-              Stream.concat(
-                Stream.unwrap(
-                  Effect.map(Clock.currentTimeMillis, (now) =>
-                    now - since >= POKE_STREAM_LASTED_MILLIS
-                      ? Stream.empty
-                      : Stream.fail(
-                          new TransportFailure({
-                            reason: "poke stream ended",
-                            retryable: true,
-                          }),
-                        ),
+              // The route's heartbeat comes every 15 s, jittered to 12–18 s;
+              // a stream quiet past two of the longest is dead. Lost either
+              // way, quiet or ended, it fails retryably, so the pull loop
+              // subscribes again rather than live on its 30 s tick for good.
+              Stream.timeoutOrElse({
+                duration: "40 seconds",
+                orElse: () =>
+                  Stream.fail(
+                    new TransportFailure({
+                      reason: "poke stream went quiet",
+                      retryable: true,
+                    }),
                   ),
+              }),
+              Stream.concat(
+                Stream.fail(
+                  new TransportFailure({
+                    reason: "poke stream ended",
+                    retryable: true,
+                  }),
                 ),
               ),
               Stream.filter((s) => s.event === "poke"),

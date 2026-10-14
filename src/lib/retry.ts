@@ -1,4 +1,4 @@
-import { Effect, Schedule } from "effect";
+import { Clock, Effect, Schedule } from "effect";
 import { SqlError } from "effect/unstable/sql";
 import { TransportFailure } from "#/domain/errors";
 
@@ -58,4 +58,29 @@ export function retrySyncLoop<A, R>(
       schedule,
     }),
   );
+}
+
+// A loop iteration that ran this long before it failed was healthy, so its
+// failure is a new outage, not the next step of the last one's backoff: it
+// ends the iteration, and the retry around the next one starts afresh. The
+// pull loop's iteration runs until its poke stream is lost, so without this
+// its backoff would only ever grow over a tab's life. One that fails sooner
+// keeps backing off, so a server that fails at once is never hammered.
+const HEALTHY_RUN_MILLIS = 30_000;
+
+export function endIfHealthy<R>(
+  self: Effect.Effect<void, TransportFailure, R>,
+): Effect.Effect<void, TransportFailure, R> {
+  return Effect.gen(function* () {
+    const started = yield* Clock.currentTimeMillis;
+    return yield* self.pipe(
+      Effect.catch((failure) =>
+        Effect.flatMap(Clock.currentTimeMillis, (now) =>
+          failure.retryable && now - started >= HEALTHY_RUN_MILLIS
+            ? Effect.void
+            : Effect.fail(failure),
+        ),
+      ),
+    );
+  });
 }
