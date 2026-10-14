@@ -78,6 +78,31 @@ describe("World", () => {
       ),
   );
 
+  it.effect("records a poke before the poke messages it sends", () =>
+    inWorld({ clients: ["A", "B", "C"], seed: "poke" }, (world) =>
+      Effect.gen(function* () {
+        yield* world.clock.advance("1 second");
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.client("B").apply(yield* add(world, "Eggs"));
+        yield* world.clock.advance("2 seconds");
+
+        const timeline = yield* world.currentTimeline;
+        const pokes = tagged(timeline, "Sent").filter(
+          (e) => e.message.kind === "poke",
+        );
+        const poked = tagged(timeline, "Poked");
+        expect(poked.map((e) => e.serverVersion)).toEqual([1, 2]);
+        expect(pokes.length).toBeGreaterThanOrEqual(6);
+        for (const sent of pokes) {
+          const cause = poked.find(
+            (e) => `v${e.serverVersion}` === sent.message.label,
+          );
+          expect(cause?.seq).toBeLessThan(sent.seq);
+        }
+      }),
+    ),
+  );
+
   it.effect(
     "an offline client's unsent change keeps the world from agreeing",
     () =>

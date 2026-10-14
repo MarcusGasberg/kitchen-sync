@@ -176,14 +176,12 @@ const make = (options: WorldOptions) =>
     const feed = yield* ChangeFeed.make;
     const tracedFeed: IChangeFeed = {
       changes: feed.changes,
+      // Recorded before publishing, so the timeline shows the poke before
+      // the poke messages it sends. The server publishes after the commit.
       publish: (version) =>
-        feed
-          .publish(version)
-          .pipe(
-            Effect.andThen(
-              recorder.record({ _tag: "Poked", serverVersion: version }),
-            ),
-          ),
+        recorder
+          .record({ _tag: "Poked", serverVersion: version })
+          .pipe(Effect.andThen(feed.publish(version))),
     };
     const server = makeSyncServer(
       traceStore(store, (clientId, decisions) =>
