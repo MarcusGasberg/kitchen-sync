@@ -56,6 +56,38 @@ describe("runHeadless", () => {
     }),
   );
 
+  it.effect(
+    "keeps a long scene's whole timeline unless its world sets a limit",
+    () =>
+      Effect.gen(function* () {
+        // Free play keeps the last 2,000 events; a scene must keep its start.
+        const long: Scene = {
+          id: "test-long",
+          world: { clients: ["A", "B", "C", "D", "E", "F"], seed: "long" },
+          beats: Array.from({ length: 40 }, (_, i) => ({
+            caption: `A adds item ${i}; every phone pulls it.`,
+            run: (world) =>
+              Effect.flatMap(add(world, `Item ${i}`), (intent) =>
+                world.client("A").apply(intent).pipe(Effect.orDie),
+              ),
+            until: ({ since }) => since.some((e) => e._tag === "Converged"),
+          })),
+        };
+
+        const result = yield* runHeadless(long);
+        expect(result.timeline.entries.length).toBeGreaterThan(2000);
+        expect(result.timeline.trimmed).toBe(false);
+        expect(result.timeline.entries[0]?.event.seq).toBe(0);
+
+        const bounded = yield* runHeadless({
+          ...scene,
+          world: { ...scene.world, limit: 10 },
+        });
+        expect(bounded.timeline.entries.length).toBe(10);
+        expect(bounded.timeline.trimmed).toBe(true);
+      }),
+  );
+
   it.effect("fails a beat that never finishes", () =>
     Effect.gen(function* () {
       const stuck: Scene = {

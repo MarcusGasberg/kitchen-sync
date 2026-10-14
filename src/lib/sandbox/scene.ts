@@ -51,7 +51,8 @@ const nextSeq = (timeline: Timeline) =>
 
 // Runs a scene with no one watching: each beat's `run`, then virtual time in
 // quanta until its `until` holds. Tests use it to check what a scene claims;
-// prerendering uses it for each scene's first frame.
+// prerendering uses it for each scene's first frame. Only free play bounds its
+// timeline, so a scene keeps every event unless its world sets a `limit`.
 export const runHeadless = (
   scene: Scene,
   options?: { readonly beatLimit?: Duration.Input },
@@ -96,4 +97,11 @@ export const runHeadless = (
       beats,
       inputs: yield* world.inputs,
     };
-  }).pipe(Effect.provide(World.layer(scene.world)));
+  }).pipe(
+    Effect.provide(
+      World.layer({
+        ...scene.world,
+        limit: scene.world.limit ?? Number.POSITIVE_INFINITY,
+      }),
+    ),
+  );

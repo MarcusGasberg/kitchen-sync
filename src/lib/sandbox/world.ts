@@ -34,7 +34,8 @@ export interface WorldOptions {
   // Wall-clock time the world starts at, so dates read sensibly.
   readonly start?: number;
   readonly latency?: Duration.Input;
-  // Timeline entries kept; older ones are trimmed.
+  // Timeline entries kept, 2,000 by default (free play); older ones are
+  // trimmed. A scene run headless keeps every entry unless this is set.
   readonly limit?: number;
 }
 
