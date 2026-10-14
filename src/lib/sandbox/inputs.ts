@@ -23,7 +23,10 @@ export type Input =
     }
   | { readonly _tag: "Drop"; readonly rule: MessageRule }
   | { readonly _tag: "Hold"; readonly rule: MessageRule }
-  | { readonly _tag: "Release"; readonly messageId: number };
+  | { readonly _tag: "Release"; readonly messageId: number }
+  // A script minted an item id. Replaying it keeps the world's id stream in
+  // step, so ids minted after a replay match the original's.
+  | { readonly _tag: "Mint" };
 
 export interface RecordedInput {
   readonly at: number;

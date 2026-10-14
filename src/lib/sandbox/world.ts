@@ -77,7 +77,8 @@ export interface WorldHandle {
     readonly advance: (duration: Duration.Input) => Effect.Effect<void>;
     readonly now: Effect.Effect<number>;
   };
-  // A v4 UUID for an item a script adds.
+  // A v4 UUID for an item a script adds. Logged as a `Mint` input, so a
+  // replay's id stream ends where the original's did.
   readonly newId: Effect.Effect<string>;
   readonly timeline: Stream.Stream<Timeline>;
   readonly currentTimeline: Effect.Effect<Timeline>;
@@ -213,6 +214,9 @@ const make = (options: WorldOptions) =>
     // Held for each quantum and each input, so inputs land between quanta.
     const gate = yield* Semaphore.make(1);
     const inputs = yield* Ref.make<ReadonlyArray<RecordedInput>>([]);
+    // An input keeps the gate until the engine work it woke has run, as a
+    // quantum does: then the next input finds the world settled, whether it
+    // comes a click later or (in a replay) at once.
     const input = <A, E>(entry: Input, effect: Effect.Effect<A, E>) =>
       inWorld(
         gate.withPermits(1)(
@@ -221,6 +225,7 @@ const make = (options: WorldOptions) =>
               Ref.update(inputs, (all) => [...all, { at, input: entry }]),
             ),
             Effect.andThen(effect),
+            Effect.ensuring(nextMacrotask),
           ),
         ),
       );
@@ -324,7 +329,7 @@ const make = (options: WorldOptions) =>
           input({ _tag: "Release", messageId }, network.release(messageId)),
       },
       clock: { advance, now: testClock.currentTimeMillis },
-      newId: Effect.sync(mint),
+      newId: input({ _tag: "Mint" }, Effect.sync(mint)),
       timeline: SubscriptionRef.changes(recorder.timeline),
       currentTimeline: SubscriptionRef.get(recorder.timeline),
       snapshot: recorder.snapshot,

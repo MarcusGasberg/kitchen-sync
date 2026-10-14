@@ -1,5 +1,5 @@
 import { it } from "@effect/vitest";
-import { Cause, Context, Effect, Exit, Fiber, Layer } from "effect";
+import { Cause, Context, Effect, Exit, Fiber, Layer, Ref, Scope } from "effect";
 import { describe, expect } from "vitest";
 import { isConverged } from "#/lib/sandbox/trace";
 import {
@@ -17,6 +17,11 @@ const inWorld = <A, E>(
   Effect.gen(function* () {
     return yield* body(yield* World);
   }).pipe(Effect.provide(World.layer(options)));
+
+// Lets the caller's event loop turn over, as between two reader clicks.
+const macrotask = Effect.promise(
+  () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+);
 
 describe("World", () => {
   it.effect(
@@ -94,7 +99,13 @@ describe("World", () => {
         const inputs = yield* world.inputs;
         expect(inputs.map((i) => [i.at - start, i.input._tag])).toEqual([
           [1000, "Offline"],
+          [1250, "Mint"],
           [1250, "Apply"],
+        ]);
+
+        yield* world.newId;
+        expect((yield* world.inputs).slice(inputs.length)).toEqual([
+          { at: start + 1250, input: { _tag: "Mint" } },
         ]);
       }),
     ),
@@ -106,13 +117,18 @@ describe("World", () => {
       inWorld({ clients: ["A", "B"], seed: "between" }, (world) =>
         Effect.gen(function* () {
           const start = yield* world.clock.now;
+          const finished = yield* Ref.make(false);
           const moving = yield* Effect.forkChild(
-            world.clock.advance("2 seconds"),
+            world.clock
+              .advance("60 seconds")
+              .pipe(Effect.andThen(Ref.set(finished, true))),
           );
-          // Let the advance get going in real time, as playback would.
+          // Let the advance get going in real time, as playback would, and
+          // issue the input while it is still moving.
           yield* Effect.promise(
-            () => new Promise<void>((resolve) => setTimeout(resolve, 20)),
+            () => new Promise<void>((resolve) => setTimeout(resolve, 5)),
           );
+          expect(yield* Ref.get(finished)).toBe(false);
           yield* world.net.offline("B", true);
           yield* Fiber.join(moving);
 
@@ -123,21 +139,58 @@ describe("World", () => {
       ),
   );
 
-  it.effect("worlds built from the same options share nothing", () =>
-    Effect.gen(function* () {
-      const options = { clients: ["A", "B"], seed: "twins" };
-      const one = Context.get(yield* Layer.build(World.layer(options)), World);
-      const two = Context.get(yield* Layer.build(World.layer(options)), World);
+  it.effect(
+    "worlds built from one layer share nothing, even under one memo map",
+    () =>
+      Effect.gen(function* () {
+        // A page hosting many figures builds them all through one memo map,
+        // possibly from one layer value. Each must still get its own world.
+        const layer = World.layer({ clients: ["A", "B"], seed: "twins" });
+        const memoMap = yield* Layer.makeMemoMap;
+        const scope = yield* Scope.Scope;
+        // Two calls: `Layer.fresh` makes its own memo map when the build is
+        // called, so one build effect run twice would give the same world.
+        const build = () => Layer.buildWithMemoMap(layer, memoMap, scope);
+        const one = Context.get(yield* build(), World);
+        const two = Context.get(yield* build(), World);
 
-      yield* one.clock.advance("1 second");
-      yield* two.clock.advance("1 second");
-      yield* one.client("A").apply(yield* add(one, "Milk"));
-      yield* one.clock.advance("2 seconds");
+        yield* one.clock.advance("1 second");
+        yield* two.clock.advance("1 second");
+        yield* one.client("A").apply(yield* add(one, "Milk"));
+        yield* one.clock.advance("2 seconds");
 
-      expect(yield* names(one, "B")).toEqual(["Milk"]);
-      expect(yield* names(two, "B")).toEqual([]);
-      expect((yield* one.clock.now) - (yield* two.clock.now)).toBe(2000);
-    }),
+        expect(yield* names(one, "B")).toEqual(["Milk"]);
+        expect(yield* names(two, "B")).toEqual([]);
+        expect((yield* one.clock.now) - (yield* two.clock.now)).toBe(2000);
+      }),
+  );
+
+  it.effect(
+    "inputs at the same instant settle alike, clicked apart or back to back",
+    () =>
+      Effect.gen(function* () {
+        const twoApplies = (between: Effect.Effect<void>) =>
+          inWorld({ clients: ["A", "B"], seed: "clicks" }, (world) =>
+            Effect.gen(function* () {
+              yield* world.clock.advance("1 second");
+              yield* world.client("A").apply(yield* add(world, "Milk"));
+              yield* between;
+              yield* world.client("A").apply(yield* add(world, "Eggs"));
+              yield* world.clock.advance("2 seconds");
+              return {
+                inputs: yield* world.inputs,
+                events: events(yield* world.currentTimeline),
+              };
+            }),
+          );
+
+        // Two reader clicks, then a replay applying the same inputs at once.
+        const clicked = yield* twoApplies(macrotask);
+        const replayed = yield* twoApplies(Effect.void);
+
+        expect(replayed.inputs).toEqual(clicked.inputs);
+        expect(replayed.events).toEqual(clicked.events);
+      }),
   );
 
   it.effect("a name that is not in the world fails loudly", () =>
