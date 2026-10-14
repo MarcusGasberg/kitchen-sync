@@ -173,7 +173,7 @@ const rowKey = (item: GroceryItem) =>
 
 // Every online client shows the server's rows, and every outbox is empty.
 // An offline client's rows are left out (it cannot pull until it is back),
-// but not its outbox: a change it has not sent is not agreed on.
+// but not its outbox: a mutation it has not pushed is not agreed on.
 //
 // Rows are compared in order: the server's read and a pull both list them in
 // `order` order, and with nothing pending a client shows its last pull's rows.

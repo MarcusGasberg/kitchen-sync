@@ -104,7 +104,7 @@ describe("World", () => {
   );
 
   it.effect(
-    "an offline client's unsent change keeps the world from agreeing",
+    "an offline client's unpushed mutation keeps the world from converging",
     () =>
       inWorld({ clients: ["A", "B"], seed: "unsent" }, (world) =>
         Effect.gen(function* () {
@@ -121,7 +121,7 @@ describe("World", () => {
           expect(yield* flips).toEqual(["Diverged"]);
           expect(isConverged(yield* world.snapshot)).toBe(false);
 
-          // Back online, the change lands and the world agrees again.
+          // Back online, the push lands and the world converges again.
           yield* world.net.offline("A", false);
           yield* world.clock.advance("60 seconds");
           expect(yield* flips).toEqual(["Diverged", "Converged"]);
