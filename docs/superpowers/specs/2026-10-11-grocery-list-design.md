@@ -91,7 +91,14 @@ become items with quantity 1 and no unit or category.
 Existing `mutation_log` rows keep their old `CreateTask`-style payloads.
 Production code only writes the log, never decodes it, so they are left as is.
 The client persists only its client id in `localStorage` (the outbox is in
-memory), so no client-side migration is needed.
+memory), so a client that reloads needs no migration. A tab left open across
+the deploy is another matter: it keeps its outbox and keeps sending the old
+shapes. Without help its push is a 400 and its pull fails to decode, both loops
+stop, and the reload that gets it out throws its unsynced changes away. So for
+one release `src/domain/legacy-task-wire.ts` lets `/api/push` read the old
+mutations (renamed into the new ones, then checked by the same rules), and
+`/api/pull` sends the rows twice, as `items` and as old-style `tasks`; each
+bundle's decode ignores the other's key. Remove it with the next release.
 
 ## UI (`src/routes/index.tsx`)
 
