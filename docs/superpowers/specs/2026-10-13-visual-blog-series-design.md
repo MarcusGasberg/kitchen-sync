@@ -198,7 +198,11 @@ The engine stays as it is, apart from these, each landing with the work named:
   may have emptied the outbox while a push waited on a lost ack). For the
   pull loop it is a pull that returns or a poke that arrives: its iteration
   succeeds only when it ran 30 s before failing (`endIfHealthy`), which says
-  nothing about the loop's health now. "Offline" is a `network error` reason in the app; in a world it is
+  nothing about the loop's health now. A slot is set inside the retry, so
+  only a failure `endIfHealthy` lets through sets it: after a healthy run the
+  loop first re-runs at once, and `Retrying` appears only if that fails too.
+  Chapter 8's sequence after a healthy run is therefore the failed response,
+  an immediate retry, then `Retrying`. "Offline" is a `network error` reason in the app; in a world it is
   the network model's `snapshot.offline`, and the offline band hides a
   `network error` retrying band. The trace gains `Retrying` and `Recovered`
   client events, with their loop, diffed from the field like the rest. Also:
