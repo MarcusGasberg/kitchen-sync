@@ -1,5 +1,6 @@
 import { it } from "@effect/vitest";
 import {
+  Clock,
   Context,
   DateTime,
   Effect,
@@ -487,6 +488,56 @@ describe("SyncEngineService", () => {
     });
     const serverDown = Option.some(
       new TransportFailure({ retryable: true, reason: "server down" }),
+    );
+
+    // A proxy that closes long responses ends each poke stream after a
+    // while. Each end is the start of a fresh subscription, never another
+    // step of one backoff that grows over the tab's life.
+    it.effect(
+      "subscribes again at once each time a poke stream that lasted ends",
+      () =>
+        Effect.gen(function* () {
+          const starts = yield* Ref.make<ReadonlyArray<number>>([]);
+          const closingAfterFiveMinutes = Layer.effect(
+            SyncTransportService,
+            Effect.gen(function* () {
+              const fake = yield* SyncTransportService;
+              return SyncTransportService.of({
+                pull: fake.pull,
+                push: fake.push,
+                pokes: Stream.unwrap(
+                  Effect.gen(function* () {
+                    const now = yield* Clock.currentTimeMillis;
+                    yield* Ref.update(starts, (all) => [...all, now]);
+                    return Stream.drain(
+                      Stream.fromEffect(Effect.sleep("5 minutes")),
+                    );
+                  }),
+                ),
+              });
+            }),
+          ).pipe(Layer.provide(SyncTransportService.Fake));
+
+          yield* Effect.gen(function* () {
+            yield* start;
+            for (let minute = 0; minute < 61; minute++) {
+              yield* TestClock.adjust("1 minute");
+            }
+          }).pipe(
+            Effect.provide(
+              SyncEngineService.Live.pipe(
+                Layer.provideMerge(
+                  Layer.mergeAll(StoreService.Live, closingAfterFiveMinutes),
+                ),
+              ),
+            ),
+          );
+
+          const at = yield* Ref.get(starts);
+          expect(at.map((t) => t - (at[0] ?? 0))).toEqual(
+            Array.from({ length: 13 }, (_, i) => i * 5 * 60_000),
+          );
+        }),
     );
 
     it.effect("comes back after an outage longer than any retry budget", () =>

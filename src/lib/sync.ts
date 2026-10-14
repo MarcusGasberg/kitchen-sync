@@ -80,7 +80,13 @@ export class SyncEngineService extends Context.Service<
         );
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
-          merge(transport.pokes, Stream.tick("30 seconds")).pipe(
+          // When the poke stream ends (it lasted, then went quiet or was
+          // closed) the iteration ends with it, and `untilFatal` subscribes
+          // again with its backoff fresh. A failure would keep the backoff
+          // growing over the tab's life, since this iteration never succeeds.
+          merge(transport.pokes, Stream.tick("30 seconds"), {
+            haltStrategy: "left",
+          }).pipe(
             Stream.buffer({ capacity: 1, strategy: "sliding" }),
             Stream.runForEach((poke) => {
               return Effect.gen(function* () {
