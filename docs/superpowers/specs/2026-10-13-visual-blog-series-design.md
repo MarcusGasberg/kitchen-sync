@@ -43,7 +43,7 @@ Chapters keep their global numbers across parts.
 | 1 · The optimistic client | 0 · Three phones, one list | Free play at once: add in one client, watch the others; take one offline. | — |
 | | 1 · Optimistic by default | Adding an item shows instantly and enters the outbox as #1. An edit to an item that is already gone is refused locally and spends no id. | `store.applyMutation`: decide, mint an id, enqueue |
 | | 2 · Draining the outbox | Three quick edits leave as one batch; only ids above `ackedThrough` are sent. | the push loop in `src/lib/sync.ts` |
-| | 9 · First contact | A client offline from the start makes changes; its first pull renumbers the provisional ids. | `reconcile` before `seeded` |
+| | 9 · First contact | A phone whose #1–#3 already reached the server reloads while offline. It keeps its clientId but not its counter, so its next changes are provisional #1 and #2. Its first pull learns the server has #3 and renumbers them #4 and #5. (A client the server has never seen keeps #1 as #1; there is nothing to renumber.) | `reconcile` before `seeded` |
 | 2 · The server decides | 3 · The server decides | The ack is lost: the client resends #3, and the server acks a redelivery without applying it twice. Also a gap and a rejection. | `applyBatch`, branch by branch |
 | | 4 · An ack isn't a confirmation | Acked entries stay in the outbox until a pull. What if they left on ack? The item flickers out and back. | `settle` vs `reconcile` |
 | | 5 · Rebase | Concurrent edits: arrival order wins and the other screen corrects itself. A delete against a check: the check is rejected and the row says why. | `rebase(base, outbox)` |
@@ -157,6 +157,9 @@ interface World {
   readonly client: (name: ClientName) => {
     readonly apply: (intent: MutationIntent) => Effect<void, ItemNotFoundError | StaleMutationError>
     readonly retry: Effect<void>
+    // The page reloads, as in the app: the clientId survives (localStorage),
+    // the store and its outbox do not
+    readonly reload: Effect<void>
   }
   readonly net: {
     readonly offline: (name: ClientName, offline: boolean) => Effect<void>
@@ -228,7 +231,9 @@ Trace events carry the virtual time and a sequence number:
   (`store.changes`): `Applied` (outbox grew), `RefusedLocally` (an `apply` that
   failed), `Settled` (a push response), `Reconciled` (`appliedVersion` moved or
   a pull landed), `Confirmed` (entries left the outbox), `Rejected`,
-  `SyncStopped`, `SyncRetried`;
+  `Renumbered` (the first pull gave provisional ids new numbers; only when one
+  changed), `SyncStopped`, `SyncRetried`, and `Reloaded` (recorded by the
+  world: the client's next state is diffed against a fresh store's);
 - network events: `Sent`, `Delivered`, `Dropped`, `Held`, `Released`,
   `Abandoned`;
 - server events: `Decided` from the traced store, `Poked` from the feed;
