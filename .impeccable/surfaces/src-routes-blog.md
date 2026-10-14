@@ -28,18 +28,32 @@ The scene player: play, pause, step and scrub a scripted scene, then "Your turn"
 
 ## Motion grammar
 
-Symbols move on straight paths at one fixed time scale (distance is time, so a slow network visibly takes longer). In flight or pending means hovering clear of the plate with a slow drift; confirmed means flat on the plate; rejected means knocked out to an outline. No bounce, no blending, hard cuts between scripted steps; reduced motion keeps the cuts and drops the drift.
+Symbols move on straight paths at one fixed time scale (distance is time, so a slow network visibly takes longer). In flight or pending means hovering clear of the plate with a slow drift; acked means half landed on the plate's edge; confirmed means flat on the plate; rejected means knocked out to an outline. No bounce, no blending, hard cuts between scripted steps. Reduced motion: no world starts on its own, messages cut between their sent and arrived positions, the drift is dropped, stepping and scrubbing still work. The pause control is each figure's first focusable control.
 
 ## Interaction rules carried from earlier rounds
 
-- State is never carried by colour alone: every state has a form (hover, flat, outline, struck).
+- State is never carried by colour alone: every state has a form (hover, half landed, flat, outline, struck, striped or dashed band) and a word (pending, acked, confirmed, rejected, offline, retrying, stopped).
+- Every message on a wire carries its label (`#3–#5`, `ack #5`, `pull v4`, `v7`), so its kind never rests on shape alone.
 - Breaking controls (drop a message, take a client offline, stop the server) sit apart from playback, separated by space.
+
+## Colour on colour
+
+Text pairings, from the spec's "Text on each colour" table (WCAG 2.2: 4.5:1 body, 3:1 large):
+
+- On plate: ink (17.2:1), cobalt (6.5:1), error magenta `#C2007A` for small error text (5.3:1), magenta for large text only (3.1:1).
+- On cobalt: plate or white only (6.5:1 / 7.1:1). Never ink (2.7:1) or magenta (2.1:1).
+- On magenta: ink (5.6:1), e.g. breaking-control labels. Plate or white only for large text (3.1:1).
+- On lemon: ink or cobalt (14.9:1 / 5.6:1). Lemon itself is never text or a thin line.
+- The plate ground keeps a relative luminance of at least 0.877, so magenta large text holds 3:1.
+
+## Decided since the brief
+
+- Faces as sketched: Big Shoulders Display (titles, condensed caps), Red Hat Text (text), Red Hat Mono (code); all self-hosted, confirmed in the browser at build.
+- Phone composition: Strip. The server plate sits on top, and the client plates sit in a sideways strip the reader swipes.
 
 ## Unresolved
 
-- Exact faces (condensed geometric caps for titles, compact geometric sans for text, a mono for code) are chosen at build.
-- The plate ground: the world's warm plate white vs a cooler one; decided at build against the cream default.
-- Phone composition of a multi-client scene (stacked plates vs one plate with the others as tabs).
+- The plate ground's exact tone: the world's warm plate white (`#F7F4ED` in the reference) or a cooler one, within the luminance floor above.
 
 ## Direction contract
 
@@ -49,7 +63,7 @@ OWN-WORLD: A flat plate ground; cobalt fields own the masthead and rails; cobalt
 
 STORY: The reader sees the engine working before reading about it, learns one symbol per mutation, watches the plates diverge and converge, then breaks the world and understands why each rule exists.
 
-FIRST VIEWPORT: A cobalt masthead with the three parts as symbol tabs. The live scene fills the screen: the server plate (eye) on top, three client plates below, each with its mark; a pending plus hovers clear of A's plate in flight. The title is set in condensed caps inside the composition, with one caption line. Playback sits left; breaking controls stand apart on the right.
+FIRST VIEWPORT: A cobalt masthead with the three parts as symbol tabs. On desktop the left third holds the chapter title in condensed caps, one caption line, playback and, set apart below it, the breaking controls; the live scene fills the other two thirds: the server plate (eye) on top, three client plates below, each with its mark, and a pending plus hovering clear of A's plate in flight. On a phone the server plate sits on top and the clients in a sideways strip the reader swipes, with title, caption and playback above the stage.
 
 FORM: Collective Plate, the Toyism challenger (catalog design-canon-toyism-signed-collective-plate), declined by me in round 3 and adopted by the user; not on my grounded list. seed: none (unavailable)
 

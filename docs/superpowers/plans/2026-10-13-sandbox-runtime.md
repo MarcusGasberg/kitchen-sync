@@ -10,6 +10,16 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-13-visual-blog-series-design.md`, section "Sub-project 1: the sandbox runtime". Read it before starting.
 
+> **Status: executed** on branch `sandbox-runtime`. Reviews found these defects in the plan's code; the code and its tests on that branch are authoritative where they differ from the text below:
+>
+> 1. Every input, and the world's own construction, ends with a drain (`nextMacrotask`) before the gate is released or the handle returned. Without it, same-instant inputs replayed as one batch where clicks sent two.
+> 2. `isConverged` checks every outbox, offline clients' included; only an offline client's rows are left out (spec: "every outbox is empty").
+> 3. Scenes run headless keep every event; only free play is bounded at 2,000.
+> 4. Each quantum is uninterruptible and each `advance` counts its own whole quanta, so an interrupted advance stays on the 50 ms grid.
+> 5. Review Focus #2's test could not fail: a `setTimeout` input never lands inside a quantum, gate or no gate. It is replaced by an input issued from a fiber reacting inside a quantum, checked on the grid and by replay.
+> 6. Once an input holds the gate it is uninterruptible, and `apply` checks the intent against `MutationIntent` before logging it.
+> 7. Added after review: `client(name).reload` (chapter 9), a `Reloaded` event, and `Renumbered` only when an id changes.
+
 ## Global Constraints
 
 - Effect is pinned at `4.0.0-rc.108`. Online Effect examples are mostly v3 and do not compile; check names against `repos/effect/packages/effect/src/` (read-only; never import from `repos/`).

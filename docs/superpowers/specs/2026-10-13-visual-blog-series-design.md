@@ -42,7 +42,7 @@ Chapters keep their global numbers across parts.
 |---|---|---|---|
 | 1 · The optimistic client | 0 · Three phones, one list | Free play at once: add in one client, watch the others; take one offline. | — |
 | | 1 · Optimistic by default | Adding an item shows instantly and enters the outbox as #1. An edit to an item that is already gone is refused locally and spends no id. | `store.applyMutation`: decide, mint an id, enqueue |
-| | 2 · Draining the outbox | Three quick edits leave as one batch; only ids above `ackedThrough` are sent. | the push loop in `src/lib/sync.ts` |
+| | 2 · Draining the outbox | The first edit leaves at once, alone: the push loop wakes on it. The scene holds that push, and two edits made meanwhile leave together as the next batch; only ids above `ackedThrough` are sent. | the push loop in `src/lib/sync.ts` |
 | | 9 · First contact | A phone whose #1–#3 already reached the server reloads while offline. It keeps its clientId but not its counter, so its next changes are provisional #1 and #2. Its first pull learns the server has #3 and renumbers them #4 and #5. (A client the server has never seen keeps #1 as #1; there is nothing to renumber.) | `reconcile` before `seeded` |
 | 2 · The server decides | 3 · The server decides | The ack is lost: the client resends #3, and the server acks a redelivery without applying it twice. Also a gap and a rejection. | `applyBatch`, branch by branch |
 | | 4 · An ack isn't a confirmation | Acked entries stay in the outbox until a pull. What if they left on ack? The item flickers out and back. | `settle` vs `reconcile` |
@@ -57,6 +57,34 @@ What-ifs that break a rule (chapters 3 and 4) run a deliberately broken variant
 of one function inside that one world; what-ifs about the network only change
 the network. Each broken variant is decided in the spec for its part.
 
+**What runs in a world, and what is only shown.** A world swaps the transport
+for the simulated one and the server store for the in-memory one, so some
+production code never runs inside a figure: `classifyHttpClientError` and the
+HTTP transport (chapter 8), the SSE route and its decoding (chapter 7), and
+`SyncStoreService.update` with `retryTransientSql` (chapter 10). Lit lines come
+only from code the world runs: the store, the sync loops, `retrySyncLoop`,
+`untilFatal`, `makeSyncServer`, `applyBatch`, `decide`, `rebase`. Code the
+world does not run is shown in a reference panel marked "not running in this
+figure" and is never lit from trace events. Chapter 10's collision needs real
+transactions: it runs only if Part 2 brings PGlite, and is rewritten around
+the in-memory store's single-writer step otherwise.
+
+**World features later parts add**, named now so Part 1's runtime leaves room
+for them; each is built with the part that needs it:
+
+- **Part 2, a variant seam.** `SyncClient` hard-wires `StoreService.Live`, so
+  the broken what-ifs need an engine-facing change: `SyncClient` takes an
+  optional store layer, and `World.layer({ variant })` wraps one client's store
+  (chapter 4, leaving on ack) or the server's batch step (chapter 3) with a
+  named broken variant. It is a fourth seam beside the transport, the clock and
+  the random source.
+- **Part 3, a server that fails.** `server.down(down: boolean)` (every request
+  fails as a 503 would) and `server.respond({ client, kind, status })` (the
+  next matching request gets that status, e.g. chapter 8's 400). The simulated
+  transport builds the failure with the real `classifyHttpClientError` from a
+  synthesized response, so the rule that decides what is retryable is the
+  production one.
+
 ## Visual world
 
 Collective Plate, from the Dutch Toyism collectives: a shared symbol set,
@@ -64,20 +92,50 @@ hard-edged figures and hovering objects, a fixed palette, each work signed with
 a pseudonym mark. The direction contract is in the surface brief; in short:
 
 - **Palette:** cobalt `#1A33FF` (headings, rules, the masthead field), magenta
-  `#FF2DA6` (large text and fills only; a darker magenta for small error text),
-  lemon `#FFE600` (never text or thin lines; lemon symbols get an ink outline),
-  ink `#111111`, and the plate ground. Light only for v1.
+  `#FF2DA6` (large text and fills only), error magenta `#C2007A` (small error
+  text), lemon `#FFE600` (never text or thin lines; lemon symbols get an ink
+  outline), ink `#111111`, and the plate ground. Light only for v1.
+- **Text on each colour** (WCAG 2.2: 4.5:1 for body text, 3:1 for large text):
+
+  | Ground | Text | Ratio |
+  |---|---|---|
+  | plate | ink | 17.2:1 |
+  | plate | cobalt | 6.5:1 |
+  | plate | error magenta | 5.3:1 |
+  | plate | magenta, large text only | 3.1:1 |
+  | cobalt | plate or white | 6.5:1 / 7.1:1 |
+  | magenta | ink (breaking-control labels) | 5.6:1 |
+  | lemon | ink or cobalt | 14.9:1 / 5.6:1 |
+
+  Never ink or magenta on cobalt (2.7:1, 2.1:1), and never plate or white on
+  magenta below large text (3.1:1). The plate ground keeps a relative
+  luminance of at least 0.877, so magenta large text holds 3:1: the reference
+  plate `#F7F4ED` (0.906) passes, and a cream such as `#F5EFE0` (0.865) fails.
 - **Type:** condensed display caps (Big Shoulders Display as sketched), Red Hat
   Text, Red Hat Mono; all self-hosted. Faces are confirmed at build.
 - **Symbols, one per mutation or event:** AddItem → plus, SetItemChecked →
   circle, EditItem → diamond, RemoveItem → hourglass, ReorderItem → stairs,
   poke → starburst, server → eye.
 - **State has a form as well as a colour:** pending hovers clear of the plate
-  with its `#id`, confirmed sits flat, rejected is knocked out to an outline,
-  offline wears the striped band. Every state also has a word.
+  with its `#id`; acked (decided by the server, waiting for a pull) sits on the
+  plate's edge, half landed, with its `#id`; confirmed sits flat; rejected is
+  knocked out to an outline; offline wears the striped band; retrying (a sync
+  loop backing off after a transient failure) wears a dashed band; stopped
+  wears the striped band with its reason and Retry. Every state also has a
+  word: pending, acked, confirmed, rejected, offline, retrying, stopped.
+- **Messages on the wires** carry the labels the trace gives them: a push
+  carries its mutations' symbols and its id range (`#3–#5`), an ack is a flat
+  ink tab (`ack #5`), a pull is an outlined eye (`pull v4`), a pull response is
+  a cobalt bar (`v7`), and a poke is the starburst (`v7`). The label is always
+  drawn, so a message's kind never rests on its shape alone.
 - **Motion:** straight paths on one fixed time scale (distance is time), a slow
   drift while pending, hard cuts between scripted beats, no bounce, no
-  blending. Reduced motion keeps the cuts and drops the drift.
+  blending. The pause control is the first focusable control of every figure,
+  so a world that starts on its own can be stopped at once (WCAG 2.2.2).
+- **Reduced motion** (`prefers-reduced-motion: reduce`): no world starts on its
+  own (chapter 0 included: it waits on its play control); messages cut between
+  their sent and arrived positions instead of travelling; the drift is
+  dropped; stepping and scrubbing work as before.
 - **Breaking controls** (drop a message, take a client offline, stop the
   server) are magenta and set apart from playback.
 
@@ -102,12 +160,23 @@ them.
 
 ### Engine changes
 
-The engine stays as it is. Two small fixes ride along with sub-project 1:
+The engine stays as it is, apart from these, each landing with the work named:
 
-- remove the leftover `console.log(poke, appliedVersion)` in
-  `src/lib/sync.ts:88`;
-- fix the SSE content type `text/event-steram` in
-  `src/routes/api/pull/stream.ts:44`.
+- **Sub-project 1** (done): remove the leftover
+  `console.log(poke, appliedVersion)` in `src/lib/sync.ts:88`; fix the SSE
+  content type `text/event-steram` in `src/routes/api/pull/stream.ts:44`;
+  export `describeRefusal` from `src/domain/batch.ts`.
+- **On `main`, before the series:** the client's poke-stream timeout must
+  outlast the route's heartbeat. A 10 s `Stream.timeout` against a heartbeat
+  jittered around 15 s (12–18 s) ended the stream after any quiet spell,
+  leaving only the 30 s tick. Worlds use the simulated transport and cannot
+  show this, so it is fixed and tested in the engine.
+- **Sub-project 2:** `StoreState` reports transient failures, as
+  `retrying: { loop, reason } | null` (set when a sync loop retries, cleared
+  when an iteration succeeds), so the app and every world draw "retrying" and
+  "offline" from the engine itself; and the grocery runtime moves out of the
+  root shell into the `/` route.
+- **Part 2:** `SyncClient` takes an optional store layer (the variant seam).
 
 Snippets are marked with `// #region <name>` and `// #endregion` comments in
 the engine source. The code panel strips them when it displays a snippet.
@@ -146,9 +215,10 @@ through seams the engine already has.
   replay exactly.
 - **Server:** `makeSyncServer(traceStore(makeInMemorySyncStore()), feed)` with
   `feed = ChangeFeed.make`.
-- **Clients:** for each name, `Layer.build(SyncClient)` with
-  `SimulatedTransport.layer(name)` provided; the engine is started with a
-  clientId from `ids.ts`.
+- **Clients:** for each name, `SyncClient` with `SimulatedTransport.layer(name)`
+  provided, built into a child scope of the world (`Layer.buildWithScope`) so
+  `reload` can end it and boot a fresh one; the engine is started with a
+  clientId from `ids.ts`, which survives a reload.
 
 ### The handle
 
@@ -229,7 +299,7 @@ Trace events carry the virtual time and a sequence number:
 
 - client events, derived by diffing each client's `StoreState` stream
   (`store.changes`): `Applied` (outbox grew), `RefusedLocally` (an `apply` that
-  failed), `Settled` (a push response), `Reconciled` (`appliedVersion` moved or
+  failed), `Acked` (a push response), `Reconciled` (`appliedVersion` moved or
   a pull landed), `Confirmed` (entries left the outbox), `Rejected`,
   `Renumbered` (the first pull gave provisional ids new numbers; only when one
   changed), `SyncStopped`, `SyncRetried`, and `Reloaded` (recorded by the
@@ -284,16 +354,20 @@ prerendering uses it to produce each scene's first frame.
 - Components: `Plate`, its header and corner `Mark` (a short clientId), `Button`
   (primary, secondary, breaking), part tabs, `Caption`, `ScrubBar`, and the
   shared `GroceryList` / `ItemRow`.
-- `ItemRow` states: synced (flat), pending (symbol hovering, `#id`), checked
-  (magenta circle, strike-through), rejected (outline, the server's reason,
-  dismiss).
+- `ItemRow` states: synced (flat), pending (symbol hovering, `#id`), acked
+  (half landed, `#id`), checked (magenta circle, strike-through), rejected
+  (outline, the server's reason, dismiss).
 - `GroceryList` takes plain props (items, pending ids, rejections, `onIntent`).
   The app binds it to its runtime; a sandbox binds it to a snapshot at *t*,
   read-only during a scene and live in "Your turn".
 - The app at `/`: cobalt masthead with a sync-status line (synced · *n* pending
-  · offline, changes kept here · sync stopped, with Retry), the add form on a
-  plate, rejections on their own rows, mobile first. The checkbox issues
-  `SetItemChecked` instead of `EditItem { checked }`.
+  · retrying · offline, *n* waiting in this tab · sync stopped, with Retry), the
+  add form on a plate, rejections on their own rows, mobile first. The outbox
+  lives in memory, so the line never claims changes outlive the tab. The
+  checkbox issues `SetItemChecked` instead of `EditItem { checked }`.
+- The grocery runtime (`ManagedRuntime` and `useSyncService`, today in the
+  root `shellComponent`, `src/routes/__root.tsx:39-55`) moves into the `/`
+  route, so no other route starts the app's sync engine or writes a clientId.
 - Impeccable runs a surface round for the app (three layouts within the world)
   before it is built.
 
@@ -304,6 +378,13 @@ prerendering uses it to produce each scene's first frame.
   routes. The posts are prerendered to static HTML; worlds start client-side,
   and the first frame of each scene is computed at prerender time by
   `Scene.runHeadless`.
+- **Prerendering:** `tanstackStart({ prerender: { enabled: true, filter:
+  ({ path }) => path.startsWith("/blog") }, pages: [{ path: "/blog" }, { path:
+  "/blog/part-1" }] })`, beside the app's SPA shell for `/`. The static site is
+  the build's `.output/public`: the prerendered `/blog` pages and the client
+  assets they load. The Nitro server output is not deployed with the posts,
+  so no post may depend on `/api` (sub-project 2 takes the app's runtime out
+  of the root for this).
 - **Page rhythm:** each chapter opens on its stage. On desktop, title, caption
   and controls take the left third and the stage the rest; prose follows in a
   64-character column; chapters with code show the stage and a sticky code
@@ -367,6 +448,8 @@ scene states the claim its prose makes, and its test asserts that claim.
 - **Component tests** (jsdom, Testing Library): `ItemRow` states, scene player
   controls and keyboard.
 - **Snippet regions:** every referenced region resolves.
+- **Blog routes stand alone:** each `/blog` route, rendered, makes no `/api`
+  request and writes nothing to localStorage.
 - **Visual QA:** Impeccable's finish pass on desktop (1440 px) and phone
   (390 px) screenshots, its detector, a fresh reviewer, and DESIGN.md from its
   documenter.
@@ -382,7 +465,8 @@ scene states the claim its prose makes, and its test asserts that claim.
 
 ## Open at build time
 
-- The plate ground's exact tone (the world's warm plate white against the
-  cream default).
+- The plate ground's exact tone (the world's warm plate white, `#F7F4ED` in
+  the reference), at a relative luminance of at least 0.877 (see "Text on each
+  colour").
 - Final faces, checked in the browser.
 - The broken variants for the what-ifs in chapters 3 and 4.
