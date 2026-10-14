@@ -179,6 +179,17 @@ describe("isConverged", () => {
       isConverged(snapshot({ A: showing(milk), B: showing() }, ["B"])),
     ).toBe(true);
   });
+
+  it("fails while an offline client still has something in its outbox", () => {
+    expect(
+      isConverged(
+        snapshot(
+          { A: showing(milk), B: { ...showing(milk), outbox: [entry(2)] } },
+          ["B"],
+        ),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("append", () => {

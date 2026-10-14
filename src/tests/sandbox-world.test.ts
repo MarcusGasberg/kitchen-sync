@@ -78,6 +78,33 @@ describe("World", () => {
       ),
   );
 
+  it.effect(
+    "an offline client's unsent change keeps the world from agreeing",
+    () =>
+      inWorld({ clients: ["A", "B"], seed: "unsent" }, (world) =>
+        Effect.gen(function* () {
+          const flips = Effect.map(world.currentTimeline, (timeline) =>
+            events(timeline)
+              .filter((e) => e._tag === "Converged" || e._tag === "Diverged")
+              .map((e) => e._tag),
+          );
+          yield* world.clock.advance("1 second");
+          yield* world.net.offline("A", true);
+          yield* world.client("A").apply(yield* add(world, "Milk"));
+          yield* world.clock.advance("5 seconds");
+
+          expect(yield* flips).toEqual(["Diverged"]);
+          expect(isConverged(yield* world.snapshot)).toBe(false);
+
+          // Back online, the change lands and the world agrees again.
+          yield* world.net.offline("A", false);
+          yield* world.clock.advance("60 seconds");
+          expect(yield* flips).toEqual(["Diverged", "Converged"]);
+          expect(yield* names(world, "B")).toEqual(["Milk"]);
+        }),
+      ),
+  );
+
   it.effect("records a refused edit, which spends no id", () =>
     inWorld({ clients: ["A"], seed: "refuse" }, (world) =>
       Effect.gen(function* () {
