@@ -92,15 +92,17 @@ const asStreamTransportFailure = <A, R>(
   pipe(
     effect,
     Stream.catchTags({
-      // The response is already in; an error reading its body is the
-      // connection breaking (fetch reports a socket dropped mid-stream as a
-      // `DecodeError`), so it is weather, not a broken contract.
-      HttpClientError: () =>
+      // The response is already in. Fetch reports a socket dropped
+      // mid-stream as a `DecodeError`: that is weather, not a broken
+      // contract. Anything else (a 204 with no body) is classified as usual.
+      HttpClientError: (err) =>
         Stream.fail(
-          new TransportFailure({
-            reason: "poke stream lost its connection",
-            retryable: true,
-          }),
+          err.reason._tag === "DecodeError"
+            ? new TransportFailure({
+                reason: "poke stream lost its connection",
+                retryable: true,
+              })
+            : classifyHttpClientError(err),
         ),
       Retry: () =>
         Stream.fail(

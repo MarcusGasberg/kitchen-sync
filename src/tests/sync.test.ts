@@ -160,7 +160,8 @@ const tick = (millis: number) =>
 const start = Effect.flatMap(SyncEngineService, (engine) => engine.start(ME));
 
 // Runs the engine for `minutes` over a transport whose every poke
-// subscription runs `subscription`, and returns when each one started.
+// subscription runs `subscription`, and returns when each one started and
+// the sync failure the store ended with.
 const pokeSubscriptions = (
   subscription: Effect.Effect<void, TransportFailure>,
   minutes: number,
@@ -185,11 +186,12 @@ const pokeSubscriptions = (
       }),
     ).pipe(Layer.provide(SyncTransportService.Fake));
 
-    yield* Effect.gen(function* () {
+    const syncFailure = yield* Effect.gen(function* () {
       yield* start;
       for (let t = 0; t < minutes * 60; t++) {
         yield* TestClock.adjust("1 second");
       }
+      return (yield* snapshot).syncFailure;
     }).pipe(
       Effect.provide(
         SyncEngineService.Live.pipe(
@@ -197,8 +199,9 @@ const pokeSubscriptions = (
         ),
       ),
     );
-    return yield* Ref.get(starts);
+    return { starts: yield* Ref.get(starts), syncFailure };
   });
+
 const stop = Effect.flatMap(SyncEngineService, (engine) => engine.stop);
 
 const snapshot = Effect.flatMap(StoreService, (store) => store.getSnapShot());
@@ -588,7 +591,7 @@ describe("SyncEngineService", () => {
       "subscribes again at once each time a poke stream fails after a healthy run",
       () =>
         Effect.gen(function* () {
-          const starts = yield* pokeSubscriptions(
+          const { starts } = yield* pokeSubscriptions(
             Effect.sleep("5 minutes").pipe(
               Effect.andThen(
                 Effect.fail(
@@ -607,10 +610,32 @@ describe("SyncEngineService", () => {
         }),
     );
 
+    // A healthy run only ever forgives weather: a broken contract after it
+    // still stops the loop.
+    it.effect("stops on a fatal poke stream failure, however long it ran", () =>
+      Effect.gen(function* () {
+        const { starts, syncFailure } = yield* pokeSubscriptions(
+          Effect.sleep("5 minutes").pipe(
+            Effect.andThen(
+              Effect.fail(
+                new TransportFailure({
+                  retryable: false,
+                  reason: "schema error",
+                }),
+              ),
+            ),
+          ),
+          11,
+        );
+        expect(starts).toHaveLength(1);
+        expect(syncFailure).toEqual({ loop: "pull", reason: "schema error" });
+      }),
+    );
+
     // A server that fails the stream at once meets the backoff instead.
     it.effect("backs off from a poke stream that fails at once", () =>
       Effect.gen(function* () {
-        const starts = yield* pokeSubscriptions(
+        const { starts } = yield* pokeSubscriptions(
           Effect.fail(
             new TransportFailure({ retryable: true, reason: "HTTP 503" }),
           ),
