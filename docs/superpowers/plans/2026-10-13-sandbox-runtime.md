@@ -16,7 +16,7 @@
 > 2. `isConverged` checks every outbox, offline clients' included; only an offline client's rows are left out (spec: "every outbox is empty").
 > 3. Scenes run headless keep every event; only free play is bounded at 2,000.
 > 4. Each quantum is uninterruptible and each `advance` counts its own whole quanta, so an interrupted advance stays on the 50 ms grid.
-> 5. Review Focus #2's test could not fail: a `setTimeout` input never lands inside a quantum, gate or no gate. It is replaced by an input issued from a fiber reacting inside a quantum, checked on the grid and by replay.
+> 5. Review Focus #2's test could not fail: a `setTimeout` input never lands inside a quantum, gate or no gate. It is kept, renamed for what it does pin (the quantum's drain), and joined by a test that issues the input from a fiber reacting inside a quantum, checked on the grid and by replay.
 > 6. Once an input holds the gate it is uninterruptible, and `apply` checks the intent against `MutationIntent` before logging it.
 > 7. Added after review: `client(name).reload` (chapter 9), a `Reloaded` event, and `Renumbered` only when an id changes.
 
