@@ -73,7 +73,8 @@ export interface WorldHandle {
   };
   readonly clock: {
     // Moves virtual time forward in whole quanta; a remainder carries over to
-    // the next call, so frame-sized advances add up exactly.
+    // the next call, so frame-sized advances add up exactly. Interrupted, it
+    // stops on a quantum and the rest of the call is dropped.
     readonly advance: (duration: Duration.Input) => Effect.Effect<void>;
     readonly now: Effect.Effect<number>;
   };
@@ -282,21 +283,27 @@ const make = (options: WorldOptions) =>
       });
     }
 
+    // Waiting for the gate can be interrupted; a quantum once begun cannot,
+    // so an interrupted advance always stops on the grid.
     const quantum = inWorld(
       gate.withPermits(1)(
-        testClock
-          .adjust(Duration.millis(QUANTUM_MILLIS))
-          .pipe(Effect.andThen(nextMacrotask)),
+        Effect.uninterruptible(
+          testClock
+            .adjust(Duration.millis(QUANTUM_MILLIS))
+            .pipe(Effect.andThen(nextMacrotask)),
+        ),
       ),
     );
+    // Only the part of a quantum not yet run carries over. Each call counts
+    // its own whole quanta, so an interrupted call drops the rest of itself
+    // instead of leaving it for the next one.
     let carried = 0;
     const advance = (duration: Duration.Input) =>
       Effect.gen(function* () {
-        carried += Duration.toMillis(duration);
-        while (carried >= QUANTUM_MILLIS) {
-          carried -= QUANTUM_MILLIS;
-          yield* quantum;
-        }
+        const total = carried + Duration.toMillis(duration);
+        const quanta = Math.max(0, Math.floor(total / QUANTUM_MILLIS));
+        carried = total - quanta * QUANTUM_MILLIS;
+        for (let i = 0; i < quanta; i++) yield* quantum;
       });
 
     // The last client's loops are queued, not yet run. Let them settle, so an

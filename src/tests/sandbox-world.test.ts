@@ -1,5 +1,16 @@
 import { it } from "@effect/vitest";
-import { Cause, Context, Effect, Exit, Fiber, Layer, Ref, Scope } from "effect";
+import {
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Ref,
+  Scope,
+  Stream,
+} from "effect";
 import { describe, expect } from "vitest";
 import { replay } from "#/lib/sandbox/inputs";
 import { isConverged } from "#/lib/sandbox/trace";
@@ -136,6 +147,67 @@ describe("World", () => {
           const [input] = yield* world.inputs;
           expect(input).toBeDefined();
           expect(((input?.at ?? 1) - start) % QUANTUM_MILLIS).toBe(0);
+        }),
+      ),
+  );
+
+  it.effect("frame-sized advances add up to whole quanta", () =>
+    inWorld({ clients: ["A"], seed: "frames" }, (world) =>
+      Effect.gen(function* () {
+        const start = yield* world.clock.now;
+        const moved: Array<number> = [];
+        for (let frame = 0; frame < 25; frame++) {
+          yield* world.clock.advance("16 millis");
+          moved.push((yield* world.clock.now) - start);
+        }
+        expect(moved.every((millis) => millis % QUANTUM_MILLIS === 0)).toBe(
+          true,
+        );
+        expect(moved.at(-1)).toBe(400);
+      }),
+    ),
+  );
+
+  it.effect(
+    "an advance interrupted mid-way stops on a quantum and drops the rest",
+    () =>
+      inWorld({ clients: ["A", "B"], seed: "interrupt" }, (world) =>
+        Effect.gen(function* () {
+          const start = yield* world.clock.now;
+          yield* world.clock.advance("1 second");
+          // The lost ack is dropped half-way through its flight, between quanta.
+          yield* world.net.drop({ client: "A", kind: "ack" });
+          yield* world.client("A").apply(yield* add(world, "Milk"));
+          const from = (yield* world.currentTimeline).entries.length;
+
+          // A player stopping playback the moment its beat's condition holds.
+          const advancing = yield* Deferred.make<Fiber.Fiber<void>>();
+          const watcher = yield* Effect.forkChild(
+            Stream.runForEach(world.timeline, (timeline) =>
+              timeline.entries
+                .slice(from)
+                .some((entry) => entry.event._tag === "Dropped")
+                ? Effect.flatMap(Deferred.await(advancing), Fiber.interrupt)
+                : Effect.void,
+            ),
+          );
+          const moving = yield* Effect.forkChild(
+            world.clock.advance("60 seconds"),
+          );
+          yield* Deferred.succeed(advancing, moving);
+          const exit = yield* Fiber.await(moving);
+          yield* Fiber.interrupt(watcher);
+
+          const stopped = (yield* world.clock.now) - start;
+          expect(Exit.hasInterrupts(exit)).toBe(true);
+          expect(stopped).toBeLessThan(61_000);
+          expect(stopped % QUANTUM_MILLIS).toBe(0);
+
+          // The next frame moves the clock a frame, not the rest of the minute.
+          yield* world.clock.advance("16 millis");
+          expect(
+            (yield* world.clock.now) - start - stopped,
+          ).toBeLessThanOrEqual(QUANTUM_MILLIS);
         }),
       ),
   );
