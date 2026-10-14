@@ -102,7 +102,25 @@ const asStreamTransportFailure = <A, R>(
           new TransportFailure({ reason: err.message, retryable: true }),
         ),
     }),
-    Stream.timeout("10 seconds"),
+    // The route's heartbeat comes every 15 s, jittered to 12–18 s; a stream
+    // quiet past two of the longest is dead. It fails, as one the server
+    // ends does, so the pull loop's retry subscribes again. Ending instead
+    // would leave the loop on its 30 s tick for good.
+    Stream.timeoutOrElse({
+      duration: "40 seconds",
+      orElse: () =>
+        Stream.fail(
+          new TransportFailure({
+            reason: "poke stream went quiet",
+            retryable: true,
+          }),
+        ),
+    }),
+    Stream.concat(
+      Stream.fail(
+        new TransportFailure({ reason: "poke stream ended", retryable: true }),
+      ),
+    ),
   );
 
 export class SyncTransportService extends Context.Service<
