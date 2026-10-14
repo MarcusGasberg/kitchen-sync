@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/pull/stream")({
 
         const body = await runtime.runPromise(program);
         const headers = new Headers();
-        headers.append("content-type", "text/event-steram");
+        headers.append("content-type", "text/event-stream");
         headers.append("cache-control", "no-cache");
 
         return new Response(body, {

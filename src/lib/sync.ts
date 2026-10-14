@@ -85,7 +85,6 @@ export class SyncEngineService extends Context.Service<
             Stream.runForEach((poke) => {
               return Effect.gen(function* () {
                 const { appliedVersion } = yield* store.getSnapShot();
-                console.log(poke, appliedVersion);
                 if (poke === appliedVersion) {
                   return;
                 }

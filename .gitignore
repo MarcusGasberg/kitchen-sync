@@ -15,3 +15,7 @@ todos.json
 
 # Claude Code worktrees
 .claude/worktrees
+# Impeccable: the skill copy and its working files stay local
+.claude/skills/impeccable
+.impeccable/mocks
+.impeccable/questions
