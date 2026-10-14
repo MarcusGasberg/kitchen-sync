@@ -272,7 +272,9 @@ const make = (options: WorldOptions) =>
           Stream.runForEach((state) => recorder.observe(name, state)),
           Effect.forkIn(scope),
         );
-        yield* Deferred.await(watching);
+        // If the world closes before the watcher runs, it never signals; its
+        // end does instead, so a reload racing the close still ends.
+        yield* Effect.raceFirst(Deferred.await(watching), Fiber.await(watcher));
         yield* engine.start(clientId);
         return { scope, store, engine, watcher };
       });
@@ -326,6 +328,14 @@ const make = (options: WorldOptions) =>
       });
     }
 
+    // An input naming a client not in the world dies before it is logged, as
+    // `client(name)` throws: a script's typo fails where the typo is, and a
+    // replay never meets it.
+    const known = <A, E>(name: ClientName, effect: Effect.Effect<A, E>) =>
+      clientIds.has(name)
+        ? effect
+        : Effect.die(new Error(`no client named ${name} in this world`));
+
     // Waiting for the gate can be interrupted; a quantum once begun cannot,
     // so an interrupted advance always stops on the grid.
     const quantum = inWorld(
@@ -365,21 +375,29 @@ const make = (options: WorldOptions) =>
       },
       net: {
         offline: (name, offline) =>
-          input(
-            { _tag: "Offline", client: name, offline },
-            network.setOffline(name, offline),
+          known(
+            name,
+            input(
+              { _tag: "Offline", client: name, offline },
+              network.setOffline(name, offline),
+            ),
           ),
         latency: (name, latency) =>
-          input(
-            {
-              _tag: "Latency",
-              client: name,
-              millis: Duration.toMillis(latency),
-            },
-            network.setLatency(name, latency),
+          known(
+            name,
+            input(
+              {
+                _tag: "Latency",
+                client: name,
+                millis: Duration.toMillis(latency),
+              },
+              network.setLatency(name, latency),
+            ),
           ),
-        drop: (rule) => input({ _tag: "Drop", rule }, network.drop(rule)),
-        hold: (rule) => input({ _tag: "Hold", rule }, network.hold(rule)),
+        drop: (rule) =>
+          known(rule.client, input({ _tag: "Drop", rule }, network.drop(rule))),
+        hold: (rule) =>
+          known(rule.client, input({ _tag: "Hold", rule }, network.hold(rule))),
         release: (messageId) =>
           input({ _tag: "Release", messageId }, network.release(messageId)),
       },

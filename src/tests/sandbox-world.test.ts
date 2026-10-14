@@ -96,7 +96,7 @@ describe("World", () => {
         expect(pokes.length).toBeGreaterThanOrEqual(6);
         for (const sent of pokes) {
           const cause = poked.find(
-            (e) => `v${e.serverVersion}` === sent.message.label,
+            (e) => `poke v${e.serverVersion}` === sent.message.label,
           );
           expect(cause?.seq).toBeLessThan(sent.seq);
         }
@@ -648,12 +648,58 @@ describe("World", () => {
     }),
   );
 
+  // The world can close in the same turn a reload starts. The new store's
+  // watcher is then interrupted before it runs, and the reload must still
+  // end rather than wait for a signal that never comes.
+  it.live("a reload racing the world's close still ends", () =>
+    Effect.gen(function* () {
+      const scope = yield* Scope.make();
+      const world = Context.get(
+        yield* Layer.buildWithScope(
+          World.layer({ clients: ["A", "B"], seed: "reload-race-close" }),
+          scope,
+        ),
+        World,
+      );
+      yield* world.clock.advance("1 second");
+
+      const ended = yield* Effect.gen(function* () {
+        const reloading = yield* Effect.forkDetach(world.client("A").reload);
+        yield* Effect.forkDetach(Scope.close(scope, Exit.void));
+        return yield* Effect.raceFirst(
+          Fiber.await(reloading).pipe(Effect.as(true)),
+          Effect.promise(
+            () =>
+              new Promise<boolean>((resolve) =>
+                setTimeout(() => resolve(false), 500),
+              ),
+          ),
+        );
+      }).pipe(
+        Effect.provideService(
+          Scheduler.Scheduler,
+          new Scheduler.MixedScheduler("sync"),
+        ),
+      );
+      expect(ended).toBe(true);
+    }),
+  );
+
   it.effect("a name that is not in the world fails loudly", () =>
     inWorld({ clients: ["A"], seed: "typo" }, (world) =>
       Effect.gen(function* () {
         expect(() => world.client("Z")).toThrow("no client named Z");
-        const exit = yield* Effect.exit(world.net.offline("Z", true));
-        expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+        for (const typo of [
+          world.net.offline("Z", true),
+          world.net.latency("Z", "1 second"),
+          world.net.drop({ client: "Z", kind: "push" }),
+          world.net.hold({ client: "Z", kind: "push" }),
+        ]) {
+          const exit = yield* Effect.exit(typo);
+          expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+        }
+        // Dying before it is logged, so a replay does not die on it too.
+        expect(yield* world.inputs).toEqual([]);
       }),
     ),
   );

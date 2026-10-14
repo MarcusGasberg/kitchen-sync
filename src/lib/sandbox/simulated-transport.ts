@@ -100,7 +100,7 @@ export const simulatedTransport = (options: {
           return feed.changes.pipe(
             Stream.filterEffect((version) =>
               network
-                .carry(client, "poke", `v${version}`)
+                .carry(client, "poke", `poke v${version}`)
                 .pipe(Effect.map((arrival) => arrival === "delivered")),
             ),
             Stream.interruptWhen(
