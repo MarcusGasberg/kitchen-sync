@@ -1,28 +1,26 @@
-import { PgClient } from "@effect/sql-pg";
-import { it } from "@effect/vitest";
-import { Config, DateTime, Effect, Layer, Stream } from "effect";
-import { SqlClient } from "effect/unstable/sql";
-import { describe, expect } from "vitest";
+import { DateTime, Effect, Option, Stream } from "effect";
+import { expect } from "vitest";
 import type { ItemMutation } from "../domain/mutation";
-import { Migrations } from "../lib/migrations";
 import { makeSyncServer, type SyncServer } from "../lib/sync-server";
-import {
-  makeInMemorySyncStore,
-  type SyncStore,
-  SyncStoreService,
-} from "../lib/sync-store";
+import type { SyncStore } from "../lib/sync-store";
 
 // One set of scenarios, two adapters. Whatever these assert, the in-memory
 // store behind SyncTransportService.Fake and the Postgres store behind the
-// routes must both do -- so the Fake cannot drift from the real server.
+// routes must both do -- so the Fake cannot drift from the real server. The
+// in-memory store keeps the batch's resulting state and Postgres writes its
+// patches, so every kind of patch (insert, update, delete, the multi-row
+// updates of a removal and a reorder) has a case here.
+//
+// Run by sync-server.contract.memory.test.ts (unit) and
+// sync-server.contract.postgres.test.ts (database).
 
-interface Env<E> {
+export interface Env<E> {
   readonly server: SyncServer<E>;
   // Every version the server announced, in order.
   readonly published: Array<number>;
 }
 
-const makeEnv = <E>(store: SyncStore<E>): Env<E> => {
+export const makeEnv = <E>(store: SyncStore<E>): Env<E> => {
   const published: Array<number> = [];
   return {
     published,
@@ -75,7 +73,32 @@ const reorder = (
   order,
 });
 
-const contract = <E, R>(
+const edit = (
+  clientMutationId: number,
+  itemId: string,
+  changes: Extract<
+    typeof ItemMutation.Type,
+    { readonly _tag: "EditItem" }
+  >["changes"],
+): typeof ItemMutation.Type => ({
+  _tag: "EditItem",
+  clientMutationId,
+  issuedAt,
+  itemId,
+  changes,
+});
+
+const remove = (
+  clientMutationId: number,
+  itemId: string,
+): typeof ItemMutation.Type => ({
+  _tag: "RemoveItem",
+  clientMutationId,
+  issuedAt,
+  itemId,
+});
+
+export const contract = <E, R>(
   acquire: Effect.Effect<Env<E>, never, R>,
   test: (name: string, body: () => Effect.Effect<void, E, R>) => void,
 ) => {
@@ -262,34 +285,93 @@ const contract = <E, R>(
 
       expect(pulled).toMatchObject({ lastMutationId: 0, items: [] });
     }));
+
+  test("a check and an edit change the row and stamp it with their version", () =>
+    Effect.gen(function* () {
+      const { server } = yield* acquire;
+      const client = newClient();
+      const itemId = newItem();
+      yield* server.push(client, [create(1, itemId)]);
+
+      yield* server.push(client, [
+        setCompleted(2, itemId, true),
+        edit(3, itemId, {
+          name: "oat milk",
+          quantity: 2,
+          unit: Option.some("l"),
+        }),
+      ]);
+      const pulled = yield* server.pull(client, 0);
+
+      expect(pulled.serverVersion).toBe(3);
+      expect(
+        pulled.items.map((t) => [
+          t.name,
+          t.quantity,
+          Option.getOrNull(t.unit),
+          t.checked,
+          t.version,
+        ]),
+      ).toEqual([["oat milk", 2, "l", true, 3]]);
+    }));
+
+  test("a removal deletes the row and closes the gap in the order", () =>
+    Effect.gen(function* () {
+      const { server } = yield* acquire;
+      const client = newClient();
+      const first = newItem();
+      yield* server.push(client, [
+        create(1, first, "a"),
+        create(2, newItem(), "b"),
+        create(3, newItem(), "c"),
+      ]);
+
+      yield* server.push(client, [remove(4, first)]);
+      const pulled = yield* server.pull(client, 0);
+
+      expect(pulled.items.map((t) => [t.name, t.order, t.version])).toEqual([
+        ["b", 0, 4],
+        ["c", 1, 4],
+      ]);
+    }));
+
+  test("a reorder moves the row and renumbers the ones it passes", () =>
+    Effect.gen(function* () {
+      const { server } = yield* acquire;
+      const client = newClient();
+      const last = newItem();
+      yield* server.push(client, [
+        create(1, newItem(), "a"),
+        create(2, newItem(), "b"),
+        create(3, last, "c"),
+      ]);
+
+      // "c" was created at version 3.
+      yield* server.push(client, [reorder(4, last, 3, 0)]);
+      const pulled = yield* server.pull(client, 0);
+
+      expect(pulled.items.map((t) => [t.name, t.order, t.version])).toEqual([
+        ["c", 0, 4],
+        ["a", 1, 4],
+        ["b", 2, 4],
+      ]);
+    }));
+
+  test("each client's mutation ids are its own", () =>
+    Effect.gen(function* () {
+      const { server } = yield* acquire;
+      const a = newClient();
+      const b = newClient();
+
+      const fromA = yield* server.push(a, [create(1, newItem(), "a")]);
+      const fromB = yield* server.push(b, [create(1, newItem(), "b")]);
+      const pulledByA = yield* server.pull(a, 0);
+      const pulledByB = yield* server.pull(b, 0);
+
+      expect(fromA).toMatchObject({ acked: [1], lastMutationId: 1 });
+      expect(fromB).toMatchObject({ acked: [1], lastMutationId: 1 });
+      expect(pulledByA.lastMutationId).toBe(1);
+      expect(pulledByB.lastMutationId).toBe(1);
+      expect(pulledByB.items.map((t) => t.name)).toEqual(["a", "b"]);
+    }));
 };
-
-describe("SyncServer contract", () => {
-  describe("in memory", () => {
-    contract(
-      Effect.sync(() => makeEnv(makeInMemorySyncStore())),
-      (name, body) => it.effect(name, body),
-    );
-  });
-
-  describe("over Postgres", () => {
-    const PgLive = PgClient.layerConfig(
-      Config.redacted("DATABASE_URL").pipe(Config.map((url) => ({ url }))),
-    );
-    const PgLayer = Layer.merge(Migrations, SyncStoreService.Postgres).pipe(
-      Layer.provideMerge(PgLive),
-    );
-
-    // Tests share the database, so start each from an empty one.
-    const acquire = Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      yield* sql`truncate table mutation_log, grocery_items, sync_state, sync_client`;
-      yield* sql`insert into sync_state (id, version) values (1, 0)`;
-      return makeEnv(yield* SyncStoreService);
-    }).pipe(Effect.orDie);
-
-    it.layer(PgLayer, { timeout: "30 seconds" })("against Postgres", (it) => {
-      contract(acquire, (name, body) => it.effect(name, body));
-    });
-  });
-});
