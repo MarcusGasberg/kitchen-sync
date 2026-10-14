@@ -1,6 +1,7 @@
 import { it } from "@effect/vitest";
 import { Cause, Context, Effect, Exit, Fiber, Layer, Ref, Scope } from "effect";
 import { describe, expect } from "vitest";
+import { replay } from "#/lib/sandbox/inputs";
 import { isConverged } from "#/lib/sandbox/trace";
 import {
   QUANTUM_MILLIS,
@@ -192,6 +193,53 @@ describe("World", () => {
         expect(replayed.events).toEqual(clicked.events);
       }),
   );
+
+  // A scene that begins with C offline, or with a drop rule for C's first
+  // pull, issues that input at the very instant the world starts.
+  const firstInputs: ReadonlyArray<
+    readonly [string, (world: WorldHandle) => Effect.Effect<void>]
+  > = [
+    ["C going offline", (world) => world.net.offline("C", true)],
+    [
+      "a drop rule for C's pull",
+      (world) => world.net.drop({ client: "C", kind: "pull" }),
+    ],
+  ];
+  for (const [title, first] of firstInputs) {
+    it.effect(
+      `${title} at the start instant lands alike at once, a click later or replayed`,
+      () =>
+        Effect.gen(function* () {
+          const options: WorldOptions = {
+            clients: ["A", "B", "C"],
+            seed: "start",
+          };
+          const run = (before: Effect.Effect<void>) =>
+            inWorld(options, (world) =>
+              Effect.gen(function* () {
+                yield* before;
+                yield* first(world);
+                yield* world.clock.advance("3 seconds");
+                return {
+                  end: yield* world.clock.now,
+                  inputs: yield* world.inputs,
+                  events: events(yield* world.currentTimeline),
+                };
+              }),
+            );
+
+          const clicked = yield* run(macrotask);
+          const atOnce = yield* run(Effect.void);
+          const replayed = yield* replay(clicked.inputs, clicked.end).pipe(
+            Effect.flatMap((world) => world.currentTimeline),
+            Effect.provide(World.layer(options)),
+          );
+
+          expect(atOnce.events).toEqual(clicked.events);
+          expect(events(replayed)).toEqual(clicked.events);
+        }),
+    );
+  }
 
   it.effect("a name that is not in the world fails loudly", () =>
     inWorld({ clients: ["A"], seed: "typo" }, (world) =>

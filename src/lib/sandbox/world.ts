@@ -299,6 +299,11 @@ const make = (options: WorldOptions) =>
         }
       });
 
+    // The last client's loops are queued, not yet run. Let them settle, so an
+    // input at the start instant finds the world as a later click would: the
+    // same for a replay, a scene's first beat or a reader.
+    yield* nextMacrotask;
+
     return World.of({
       options,
       client: (name) => {
