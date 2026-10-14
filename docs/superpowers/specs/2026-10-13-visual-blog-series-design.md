@@ -64,7 +64,8 @@ the SSE route and its decoding (chapter 7), and `SyncStoreService.update` with
 `retryTransientSql` (chapter 10). Lit lines come only from code the world
 runs: the store, the sync loops, `retrySyncLoop`, `untilFatal`,
 `makeSyncServer`, `applyBatch`, `decide`, `rebase`, and from Part 3 on
-`classifyHttpClientError`, which the failing server below calls. Code the
+`classifyHttpClientError`, which the simulated transport calls for the
+failing server below. Code the
 world does not run is shown in a reference panel marked "not running in this
 figure" and is never lit from trace events. Chapter 10's collision needs real
 transactions: it runs only if Part 2 brings PGlite, and is rewritten around
@@ -85,9 +86,11 @@ for them; each is built with the part that needs it:
   transport builds the failure with the real `classifyHttpClientError` from a
   synthesized response, so the rule that decides what is retryable is the
   production one; that needs `classifyHttpClientError` exported from
-  `src/lib/transport.ts`. Its lines are lit from the `Sent` and `Dropped`
-  events of the failed request, then `Retrying` (see the trace) for the
-  backoff.
+  `src/lib/transport.ts`. The failed request's response leg is labelled with
+  its status (`HTTP 503`, `HTTP 400`), and the panel lights
+  `classifyHttpClientError` from that response, then `Retrying` (a 503) or
+  `SyncStopped` (the 400). A dropped message is not this path: its caller
+  ends in the request timeout, which never reaches `classifyHttpClientError`.
 
 ## Visual world
 
@@ -137,7 +140,8 @@ a pseudonym mark. The direction contract is in the surface brief; in short:
   drift while pending, hard cuts between scripted beats, no bounce, no
   blending. A world starts when its figure is at least half in view and pauses
   when the figure leaves the view or the tab is hidden; nothing runs off
-  screen. The pause control is the first focusable control of every figure,
+  screen. Only a world paused that way resumes on its own: one the reader
+  paused stays paused when it scrolls back into view. The pause control is the first focusable control of every figure,
   so a world that starts on its own can be stopped at once (WCAG 2.2.2).
 - **Reduced motion** (`prefers-reduced-motion: reduce`): no world starts on its
   own (chapter 0 included: it waits on its play control); messages cut between
@@ -183,15 +187,19 @@ The engine stays as it is, apart from these, each landing with the work named:
   closed, and the pull loop subscribes again with a fresh backoff; one that
   dies young fails, so the backoff applies. Worlds use the simulated
   transport and cannot show this.
-- **Sub-project 2:** `StoreState` reports transient failures, as
-  `retrying: { loop, reason } | null`. A sync loop sets it when it retries a
-  transient failure, and that loop's next success clears it: a push or pull
-  that returns, or a poke that arrives (the pull loop's iteration itself
-  never ends in success). "Offline" is `retrying` with the reason
-  `network error` in the app, and the network model's `snapshot.offline` in a
-  world. The trace gains `Retrying` and `Recovered` client events, diffed from
-  the field like the rest. Also: the grocery runtime moves out of the root
-  shell into the `/` route.
+- **Sub-project 2:** `StoreState` reports transient failures, one slot per
+  loop: `retrying: { push: string | null; pull: string | null }` (the
+  reason). Each loop sets its own slot when it retries a transient failure,
+  and only its own next success clears it. For the push loop that is any
+  iteration that completes, one with nothing left to send included (a pull
+  may have emptied the outbox while a push waited on a lost ack). For the
+  pull loop it is a pull that returns or a poke that arrives: its iteration
+  succeeds only when a poke stream that lasted ends, which says nothing about
+  health. "Offline" is a `network error` reason in the app; in a world it is
+  the network model's `snapshot.offline`, and the offline band hides a
+  `network error` retrying band. The trace gains `Retrying` and `Recovered`
+  client events, with their loop, diffed from the field like the rest. Also:
+  the grocery runtime moves out of the root shell into the `/` route.
 - **Part 2:** `SyncClient` takes an optional store layer (the variant seam).
 - **Part 3:** export `classifyHttpClientError` from `src/lib/transport.ts`, for
   the failing server.
@@ -242,27 +250,37 @@ through seams the engine already has.
 ### The handle
 
 ```ts
-interface World {
+// As in src/lib/sandbox/world.ts, which is authoritative.
+interface WorldHandle {
+  readonly options: WorldOptions
   readonly client: (name: ClientName) => {
+    readonly name: ClientName
+    readonly clientId: string
     readonly apply: (intent: MutationIntent) => Effect<void, ItemNotFoundError | StaleMutationError>
     readonly retry: Effect<void>
     // The page reloads, as in the app: the clientId survives (localStorage),
     // the store and its outbox do not
     readonly reload: Effect<void>
+    readonly state: Effect<StoreState>
   }
   readonly net: {
     readonly offline: (name: ClientName, offline: boolean) => Effect<void>
     readonly latency: (name: ClientName, latency: Duration.Input) => Effect<void>
     readonly drop: (rule: MessageRule) => Effect<void>
     readonly hold: (rule: MessageRule) => Effect<void>
-    readonly release: (message: MessageId) => Effect<void>
+    readonly release: (messageId: number) => Effect<void>
   }
   readonly clock: {
     readonly advance: (duration: Duration.Input) => Effect<void>
     readonly now: Effect<number>
   }
+  // A scene mints item ids here, never with crypto: the id stream is part of
+  // what replays
+  readonly newId: Effect<string>
   readonly timeline: Stream<Timeline>
+  readonly currentTimeline: Effect<Timeline>
   readonly snapshot: Effect<WorldSnapshot>
+  readonly inputs: Effect<ReadonlyArray<RecordedInput>>
 }
 
 interface MessageRule {

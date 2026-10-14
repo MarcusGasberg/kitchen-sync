@@ -28,7 +28,7 @@ The scene player: play, pause, step and scrub a scripted scene, then "Your turn"
 
 ## Motion grammar
 
-Symbols move on straight paths at one fixed time scale (distance is time, so a slow network visibly takes longer). In flight or pending means hovering clear of the plate with a slow drift; acked means half landed on the plate's edge; synced means flat on the plate; rejected means knocked out to an outline. No bounce, no blending, hard cuts between scripted steps. A world starts when its figure is at least half in view and pauses when it leaves the view or the tab is hidden. Reduced motion: no world starts on its own, messages cut between their sent and arrived positions, the drift is dropped, stepping and scrubbing still work. The pause control is each figure's first focusable control.
+Symbols move on straight paths at one fixed time scale (distance is time, so a slow network visibly takes longer). In flight or pending means hovering clear of the plate with a slow drift; acked means half landed on the plate's edge; synced means flat on the plate; rejected means knocked out to an outline. No bounce, no blending, hard cuts between scripted steps. A world starts when its figure is at least half in view and pauses when it leaves the view or the tab is hidden. Only a world paused that way resumes on its own; one the reader paused stays paused. Reduced motion: no world starts on its own, messages cut between their sent and arrived positions, the drift is dropped, stepping and scrubbing still work. The pause control is each figure's first focusable control.
 
 ## Interaction rules carried from earlier rounds
 
