@@ -342,7 +342,9 @@ const make = (options: WorldOptions) =>
       newId: input({ _tag: "Mint" }, Effect.sync(mint)),
       timeline: SubscriptionRef.changes(recorder.timeline),
       currentTimeline: SubscriptionRef.get(recorder.timeline),
-      snapshot: recorder.snapshot,
+      // In the world, so the recorder lock wakes its waiters on the world's
+      // scheduler whoever reads it.
+      snapshot: inWorld(recorder.snapshot),
       inputs: Ref.get(inputs),
     });
   });
