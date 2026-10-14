@@ -8,6 +8,7 @@ import {
   Layer,
   Ref,
   Scheduler,
+  Schema,
   Scope,
   Semaphore,
   Stream,
@@ -16,7 +17,7 @@ import {
 import { TestClock } from "effect/testing";
 import { describeRefusal } from "#/domain/batch";
 import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
-import type { MutationIntent } from "#/domain/mutation";
+import { MutationIntent } from "#/domain/mutation";
 import { ChangeFeed, type IChangeFeed } from "#/lib/change-feed";
 import { SyncClient } from "#/lib/client";
 import { StoreService, type StoreState } from "#/lib/store";
@@ -222,16 +223,20 @@ const make = (options: WorldOptions) =>
     const inputs = yield* Ref.make<ReadonlyArray<RecordedInput>>([]);
     // An input keeps the gate until the engine work it woke has run, as a
     // quantum does: then the next input finds the world settled, whether it
-    // comes a click later or (in a replay) at once.
+    // comes a click later or (in a replay) at once. Waiting for the gate can
+    // be interrupted; an input once logged cannot, so the log never holds an
+    // input that only half happened.
     const input = <A, E>(entry: Input, effect: Effect.Effect<A, E>) =>
       inWorld(
         gate.withPermits(1)(
-          testClock.currentTimeMillis.pipe(
-            Effect.flatMap((at) =>
-              Ref.update(inputs, (all) => [...all, { at, input: entry }]),
+          Effect.uninterruptible(
+            testClock.currentTimeMillis.pipe(
+              Effect.flatMap((at) =>
+                Ref.update(inputs, (all) => [...all, { at, input: entry }]),
+              ),
+              Effect.andThen(effect),
+              Effect.ensuring(nextMacrotask),
             ),
-            Effect.andThen(effect),
-            Effect.ensuring(nextMacrotask),
           ),
         ),
       );
@@ -280,18 +285,25 @@ const make = (options: WorldOptions) =>
         name,
         clientId,
         state: inWorld(Effect.suspend(() => running.store.getSnapShot())),
+        // An intent the wire would refuse (an empty name, one over 50
+        // characters) dies here, before it is logged. The store would take
+        // it, and the push loop would then die on it with no trace.
         apply: (intent) =>
-          input(
-            { _tag: "Apply", client: name, intent },
-            Effect.suspend(() => running.store.applyMutation(intent)).pipe(
-              Effect.asVoid,
-              Effect.tapError((failure) =>
-                recorder.record({
-                  _tag: "RefusedLocally",
-                  client: name,
-                  intent: intent._tag,
-                  reason: describeRefusal(failure),
-                }),
+          Effect.sync(() => Schema.asserts(MutationIntent, intent)).pipe(
+            Effect.andThen(
+              input(
+                { _tag: "Apply", client: name, intent },
+                Effect.suspend(() => running.store.applyMutation(intent)).pipe(
+                  Effect.asVoid,
+                  Effect.tapError((failure) =>
+                    recorder.record({
+                      _tag: "RefusedLocally",
+                      client: name,
+                      intent: intent._tag,
+                      reason: describeRefusal(failure),
+                    }),
+                  ),
+                ),
               ),
             ),
           ),

@@ -8,6 +8,7 @@ import {
   Fiber,
   Layer,
   Ref,
+  Scheduler,
   Scope,
   Stream,
 } from "effect";
@@ -175,8 +176,10 @@ describe("World", () => {
     ),
   );
 
+  // A macrotask cannot run inside a quantum, gate or no gate: what this pins
+  // is the quantum draining before it lets the input in.
   it.effect(
-    "an input issued while the clock is moving lands between quanta",
+    "an input from another macrotask waits for the quantum it interrupted to drain",
     () =>
       inWorld({ clients: ["A", "B"], seed: "between" }, (world) =>
         Effect.gen(function* () {
@@ -201,6 +204,75 @@ describe("World", () => {
           expect(((input?.at ?? 1) - start) % QUANTUM_MILLIS).toBe(0);
         }),
       ),
+  );
+
+  // The gate's own case: a fiber that reacts to an event inside a quantum
+  // (a drop lands at half the latency, +1075 ms) issues its input there.
+  it.effect(
+    "an input issued from inside a quantum waits for the gate, and replays",
+    () =>
+      Effect.gen(function* () {
+        const options = { clients: ["A", "B"], seed: "gate" };
+        const recorded = yield* Effect.gen(function* () {
+          const world = yield* World;
+          const start = yield* world.clock.now;
+          yield* world.clock.advance("1 second");
+          yield* world.net.drop({ client: "A", kind: "push" });
+          yield* world.client("A").apply(yield* add(world, "Milk"));
+          const from = (yield* world.currentTimeline).entries.length;
+          let fired = false;
+          const watcher = yield* Effect.forkChild(
+            Stream.runForEach(world.timeline, (timeline) => {
+              const dropped = timeline.entries
+                .slice(from)
+                .some((entry) => entry.event._tag === "Dropped");
+              if (fired || !dropped) return Effect.void;
+              fired = true;
+              return world.net.offline("B", true);
+            }).pipe(
+              // On microtasks, as a fiber in the world's own runtime would be.
+              Effect.provideService(
+                Scheduler.Scheduler,
+                new Scheduler.MixedScheduler("sync"),
+              ),
+            ),
+          );
+          yield* world.clock.advance("2 seconds");
+          yield* macrotask;
+          yield* Fiber.interrupt(watcher);
+          return {
+            start,
+            end: yield* world.clock.now,
+            inputs: yield* world.inputs,
+            timeline: yield* world.currentTimeline,
+          };
+        }).pipe(Effect.provide(World.layer(options)));
+
+        const offline = recorded.inputs.find((i) => i.input._tag === "Offline");
+        expect(offline).toBeDefined();
+        expect(((offline?.at ?? 1) - recorded.start) % QUANTUM_MILLIS).toBe(0);
+
+        const replayed = yield* replay(recorded.inputs, recorded.end).pipe(
+          Effect.flatMap((world) => world.currentTimeline),
+          Effect.provide(World.layer(options)),
+        );
+        expect(events(replayed)).toEqual(events(recorded.timeline));
+      }),
+  );
+
+  it.effect("an intent the wire would refuse dies before it is logged", () =>
+    inWorld({ clients: ["A"], seed: "bad-intent" }, (world) =>
+      Effect.gen(function* () {
+        yield* world.clock.advance("1 second");
+        const intent = yield* add(world, "x".repeat(51));
+        const before = (yield* world.inputs).length;
+        const exit = yield* Effect.exit(world.client("A").apply(intent));
+
+        expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+        expect((yield* world.inputs).length).toBe(before);
+        expect((yield* world.client("A").state).outbox).toEqual([]);
+      }),
+    ),
   );
 
   it.effect("frame-sized advances add up to whole quanta", () =>
@@ -470,6 +542,7 @@ describe("World", () => {
         yield* world.client("A").apply(yield* add(world, "Milk"));
         yield* world.clock.advance("1 second"); // the push is sent and held
         yield* world.client("A").reload;
+        yield* world.clock.advance("5 seconds");
 
         const timeline = yield* world.currentTimeline;
         expect(
@@ -482,9 +555,97 @@ describe("World", () => {
         expect(
           (yield* world.snapshot).messages.filter((m) => m.kind === "push"),
         ).toEqual([]);
+        // It never reached the server, and the fresh store has nothing to send.
         expect(tagged(timeline, "Decided")).toEqual([]);
       }),
     ),
+  );
+
+  it.effect("reloading twice in a row leaves one working client", () =>
+    inWorld({ clients: ["A", "B"], seed: "reload-twice" }, (world) =>
+      Effect.gen(function* () {
+        yield* world.clock.advance("1 second");
+        yield* world.client("A").reload;
+        yield* world.client("A").reload;
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("3 seconds");
+
+        const timeline = yield* world.currentTimeline;
+        expect(tagged(timeline, "Reloaded")).toHaveLength(2);
+        expect(
+          tagged(timeline, "Decided").map((e) => [
+            e.client,
+            e.clientMutationId,
+          ]),
+        ).toEqual([["A", 1]]);
+        expect(yield* names(world, "B")).toEqual(["Milk"]);
+      }),
+    ),
+  );
+
+  it.effect("closing a world ends a reloaded client too", () =>
+    Effect.gen(function* () {
+      const scope = yield* Scope.make();
+      const world = Context.get(
+        yield* Layer.buildWithScope(
+          World.layer({ clients: ["A"], seed: "reload-close" }),
+          scope,
+        ),
+        World,
+      );
+      yield* world.clock.advance("1 second");
+      yield* world.client("A").reload;
+      yield* world.net.hold({ client: "A", kind: "push" });
+      yield* world.client("A").apply(yield* add(world, "Milk"));
+      yield* world.clock.advance("1 second"); // the push is sent and held
+      yield* Scope.close(scope, Exit.void);
+
+      const last = (yield* world.currentTimeline).entries.at(-1)?.event;
+      expect(last?._tag === "Abandoned" && last.message.kind).toBe("push");
+    }),
+  );
+
+  // However far a reload got when it was interrupted, the input log and the
+  // timeline agree, and the handle still reaches a live client.
+  it.effect("an interrupted reload either happened or did not", () =>
+    Effect.gen(function* () {
+      for (let ticks = 0; ticks <= 40; ticks++) {
+        yield* inWorld(
+          { clients: ["A", "B"], seed: `reload-interrupt-${ticks}` },
+          (world) =>
+            Effect.gen(function* () {
+              yield* world.clock.advance("1 second");
+              // On microtasks, so the interrupt can land anywhere in the
+              // reload, not only before or after it.
+              yield* Effect.gen(function* () {
+                const reloading = yield* Effect.forkChild(
+                  world.client("A").reload,
+                );
+                for (let i = 0; i < ticks; i++) yield* Effect.yieldNow;
+                yield* Fiber.interrupt(reloading);
+              }).pipe(
+                Effect.provideService(
+                  Scheduler.Scheduler,
+                  new Scheduler.MixedScheduler("sync"),
+                ),
+              );
+              yield* world.client("A").apply(yield* add(world, "Milk"));
+              yield* world.clock.advance("3 seconds");
+
+              const logged = (yield* world.inputs).some(
+                (i) => i.input._tag === "Reload",
+              );
+              const recorded =
+                tagged(yield* world.currentTimeline, "Reloaded").length > 0;
+              expect([ticks, recorded]).toEqual([ticks, logged]);
+              expect([ticks, yield* names(world, "B")]).toEqual([
+                ticks,
+                ["Milk"],
+              ]);
+            }),
+        );
+      }
+    }),
   );
 
   it.effect("a name that is not in the world fails loudly", () =>
