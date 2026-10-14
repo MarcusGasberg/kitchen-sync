@@ -178,6 +178,8 @@ describe("makeNetwork", () => {
         network.drop({ client: "Z", kind: "ack" }),
       );
       expect(Exit.isFailure(rule) && Cause.hasDies(rule.cause)).toBe(true);
+      const wait = yield* Effect.exit(network.awaitOffline("Z"));
+      expect(Exit.isFailure(wait) && Cause.hasDies(wait.cause)).toBe(true);
     }),
   );
 });

@@ -105,10 +105,13 @@ export const makeNetwork = (options: {
       });
 
     const awaitOffline = (client: ClientName) =>
-      SubscriptionRef.changes(links).pipe(
-        Stream.filter((all) => all.get(client)?.offline === true),
-        Stream.take(1),
-        Stream.runDrain,
+      Effect.andThen(
+        link(client),
+        SubscriptionRef.changes(links).pipe(
+          Stream.filter((all) => all.get(client)?.offline === true),
+          Stream.take(1),
+          Stream.runDrain,
+        ),
       );
 
     const carry = (client: ClientName, kind: MessageKind, label: string) =>
