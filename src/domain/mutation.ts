@@ -3,6 +3,7 @@ import { BaseIntent, MutationId } from "./BaseMutation";
 import {
   Category,
   GroceryItem,
+  ItemId,
   ItemName,
   Quantity,
   Unit,
@@ -32,18 +33,18 @@ const EditItemChanges = Schema.Struct({
 );
 
 const intentCases = {
-  AddItem: { ...BaseIntent, itemId: Schema.String, item: AddItemChanges },
+  AddItem: { ...BaseIntent, itemId: ItemId, item: AddItemChanges },
   SetItemChecked: {
     ...BaseIntent,
-    itemId: Schema.String,
+    itemId: ItemId,
     checked: Schema.Boolean,
   },
-  EditItem: { ...BaseIntent, itemId: Schema.String, changes: EditItemChanges },
-  RemoveItem: { ...BaseIntent, itemId: Schema.String },
+  EditItem: { ...BaseIntent, itemId: ItemId, changes: EditItemChanges },
+  RemoveItem: { ...BaseIntent, itemId: ItemId },
   ReorderItem: {
     ...BaseIntent,
     baseVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-    itemId: Schema.String,
+    itemId: ItemId,
     order: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   },
 };

@@ -55,7 +55,7 @@ describe("verification", () => {
       clientMutationId: 1,
       issuedAt: "2026-01-01T00:00:00.000Z",
       clientId: crypto.randomUUID(),
-      itemId: "t1",
+      itemId: "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b",
     });
 
     expect(decoded).not.toHaveProperty("clientId");
@@ -67,15 +67,45 @@ describe("verification", () => {
       clientMutationId: 2,
       issuedAt: "2026-01-01T00:00:00.000Z",
       clientId: crypto.randomUUID(),
-      itemId: "t1",
+      itemId: "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b",
       changes: { checked: true },
     });
 
     expect(edit).toMatchObject({
       _tag: "EditItem",
-      itemId: "t1",
+      itemId: "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b",
       changes: { checked: true },
     });
+  });
+
+  // The table holds v4 UUIDs. A looser wire let a bad id through to the
+  // insert, which failed as a 500: retried forever, never shown.
+  it.each([
+    "AddItem",
+    "SetItemChecked",
+    "EditItem",
+    "RemoveItem",
+    "ReorderItem",
+  ])("rejects a %s whose item id is not a v4 UUID", (tag) => {
+    const fields = {
+      AddItem: { item: { name: "Milk" } },
+      SetItemChecked: { checked: true },
+      EditItem: { changes: { checked: true } },
+      RemoveItem: {},
+      ReorderItem: { baseVersion: 0, order: 0 },
+    }[tag];
+    const mutation = (itemId: string) => ({
+      _tag: tag,
+      clientMutationId: 1,
+      issuedAt: "2026-01-01T00:00:00.000Z",
+      itemId,
+      ...fields,
+    });
+    const decodes = (input: unknown) =>
+      Exit.isSuccess(Schema.decodeUnknownExit(ItemMutation)(input));
+
+    expect(decodes(mutation(crypto.randomUUID()))).toBe(true);
+    expect(decodes(mutation("not-a-uuid"))).toBe(false);
   });
 
   it("rejects an edit with no changes", () => {
@@ -84,7 +114,7 @@ describe("verification", () => {
       clientMutationId: 3,
       issuedAt: "2026-01-01T00:00:00.000Z",
       clientId: crypto.randomUUID(),
-      itemId: "t1",
+      itemId: "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b",
       changes: {},
     });
 
@@ -108,7 +138,7 @@ const editItem = (changes: unknown) => ({
   _tag: "EditItem",
   clientMutationId: 1,
   issuedAt: "2026-01-01T00:00:00.000Z",
-  itemId: "i1",
+  itemId: "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b",
   changes,
 });
 
