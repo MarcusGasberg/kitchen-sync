@@ -12,3 +12,6 @@ dist-ssr
 __unconfig*
 todos.json
 .superpowers/brainstorm
+
+# Claude Code worktrees
+.claude/worktrees
