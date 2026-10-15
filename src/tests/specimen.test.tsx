@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Specimen } from "#/routes/specimen";
+import { Specimen } from "#/app/specimen";
 
 describe("the specimen", () => {
   it("draws every sync state, the list and a figure's plates", () => {
