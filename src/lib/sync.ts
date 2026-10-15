@@ -3,7 +3,7 @@ import { merge } from "effect/Stream";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
 import { endIfHealthy, retrySyncLoop } from "./retry";
-import { StoreService, type SyncFailure } from "./store";
+import { StoreService, type SyncLoop } from "./store";
 import { SyncTransportService } from "./transport";
 
 interface SyncEngine {
@@ -32,11 +32,14 @@ export class SyncEngineService extends Context.Service<
       // stops, and the UI says so, rather than resending the same doomed
       // request every so often forever.
       const untilFatal =
-        (loop: SyncFailure["loop"]) =>
+        (loop: SyncLoop) =>
         <R>(iteration: Effect.Effect<void, TransportFailure, R>) =>
           iteration.pipe(
             endIfHealthy,
-            retrySyncLoop,
+            // Set inside the retry, so a failure `endIfHealthy` ends quietly
+            // says nothing: the loop re-runs at once, and names a retry only
+            // if that run fails too.
+            retrySyncLoop((failure) => store.setRetrying(loop, failure.reason)),
             Effect.forever,
             Effect.catch((failure) =>
               Effect.logError(`sync ${loop} loop stopped`, failure).pipe(
@@ -77,7 +80,12 @@ export class SyncEngineService extends Context.Service<
 
             const response = yield* transport.push(request);
             yield* store.settle(response);
-          }),
+          }).pipe(
+            // Any iteration that completes is the push loop working, one with
+            // nothing left to send included: a pull may have emptied the
+            // outbox while a push waited on a lost ack.
+            Effect.andThen(store.setRetrying("push", null)),
+          ),
         );
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
@@ -87,8 +95,14 @@ export class SyncEngineService extends Context.Service<
             haltStrategy: "left",
           }).pipe(
             Stream.buffer({ capacity: 1, strategy: "sliding" }),
-            Stream.runForEach((poke) => {
-              return Effect.gen(function* () {
+            Stream.runForEach((poke) =>
+              Effect.gen(function* () {
+                // The iteration ends only when the poke stream is lost, so the
+                // pull loop's success is a poke that arrives or a pull that
+                // returns.
+                if (poke !== undefined) {
+                  yield* store.setRetrying("pull", null);
+                }
                 const { appliedVersion } = yield* store.getSnapShot();
                 if (poke === appliedVersion) {
                   return;
@@ -101,8 +115,9 @@ export class SyncEngineService extends Context.Service<
 
                 const response = yield* transport.pull(request);
                 yield* store.reconcile(response);
-              });
-            }),
+                yield* store.setRetrying("pull", null);
+              }),
+            ),
           ),
         );
 

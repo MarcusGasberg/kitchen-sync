@@ -42,23 +42,29 @@ export function timeoutAsTransportFailure<A, E, R>(
 // server comes back, not when a counter runs out. Only the delay is bounded,
 // so a recovered server is noticed within about 30 seconds. `Schedule.min`
 // keeps recurring while either schedule does, at the shorter of the delays.
-export function retrySyncLoop<A, R>(
-  self: Effect.Effect<A, TransportFailure, R>,
-): Effect.Effect<A, TransportFailure, R> {
-  const schedule = Schedule.jittered(
-    Schedule.min([
-      Schedule.exponential("300 millis"),
-      Schedule.spaced("30 seconds"),
-    ]),
-  );
+// `onRetry` runs before each retry, with the failure being retried.
+export const retrySyncLoop =
+  (onRetry: (failure: TransportFailure) => Effect.Effect<void>) =>
+  <A, R>(
+    self: Effect.Effect<A, TransportFailure, R>,
+  ): Effect.Effect<A, TransportFailure, R> => {
+    const schedule = Schedule.jittered(
+      Schedule.min([
+        Schedule.exponential("300 millis"),
+        Schedule.spaced("30 seconds"),
+      ]),
+    );
 
-  return self.pipe(
-    Effect.retry({
-      while: (err) => err.retryable,
-      schedule,
-    }),
-  );
-}
+    return self.pipe(
+      Effect.retry({
+        while: (failure) =>
+          failure.retryable
+            ? Effect.as(onRetry(failure), true)
+            : Effect.succeed(false),
+        schedule,
+      }),
+    );
+  };
 
 // A loop iteration that ran this long before it failed was healthy, so its
 // failure is a new outage, not the next step of the last one's backoff: it

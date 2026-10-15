@@ -471,7 +471,8 @@ describe("World", () => {
           expect(tagged(timeline, "Reloaded").map((e) => e.client)).toEqual([
             "A",
           ]);
-          // Until it is back online, the fresh store only ever adds.
+          // Until it is back online, the fresh store only ever adds, and its
+          // pull loop says it is retrying the offline pull.
           const [reloaded] = tagged(timeline, "Reloaded");
           const [online] = tagged(timeline, "CameOnline");
           expect(
@@ -484,7 +485,7 @@ describe("World", () => {
                   e.client === "A",
               )
               .map((e) => e._tag),
-          ).toEqual(["Applied", "Applied"]);
+          ).toEqual(["Retrying", "Applied", "Applied"]);
           expect(
             tagged(timeline, "Renumbered").map((e) => [e.client, e.from, e.to]),
           ).toEqual([["A", [1, 2], [4, 5]]]);

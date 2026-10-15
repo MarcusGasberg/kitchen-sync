@@ -161,7 +161,8 @@ const start = Effect.flatMap(SyncEngineService, (engine) => engine.start(ME));
 
 // Runs the engine for `minutes` over a transport whose every poke
 // subscription runs `subscription`, and returns when each one started and
-// the sync failure the store ended with.
+// the sync failure the store ended with, and whether the pull loop ever said
+// it was retrying.
 const pokeSubscriptions = (
   subscription: Effect.Effect<void, TransportFailure>,
   minutes: number,
@@ -186,12 +187,24 @@ const pokeSubscriptions = (
       }),
     ).pipe(Layer.provide(SyncTransportService.Fake));
 
-    const syncFailure = yield* Effect.gen(function* () {
+    const { syncFailure, retried } = yield* Effect.gen(function* () {
+      const store = yield* StoreService;
+      const seen = yield* Ref.make(false);
+      yield* Effect.forkChild(
+        store.changes.pipe(
+          Stream.runForEach((state) =>
+            state.retrying.pull === null ? Effect.void : Ref.set(seen, true),
+          ),
+        ),
+      );
       yield* start;
       for (let t = 0; t < minutes * 60; t++) {
         yield* TestClock.adjust("1 second");
       }
-      return (yield* snapshot).syncFailure;
+      return {
+        syncFailure: (yield* snapshot).syncFailure,
+        retried: yield* Ref.get(seen),
+      };
     }).pipe(
       Effect.provide(
         SyncEngineService.Live.pipe(
@@ -199,7 +212,7 @@ const pokeSubscriptions = (
         ),
       ),
     );
-    return { starts: yield* Ref.get(starts), syncFailure };
+    return { starts: yield* Ref.get(starts), syncFailure, retried };
   });
 
 const stop = Effect.flatMap(SyncEngineService, (engine) => engine.stop);
@@ -754,6 +767,114 @@ describe("SyncEngineService", () => {
         expect((yield* snapshot).syncFailure).toBeNull();
         expect(yield* serverTitles).toEqual(["after retry"]);
       }).pipe(Effect.provide(TestLayer)),
+    );
+  });
+
+  describe("retrying", () => {
+    const unavailable = new TransportFailure({
+      retryable: true,
+      reason: "HTTP 503",
+    });
+
+    it.effect(
+      "names what the push loop is retrying, and clears it when a push lands",
+      () =>
+        Effect.gen(function* () {
+          yield* start;
+          yield* tick(1_000);
+          yield* setPushOutage(Option.some(unavailable));
+          yield* applyLocal(create("Milk"));
+          yield* tick(2_000);
+          expect((yield* snapshot).retrying).toEqual({
+            push: "HTTP 503",
+            pull: null,
+          });
+
+          yield* setPushOutage(Option.none());
+          yield* tick(10_000);
+          const after = yield* snapshot;
+          expect(after.retrying).toEqual({ push: null, pull: null });
+          expect(after.ackedThrough).toBe(1);
+        }).pipe(Effect.provide(TestLayer)),
+    );
+
+    // A push that waited on a lost ack may find a pull has emptied the
+    // outbox: an iteration with nothing to send is the push loop working.
+    it.effect("clears the push slot when a pull leaves nothing to send", () =>
+      Effect.gen(function* () {
+        yield* start;
+        yield* tick(1_000);
+        yield* setPushOutage(Option.some(unavailable));
+        const milk = create("Milk");
+        yield* applyLocal(milk);
+        yield* tick(2_000);
+        expect((yield* snapshot).retrying.push).toBe("HTTP 503");
+
+        // The push landed after all; only its ack was lost. The push loop
+        // sleeps in its backoff, so nothing runs while the gate is open.
+        yield* setPushOutage(Option.none());
+        yield* pushAs(ME, [milk], 1);
+        yield* setPushOutage(Option.some(unavailable));
+        yield* tick(10_000);
+
+        const after = yield* snapshot;
+        expect(after.outbox).toEqual([]);
+        expect(after.retrying.push).toBeNull();
+      }).pipe(Effect.provide(TestLayer)),
+    );
+
+    it.effect(
+      "names what the pull loop is retrying, and clears it when a pull returns",
+      () =>
+        Effect.gen(function* () {
+          yield* setPullOutage(Option.some(unavailable));
+          yield* start;
+          yield* tick(2_000);
+          expect((yield* snapshot).retrying).toEqual({
+            push: null,
+            pull: "HTTP 503",
+          });
+
+          yield* setPullOutage(Option.none());
+          yield* tick(10_000);
+          const after = yield* snapshot;
+          expect(after.retrying).toEqual({ push: null, pull: null });
+          expect(after.seeded).toBe(true);
+        }).pipe(Effect.provide(TestLayer)),
+    );
+
+    // `endIfHealthy` ends a healthy run's failure quietly: the loop re-runs
+    // at once, and says it is retrying only if that run fails too.
+    it.effect(
+      "subscribes again after a healthy run without saying it is retrying",
+      () =>
+        Effect.gen(function* () {
+          const { starts, retried } = yield* pokeSubscriptions(
+            Effect.sleep("5 minutes").pipe(
+              Effect.andThen(
+                Effect.fail(
+                  new TransportFailure({
+                    retryable: true,
+                    reason: "poke stream lost its connection",
+                  }),
+                ),
+              ),
+            ),
+            11,
+          );
+          expect(starts).toHaveLength(3);
+          expect(retried).toBe(false);
+        }),
+    );
+
+    it.effect("says it is retrying a poke stream that fails at once", () =>
+      Effect.gen(function* () {
+        const { retried } = yield* pokeSubscriptions(
+          Effect.fail(unavailable),
+          1,
+        );
+        expect(retried).toBe(true);
+      }),
     );
   });
 });

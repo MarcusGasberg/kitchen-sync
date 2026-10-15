@@ -1,7 +1,7 @@
 import { Option } from "effect";
 import type { GroceryItem } from "#/domain/grocery-item";
 import type { MutationIntent } from "#/domain/mutation";
-import type { StoreState } from "#/lib/store";
+import type { StoreState, SyncLoop } from "#/lib/store";
 
 // The vocabulary of a sandbox world: what happened in it, and what it looked
 // like at that moment. All plain data, so a figure can draw any instant from
@@ -101,10 +101,22 @@ export type TraceEventBody =
   | {
       readonly _tag: "SyncStopped";
       readonly client: ClientName;
-      readonly loop: "push" | "pull";
+      readonly loop: SyncLoop;
       readonly reason: string;
     }
   | { readonly _tag: "SyncRetried"; readonly client: ClientName }
+  // A loop backing off after a transient failure, and its next success.
+  | {
+      readonly _tag: "Retrying";
+      readonly client: ClientName;
+      readonly loop: SyncLoop;
+      readonly reason: string;
+    }
+  | {
+      readonly _tag: "Recovered";
+      readonly client: ClientName;
+      readonly loop: SyncLoop;
+    }
   // The client's page reloaded: the same clientId, a fresh store. Whatever
   // its outbox held is gone from it.
   | { readonly _tag: "Reloaded"; readonly client: ClientName }
@@ -197,7 +209,8 @@ const outboxIds = (state: StoreState) =>
 
 // What one store update did, read off the state before and after it. The
 // store publishes every update, so consecutive states differ by exactly one
-// operation: apply, settle, reconcile, a sync failure set or cleared.
+// operation: apply, settle, reconcile, a sync failure or a retrying slot set
+// or cleared.
 export const diffClientState = (
   client: ClientName,
   prev: StoreState,
@@ -273,6 +286,16 @@ export const diffClientState = (
   }
   if (prev.syncFailure !== null && next.syncFailure === null) {
     events.push({ _tag: "SyncRetried", client });
+  }
+  for (const loop of ["push", "pull"] as const) {
+    const was = prev.retrying[loop];
+    const is = next.retrying[loop];
+    if (is !== null && is !== was) {
+      events.push({ _tag: "Retrying", client, loop, reason: is });
+    }
+    if (is === null && was !== null) {
+      events.push({ _tag: "Recovered", client, loop });
+    }
   }
   return events;
 };

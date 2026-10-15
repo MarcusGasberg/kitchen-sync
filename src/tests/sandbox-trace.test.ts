@@ -131,6 +131,35 @@ describe("diffClientState", () => {
       ),
     ).toEqual([]);
   });
+
+  it("names a loop that starts retrying, and its recovery", () => {
+    const calm = state({});
+    const retrying = state({ retrying: { push: "HTTP 503", pull: null } });
+
+    expect(diffClientState("A", calm, retrying)).toEqual([
+      { _tag: "Retrying", client: "A", loop: "push", reason: "HTTP 503" },
+    ]);
+    expect(diffClientState("A", retrying, calm)).toEqual([
+      { _tag: "Recovered", client: "A", loop: "push" },
+    ]);
+  });
+
+  it("names a new reason as a new retry", () => {
+    expect(
+      diffClientState(
+        "A",
+        state({ retrying: { push: null, pull: "HTTP 503" } }),
+        state({ retrying: { push: null, pull: "request timed out" } }),
+      ),
+    ).toEqual([
+      {
+        _tag: "Retrying",
+        client: "A",
+        loop: "pull",
+        reason: "request timed out",
+      },
+    ]);
+  });
 });
 
 const milk = {

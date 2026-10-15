@@ -2,6 +2,7 @@ import {
   Context,
   Effect,
   Layer,
+  Option,
   pipe,
   Queue,
   Result,
@@ -19,11 +20,20 @@ import type {
 import { rebase } from "#/domain/rebase";
 import { decide, type ItemState } from "#/domain/reduce";
 
+export type SyncLoop = "push" | "pull";
+
 // Sync stopped on a failure retrying cannot fix. The UI shows it until the
 // user retries.
 export interface SyncFailure {
-  readonly loop: "push" | "pull";
+  readonly loop: SyncLoop;
   readonly reason: string;
+}
+
+// What each loop is backing off from: the reason of the transient failure it
+// last retried, or null. Only that loop's own next success clears it.
+export interface Retrying {
+  readonly push: string | null;
+  readonly pull: string | null;
 }
 
 export interface StoreState {
@@ -42,6 +52,7 @@ export interface StoreState {
   seeded: boolean;
   rejected: ReadonlyArray<typeof MutationRejection.Type>;
   syncFailure: SyncFailure | null;
+  retrying: Retrying;
 }
 
 export const EMPTY_STATE = {
@@ -54,6 +65,7 @@ export const EMPTY_STATE = {
   seeded: false,
   rejected: [],
   syncFailure: null,
+  retrying: { push: null, pull: null },
 } satisfies StoreState;
 
 interface Store {
@@ -67,6 +79,7 @@ interface Store {
   reconcile: (response: typeof PullResponse.Type) => Effect.Effect<StoreState>;
   dismissRejected(ids: ReadonlyArray<number>): Effect.Effect<StoreState>;
   setSyncFailure(failure: SyncFailure | null): Effect.Effect<StoreState>;
+  setRetrying(loop: SyncLoop, reason: string | null): Effect.Effect<void>;
 }
 
 export class StoreService extends Context.Service<StoreService, Store>()(
@@ -184,6 +197,18 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             ...s,
             syncFailure,
           }));
+        },
+        // Every retry of one outage names the same reason, so only a change
+        // is published.
+        setRetrying(loop, reason) {
+          return SubscriptionRef.updateSome(STORE, (s) =>
+            s.retrying[loop] === reason
+              ? Option.none()
+              : Option.some({
+                  ...s,
+                  retrying: { ...s.retrying, [loop]: reason },
+                }),
+          );
         },
         dismissRejected(ids) {
           return SubscriptionRef.updateAndGet(STORE, (s) => ({

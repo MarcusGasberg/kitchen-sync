@@ -739,3 +739,34 @@ describe("subscription", () => {
     }),
   );
 });
+
+describe("retrying", () => {
+  it.effect("keeps each loop's reason, and publishes only a change", () =>
+    Effect.gen(function* () {
+      const store = yield* StoreService;
+      const seen: Array<StoreState["retrying"]> = [];
+      yield* Effect.forkChild(
+        store.changes.pipe(
+          Stream.runForEach((state) =>
+            Effect.sync(() => seen.push(state.retrying)),
+          ),
+        ),
+      );
+      yield* Effect.yieldNow;
+
+      yield* store.setRetrying("push", "HTTP 503");
+      // The next retry of the same outage names the same reason.
+      yield* store.setRetrying("push", "HTTP 503");
+      yield* store.setRetrying("pull", "request timed out");
+      yield* store.setRetrying("push", null);
+      yield* Effect.yieldNow;
+
+      expect(seen).toEqual([
+        { push: null, pull: null },
+        { push: "HTTP 503", pull: null },
+        { push: "HTTP 503", pull: "request timed out" },
+        { push: null, pull: "request timed out" },
+      ]);
+    }).pipe(Effect.provide(StoreService.Live)),
+  );
+});

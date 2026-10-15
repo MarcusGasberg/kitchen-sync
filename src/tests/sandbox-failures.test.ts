@@ -162,4 +162,32 @@ describe("failures in a world", () => {
         }),
       ),
   );
+
+  it.effect("records a push loop's retry and its recovery", () =>
+    inWorld({ clients: ["A"], seed: "retrying" }, (world) =>
+      Effect.gen(function* () {
+        yield* world.clock.advance("1 second");
+        // The push lands but its ack is lost: the engine's own 10 s timeout
+        // fails it, and the loop retries.
+        yield* world.net.drop({ client: "A", kind: "ack" });
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("15 seconds");
+
+        const timeline = yield* world.currentTimeline;
+        expect(tagged(timeline, "Retrying")).toEqual([
+          expect.objectContaining({
+            client: "A",
+            loop: "push",
+            reason: "request timed out",
+          }),
+        ]);
+        expect(tagged(timeline, "Recovered")).toEqual([
+          expect.objectContaining({ client: "A", loop: "push" }),
+        ]);
+        const retried = tagged(timeline, "Retrying")[0];
+        const recovered = tagged(timeline, "Recovered")[0];
+        expect(recovered?.seq).toBeGreaterThan(retried?.seq ?? Infinity);
+      }),
+    ),
+  );
 });
