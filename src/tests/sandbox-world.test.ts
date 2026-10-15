@@ -135,8 +135,10 @@ describe("World", () => {
     inWorld({ clients: ["A"], seed: "refuse" }, (world) =>
       Effect.gen(function* () {
         yield* world.clock.advance("1 second");
+        // A well-formed id that no item has.
+        const gone = yield* world.newId;
         const failure = yield* Effect.flip(
-          world.client("A").apply(yield* rename(world, "gone", "Oat milk")),
+          world.client("A").apply(yield* rename(world, gone, "Oat milk")),
         );
 
         expect(failure._tag).toBe("ItemNotFoundError");
@@ -144,7 +146,7 @@ describe("World", () => {
           expect.objectContaining({
             client: "A",
             intent: "EditItem",
-            reason: "item gone not found",
+            reason: `item ${gone} not found`,
           }),
         ]);
         expect((yield* world.client("A").state).nextId).toBe(1);
