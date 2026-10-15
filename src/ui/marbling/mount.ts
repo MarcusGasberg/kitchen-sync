@@ -86,6 +86,7 @@ export const createSharedGpu = (
   let unavailable = false;
   return {
     at: (width, height) => {
+      if (current?.renderer.lost?.()) current = null;
       if (current === null && !unavailable) {
         const canvas = makeCanvas();
         const renderer = makeRenderer(canvas);
@@ -116,6 +117,40 @@ const sharedGpu = createSharedGpu(
       : webglRenderer(canvas),
 );
 
+// A basin's renderer: the shared GPU's frame copied into the basin's own 2D
+// canvas, or the CPU's drawing straight onto it where there is no GPU.
+export const basinRenderer = (
+  canvas: HTMLCanvasElement,
+  parts: {
+    readonly context: Pick<CanvasRenderingContext2D, "drawImage">;
+    readonly cpu: Renderer;
+    readonly gpu: SharedGpu;
+    readonly devicePixelRatio: number;
+  },
+): { readonly renderer: Renderer; readonly pixelRatio: number } => {
+  const { context, cpu, gpu } = parts;
+  const hasGpu = gpu.at(1, 1) !== null;
+  return {
+    // The GPU draws four samples a pixel at up to 1.5 device pixels; the
+    // CPU one sample at half the box, which the browser smooths up.
+    pixelRatio: hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5,
+    renderer: {
+      draw: (ops, tones) => {
+        const { width, height } = canvas;
+        if (width === 0 || height === 0) return;
+        const shared = gpu.at(width, height);
+        if (shared === null) {
+          cpu.draw(ops, tones);
+          return;
+        }
+        shared.renderer.draw(ops, tones);
+        context.drawImage(shared.canvas, 0, 0);
+      },
+      dispose: () => {},
+    },
+  };
+};
+
 export const browserHost: BasinHost = {
   createRenderer: (canvas) => {
     // jsdom has no 2D context, and logs when asked for one.
@@ -123,26 +158,12 @@ export const browserHost: BasinHost = {
     const context = canvas.getContext("2d");
     const cpu = canvasRenderer(canvas);
     if (context === null || cpu === null) return null;
-    const gpu = sharedGpu.at(1, 1) !== null;
-    return {
-      // The GPU draws four samples a pixel at up to 1.5 device pixels; the
-      // CPU one sample at half the box, which the browser smooths up.
-      pixelRatio: gpu ? Math.min(window.devicePixelRatio || 1, 1.5) : 0.5,
-      renderer: {
-        draw: (ops, tones) => {
-          const { width, height } = canvas;
-          if (width === 0 || height === 0) return;
-          const shared = sharedGpu.at(width, height);
-          if (shared === null) {
-            cpu.draw(ops, tones);
-            return;
-          }
-          shared.renderer.draw(ops, tones);
-          context.drawImage(shared.canvas, 0, 0);
-        },
-        dispose: () => {},
-      },
-    };
+    return basinRenderer(canvas, {
+      context,
+      cpu,
+      gpu: sharedGpu,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    });
   },
   readTones,
   matchMedia: (query) =>
@@ -200,6 +221,7 @@ export const mountBasin = (
   let tones = host.readTones(canvas);
   let ops: ReadonlyArray<Operation> = [];
   let frame: number | null = null;
+  let shown = false;
 
   const draw = () => {
     frame = null;
@@ -234,7 +256,8 @@ export const mountBasin = (
 
   return {
     show: (next) => {
-      if (samePattern(ops, next)) return;
+      if (shown && samePattern(ops, next)) return;
+      shown = true;
       ops = next;
       settler.see(next, host.now(), !(motion?.matches ?? false));
       redraw();

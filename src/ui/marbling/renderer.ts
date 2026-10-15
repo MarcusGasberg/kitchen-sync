@@ -7,6 +7,8 @@ export interface Renderer {
     ops: ReadonlyArray<Operation>,
     tones: ReadonlyArray<Rgb>,
   ) => void;
+  // True once the GPU has dropped this renderer's context; draws then do nothing.
+  readonly lost?: () => boolean;
   readonly dispose: () => void;
 }
 

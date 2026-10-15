@@ -147,6 +147,7 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
   };
 
   return {
+    lost: () => gl.isContextLost(),
     draw: (ops, tones) => {
       gl.useProgram(program);
       const { width, height } = canvas;

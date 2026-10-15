@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   type BasinHost,
+  basinRenderer,
   createSharedGpu,
   mountBasin,
   SETTLE_MS,
@@ -180,6 +181,17 @@ describe("mountBasin", () => {
     basin.unmount();
   });
 
+  it("lets the first drop on an empty list settle in", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([]);
+    fake.frame();
+    basin.show([drop("a")]);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "a")).toBe(0);
+    expect(fake.waiting()).toBe(1);
+  });
+
   it("lets go of everything on unmount", () => {
     const fake = fakeHost();
     const basin = mountBasin(canvasOf(400, 160), fake.host);
@@ -230,5 +242,86 @@ describe("createSharedGpu", () => {
     const next = gpu.at(10, 4);
     expect(makeRenderer).toHaveBeenCalledTimes(2);
     expect(next?.canvas).not.toBe(first?.canvas);
+  });
+  it("replaces a renderer that reports its context lost, before the event arrives", () => {
+    let isLost = false;
+    const makeRenderer = vi.fn(
+      (): Renderer => ({
+        draw: () => {},
+        dispose: () => {},
+        lost: () => isLost,
+      }),
+    );
+    const gpu = createSharedGpu(
+      () => document.createElement("canvas"),
+      makeRenderer,
+    );
+    const first = gpu.at(10, 4);
+    isLost = true;
+    gpu.at(10, 4);
+    expect(makeRenderer).toHaveBeenCalledTimes(2);
+    expect(first).not.toBeNull();
+  });
+});
+
+describe("basinRenderer", () => {
+  const recorder = () => {
+    const draws: Array<ReadonlyArray<Operation>> = [];
+    const renderer: Renderer = {
+      draw: (ops) => {
+        draws.push(ops);
+      },
+      dispose: () => {},
+    };
+    return { draws, renderer };
+  };
+  const setup = (gpuAvailable: boolean, width: number, height: number) => {
+    const cpu = recorder();
+    const gpu = recorder();
+    const context = { drawImage: vi.fn() };
+    const shared = createSharedGpu(
+      () => document.createElement("canvas"),
+      () => (gpuAvailable ? gpu.renderer : null),
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const made = basinRenderer(canvas, {
+      context,
+      cpu: cpu.renderer,
+      gpu: shared,
+      devicePixelRatio: 2,
+    });
+    return { made, cpu, gpu, context, shared };
+  };
+
+  it("draws on the GPU and copies the frame, at up to 1.5 pixels a pixel", () => {
+    const { made, cpu, gpu, context, shared } = setup(true, 40, 16);
+    expect(made.pixelRatio).toBe(1.5);
+    made.renderer.draw([drop("a")], TONES);
+    expect(gpu.draws).toHaveLength(1);
+    expect(cpu.draws).toHaveLength(0);
+    expect(context.drawImage).toHaveBeenCalledWith(
+      shared.at(40, 16)?.canvas,
+      0,
+      0,
+    );
+  });
+
+  it("draws on the CPU at half the box when there is no GPU", () => {
+    const { made, cpu, gpu, context } = setup(false, 40, 16);
+    expect(made.pixelRatio).toBe(0.5);
+    made.renderer.draw([drop("a")], TONES);
+    expect(cpu.draws).toHaveLength(1);
+    expect(gpu.draws).toHaveLength(0);
+    expect(context.drawImage).not.toHaveBeenCalled();
+  });
+
+  it("draws nothing on a zero-size canvas", () => {
+    const { made, cpu, gpu, context } = setup(true, 0, 0);
+    made.renderer.draw([drop("a")], TONES);
+    expect(cpu.draws).toHaveLength(0);
+    expect(gpu.draws).toHaveLength(0);
+    expect(context.drawImage).not.toHaveBeenCalled();
   });
 });
