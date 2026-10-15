@@ -486,7 +486,7 @@ describe("settle", () => {
       expect(yield* getOutboxIds()).toEqual([1]);
       expect(yield* getNames()).toEqual(["a"]);
       expect((yield* snapshot()).rejected).toEqual([
-        { clientMutationId: 2, reason: "stale" },
+        { clientMutationId: 2, reason: "stale", intent: "AddItem", name: "b" },
       ]);
     }).pipe(Effect.provide(StoreService.Live)),
   );
@@ -522,7 +522,54 @@ describe("rejected", () => {
       yield* apply(createMutation("b"));
 
       expect((yield* snapshot()).rejected).toEqual([
-        { clientMutationId: 1, reason: "stale" },
+        { clientMutationId: 1, reason: "stale", intent: "AddItem", name: "a" },
+      ]);
+    }).pipe(Effect.provide(StoreService.Live)),
+  );
+
+  it.effect("names the item it refused, as this client last showed it", () =>
+    Effect.gen(function* () {
+      yield* seed();
+      const oats = createMutation("Oat milk");
+      yield* apply(oats);
+      yield* apply(completeMutation(oats.itemId));
+      yield* settle(
+        pushResponse({
+          serverVersion: 1,
+          acked: [1],
+          rejected: [{ clientMutationId: 2, reason: "item gone not found" }],
+          lastMutationId: 2,
+        }),
+      );
+
+      expect((yield* snapshot()).rejected).toEqual([
+        {
+          clientMutationId: 2,
+          reason: "item gone not found",
+          intent: "SetItemChecked",
+          name: "Oat milk",
+        },
+      ]);
+    }).pipe(Effect.provide(StoreService.Live)),
+  );
+
+  // A pull can confirm an id before the push response that rejected it
+  // arrives: the entry is gone, and with it what it was about.
+  it.effect("names nothing when a pull already took the entry", () =>
+    Effect.gen(function* () {
+      yield* seed();
+      yield* apply(createMutation("Oat milk"));
+      yield* reconcile({ serverVersion: 0, lastMutationId: 1, items: [] });
+      yield* settle(
+        pushResponse({
+          serverVersion: 0,
+          rejected: [{ clientMutationId: 1, reason: "stale" }],
+          lastMutationId: 1,
+        }),
+      );
+
+      expect((yield* snapshot()).rejected).toEqual([
+        { clientMutationId: 1, reason: "stale", intent: null, name: null },
       ]);
     }).pipe(Effect.provide(StoreService.Live)),
   );

@@ -47,7 +47,14 @@ describe("diffClientState", () => {
       outbox: [entry(1)],
       nextId: 3,
       ackedThrough: 2,
-      rejected: [{ clientMutationId: 2, reason: "item item-2 not found" }],
+      rejected: [
+        {
+          clientMutationId: 2,
+          reason: "item item-2 not found",
+          intent: "AddItem",
+          name: "Milk",
+        },
+      ],
     });
     expect(diffClientState("A", before, after)).toEqual([
       {

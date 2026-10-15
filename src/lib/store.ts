@@ -12,7 +12,6 @@ import {
 import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
 import type {
   MutationIntent,
-  MutationRejection,
   OutboxEntry,
   PullResponse,
   PushResponse,
@@ -36,6 +35,17 @@ export interface Retrying {
   readonly pull: string | null;
 }
 
+// A settled mutation the server refused, and what it was about, so a rejected
+// row can name its item after a pull has taken the item away. `intent` and
+// `name` are null when a pull confirmed the entry before the push response
+// arrived; `name` is also null when this client never showed the item.
+export interface Rejection {
+  readonly clientMutationId: number;
+  readonly reason: string;
+  readonly intent: MutationIntent["_tag"] | null;
+  readonly name: string | null;
+}
+
 export interface StoreState {
   // Server truth at `appliedVersion`. Only a pull writes it: a push response
   // says our mutations landed, but carries none of the rows.
@@ -50,7 +60,7 @@ export interface StoreState {
   ackedThrough: number;
   // False until the first pull. Ids minted before it are provisional.
   seeded: boolean;
-  rejected: ReadonlyArray<typeof MutationRejection.Type>;
+  rejected: ReadonlyArray<Rejection>;
   syncFailure: SyncFailure | null;
   retrying: Retrying;
 }
@@ -139,6 +149,27 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             );
             if (decided.length === 0) return { ...s, ackedThrough };
 
+            const toRejection = (
+              rejection: (typeof decided)[number],
+            ): Rejection => {
+              const entry = s.outbox.find(
+                (e) =>
+                  e.mutation.clientMutationId === rejection.clientMutationId,
+              );
+              if (entry === undefined) {
+                return { ...rejection, intent: null, name: null };
+              }
+              const { mutation } = entry;
+              const name =
+                mutation._tag === "AddItem"
+                  ? mutation.item.name
+                  : ((
+                      s.items.get(mutation.itemId) ??
+                      s.base.get(mutation.itemId)
+                    )?.name ?? null);
+              return { ...rejection, intent: mutation._tag, name };
+            };
+
             const retired = new Set(decided.map((r) => r.clientMutationId));
             const outbox = s.outbox.filter(
               (e) => !retired.has(e.mutation.clientMutationId),
@@ -148,7 +179,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               outbox,
               ackedThrough,
               items: rebase(s.base, outbox, s.appliedVersion),
-              rejected: [...s.rejected, ...decided],
+              rejected: [...s.rejected, ...decided.map(toRejection)],
             };
           }),
         reconcile: (response) =>
