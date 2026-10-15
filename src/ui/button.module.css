@@ -11,6 +11,7 @@
   background: none;
   font: 700 var(--text-md) / 1 var(--font-text);
   cursor: pointer;
+  transition: color var(--motion-state) var(--ease-out);
 }
 
 /* The fill is its own layer, so the pointed end never clips the focus ring. */
