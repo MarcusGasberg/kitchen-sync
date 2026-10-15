@@ -1,0 +1,31 @@
+.band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+}
+
+/* Hard-stop stripes: the world's band, not a blend. */
+.band[data-pattern="striped"] {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--magenta) 0 0.625rem,
+    var(--plate) 0.625rem 1.25rem
+  );
+}
+
+.band[data-pattern="dashed"] {
+  border-block: var(--rule) dashed var(--cobalt);
+}
+
+.label {
+  padding: var(--space-1) var(--space-3);
+  background: var(--plate);
+  font-size: var(--text-sm);
+}
+
+.band[data-pattern="dashed"] .label {
+  padding-inline: 0;
+}

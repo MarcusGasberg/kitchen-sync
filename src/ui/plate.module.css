@@ -1,0 +1,39 @@
+.plate {
+  border: var(--rule) solid var(--cobalt);
+  background: var(--plate);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target);
+  padding-left: var(--space-3);
+  border-bottom: var(--rule) solid var(--cobalt);
+  color: var(--cobalt);
+}
+
+.symbol {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.title {
+  flex: 1;
+  font: 800 var(--display-sm) / 1 var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The mark sits locked in the corner, its own cell against the plate's edge. */
+.corner {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  padding-inline: var(--space-2);
+  border-left: var(--rule) solid var(--cobalt);
+}
+
+.body {
+  padding: 0 var(--space-3);
+}

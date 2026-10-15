@@ -1,0 +1,84 @@
+.button {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--target);
+  padding: 0 var(--space-5) 0 var(--space-4);
+  border: 0;
+  background: none;
+  font: 700 var(--text-md) / 1 var(--font-text);
+  cursor: pointer;
+}
+
+/* The fill is its own layer, so the pointed end never clips the focus ring. */
+.button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 0.75rem) 0,
+    100% 50%,
+    calc(100% - 0.75rem) 100%,
+    0 100%
+  );
+  transition: background-color var(--motion-state) var(--ease-out);
+}
+
+.button[data-kind="primary"] {
+  color: var(--white);
+}
+
+.button[data-kind="primary"]::before {
+  background: var(--cobalt);
+}
+
+.button[data-kind="breaking"] {
+  color: var(--ink);
+}
+
+.button[data-kind="breaking"]::before {
+  background: var(--magenta);
+}
+
+/* Hover is the ink field: white stays readable on it, and so does magenta. */
+.button[data-kind="primary"]:not(:disabled):hover::before,
+.button[data-kind="breaking"]:not(:disabled):hover::before {
+  background: var(--ink);
+}
+
+.button[data-kind="breaking"]:not(:disabled):hover {
+  color: var(--magenta);
+}
+
+.button[data-kind="secondary"] {
+  padding-inline: var(--space-4);
+  border: var(--rule) solid var(--cobalt);
+  color: var(--cobalt);
+  transition:
+    background-color var(--motion-state) var(--ease-out),
+    color var(--motion-state) var(--ease-out);
+}
+
+.button[data-kind="secondary"]::before {
+  content: none;
+}
+
+.button[data-kind="secondary"]:not(:disabled):hover {
+  background: var(--cobalt);
+  color: var(--white);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.glyph {
+  width: 0.875rem;
+  height: 0.875rem;
+}
