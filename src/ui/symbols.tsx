@@ -41,8 +41,9 @@ interface GlyphProps {
   readonly className?: string;
 }
 
-// Decorative: every symbol on screen sits beside the word or label that names
-// it, so it is hidden from assistive technology.
+// Decorative, so hidden from assistive technology: each symbol sits beside a
+// word that says what it stands for, visible or, for a change's kind, the
+// visually hidden verb next to it.
 export function Glyph({
   symbol,
   variant = "solid",

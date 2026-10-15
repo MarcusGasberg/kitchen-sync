@@ -1,3 +1,4 @@
+import { VERB } from "./intent-words";
 import type { ShelfEntry } from "./list-view";
 import styles from "./shelf.module.css";
 import { Glyph } from "./symbols";
@@ -27,9 +28,10 @@ export function Shelf({ entries, max = SHELF_MAX }: ShelfProps) {
             data-acked={entry.acked}
           >
             <Glyph symbol={entry.symbol} className={styles.glyph} />
+            <span className="visually-hidden">{VERB[entry.intent]} </span>
             <span className={styles.id}>#{entry.clientMutationId}</span>
             <span className="visually-hidden">
-              {entry.acked ? " acked" : " pending"}
+              {entry.acked ? ", acked" : ", pending"}
             </span>
           </li>
         ))}

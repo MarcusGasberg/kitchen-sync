@@ -56,15 +56,19 @@ describe("ItemRow", () => {
       <ul>
         <ItemRow
           item={milk}
-          sync={{ kind, clientMutationId: 15, symbol: "plus" }}
+          sync={{
+            kind,
+            clientMutationId: 15,
+            intent: "SetItemChecked",
+            symbol: "circle",
+          }}
         />
       </ul>,
     );
     const row = screen.getByRole("listitem");
     expect(row.dataset.sync).toBe(kind);
-    expect(row.textContent).toContain("#15");
-    expect(row.textContent).toContain(kind);
-    expect(row.querySelector('svg[data-symbol="plus"]')).not.toBeNull();
+    expect(row.textContent).toContain(`Check #15, ${kind}`);
+    expect(row.querySelector('svg[data-symbol="circle"]')).not.toBeNull();
   });
 
   it("checks and removes through its own controls", () => {

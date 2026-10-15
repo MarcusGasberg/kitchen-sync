@@ -1,16 +1,8 @@
-import type { MutationIntent } from "#/domain/mutation";
 import type { Rejection } from "#/lib/store";
 import { Button } from "./button";
+import { VERB } from "./intent-words";
 import styles from "./rejected-row.module.css";
 import { Glyph, SYMBOL_FOR } from "./symbols";
-
-const VERB: Record<MutationIntent["_tag"], string> = {
-  AddItem: "Add",
-  SetItemChecked: "Check",
-  EditItem: "Edit",
-  RemoveItem: "Remove",
-  ReorderItem: "Reorder",
-};
 
 // The server's reasons name items by id, and the row names the item already:
 // each id is cut to its first block.

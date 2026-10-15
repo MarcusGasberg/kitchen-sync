@@ -5,6 +5,7 @@ import type { StoreState, SyncLoop } from "#/lib/store";
 export const NETWORK_ERROR = "network error";
 
 export type SyncStatus =
+  | { readonly kind: "connecting" }
   | { readonly kind: "synced" }
   | {
       readonly kind: "pending";
@@ -25,12 +26,13 @@ export type SyncStatus =
     };
 
 // One status for a whole client, worst first: stopped, offline, retrying,
-// pending, synced. A world passes its network model's `offline`; the app has
+// pending, connecting, synced. A client that has not pulled yet is connecting,
+// not synced. A world passes its network model's `offline`; the app has
 // only its failed requests to go on.
 export const syncStatus = (
   state: Pick<
     StoreState,
-    "outbox" | "ackedThrough" | "retrying" | "syncFailure"
+    "outbox" | "ackedThrough" | "retrying" | "syncFailure" | "seeded"
   >,
   options: { readonly offline?: boolean } = {},
 ): SyncStatus => {
@@ -48,7 +50,9 @@ export const syncStatus = (
   const [reason] = reasons;
   if (reason !== undefined) return { kind: "retrying", reason, waiting };
 
-  if (waiting === 0) return { kind: "synced" };
+  if (waiting === 0) {
+    return state.seeded ? { kind: "synced" } : { kind: "connecting" };
+  }
   const pending = state.outbox.filter(
     (entry) => entry.mutation.clientMutationId > state.ackedThrough,
   ).length;
@@ -61,6 +65,8 @@ const waitingWords = (waiting: number) =>
 // The masthead's status line: the state's word, then what is waiting.
 export const statusLine = (status: SyncStatus): string => {
   switch (status.kind) {
+    case "connecting":
+      return "Connecting";
     case "synced":
       return "Synced";
     case "pending": {

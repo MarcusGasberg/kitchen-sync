@@ -28,6 +28,29 @@ describe("syncStatus", () => {
     expect(statusLine({ kind: "synced" })).toBe("Synced");
   });
 
+  // A client that has not pulled yet has nothing to call synced.
+  it("is connecting before the first pull", () => {
+    const status = syncStatus(state({ seeded: false }));
+    expect(status).toEqual({ kind: "connecting" });
+    expect(statusLine(status)).toBe("Connecting");
+  });
+
+  it("reads pending for an unseeded client with local changes", () => {
+    expect(syncStatus(state({ seeded: false, outbox: three }))).toEqual({
+      kind: "pending",
+      pending: 3,
+      acked: 0,
+    });
+  });
+
+  it("reads offline for an unseeded client that cannot reach the server", () => {
+    expect(
+      syncStatus(
+        state({ seeded: false, retrying: { push: null, pull: NETWORK_ERROR } }),
+      ),
+    ).toEqual({ kind: "offline", waiting: 0 });
+  });
+
   it("counts pending and acked changes apart", () => {
     const status = syncStatus(state({ outbox: three, ackedThrough: 1 }));
     expect(status).toEqual({ kind: "pending", pending: 2, acked: 1 });

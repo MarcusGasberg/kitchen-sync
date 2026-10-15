@@ -80,7 +80,11 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
               ),
             )
           }
-          empty="Nothing on the list yet. Add an item, and it waits on the shelf until the server has it."
+          empty={
+            state.seeded
+              ? "Nothing on the list yet. Anything you add shows on the shelf until it syncs."
+              : "Loading the list…"
+          }
         />
       </main>
     </div>

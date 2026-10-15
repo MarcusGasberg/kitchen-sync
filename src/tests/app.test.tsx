@@ -1,4 +1,5 @@
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -35,7 +36,9 @@ const fresh = (): ClientRuntime => {
   return runtime;
 };
 
+// Unmount first: its `stop` needs a live runtime.
 afterEach(async () => {
+  cleanup();
   await Promise.all(runtimes.splice(0).map((runtime) => runtime.dispose()));
 });
 
@@ -63,6 +66,9 @@ const shelfEmpties = () =>
 describe("the grocery app", () => {
   it("adds an item under its category, and the shelf empties as it syncs", async () => {
     render(<GroceryApp runtime={fresh()} />);
+    // Before anything has synced the line is never blank. The first pull may
+    // already have landed, so only these two words are certain.
+    expect(screen.getByText(/^(Connecting|Synced)$/)).toBeTruthy();
     addItem("Oat milk", "Dairy");
 
     const dairy = await screen.findByRole("region", { name: "Dairy" }, settle);
@@ -120,6 +126,11 @@ describe("the grocery app", () => {
     expect(
       await screen.findByRole("checkbox", { name: "1 Oat milk" }, settle),
     ).toBeTruthy();
+    await shelfEmpties();
+
+    // Only a running engine can sync a second item.
+    addItem("Rye bread", "Bakery");
+    await screen.findByRole("checkbox", { name: "1 Rye bread" }, settle);
     await shelfEmpties();
   });
 });

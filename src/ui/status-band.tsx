@@ -14,7 +14,7 @@ interface StatusBandProps {
 
 // The band a client's state earns, if any. Offline and stopped are striped;
 // stopped adds its reason and Retry, so it never reads as offline. Retrying is
-// dashed, with its reason. A figure's plate uses it as well as the app.
+// dashed, with its reason. Connecting, synced and pending draw nothing. A figure's plate uses it as well as the app.
 export function StatusBand({ status, onRetry }: StatusBandProps) {
   switch (status.kind) {
     case "offline":
@@ -52,6 +52,7 @@ export function StatusBand({ status, onRetry }: StatusBandProps) {
           action={onRetry && <Button onClick={onRetry}>Retry</Button>}
         />
       );
+    case "connecting":
     case "synced":
     case "pending":
       return null;

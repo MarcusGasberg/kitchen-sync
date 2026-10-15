@@ -97,18 +97,25 @@ describe("listView", () => {
     expect(sync.get("Oat milk")).toEqual({
       kind: "pending",
       clientMutationId: 6,
+      intent: "SetItemChecked",
       symbol: "circle",
     });
     expect(sync.get("Rye bread")).toEqual({
       kind: "acked",
       clientMutationId: 4,
+      intent: "AddItem",
       symbol: "plus",
     });
     expect(sync.get("Eggs")).toEqual({ kind: "synced" });
     expect(view.shelf).toEqual([
-      { clientMutationId: 4, symbol: "plus", acked: true },
-      { clientMutationId: 5, symbol: "plus", acked: false },
-      { clientMutationId: 6, symbol: "circle", acked: false },
+      { clientMutationId: 4, intent: "AddItem", symbol: "plus", acked: true },
+      { clientMutationId: 5, intent: "AddItem", symbol: "plus", acked: false },
+      {
+        clientMutationId: 6,
+        intent: "SetItemChecked",
+        symbol: "circle",
+        acked: false,
+      },
     ]);
   });
 
@@ -125,7 +132,12 @@ describe("listView", () => {
     const view = listView(state([], { outbox }));
     expect(view.groups).toEqual([]);
     expect(view.shelf).toEqual([
-      { clientMutationId: 1, symbol: "hourglass", acked: false },
+      {
+        clientMutationId: 1,
+        intent: "RemoveItem",
+        symbol: "hourglass",
+        acked: false,
+      },
     ]);
   });
 

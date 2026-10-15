@@ -10,6 +10,7 @@ const CLIENT = "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b";
 const entries = (count: number, ackedThrough = 0): Array<ShelfEntry> =>
   Array.from({ length: count }, (_, i) => ({
     clientMutationId: i + 1,
+    intent: i === 0 ? "RemoveItem" : "AddItem",
     symbol: "plus",
     acked: i + 1 <= ackedThrough,
   }));
@@ -31,9 +32,9 @@ describe("Shelf", () => {
     expect(
       shelfItems().map((li) => [li.dataset.acked, li.textContent]),
     ).toEqual([
-      ["true", "#1 acked"],
-      ["false", "#2 pending"],
-      ["false", "#3 pending"],
+      ["true", "Remove #1, acked"],
+      ["false", "Add #2, pending"],
+      ["false", "Add #3, pending"],
     ]);
   });
 

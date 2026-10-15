@@ -1,5 +1,7 @@
 /* The list is a container, so a row decides its form by the room it has, not
    by the viewport. */
+/* An inline-size container: its parent must give it a definite width, or a
+   content-sized parent collapses it. */
 .list {
   container-type: inline-size;
   display: grid;

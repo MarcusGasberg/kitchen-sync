@@ -4,6 +4,7 @@ import {
   type Category,
   type GroceryItem,
 } from "#/domain/grocery-item";
+import type { MutationIntent } from "#/domain/mutation";
 import type { Rejection, StoreState } from "#/lib/store";
 import { SYMBOL_FOR, type SymbolName } from "./symbols";
 
@@ -14,6 +15,7 @@ export type RowSync =
   | {
       readonly kind: "pending" | "acked";
       readonly clientMutationId: number;
+      readonly intent: MutationIntent["_tag"];
       readonly symbol: SymbolName;
     };
 
@@ -33,6 +35,7 @@ export interface Group {
 // One outbox entry, as the shelf draws it.
 export interface ShelfEntry {
   readonly clientMutationId: number;
+  readonly intent: MutationIntent["_tag"];
   readonly symbol: SymbolName;
   readonly acked: boolean;
 }
@@ -54,10 +57,16 @@ export const listView = (
   for (const { mutation } of state.outbox) {
     const acked = mutation.clientMutationId <= state.ackedThrough;
     const symbol = SYMBOL_FOR[mutation._tag];
-    shelf.push({ clientMutationId: mutation.clientMutationId, symbol, acked });
+    shelf.push({
+      clientMutationId: mutation.clientMutationId,
+      intent: mutation._tag,
+      symbol,
+      acked,
+    });
     newest.set(mutation.itemId, {
       kind: acked ? "acked" : "pending",
       clientMutationId: mutation.clientMutationId,
+      intent: mutation._tag,
       symbol,
     });
   }

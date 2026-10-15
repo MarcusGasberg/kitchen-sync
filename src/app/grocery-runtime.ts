@@ -18,6 +18,8 @@ const GroceryClient = SyncEngineService.Live.pipe(
 // imports this module, so the series' pages never start the engine; and the
 // runtime outlives the route, so leaving `/` and coming back keeps this tab's
 // outbox.
+// Never build or run this on the server: a module singleton would be shared
+// across requests.
 let runtime: ClientRuntime | null = null;
 
 export const groceryRuntime = (): ClientRuntime => {

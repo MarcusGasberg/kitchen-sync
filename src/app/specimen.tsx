@@ -53,7 +53,12 @@ const GROUPS: ReadonlyArray<Group> = [
       },
       {
         item: item("Spinach", 1, "bag", "Produce", 1, true),
-        sync: { kind: "acked", clientMutationId: 14, symbol: "circle" },
+        sync: {
+          kind: "acked",
+          clientMutationId: 14,
+          intent: "SetItemChecked",
+          symbol: "circle",
+        },
       },
       { item: item("Lemons", 3, null, "Produce", 2), sync: { kind: "synced" } },
     ],
@@ -64,7 +69,12 @@ const GROUPS: ReadonlyArray<Group> = [
     rows: [
       {
         item: item("Oat milk", 2, "l", "Dairy", 3),
-        sync: { kind: "pending", clientMutationId: 15, symbol: "plus" },
+        sync: {
+          kind: "pending",
+          clientMutationId: 15,
+          intent: "AddItem",
+          symbol: "plus",
+        },
       },
       {
         item: item("Greek yogurt", 500, "g", "Dairy", 4),
@@ -85,7 +95,12 @@ const GROUPS: ReadonlyArray<Group> = [
           "Pantry",
           5,
         ),
-        sync: { kind: "pending", clientMutationId: 1234, symbol: "plus" },
+        sync: {
+          kind: "pending",
+          clientMutationId: 1234,
+          intent: "AddItem",
+          symbol: "plus",
+        },
       },
     ],
   },
@@ -110,10 +125,16 @@ const REJECTED: ReadonlyArray<Rejection> = [
   },
 ];
 
+const INTENTS = [
+  { intent: "AddItem", symbol: "plus" },
+  { intent: "SetItemChecked", symbol: "circle" },
+  { intent: "RemoveItem", symbol: "hourglass" },
+] as const;
+
 const shelf = (count: number, ackedThrough: number): Array<ShelfEntry> =>
   Array.from({ length: count }, (_, i) => ({
     clientMutationId: 13 + i,
-    symbol: (["plus", "circle", "hourglass"] as const)[i % 3] ?? "plus",
+    ...(INTENTS[i % 3] ?? INTENTS[0]),
     acked: 13 + i <= ackedThrough,
   }));
 

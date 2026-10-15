@@ -29,17 +29,17 @@ describe("the palette", () => {
 
   // The spec's "Text on each colour" table: 4.5:1 body, 3:1 large.
   it.each([
-    ["ink on plate", palette.ink, palette.plate, 4.5],
-    ["cobalt on plate", palette.cobalt, palette.plate, 4.5],
-    ["error magenta on plate", palette.errorMagenta, palette.plate, 4.5],
-    ["magenta large text on plate", palette.magenta, palette.plate, 3],
-    ["plate on cobalt", palette.plate, palette.cobalt, 4.5],
-    ["white on cobalt", palette.white, palette.cobalt, 4.5],
-    ["ink on magenta", palette.ink, palette.magenta, 4.5],
-    ["magenta on ink", palette.magenta, palette.ink, 4.5],
-    ["ink on lemon", palette.ink, palette.lemon, 4.5],
-    ["cobalt on lemon", palette.cobalt, palette.lemon, 4.5],
-  ])("%s holds at least %s:1", (_, text, ground, floor) => {
+    ["ink on plate", 4.5, palette.ink, palette.plate],
+    ["cobalt on plate", 4.5, palette.cobalt, palette.plate],
+    ["error magenta on plate", 4.5, palette.errorMagenta, palette.plate],
+    ["magenta large text on plate", 3, palette.magenta, palette.plate],
+    ["plate on cobalt", 4.5, palette.plate, palette.cobalt],
+    ["white on cobalt", 4.5, palette.white, palette.cobalt],
+    ["ink on magenta", 4.5, palette.ink, palette.magenta],
+    ["magenta on ink", 4.5, palette.magenta, palette.ink],
+    ["ink on lemon", 4.5, palette.ink, palette.lemon],
+    ["cobalt on lemon", 4.5, palette.cobalt, palette.lemon],
+  ])("%s holds at least %s:1", (_, floor, text, ground) => {
     expect(contrast(text, ground)).toBeGreaterThanOrEqual(floor);
   });
 });

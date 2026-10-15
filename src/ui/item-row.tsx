@@ -1,5 +1,6 @@
 import { Option } from "effect";
 import type { GroceryItem } from "#/domain/grocery-item";
+import { VERB } from "./intent-words";
 import styles from "./item-row.module.css";
 import type { RowSync } from "./list-view";
 import { Glyph } from "./symbols";
@@ -55,8 +56,12 @@ export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
         {sync.kind !== "synced" && (
           <>
             <Glyph symbol={sync.symbol} className={styles.glyph} />
+            <span className="visually-hidden">{VERB[sync.intent]} </span>
             <span>#{sync.clientMutationId}</span>
-            <span className={styles.word}>{sync.kind}</span>
+            <span className={styles.word}>
+              <span className="visually-hidden">, </span>
+              {sync.kind}
+            </span>
           </>
         )}
       </span>
