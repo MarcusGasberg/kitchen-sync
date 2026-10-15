@@ -59,7 +59,7 @@ describe("Plate", () => {
     const plate = screen.getByRole("region", { name: "A" });
     expect(plate.textContent).toContain("5B0F");
     expect(plate.textContent).toContain("rows");
-    expect(screen.getByRole("status").textContent).toBe("Offline");
+    expect(plate.querySelector("[data-pattern]")?.textContent).toBe("Offline");
   });
 });
 
@@ -72,9 +72,12 @@ describe("Band", () => {
         action={<Button>Retry</Button>}
       />,
     );
-    const band = screen.getByRole("status");
-    expect(band.dataset.pattern).toBe("dashed");
-    expect(band.textContent).toContain("Retrying");
+    const band = screen
+      .getByText("Retrying")
+      .closest<HTMLElement>("[data-pattern]");
+    expect(band?.dataset.pattern).toBe("dashed");
+    expect(band?.hasAttribute("role")).toBe(false);
+    expect(band?.textContent).toContain("Retrying");
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
   });
 });

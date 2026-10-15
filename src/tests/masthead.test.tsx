@@ -19,6 +19,12 @@ const shelfItems = () =>
     "listitem",
   );
 
+const theBand = () => {
+  const band = document.body.querySelector<HTMLElement>("[data-pattern]");
+  if (band === null) throw new Error("no band rendered");
+  return band;
+};
+
 describe("Shelf", () => {
   it("draws each outbox entry with its #id, acked ones half landed", () => {
     render(<Shelf entries={entries(3, 1)} />);
@@ -57,7 +63,9 @@ describe("Masthead", () => {
       screen.getByRole("heading", { level: 1, name: "Kitchen Sync" }),
     ).toBeTruthy();
     expect(screen.getByTitle(`Device ${CLIENT}`)).toBeTruthy();
-    expect(screen.getByText("2 pending · 1 acked")).toBeTruthy();
+    expect(
+      screen.getByText("2 pending · 1 acked").getAttribute("aria-live"),
+    ).toBe("polite");
     expect(shelfItems()).toHaveLength(3);
   });
 
@@ -81,8 +89,9 @@ describe("StatusBand", () => {
 
   it("stripes offline, with what waits in this tab", () => {
     render(<StatusBand status={{ kind: "offline", waiting: 3 }} />);
-    const band = screen.getByRole("status");
+    const band = theBand();
     expect(band.dataset.pattern).toBe("striped");
+    expect(band.hasAttribute("role")).toBe(false);
     expect(band.textContent).toBe(
       "Offline. 3 changes wait in this tab until it closes or reloads.",
     );
@@ -94,7 +103,7 @@ describe("StatusBand", () => {
         status={{ kind: "retrying", reason: "HTTP 503", waiting: 1 }}
       />,
     );
-    const band = screen.getByRole("status");
+    const band = theBand();
     expect(band.dataset.pattern).toBe("dashed");
     expect(band.textContent).toBe("Retrying. The last try failed: HTTP 503.");
   });
@@ -112,7 +121,7 @@ describe("StatusBand", () => {
         onRetry={onRetry}
       />,
     );
-    const band = screen.getByRole("status");
+    const band = theBand();
     expect(band.dataset.pattern).toBe("striped");
     expect(band.textContent).toContain(
       "Sync stopped. The push failed: HTTP 400. 1 change waits in this tab until it closes or reloads.",

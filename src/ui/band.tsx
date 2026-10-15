@@ -9,10 +9,11 @@ interface BandProps {
 }
 
 // A full-width band that changes the state of everything under it. Its label
-// always says which state, so the pattern never carries it alone.
+// always says which state, so the pattern never carries it alone. It is not a
+// live region: the masthead's status line, not the band, announces state changes.
 export function Band({ pattern, label, action }: BandProps) {
   return (
-    <div className={styles.band} data-pattern={pattern} role="status">
+    <div className={styles.band} data-pattern={pattern}>
       <p className={styles.label}>{label}</p>
       {action}
     </div>
