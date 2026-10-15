@@ -82,7 +82,7 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
           }
           empty={
             state.seeded
-              ? "Nothing on the list yet. Anything you add shows on the shelf until it syncs."
+              ? "Nothing on the list yet. Anything you add waits in the outbox until it syncs."
               : "Loading the list…"
           }
         />

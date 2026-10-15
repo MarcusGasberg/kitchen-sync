@@ -1,30 +1,30 @@
 .masthead {
-  padding-top: var(--space-4);
-  background: var(--cobalt);
-  color: var(--plate);
+  border-bottom: var(--rule) solid var(--line);
+  background: var(--page);
 }
 
 .inner {
+  display: grid;
+  gap: var(--space-2);
   max-width: var(--column);
   margin-inline: auto;
-  padding-inline: var(--space-4);
+  padding: var(--space-5) var(--space-4) var(--space-4);
 }
 
 .top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
 .name {
-  font: 800 var(--display-md) / 1 var(--font-display);
-  letter-spacing: 0.02em;
+  font: 400 var(--text-sm) / 1.2 var(--font-text);
+  letter-spacing: 0.32em;
   text-transform: uppercase;
 }
 
 .status {
-  margin-top: var(--space-2);
+  color: var(--text-2);
   font-size: var(--text-sm);
-  font-weight: 500;
 }

@@ -52,7 +52,7 @@ const addItem = (name: string, category: string) => {
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
 };
 
-const shelfEmpties = () =>
+const outboxEmpties = () =>
   waitFor(
     () =>
       expect(
@@ -64,7 +64,7 @@ const shelfEmpties = () =>
   );
 
 describe("the grocery app", () => {
-  it("adds an item under its category, and the shelf empties as it syncs", async () => {
+  it("adds an item under its category, and the outbox empties as it syncs", async () => {
     render(<GroceryApp runtime={fresh()} />);
     // Before anything has synced the line is never blank. The first pull may
     // already have landed, so only these two words are certain.
@@ -75,7 +75,7 @@ describe("the grocery app", () => {
     expect(
       within(dairy).getByRole("checkbox", { name: "1 Oat milk" }),
     ).toBeTruthy();
-    await shelfEmpties();
+    await outboxEmpties();
     expect(screen.getByText("Synced")).toBeTruthy();
   });
 
@@ -103,7 +103,7 @@ describe("the grocery app", () => {
       () => expect(screen.queryByRole("region", { name: "Bakery" })).toBeNull(),
       settle,
     );
-    await shelfEmpties();
+    await outboxEmpties();
     expect(screen.getByRole("region", { name: "Dairy" }).textContent).toContain(
       "0 left",
     );
@@ -126,11 +126,22 @@ describe("the grocery app", () => {
     expect(
       await screen.findByRole("checkbox", { name: "1 Oat milk" }, settle),
     ).toBeTruthy();
-    await shelfEmpties();
+    await outboxEmpties();
 
     // Only a running engine can sync a second item.
     addItem("Rye bread", "Bakery");
     await screen.findByRole("checkbox", { name: "1 Rye bread" }, settle);
-    await shelfEmpties();
+    await outboxEmpties();
+  });
+
+  it("says where a new item waits when the list is empty", async () => {
+    render(<GroceryApp runtime={fresh()} />);
+    expect(
+      await screen.findByText(
+        "Nothing on the list yet. Anything you add waits in the outbox until it syncs.",
+        undefined,
+        settle,
+      ),
+    ).toBeTruthy();
   });
 });

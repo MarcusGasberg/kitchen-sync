@@ -13,35 +13,44 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4)
     calc(var(--space-4) + env(safe-area-inset-bottom));
-  border-top: var(--rule) solid var(--cobalt);
-  background: var(--plate);
+  border-top: var(--rule) solid var(--line);
+  background: var(--page);
+  box-shadow: 0 -8px 20px -14px
+    light-dark(rgb(10 26 51 / 0.3), rgb(0 0 0 / 0.7));
 }
 
 .field {
   min-width: 0;
   min-height: var(--target);
   padding: 0 var(--space-3);
-  border: var(--rule) solid var(--cobalt);
-  border-radius: 0;
-  background: var(--plate);
-}
-
-select.field {
-  appearance: none;
-  padding-right: var(--space-6);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%231a33ff' d='M0 0h12L6 8z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right var(--space-3) center;
-  background-size: 0.75rem 0.5rem;
-}
-
-.field::placeholder {
-  color: var(--cobalt);
-  opacity: 1;
+  border: var(--rule) solid var(--edge);
+  border-radius: var(--radius-control);
+  background-color: var(--water);
+  transition: border-color var(--motion-state) var(--ease-out);
 }
 
 .field:focus-visible {
+  border-color: var(--text);
   outline-offset: 0;
+}
+
+.field::placeholder {
+  color: var(--text-3);
+  opacity: 1;
+}
+
+/* A chevron from two hard-stop gradients, in the field's own ink. */
+select.field {
+  padding-right: var(--space-6);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-2) 50%),
+    linear-gradient(135deg, var(--text-2) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.125rem) 50%,
+    calc(100% - 0.8125rem) 50%;
+  background-size: 0.3125rem 0.3125rem;
+  background-repeat: no-repeat;
+  appearance: none;
 }
 
 .name {
@@ -66,7 +75,7 @@ select.field {
 }
 
 /* A desktop: no thumb to reach with, so the form is the first row under the
-   masthead. */
+   header. */
 @media (min-width: 45rem) {
   .form {
     position: static;
@@ -77,5 +86,6 @@ select.field {
     padding: 0 var(--space-4);
     border-top: 0;
     background: none;
+    box-shadow: none;
   }
 }
