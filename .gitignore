@@ -19,3 +19,5 @@ todos.json
 .claude/skills/impeccable
 .impeccable/mocks
 .impeccable/questions
+.impeccable/review
+.impeccable/build
