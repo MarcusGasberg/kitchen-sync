@@ -1,0 +1,29 @@
+.masthead {
+  padding: var(--space-4) var(--space-4) 0;
+  background: var(--cobalt);
+  color: var(--plate);
+}
+
+.inner {
+  max-width: var(--column);
+  margin-inline: auto;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.name {
+  font: 800 var(--display-md) / 1 var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.status {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
