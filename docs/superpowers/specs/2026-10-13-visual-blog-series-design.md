@@ -130,7 +130,9 @@ a pseudonym mark. The direction contract is in the surface brief; in short:
   retrying (a sync loop backing off after a transient failure) wears a dashed
   band; stopped wears the striped band with its reason and Retry, so it never
   reads as offline. Every state also has a word: pending, acked, synced,
-  rejected, offline, retrying, stopped.
+  rejected, offline, retrying, stopped. Before a client's first pull it
+  reads connecting, so nothing claims synced over a list it has not
+  loaded (added in sub-project 2).
 - **Messages on the wires** carry the labels the trace gives them: a push
   carries its mutations' symbols and its id range (`#3–#5`), an ack is a flat
   ink tab (`ack #5`), a pull is an outlined eye (`pull v4`), a pull response is

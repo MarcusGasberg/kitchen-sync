@@ -1,5 +1,23 @@
 # Design System and App Overhaul Implementation Plan
 
+> **Status (2026-10-15): done on branch `design-system`.** The code departs from this text in these places; the code is authoritative:
+> - Tasks 1 and 3 landed as one commit. Retrying slots without their trace events left the sandbox's snapshots stale.
+> - `biome.json` ignores `.impeccable/`.
+> - `Band` is not a live region. The masthead's status line is a client's one polite live region.
+> - The specimen page lives in `src/app/specimen.tsx`; `src/routes/specimen.tsx` only declares the route, so the page stays in a lazy chunk.
+> - The finish review's fixes:
+>   - an "outbox" label on the shelf;
+>   - a cobalt remove control, with a "Remove" label from a 30rem list width (a container query on `.list`);
+>   - a disabled button drawn as an outlined plate;
+>   - one column edge on desktop;
+>   - a themed range and select;
+>   - a rejected row that drops its own item's id.
+> - The final review's fixes:
+>   - `scroll-padding-bottom` keeps focus clear of the docked form;
+>   - a `connecting` status and "Loading the list…" before the first pull;
+>   - hidden verbs ("Add #13, pending"), with `intent` on `ShelfEntry` and `RowSync` and the verb table in `src/ui/intent-words.ts`;
+>   - a remount test that adds an item after remounting.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give Kitchen Sync the Collective Plate design system (tokens, faces, symbols, plate, row and control components) and rebuild the grocery app at `/` in it as the Outbox shelf layout, with the list extracted into a shared `GroceryList` that the series' sandboxes will render.
