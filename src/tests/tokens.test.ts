@@ -1,57 +1,85 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { contrast, luminance, palette } from "#/ui/palette";
+import { contrast, palette, type Theme } from "#/ui/palette";
 
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const tokens = read("../styles/tokens.css");
 const base = read("../styles.css");
 
-const declared = (name: string) =>
-  tokens
-    .match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1]
-    ?.toUpperCase();
+// A token's day and night values, from its `light-dark()` pair.
+const declared = (name: string) => {
+  const match = tokens.match(
+    new RegExp(
+      `--${name}:\\s*light-dark\\((#[0-9a-fA-F]{6}),\\s*(#[0-9a-fA-F]{6})\\)`,
+    ),
+  );
+  return match === null
+    ? undefined
+    : { day: match[1]?.toUpperCase(), night: match[2]?.toUpperCase() };
+};
+
+const TOKENS: ReadonlyArray<readonly [string, keyof Theme]> = [
+  ["page", "page"],
+  ["water", "water"],
+  ["text", "text"],
+  ["text-2", "text2"],
+  ["text-3", "text3"],
+  ["line", "line"],
+  ["edge", "edge"],
+  ["seal", "seal"],
+  ["ink-1", "ink1"],
+  ["ink-2", "ink2"],
+  ["ink-3", "ink3"],
+  ["ink-4", "ink4"],
+  ["ink-fresh", "inkFresh"],
+];
 
 describe("the palette", () => {
-  it("is what tokens.css declares", () => {
-    expect(declared("cobalt")).toBe(palette.cobalt);
-    expect(declared("magenta")).toBe(palette.magenta);
-    expect(declared("error-magenta")).toBe(palette.errorMagenta);
-    expect(declared("lemon")).toBe(palette.lemon);
-    expect(declared("ink")).toBe(palette.ink);
-    expect(declared("plate")).toBe(palette.plate);
-    expect(declared("white")).toBe(palette.white);
+  it.each(
+    TOKENS,
+  )("--%s is what palette.ts says, day and night", (token, key) => {
+    expect(declared(token)).toEqual({
+      day: palette.day[key],
+      night: palette.night[key],
+    });
   });
 
-  it("keeps the plate light enough for magenta large text", () => {
-    expect(luminance(palette.plate)).toBeGreaterThanOrEqual(0.877);
-  });
-
-  // The spec's "Text on each colour" table: 4.5:1 body, 3:1 large.
-  it.each([
-    ["ink on plate", 4.5, palette.ink, palette.plate],
-    ["cobalt on plate", 4.5, palette.cobalt, palette.plate],
-    ["error magenta on plate", 4.5, palette.errorMagenta, palette.plate],
-    ["magenta large text on plate", 3, palette.magenta, palette.plate],
-    ["plate on cobalt", 4.5, palette.plate, palette.cobalt],
-    ["white on cobalt", 4.5, palette.white, palette.cobalt],
-    ["ink on magenta", 4.5, palette.ink, palette.magenta],
-    ["magenta on ink", 4.5, palette.magenta, palette.ink],
-    ["ink on lemon", 4.5, palette.ink, palette.lemon],
-    ["cobalt on lemon", 4.5, palette.cobalt, palette.lemon],
-  ])("%s holds at least %s:1", (_, floor, text, ground) => {
-    expect(contrast(text, ground)).toBeGreaterThanOrEqual(floor);
+  // WCAG 2.2: 4.5:1 for text, 3:1 for a control's edge.
+  describe.each(["day", "night"] as const)("at %s", (theme) => {
+    const t = palette[theme];
+    it.each([
+      ["text on the page", 4.5, t.text, t.page],
+      ["secondary text on the page", 4.5, t.text2, t.page],
+      ["quiet text on the page", 4.5, t.text3, t.page],
+      ["the seal on the page", 4.5, t.seal, t.page],
+      ["text on the water", 4.5, t.text, t.water],
+      ["secondary text on the water", 4.5, t.text2, t.water],
+      ["quiet text on the water", 4.5, t.text3, t.water],
+      ["the seal on the water", 4.5, t.seal, t.water],
+      ["a primary button's label", 4.5, t.page, t.text],
+      ["a primary button's label on hover", 4.5, t.page, t.text2],
+      ["a control's edge on the page", 3, t.edge, t.page],
+      ["a control's edge on the water", 3, t.edge, t.water],
+    ])("%s holds at least %s:1", (_, floor, text, ground) => {
+      expect(contrast(text, ground)).toBeGreaterThanOrEqual(floor);
+    });
   });
 });
 
 describe("the base sheet", () => {
   it("loads the faces and the tokens", () => {
-    expect(base).toContain(
-      '@import "@fontsource-variable/big-shoulders-display"',
-    );
-    expect(base).toContain('@import "@fontsource-variable/red-hat-text"');
-    expect(base).toContain('@import "@fontsource-variable/red-hat-mono"');
+    expect(base).toContain('@import "@fontsource-variable/commissioner"');
+    expect(base).toContain('@import "@fontsource-variable/spline-sans-mono"');
     expect(base).toContain('@import "./styles/tokens.css"');
+  });
+
+  it("follows the system's day or night, and lets a subtree pin one", () => {
+    expect(base).toMatch(/:root\s*{[^}]*color-scheme:\s*light dark;/);
+    expect(base).toMatch(/\[data-theme="day"\]\s*{[^}]*color-scheme:\s*light;/);
+    expect(base).toMatch(
+      /\[data-theme="night"\]\s*{[^}]*color-scheme:\s*dark;/,
+    );
   });
 
   it("cuts every animation and transition under reduced motion", () => {

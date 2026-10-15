@@ -1,25 +1,38 @@
-/* The Collective Plate world as custom properties. `src/ui/palette.ts`
-   mirrors the colours; light only for v1. */
+/* Ink Basin as custom properties: one ink family on water, by day and at
+   night. `light-dark()` takes a pair's first value under a light colour
+   scheme and its second under a dark one; `styles.css` sets the scheme.
+   `src/ui/palette.ts` mirrors the pairs and `tokens.test.ts` keeps the two in
+   step. */
 :root {
-  --cobalt: #1a33ff;
-  --magenta: #ff2da6;
-  --error-magenta: #c2007a;
-  --lemon: #ffe600;
-  --ink: #111111;
-  --plate: #f7f4ed;
-  --white: #ffffff;
+  --page: light-dark(#f1f3f6, #0b1426);
+  --water: light-dark(#fbfbfc, #0f1d34);
+  --text: light-dark(#0a1a33, #e6ebf2);
+  --text-2: light-dark(#4f5c73, #aeb6c2);
+  --text-3: light-dark(#5e6a7e, #8693a8);
+  /* A divider; a control's edge is --edge, which holds 3:1. */
+  --line: light-dark(#d3d9e2, #24324d);
+  --edge: light-dark(#768296, #66738a);
+  /* A rejection and a stopped sync, and nothing else. */
+  --seal: light-dark(#a63d2a, #e8836c);
 
-  --font-display: "Big Shoulders Display Variable", "Arial Narrow", sans-serif;
-  --font-text: "Red Hat Text Variable", system-ui, sans-serif;
-  --font-mono: "Red Hat Mono Variable", ui-monospace, monospace;
+  /* The basin's inks, strongest to faintest, and the fresh ink of a change
+     still in the outbox. Its clear water is --water. */
+  --ink-1: light-dark(#0a1a33, #dde2e8);
+  --ink-2: light-dark(#1e2d4a, #aeb6c2);
+  --ink-3: light-dark(#606d80, #7a8597);
+  --ink-4: light-dark(#aeb6c2, #47546a);
+  --ink-fresh: light-dark(#23468f, #ffffff);
 
-  /* A fixed rem scale at about 1.2, as a working screen wants. */
+  --font-text: "Commissioner Variable", system-ui, sans-serif;
+  --font-mono: "Spline Sans Mono Variable", ui-monospace, monospace;
+
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;
-  --text-lg: 1.25rem;
-  --display-sm: 1.3125rem;
-  --display-md: 2.25rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2.75rem;
+  --tracking-label: 0.18em;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -29,14 +42,15 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  --rule-thin: 1px;
-  --rule: 2px;
+  --rule: 1px;
+  --radius-control: 6px;
+  --radius-basin: 18px;
   --row-height: 2.875rem;
   --target: 2.75rem;
   --column: 45rem;
 
-  /* State changes only: no bounce, no blending. */
   --motion-state: 200ms;
+  /* `SETTLE_MS` in src/ui/marbling/mount.ts is the same 900 ms. */
+  --settle: 900ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --drift: 2.4s;
 }

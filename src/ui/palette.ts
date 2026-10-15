@@ -1,15 +1,54 @@
-// The world's colours as `src/styles/tokens.css` declares them, for the code
-// that needs a value rather than a custom property. `tokens.test.ts` keeps the
-// two in step and checks every text pairing the spec allows.
-export const palette = {
-  cobalt: "#1A33FF",
-  magenta: "#FF2DA6",
-  errorMagenta: "#C2007A",
-  lemon: "#FFE600",
-  ink: "#111111",
-  plate: "#F7F4ED",
-  white: "#FFFFFF",
-} as const;
+// Ink Basin's colours as `src/styles/tokens.css` declares them, day and
+// night, for the code that needs a value rather than a custom property.
+// `tokens.test.ts` keeps the two in step and checks every text pairing.
+export interface Theme {
+  readonly page: string;
+  readonly water: string;
+  readonly text: string;
+  readonly text2: string;
+  readonly text3: string;
+  readonly line: string;
+  readonly edge: string;
+  readonly seal: string;
+  readonly ink1: string;
+  readonly ink2: string;
+  readonly ink3: string;
+  readonly ink4: string;
+  readonly inkFresh: string;
+}
+
+export const palette: { readonly day: Theme; readonly night: Theme } = {
+  day: {
+    page: "#F1F3F6",
+    water: "#FBFBFC",
+    text: "#0A1A33",
+    text2: "#4F5C73",
+    text3: "#5E6A7E",
+    line: "#D3D9E2",
+    edge: "#768296",
+    seal: "#A63D2A",
+    ink1: "#0A1A33",
+    ink2: "#1E2D4A",
+    ink3: "#606D80",
+    ink4: "#AEB6C2",
+    inkFresh: "#23468F",
+  },
+  night: {
+    page: "#0B1426",
+    water: "#0F1D34",
+    text: "#E6EBF2",
+    text2: "#AEB6C2",
+    text3: "#8693A8",
+    line: "#24324D",
+    edge: "#66738A",
+    seal: "#E8836C",
+    ink1: "#DDE2E8",
+    ink2: "#AEB6C2",
+    ink3: "#7A8597",
+    ink4: "#47546A",
+    inkFresh: "#FFFFFF",
+  },
+};
 
 const channel = (value: number) => {
   const c = value / 255;
