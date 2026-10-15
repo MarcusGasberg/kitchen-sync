@@ -1,0 +1,37 @@
+.list {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.rejected {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* More space above a head than below it. */
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--space-1);
+  border-bottom: var(--rule) solid var(--cobalt);
+  color: var(--cobalt);
+}
+
+.title {
+  font: 800 var(--display-sm) / 1 var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.left {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.empty {
+  max-width: 32ch;
+  padding-block: var(--space-6);
+  color: var(--cobalt);
+  font-size: var(--text-lg);
+}

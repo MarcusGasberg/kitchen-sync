@@ -1,0 +1,38 @@
+.row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--rule) solid var(--error-magenta);
+}
+
+.glyph {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--error-magenta);
+}
+
+.glyph svg {
+  width: 100%;
+  height: 100%;
+}
+
+.text {
+  display: grid;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.3;
+}
+
+.name {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reason {
+  color: var(--error-magenta);
+  overflow-wrap: anywhere;
+}
