@@ -94,63 +94,59 @@ for them; each is built with the part that needs it:
 
 ## Visual world
 
-Collective Plate, from the Dutch Toyism collectives: a shared symbol set,
-hard-edged figures and hovering objects, a fixed palette, each work signed with
-a pseudonym mark. The direction contract is in the surface brief; in short:
+Ink Basin, from suminagashi marbling: every device keeps a basin of water,
+and its list's rows are drops of ink on it. Chosen on 2026-10-15, after
+Collective Plate was built and rejected (too loud, poster-like, flat and
+toy-like). The direction contract is in `.impeccable/surfaces/src-routes-blog.md`;
+in short:
 
-- **Palette:** cobalt `#1A33FF` (headings, rules, the masthead field), magenta
-  `#FF2DA6` (large text and fills only), error magenta `#C2007A` (small error
-  text), lemon `#FFE600` (never text or thin lines; lemon symbols get an ink
-  outline), ink `#111111`, and the plate ground. Light only for v1.
-- **Text on each colour** (WCAG 2.2: 4.5:1 for body text, 3:1 for large text):
-
-  | Ground | Text | Ratio |
-  |---|---|---|
-  | plate | ink | 17.2:1 |
-  | plate | cobalt | 6.5:1 |
-  | plate | error magenta | 5.3:1 |
-  | plate | magenta, large text only | 3.1:1 |
-  | cobalt | plate or white | 6.5:1 / 7.1:1 |
-  | magenta | ink (breaking-control labels) | 5.6:1 |
-  | lemon | ink or cobalt | 14.9:1 / 5.6:1 |
-
-  Never ink or magenta on cobalt (2.7:1, 2.1:1), and never plate or white on
-  magenta below large text (3.1:1, 3.4:1). The plate ground keeps a relative
-  luminance of at least 0.877, so magenta large text holds 3:1: the reference
-  plate `#F7F4ED` (0.906) passes, and a cream such as `#F5EFE0` (0.865) fails.
-- **Type:** condensed display caps (Big Shoulders Display as sketched), Red Hat
-  Text, Red Hat Mono; all self-hosted. Faces are confirmed at build.
-- **Symbols, one per mutation or event:** AddItem → plus, SetItemChecked →
-  circle, EditItem → diamond, RemoveItem → hourglass, ReorderItem → stairs,
-  poke → starburst, server → eye.
-- **State has a form as well as a colour:** pending hovers clear of the plate
-  with its `#id`; acked (decided by the server, waiting for a pull) sits on the
-  plate's edge, half landed, with its `#id`; synced (a pull confirmed it) sits
-  flat; rejected is knocked out to an outline; offline wears the striped band;
-  retrying (a sync loop backing off after a transient failure) wears a dashed
-  band; stopped wears the striped band with its reason and Retry, so it never
-  reads as offline. Every state also has a word: pending, acked, synced,
-  rejected, offline, retrying, stopped. Before a client's first pull it
-  reads connecting, so nothing claims synced over a list it has not
-  loaded (added in sub-project 2).
-- **Messages on the wires** carry the labels the trace gives them: a push
-  carries its mutations' symbols and its id range (`#3–#5`), an ack is a flat
-  ink tab (`ack #5`), a pull is an outlined eye (`pull v4`), a pull response is
-  a cobalt bar (`v7`), and a poke is the starburst (`poke v7`). The label is
-  always drawn, so a message's kind never rests on its shape alone.
-- **Motion:** straight paths on one fixed time scale (distance is time), a slow
-  drift while pending, hard cuts between scripted beats, no bounce, no
-  blending. A world starts when its figure is at least half in view and pauses
-  when the figure leaves the view or the tab is hidden; nothing runs off
-  screen. Only a world paused that way resumes on its own: one the reader
-  paused stays paused when it scrolls back into view. The pause control is the first focusable control of every figure,
-  so a world that starts on its own can be stopped at once (WCAG 2.2.2).
+- **The basin is computed, not simulated.** A client holds rows, not the
+  server's history, so a basin draws the list's state as exact marbling
+  operations (Jaffer and Lu, "Mathematical Marbling", 2012). Each item, in the
+  order the server last changed it (its version, ties by id), drops ink, then
+  clear water, then a core of ink, so it lands as rings; a light stroke lays it
+  into the water; once checked, a stroke crosses the basin. Items still in the
+  outbox come last, in fresh ink. Every number comes from the item's id, so
+  devices that hold the same rows draw the same pattern, and a device behind,
+  ahead or rebased draws another. A removed item leaves the pattern. The
+  newest 64 items are drawn.
+- **Palette:** one ink family on water, day and night, both designed; the
+  page follows the system's setting. Day: page `#F1F3F6`, water `#FBFBFC`,
+  text `#0A1A33`. Night: page `#0B1426`, water `#0F1D34`, text `#E6EBF2`. The
+  seal (`#A63D2A` by day, `#E8836C` at night) marks a rejection and a stopped
+  sync, and nothing else. Every text colour holds 4.5:1 on the page and on the
+  water in both themes; control edges hold 3:1. `src/styles/tokens.css` holds
+  every value.
+- **Type:** Commissioner (all text and controls) and Spline Sans Mono (ids,
+  versions and counts only), both self-hosted.
+- **State has a form as well as a word:** pending is a hollow ring with its
+  `#id`; acked (decided by the server, waiting for a pull) a half-filled ring
+  with its `#id`; synced has no marker; rejected is a dashed seal ring with the
+  item's name and the server's reason; offline wears a solid band; retrying (a
+  sync loop backing off after a transient failure) a dashed band; stopped the
+  solid band with its word in seal, its reason and Retry, so it never reads as
+  offline. In a basin, an item still in the outbox is fresh ink on top of the
+  pattern. Every state also has a word: pending, acked, synced, rejected,
+  offline, retrying, stopped. Before a client's first pull it reads connecting,
+  so nothing claims synced over a list it has not loaded.
+- **Messages on the wires** carry the labels the trace gives them: a push its
+  id range (`#3–#5`), an ack `ack #5`, a pull `pull v4`, a pull response `v7`,
+  a poke `poke v7`. The label is always drawn, so a message's kind never rests
+  on its shape alone. Sub-project 3 draws them.
+- **Motion:** a new drop or stroke settles in over 900 ms with an exponential
+  ease-out; messages travel straight paths on one fixed time scale (distance
+  is time); hard cuts between scripted beats; no bounce. A world starts when
+  its figure is at least half in view and pauses when the figure leaves the
+  view or the tab is hidden; nothing runs off screen. Only a world paused that
+  way resumes on its own: one the reader paused stays paused when it scrolls
+  back into view. The pause control is the first focusable control of every
+  figure, so a world that starts on its own can be stopped at once (WCAG 2.2.2).
 - **Reduced motion** (`prefers-reduced-motion: reduce`): no world starts on its
-  own (chapter 0 included: it waits on its play control); messages cut between
-  their sent and arrived positions instead of travelling; the drift is
-  dropped; stepping and scrubbing work as before.
+  own (chapter 0 included: it waits on its play control); operations apply
+  without settling; messages cut between their sent and arrived positions
+  instead of travelling; stepping and scrubbing work as before.
 - **Breaking controls** (drop a message, take a client offline, stop the
-  server) are magenta and set apart from playback: below playback in the left
+  server) are dashed and set apart from playback: below playback in the left
   third on desktop, below the strip on a phone (playback sits above the
   stage).
 
@@ -398,16 +394,24 @@ prerendering uses it to produce each scene's first frame.
 
 ## Sub-project 2: design system and app overhaul
 
-- Tokens in `src/styles/tokens.css` as custom properties; components in
+Built first in Collective Plate (branch `design-system`, 2026-10-15) and
+rejected; rebuilt in Ink Basin on branch `ink-basin`, in two plans:
+`docs/superpowers/plans/2026-10-15-ink-basin-world.md` (the world, its basin
+and every shared component) and a second plan for the app, written after the
+app's surface round.
+
+- Tokens in `src/styles/tokens.css` as `light-dark()` pairs; components in
   `src/ui/` with CSS Modules. No CSS framework.
-- `src/ui/symbols.tsx`: the symbol set as authored SVG and the table from
-  mutation type to symbol.
-- Components: `Plate`, its header and corner `Mark` (a short clientId), `Button`
-  (primary, secondary, breaking), part tabs, `Caption`, `ScrubBar`, and the
-  shared `GroceryList` / `ItemRow`.
-- `ItemRow` states: synced (flat), pending (symbol hovering, `#id`), acked
-  (half landed, `#id`), checked (magenta circle, strike-through), rejected
-  (outline, the item's name, the server's reason, dismiss).
+- The basin: `src/ui/marbling/` (the operations and a list's pattern, pure;
+  a WebGL2 renderer with a Canvas 2D fallback; `mountBasin`, which owns the
+  canvas) and the `Basin` component.
+- Components: `Pane` (one device in a figure: its name, mark, state, basin,
+  band and list), `Mark` (a short clientId), `Button` (primary, secondary,
+  breaking), `Band`, part tabs, `Caption`, `ScrubBar`, and the shared
+  `GroceryList` / `ItemRow`.
+- `ItemRow` states: synced (no marker), pending (hollow ring, `#id`), acked
+  (half-filled ring, `#id`), checked (filled check, struck through), rejected
+  (dashed seal ring, the item's name, the server's reason, dismiss).
 - `GroceryList` takes plain props: the category groups and rejections that
   `listView(state)` derives from a `StoreState`, and an optional `onIntent`
   that receives intents without `issuedAt`, which the binder stamps from its
@@ -415,21 +419,16 @@ prerendering uses it to produce each scene's first frame.
   read-only.
   The app binds it to its runtime; a sandbox binds it to a snapshot at *t*,
   read-only during a scene and live in "Your turn".
-- The app at `/`: cobalt masthead with a sync-status line (synced · *n* pending
-  · retrying · offline, *n* waiting in this tab · sync stopped, with Retry), the
-  add form on a plate, rejections on their own rows, mobile first. The outbox
-  lives in memory, so the line never claims changes outlive the tab. The
-  checkbox issues `SetItemChecked` instead of `EditItem { checked }`.
-- The grocery runtime (`ManagedRuntime` and `useSyncService`, today in the
-  root `shellComponent`, `src/routes/__root.tsx:39-55`) moves into the `/`
-  route, so no other route starts the app's sync engine or writes a clientId.
-- Impeccable runs a surface round for the app (three layouts within the world)
-  before it is built. It ran on 2026-10-15 and the user locked **Outbox
-  shelf**: the outbox drawn as symbols on a shelf along the cobalt masthead's
-  foot, the list grouped by category with counts left, the add form docked at
-  the bottom on a phone. Rows offer check and remove only; editing waits for
-  Part 2. The contract is `.impeccable/surfaces/src-routes-index-tsx.md`, the
-  chosen first-screen sketch `.impeccable/sketches/outbox-shelf.html`.
+- The app at `/`: a sync-status line (synced · *n* pending · retrying ·
+  offline, *n* waiting in this tab · sync stopped, with Retry), the add form,
+  rejections on their own rows, mobile first. The outbox lives in memory, so
+  the line never claims changes outlive the tab. The checkbox issues
+  `SetItemChecked` instead of `EditItem { checked }`.
+- The grocery runtime lives in the `/` route (`src/app/grocery-runtime.ts`), so
+  no other route starts the app's sync engine or writes a clientId.
+- Impeccable runs a surface round for the app inside Ink Basin before its plan
+  is written; the brief is `.impeccable/surfaces/src-routes-index-tsx.md`.
+  Rows offer check and remove only; editing waits for Part 2.
 
 ## Sub-project 3: blog building blocks
 
@@ -508,17 +507,21 @@ scene states the claim its prose makes, and its test asserts that claim.
   network heals.
 - **Component tests** (jsdom, Testing Library): `ItemRow` states, scene player
   controls and keyboard.
+- **The basin:** its operations invert exactly; a list's pattern is the same
+  for the same rows in any order and differs for a device behind or rebased;
+  a converged world draws one pattern on every device; `mountBasin` settles,
+  re-inks on a theme change, skips the settle under reduced motion and
+  survives a lost GPU context, all against a fake host.
 - **Snippet regions:** every referenced region resolves.
 - **Blog routes stand alone:** each `/blog` route, rendered, makes no `/api`
   request and writes nothing to localStorage.
 - **Visual QA:** Impeccable's finish pass on desktop (1440 px) and phone
-  (390 px) screenshots, its detector, a fresh reviewer, and DESIGN.md from its
-  documenter.
+  (390 px) screenshots, day and night, its detector, a fresh reviewer, and
+  DESIGN.md from its documenter.
 - The existing suite keeps passing.
 
 ## Out of scope for now
 
-- Dark mode.
 - PGlite in sandboxes (revisit in Part 2's chapter 10).
 - Reorder UI in the app (comes with Part 2's chapter 6).
 - A talk version of the series.
@@ -526,8 +529,6 @@ scene states the claim its prose makes, and its test asserts that claim.
 
 ## Open at build time
 
-- The plate ground's exact tone (the world's warm plate white, `#F7F4ED` in
-  the reference), at a relative luminance of at least 0.877 (see "Text on each
-  colour").
-- Final faces, checked in the browser.
+- The basin's constants (drop sizes, ring ratios, strokes), tuned against the
+  world's board in `.impeccable/worlds/ink-basin/`.
 - The broken variants for the what-ifs in chapters 3 and 4.

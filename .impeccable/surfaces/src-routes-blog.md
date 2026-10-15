@@ -9,62 +9,53 @@ related_targets: []
 
 ## Scope and mode
 
-The three-part blog series under `src/routes/blog/`, Part 1 first. Visitor mode: **Experience**, by the user's steer: "We need something that brings the animations and visuals to the center. The visual learnings are the most important." The live figures are the work; prose captions them. The grocery app is a separate Operate surface that inherits this world later.
+The three-part blog series under `src/routes/blog/`, Part 1 first. Visitor mode: **Experience**, by the user's steer: "We need something that brings the animations and visuals to the center. The visual learnings are the most important." The live figures are the work; prose captions them. The grocery app is a separate Operate surface that inherits this world.
 
 ## Audience, job, content, constraints
 
 - Frontend and full-stack developers learning how sync engines work; Effect is explained only as far as each snippet needs.
 - Job: watch each sync rule work and fail in the real engine, then break it themselves.
 - Content: the real engine running in the browser (clients, server and in-memory DB per sandbox), real code snippets with the running branch lit, real commit history.
-- Constraints: desktop and phone are both first-class; prerendered static pages; vocabulary from CONTEXT.md; must not read as a generic dev blog, a toy or cartoon, or an academic paper.
+- Constraints: desktop and phone are both first-class; prerendered static pages; vocabulary from CONTEXT.md; must not read as a generic dev blog, a toy or cartoon, an academic paper, or a prop or costume of any physical object (user, 2026-10-15). Night and day themes are both designed, not one derived from the other.
 
 ## Chosen direction and memorable moment
 
-Collective Plate (Toyism), adopted by the user in round 3. Memorable moment: a pending "+" hovering clear of Client A's plate while it travels to the server, landing flat on every plate at once when the pull confirms it.
+Ink Basin, picked by the user on 2026-10-15 from the bolder re-roll, replacing the rejected Collective Plate. Memorable moment: A drops oat milk into its own basin and only A's water shows the fresh drop; the server places it in order, and B's and C's basins redraw until all four patterns are line-for-line identical.
 
 ## Signature interaction
 
-The scene player: play, pause, step and scrub a scripted scene, then "Your turn" hands over the same live world. One scrub moves everything: figure, highlighted code line, trace and caption are pinned to the same instant, and any instant can be linked. Steps are reversible.
+The scene player: play, pause, step and scrub a scripted scene, then "Your turn" hands over the same live world. One scrub moves everything: basins, list, highlighted code line, trace and caption are pinned to the same instant, and any instant can be linked. Steps are reversible, and so are the basins: a basin is a pure function of the operations applied, so scrubbing back redraws it exactly.
+
+## The basin: marbling math, decided
+
+Each basin is computed, never simulated (user, 2026-10-15: marbling math over a fluid solver). Every applied mutation is an exact, area-preserving marbling operation on that device's basin: add drops ink, remove drops clear water, check draws one tine stroke through its item's drop, edit swirls it, reorder combs. The operations do not commute, so a device that applied the same mutations in the same order shows the identical pattern, a device behind is visibly short, and a rebase visibly redraws. Combing gives the feathered look the world's board shows. Motion is each operation settling in over its own duration; still water otherwise.
 
 ## Motion grammar
 
-Symbols move on straight paths at one fixed time scale (distance is time, so a slow network visibly takes longer). In flight or pending means hovering clear of the plate with a slow drift; acked means half landed on the plate's edge; synced means flat on the plate; rejected means knocked out to an outline. No bounce, no blending, hard cuts between scripted steps. A world starts when its figure is at least half in view and pauses when it leaves the view or the tab is hidden. Only a world paused that way resumes on its own; one the reader paused stays paused. Reduced motion: no world starts on its own, messages cut between their sent and arrived positions, the drift is dropped, stepping and scrubbing still work. The pause control is each figure's first focusable control.
+A drop lands crisp and brightest at the moment its device applies it, spreads over a fixed duration (the same on every device), and settles into the pattern. In flight between devices, a mutation is its labelled drop travelling on a straight path at one fixed time scale (distance is time). Pending (applied locally, in the outbox) means crisp and unsettled at the basin's edge; acked means settled in the server's basin but not yet pulled here; synced means settled everywhere. A rejection washes its drop out to a clear ring and the device's basin redraws without it. Hard cuts between scripted steps, no bounce. A world starts when its figure is at least half in view and pauses when it leaves the view or the tab is hidden; only a world paused that way resumes on its own. Reduced motion: no world starts on its own, operations apply without the settle, messages cut between sent and arrived, stepping and scrubbing still work. The pause control is each figure's first focusable control.
 
 ## Interaction rules carried from earlier rounds
 
-- State is never carried by colour alone: every state has a form (hover, half landed, flat, outline, struck, striped or dashed band) and a word (pending, acked, synced, rejected, offline, retrying, stopped). Offline and stopped share the striped band; stopped adds its reason and Retry.
+- State is never carried by colour or pattern alone: every state has a form and a word (pending, acked, synced, rejected, offline, retrying, stopped). Offline and stopped share one treatment; stopped adds its reason and Retry.
 - Every message on a wire carries its label (`#3–#5`, `ack #5`, `pull v4`, `v7` for a pull response, `poke v7`), so its kind never rests on shape alone.
 - Breaking controls (drop a message, take a client offline, stop the server) sit apart from playback, separated by space.
-
-## Colour on colour
-
-Text pairings, from the spec's "Text on each colour" table (WCAG 2.2: 4.5:1 body, 3:1 large):
-
-- On plate: ink (17.2:1), cobalt (6.5:1), error magenta `#C2007A` for small error text (5.3:1), magenta for large text only (3.1:1).
-- On cobalt: plate or white only (6.5:1 / 7.1:1). Never ink (2.7:1) or magenta (2.1:1).
-- On magenta: ink (5.6:1), e.g. breaking-control labels. Plate or white only for large text (3.1:1 / 3.4:1).
-- On lemon: ink or cobalt (14.9:1 / 5.6:1). Lemon itself is never text or a thin line.
-- The plate ground keeps a relative luminance of at least 0.877, so magenta large text holds 3:1.
-
-## Decided since the brief
-
-- Faces as sketched: Big Shoulders Display (titles, condensed caps), Red Hat Text (text), Red Hat Mono (code); all self-hosted, confirmed in the browser at build.
-- Phone composition: Strip. The server plate sits on top, and the client plates sit in a sideways strip the reader swipes.
+- Lists always render as real text on the still margin beside their basin; the basin never replaces the list.
 
 ## Unresolved
 
-- The plate ground's exact tone: the world's warm plate white (`#F7F4ED` in the reference) or a cooler one, within the luminance floor above.
+- Faces chosen while planning: Commissioner (text) and Spline Sans Mono (data), self-hosted.
+- Phone composition of the client strip at 320 px.
 
 ## Direction contract
 
-THESIS: Sync is a shared symbol set. Every phone and the server compose the same symbols, one per mutation type, on their own plate, and they differ on purpose until they converge. It refuses the dev-blog page of code blocks and glowing diagrams, and the cream editorial essay.
+THESIS: Every mutation is a drop of ink and the server's order is the pattern. Each device marbles its own basin from the changes it has applied, so devices that agree show the same pattern line for line, and a device that is behind, ahead or rebased visibly differs. It refuses the dev blog's glowing diagrams and code cards, and every prop or costume metaphor.
 
-OWN-WORLD: A flat plate ground; cobalt fields own the masthead and rails; cobalt, magenta, lemon and ink only (plus white and error magenta for text, per the colour rules), hard edges, no blending, gradients or shadows; thin cobalt rules. Condensed geometric caps for titles, a compact geometric sans for text. The symbol set: plus (add), circle (check), diamond (edit), hourglass (remove), stairs (reorder), starburst (poke), eye (server). Each client's pseudonym mark sits locked in its plate's corner.
+OWN-WORLD: One ink family on water: indigo depth at night, paper-white water by day, ink current, dilute ink, feathered grey and mist between them, no second hue but a vermilion seal, kept for a rejection and a stopped sync. Basins are recessed water with a soft inner shadow and 18 px corners; everything else sits on a still margin with 1 px rules and 6 px controls. A quiet humanist sans, wide-tracked small caps for labels, a quiet mono for ids and versions.
 
-STORY: The reader sees the engine working before reading about it, learns one symbol per mutation, watches the plates diverge and converge, then breaks the world and understands why each rule exists.
+STORY: The reader watches A drop a change into its own basin, sees it land in order in the server's basin and the other basins redraw to match, then breaks the world (drop the ack, go offline, reorder) and watches the patterns disagree until the rule restores them.
 
-FIRST VIEWPORT: A cobalt masthead with the three parts as symbol tabs. On desktop the left third holds the chapter title in condensed caps, one caption line, playback and, set apart below it, the breaking controls; the live scene fills the other two thirds: the server plate (eye) on top, three client plates below, each with its mark, and a pending plus hovering clear of A's plate in flight. On a phone the server plate sits on top and the clients in a sideways strip the reader swipes, with title, caption and playback above the stage and the breaking controls below the strip.
+FIRST VIEWPORT: Desktop: the left third holds the chapter kicker, a 44 px light title, the caption, Back, Play and Step, and, set apart below, the breaking controls. The right two thirds hold the server's basin wide across the top with its version labels, and A, B and C's basins in a row beneath, each with its name, its state in words and its list on the margin under it; A's newest drop crisp. Phone: title, caption and playback above, the server basin, the client basins in a swipeable strip, breaking controls below.
 
-FORM: Collective Plate, the Toyism challenger (catalog design-canon-toyism-signed-collective-plate), declined by me in round 3 and adopted by the user; not on my grounded list. seed: none (unavailable)
+FORM: Ink Basin (suminagashi marbling, catalog medium-native-fluid-ink-basin), dealt as a competitive challenger in the bolder re-roll and chosen by the user over the lead; not on my grounded list. seed: none (unavailable)
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
