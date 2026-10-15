@@ -29,7 +29,7 @@ in `.impeccable/surfaces/src-routes-blog.md`, with its reference images in
 | Feels wrong | A generic dev-blog look, a toy or cartoon, an academic paper. |
 | Devices | Desktop and phone both first-class. |
 | Visual mode | Visuals first (Impeccable's Experience mode): the live figures are the work and the prose captions them. |
-| Visual world | Collective Plate (Toyism), chosen in the third Impeccable round. |
+| Visual world | Ink Basin (suminagashi marbling), chosen on 2026-10-15 after Collective Plate (Toyism, the third Impeccable round) was built and rejected. |
 | Phone composition | Strip: the server on top, clients in a sideways strip the reader swipes. |
 | Sandbox approach | A controlled world: the real engine on a virtual clock, a simulated network and a recorded timeline (approach A). |
 | Server store in sandboxes | In memory. PGlite is deferred to Part 2 and only if a chapter earns it. |
@@ -159,11 +159,11 @@ and the first plan covers sub-project 1 only.
 
 1. **Sandbox runtime** — `src/lib/sandbox/`, React-free. Detailed below; the
    first plan.
-2. **Design system and app overhaul** — tokens, faces, symbols, plate and row
+2. **Design system and app overhaul** — tokens, faces, the basin, pane and row
    components; the grocery app at `/` restyled in the world, with the list
    extracted into a shared component.
 3. **Blog building blocks** — `/blog/*` routes and MDX, the scene player, the
-   plate stage, the code panel, prerendering.
+   pane stage, the code panel, prerendering.
 4. **Part 1 content** — chapters 0, 1, 2 and 9: scenes, captions, prose.
 
 Parts 2 and 3 repeat step 4 and add sandbox features only when a chapter needs
@@ -448,11 +448,11 @@ app's surface round.
 - **Page rhythm:** each chapter opens on its stage. On desktop, title, caption
   and controls take the left third and the stage the rest; prose follows in a
   64-character column; chapters with code show the stage and a sticky code
-  panel side by side. On phones, the server plate sits on top and the clients
+  panel side by side. On phones, the server pane sits on top and the clients
   in a swipeable strip.
-- **Plate stage:** plates are HTML, each rendering `GroceryList` from its
+- **Pane stage:** panes are HTML, each rendering `GroceryList` from its
   client's snapshot at *t*. One SVG overlay draws the wires and travelling
-  symbols; a message sits at `(t − sent) / (arrive − sent)` along its wire.
+  messages; a message sits at `(t − sent) / (arrive − sent)` along its wire.
   Anchors are measured with a ResizeObserver. Rendering is a pure function of
   the timeline and *t*.
 - **Clock driver:** one `requestAnimationFrame` loop per visible world, speeds
@@ -478,10 +478,10 @@ scene states the claim its prose makes, and its test asserts that claim.
 
 ## Error handling and edge cases
 
-- **Fatal sync failure** in a client: its plate shows the striped "sync
+- **Fatal sync failure** in a client: its pane shows the solid "sync
   stopped" band with the reason and Retry, which calls the engine's `retry`.
   The same component serves the app.
-- **Local refusal:** the symbol is knocked out at the plate's edge with its
+- **Local refusal:** the drop washes out at the pane's basin with its
   reason; no id is spent.
 - **Long holds** trip the real timeout and backoff; long waits are compressed
   on screen with a marker.
