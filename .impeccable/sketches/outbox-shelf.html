@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kitchen Sync · Outbox shelf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=Red+Hat+Mono:wght@500&family=Red+Hat+Text:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root { --cobalt:#1A33FF; --magenta:#FF2DA6; --err:#C2007A; --ink:#111111; --plate:#F7F4ED; }
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { width:390px; height:844px; overflow:hidden; background:var(--plate); color:var(--ink);
+  font:400 16px/1.35 "Red Hat Text", sans-serif; }
+.mast { position:relative; height:176px; background:var(--cobalt); color:var(--plate); padding:18px 16px 0; }
+.name { font:800 36px/1 "Big Shoulders Display", sans-serif; text-transform:uppercase; letter-spacing:.02em; }
+.mark { position:absolute; top:18px; right:16px; border:2px solid var(--plate); padding:3px 7px;
+  font:500 13px/1.2 "Red Hat Mono", monospace; }
+.status { margin-top:10px; font-size:15px; font-weight:500; }
+.shelf { position:absolute; left:16px; right:16px; bottom:22px; height:2px; background:var(--plate); }
+.on-shelf { position:absolute; bottom:0; display:flex; flex-direction:column; align-items:center;
+  font:500 12px/1 "Red Hat Mono", monospace; gap:4px; }
+.on-shelf svg { width:24px; height:24px; fill:var(--plate); }
+.on-shelf.pending { bottom:14px; }
+.on-shelf.acked { bottom:-12px; flex-direction:column-reverse; }
+.on-shelf.acked span { margin-top:4px; }
+.shelf-label { position:absolute; right:0; bottom:-18px; font-size:12px; }
+.list { padding:4px 16px 0; }
+.head { display:flex; justify-content:space-between; align-items:baseline; margin-top:14px;
+  border-bottom:2px solid var(--cobalt); padding-bottom:3px; color:var(--cobalt); }
+.head h2 { font:800 21px/1 "Big Shoulders Display", sans-serif; text-transform:uppercase; letter-spacing:.04em; }
+.head span { font-size:13px; font-weight:500; }
+.row { display:flex; align-items:center; gap:12px; height:46px; border-bottom:1px solid var(--cobalt); }
+.box { flex:none; width:24px; height:24px; border:2px solid var(--ink); border-radius:50%; }
+.row.checked .box { background:var(--magenta); border-color:var(--magenta); }
+.row.checked .what { text-decoration:line-through; }
+.qty { font-weight:700; }
+.state { margin-left:auto; display:flex; align-items:center; gap:5px; color:var(--cobalt);
+  font:500 12px/1 "Red Hat Mono", monospace; }
+.state svg { width:16px; height:16px; fill:var(--cobalt); }
+.state.pending svg { transform:translateY(-7px); }
+.state.acked svg { transform:translateY(-3px); }
+.rej { display:flex; align-items:center; gap:10px; margin-top:12px; padding:8px 10px; border:2px solid var(--err); }
+.rej svg { flex:none; width:22px; height:22px; fill:none; stroke:var(--err); stroke-width:2.5; }
+.rej p { font-size:14px; line-height:1.3; }
+.rej b { display:block; }
+.rej em { font-style:normal; color:var(--err); }
+.rej button { margin-left:auto; background:none; border:2px solid var(--ink); padding:6px 10px;
+  font:700 13px "Red Hat Text", sans-serif; color:var(--ink); }
+.dock { position:absolute; left:0; right:0; bottom:0; padding:12px 16px 20px; background:var(--plate);
+  border-top:2px solid var(--cobalt); display:grid; grid-template-columns:1fr 1fr 1.6fr; gap:8px; }
+.dock input, .dock select { height:44px; border:2px solid var(--cobalt); background:var(--plate);
+  padding:0 10px; font:400 16px "Red Hat Text", sans-serif; color:var(--ink); }
+.dock .item { grid-column:1 / 3; }
+.add { height:44px; border:0; background:var(--cobalt); color:#fff; font:700 16px "Red Hat Text", sans-serif;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+  display:flex; align-items:center; justify-content:center; gap:8px; }
+.add svg { width:14px; height:14px; fill:#fff; }
+</style>
+</head>
+<body>
+<header class="mast">
+  <p class="name">Kitchen Sync</p>
+  <p class="mark" title="This device">K7-3F</p>
+  <p class="status">3 pending · changes leave as soon as they're made</p>
+  <div class="shelf">
+    <div class="on-shelf acked" style="left:6px"><svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg><span>#14</span></div>
+    <div class="on-shelf pending" style="left:52px"><span>#15</span><svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg></div>
+    <div class="on-shelf pending" style="left:98px"><span>#16</span><svg viewBox="0 0 24 24"><path d="M3 2h18a9 9 0 0 1-18 0zM3 22h18a9 9 0 0 0-18 0z"/></svg></div>
+    <span class="shelf-label">outbox</span>
+  </div>
+</header>
+
+<main class="list">
+  <section>
+    <div class="head"><h2>Produce</h2><span>2 left</span></div>
+    <div class="row"><span class="box"></span><span class="what"><span class="qty">6</span> Bananas</span></div>
+    <div class="row checked"><span class="box"></span><span class="what"><span class="qty">1 bag</span> Spinach</span></div>
+    <div class="row"><span class="box"></span><span class="what"><span class="qty">3</span> Lemons</span></div>
+  </section>
+  <section>
+    <div class="head"><h2>Dairy</h2><span>2 left</span></div>
+    <div class="row"><span class="box"></span><span class="what"><span class="qty">2 l</span> Oat milk</span>
+      <span class="state pending"><svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg>#15 pending</span></div>
+    <div class="row"><span class="box"></span><span class="what"><span class="qty">500 g</span> Greek yogurt</span></div>
+  </section>
+  <section>
+    <div class="head"><h2>Bakery</h2><span>1 left</span></div>
+    <div class="row"><span class="box"></span><span class="what"><span class="qty">1</span> Rye bread</span>
+      <span class="state acked"><svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg>#14 acked</span></div>
+  </section>
+  <div class="rej">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+    <p><b>Coffee beans</b><em>Check refused: item not found</em></p>
+    <button type="button">Dismiss</button>
+  </div>
+</main>
+
+<form class="dock">
+  <input class="item" placeholder="Add an item" aria-label="Item">
+  <button class="add" type="button"><svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg>Add</button>
+  <input value="1" aria-label="Quantity">
+  <input placeholder="Unit" aria-label="Unit">
+  <select aria-label="Category"><option>Dairy</option></select>
+</form>
+</body>
+</html>

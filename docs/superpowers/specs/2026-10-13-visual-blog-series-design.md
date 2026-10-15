@@ -182,8 +182,7 @@ The engine stays as it is, apart from these, each landing with the work named:
 - **On `main`, before sub-project 3:** the client's poke stream. A 10 s
   `Stream.timeout` against a heartbeat jittered around 15 s (12–18 s) ended
   the stream after any quiet spell, leaving the pull loop on its 30 s tick for
-  good. Fixed and tested on branch `main-review-fixes`, not yet merged into
-  `main`: quiet means 40 s, and a lost poke stream (quiet, closed, or its
+  good. Fixed and tested on `main` (merged 2026-10-15): quiet means 40 s, and a lost poke stream (quiet, closed, or its
   connection dropped mid-stream) fails retryably, so the pull loop
   subscribes again. A sync loop iteration that ran 30 s before a retryable
   failure ends instead (`endIfHealthy` in `src/lib/retry.ts`), so the next
@@ -205,8 +204,11 @@ The engine stays as it is, apart from these, each landing with the work named:
   an immediate retry, then `Retrying`. "Offline" is a `network error` reason in the app; in a world it is
   the network model's `snapshot.offline`, and the offline band hides a
   `network error` retrying band. The trace gains `Retrying` and `Recovered`
-  client events, with their loop, diffed from the field like the rest. Also:
-  the grocery runtime moves out of the root shell into the `/` route.
+  client events, with their loop, diffed from the field like the rest. A
+  rejection in `StoreState` also keeps what it refused: the mutation's tag
+  and the item's name as the client last showed it (`null` when it never
+  knew one), so a rejected row can name its item after a pull has removed it.
+  Also: the grocery runtime moves out of the root shell into the `/` route.
 - **Part 2:** `SyncClient` takes an optional store layer (the variant seam).
 - **Part 3:** export `classifyHttpClientError` from `src/lib/transport.ts`, for
   the failing server.
@@ -403,9 +405,12 @@ prerendering uses it to produce each scene's first frame.
   shared `GroceryList` / `ItemRow`.
 - `ItemRow` states: synced (flat), pending (symbol hovering, `#id`), acked
   (half landed, `#id`), checked (magenta circle, strike-through), rejected
-  (outline, the server's reason, dismiss).
-- `GroceryList` takes plain props (items, pending ids, acked ids, rejections,
-  `onIntent`).
+  (outline, the item's name, the server's reason, dismiss).
+- `GroceryList` takes plain props: the category groups and rejections that
+  `listView(state)` derives from a `StoreState`, and an optional `onIntent`
+  that receives intents without `issuedAt`, which the binder stamps from its
+  own clock (the app's, or a world's virtual one). Without `onIntent` it is
+  read-only.
   The app binds it to its runtime; a sandbox binds it to a snapshot at *t*,
   read-only during a scene and live in "Your turn".
 - The app at `/`: cobalt masthead with a sync-status line (synced · *n* pending
@@ -417,7 +422,12 @@ prerendering uses it to produce each scene's first frame.
   root `shellComponent`, `src/routes/__root.tsx:39-55`) moves into the `/`
   route, so no other route starts the app's sync engine or writes a clientId.
 - Impeccable runs a surface round for the app (three layouts within the world)
-  before it is built.
+  before it is built. It ran on 2026-10-15 and the user locked **Outbox
+  shelf**: the outbox drawn as symbols on a shelf along the cobalt masthead's
+  foot, the list grouped by category with counts left, the add form docked at
+  the bottom on a phone. Rows offer check and remove only; editing waits for
+  Part 2. The contract is `.impeccable/surfaces/src-routes-index-tsx.md`, the
+  chosen first-screen sketch `.impeccable/sketches/outbox-shelf.html`.
 
 ## Sub-project 3: blog building blocks
 
