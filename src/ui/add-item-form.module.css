@@ -1,0 +1,72 @@
+/* A phone: docked at the bottom, in thumb reach, item and Add on the first
+   line. The DOM keeps the order a keyboard wants: item, quantity, unit,
+   category, Add. */
+.form {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 1;
+  display: grid;
+  grid-template-areas:
+    "name name add"
+    "quantity unit category";
+  grid-template-columns: 1fr 1fr 1.6fr;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4)
+    calc(var(--space-4) + env(safe-area-inset-bottom));
+  border-top: var(--rule) solid var(--cobalt);
+  background: var(--plate);
+}
+
+.field {
+  min-width: 0;
+  min-height: var(--target);
+  padding: 0 var(--space-3);
+  border: var(--rule) solid var(--cobalt);
+  border-radius: 0;
+  background: var(--plate);
+}
+
+.field::placeholder {
+  color: var(--cobalt);
+  opacity: 1;
+}
+
+.field:focus-visible {
+  outline-offset: 0;
+}
+
+.name {
+  grid-area: name;
+}
+
+.quantity {
+  grid-area: quantity;
+}
+
+.unit {
+  grid-area: unit;
+}
+
+.category {
+  grid-area: category;
+}
+
+.add {
+  grid-area: add;
+  display: grid;
+}
+
+/* A desktop: no thumb to reach with, so the form is the first row under the
+   masthead. */
+@media (min-width: 45rem) {
+  .form {
+    position: static;
+    grid-template-areas: "name quantity unit category add";
+    grid-template-columns: minmax(0, 1fr) 5rem 7rem 10rem auto;
+    max-width: var(--column);
+    margin: var(--space-5) auto 0;
+    padding: 0 var(--space-4);
+    border-top: 0;
+    background: none;
+  }
+}
