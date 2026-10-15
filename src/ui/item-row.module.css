@@ -1,6 +1,7 @@
 .row {
+  --remove-width: var(--target);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 4.5rem var(--target);
+  grid-template-columns: minmax(0, 1fr) 4.5rem var(--remove-width);
   align-items: center;
   column-gap: var(--space-2);
   min-height: var(--row-height);
@@ -98,14 +99,17 @@ label.label {
 }
 
 .remove {
-  display: grid;
-  place-items: center;
-  width: var(--target);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  width: var(--remove-width);
   height: var(--target);
   padding: 0;
   border: 0;
   background: none;
-  color: var(--ink);
+  color: var(--cobalt);
+  font: 500 var(--text-sm) / 1 var(--font-text);
   cursor: pointer;
   transition: color var(--motion-state) var(--ease-out);
 }
@@ -115,6 +119,27 @@ label.label {
 }
 
 .removeGlyph {
-  width: 1.125rem;
-  height: 1.125rem;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-inline: auto;
+}
+
+.removeLabel {
+  display: none;
+}
+
+/* Wide enough, the control reads as Button does: its word, then its symbol. */
+@media (min-width: 45rem) {
+  .row {
+    --remove-width: 6rem;
+  }
+
+  .removeLabel {
+    display: inline;
+  }
+
+  .removeGlyph {
+    margin-inline: 0;
+  }
 }

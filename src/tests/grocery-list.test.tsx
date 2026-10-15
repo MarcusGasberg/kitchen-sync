@@ -121,9 +121,8 @@ describe("RejectedRow", () => {
     const row = screen.getByRole("listitem");
     expect(row.dataset.sync).toBe("rejected");
     expect(row.textContent).toContain("Coffee beans");
-    expect(row.textContent).toContain(
-      "Check rejected: item 5b0f2a9e… not found",
-    );
+    expect(row.textContent).toContain("Check rejected: item not found");
+    expect(row.textContent).not.toContain("5b0f2a9e");
     expect(
       row.querySelector('svg[data-symbol="circle"][data-variant="outline"]'),
     ).not.toBeNull();
@@ -133,6 +132,24 @@ describe("RejectedRow", () => {
       }),
     );
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a shortened id when the row cannot name the item", () => {
+    render(
+      <ul>
+        <RejectedRow
+          rejection={{
+            clientMutationId: 8,
+            intent: "SetItemChecked",
+            name: null,
+            reason: "item 5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b not found",
+          }}
+        />
+      </ul>,
+    );
+    expect(screen.getByRole("listitem").textContent).toContain(
+      "Check rejected: item 5b0f2a9e… not found",
+    );
   });
 
   it("names the change by its id when it no longer knows what it was", () => {

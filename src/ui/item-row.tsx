@@ -67,6 +67,9 @@ export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
           aria-label={`Remove ${item.name}`}
           onClick={onRemove}
         >
+          <span className={styles.removeLabel} aria-hidden="true">
+            Remove
+          </span>
           <Glyph symbol="hourglass" className={styles.removeGlyph} />
         </button>
       )}

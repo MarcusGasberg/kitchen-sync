@@ -74,9 +74,31 @@
   color: var(--white);
 }
 
+/* Disabled is the outlined plate: a cobalt edge on the same pointed shape, plate
+   inside, a cobalt label. ::before is the edge, ::after the fill inset by one
+   rule. A secondary button already has its own border. */
 .button:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  color: var(--cobalt);
+}
+
+.button:disabled:not([data-kind="secondary"])::before {
+  background: var(--cobalt);
+}
+
+.button:disabled:not([data-kind="secondary"])::after {
+  content: "";
+  position: absolute;
+  inset: var(--rule);
+  z-index: -1;
+  background: var(--plate);
+  clip-path: polygon(
+    0 0,
+    calc(100% - 0.75rem + var(--rule) * 0.5) 0,
+    calc(100% - var(--rule) * 1.1) 50%,
+    calc(100% - 0.75rem + var(--rule) * 0.5) 100%,
+    0 100%
+  );
 }
 
 .glyph {

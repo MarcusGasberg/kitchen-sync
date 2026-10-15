@@ -26,6 +26,15 @@
   background: var(--plate);
 }
 
+select.field {
+  appearance: none;
+  padding-right: var(--space-6);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%231a33ff' d='M0 0h12L6 8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  background-size: 0.75rem 0.5rem;
+}
+
 .field::placeholder {
   color: var(--cobalt);
   opacity: 1;

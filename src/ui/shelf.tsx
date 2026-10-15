@@ -40,6 +40,9 @@ export function Shelf({ entries, max = SHELF_MAX }: ShelfProps) {
           </li>
         )}
       </ol>
+      <span className={styles.label} aria-hidden="true">
+        outbox
+      </span>
     </div>
   );
 }

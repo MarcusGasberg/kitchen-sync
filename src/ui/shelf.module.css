@@ -13,6 +13,13 @@
   background: currentColor;
 }
 
+.label {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  font: 500 var(--text-xs) / 1 var(--font-mono);
+}
+
 .entries {
   position: absolute;
   inset: 0;
