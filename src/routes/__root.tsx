@@ -1,5 +1,5 @@
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { palette } from "#/ui/palette";
+import { ThemeColor } from "#/ui/theme-color";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -9,16 +9,6 @@ export const Route = createRootRoute({
       {
         name: "viewport",
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
-      },
-      {
-        name: "theme-color",
-        content: palette.day.page,
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        name: "theme-color",
-        content: palette.night.page,
-        media: "(prefers-color-scheme: dark)",
       },
       { title: "Kitchen Sync" },
     ],
@@ -34,6 +24,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <ThemeColor />
       </head>
       <body>
         {children}
