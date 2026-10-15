@@ -98,29 +98,26 @@ describe("listView", () => {
       kind: "pending",
       clientMutationId: 6,
       intent: "SetItemChecked",
-      symbol: "circle",
     });
     expect(sync.get("Rye bread")).toEqual({
       kind: "acked",
       clientMutationId: 4,
       intent: "AddItem",
-      symbol: "plus",
     });
     expect(sync.get("Eggs")).toEqual({ kind: "synced" });
-    expect(view.shelf).toEqual([
-      { clientMutationId: 4, intent: "AddItem", symbol: "plus", acked: true },
-      { clientMutationId: 5, intent: "AddItem", symbol: "plus", acked: false },
+    expect(view.waiting).toEqual([
+      { clientMutationId: 4, intent: "AddItem", acked: true },
+      { clientMutationId: 5, intent: "AddItem", acked: false },
       {
         clientMutationId: 6,
         intent: "SetItemChecked",
-        symbol: "circle",
         acked: false,
       },
     ]);
   });
 
-  // A removal's row leaves the list at once; the shelf still shows it.
-  it("keeps a pending removal on the shelf after its row has gone", () => {
+  // A removal's row leaves the list at once; the outbox still lists it.
+  it("keeps a pending removal in the outbox after its row has gone", () => {
     const outbox = [
       entry({
         _tag: "RemoveItem",
@@ -131,11 +128,10 @@ describe("listView", () => {
     ];
     const view = listView(state([], { outbox }));
     expect(view.groups).toEqual([]);
-    expect(view.shelf).toEqual([
+    expect(view.waiting).toEqual([
       {
         clientMutationId: 1,
         intent: "RemoveItem",
-        symbol: "hourglass",
         acked: false,
       },
     ]);

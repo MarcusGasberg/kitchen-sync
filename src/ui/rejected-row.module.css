@@ -1,38 +1,35 @@
 .row {
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-columns: 0.75rem minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  border: var(--rule) solid var(--error-magenta);
+  border: var(--rule) dashed var(--seal);
+  border-radius: var(--radius-control);
+  background: var(--water);
 }
 
-.glyph {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: var(--error-magenta);
-}
-
-.glyph svg {
-  width: 100%;
-  height: 100%;
+.ring {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: var(--rule) dashed var(--seal);
+  border-radius: 50%;
 }
 
 .text {
-  display: grid;
   min-width: 0;
-  font-size: var(--text-sm);
-  line-height: 1.3;
 }
 
 .name {
+  display: block;
   overflow: hidden;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .reason {
-  color: var(--error-magenta);
-  overflow-wrap: anywhere;
+  display: block;
+  color: var(--seal);
+  font-size: var(--text-sm);
 }

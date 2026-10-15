@@ -1,21 +1,20 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ShelfEntry } from "#/ui/list-view";
+import type { WaitingChange } from "#/ui/list-view";
 import { Masthead } from "#/ui/masthead";
-import { Shelf } from "#/ui/shelf";
 import { StatusBand } from "#/ui/status-band";
+import { WaitingStrip } from "#/ui/waiting-strip";
 
 const CLIENT = "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b";
 
-const entries = (count: number, ackedThrough = 0): Array<ShelfEntry> =>
+const changes = (count: number, ackedThrough = 0): Array<WaitingChange> =>
   Array.from({ length: count }, (_, i) => ({
     clientMutationId: i + 1,
     intent: i === 0 ? "RemoveItem" : "AddItem",
-    symbol: "plus",
     acked: i + 1 <= ackedThrough,
   }));
 
-const shelfItems = () =>
+const outboxItems = () =>
   within(screen.getByRole("list", { name: "Outbox" })).queryAllByRole(
     "listitem",
   );
@@ -26,11 +25,11 @@ const theBand = () => {
   return band;
 };
 
-describe("Shelf", () => {
-  it("draws each outbox entry with its #id, acked ones half landed", () => {
-    render(<Shelf entries={entries(3, 1)} />);
+describe("WaitingStrip", () => {
+  it("lists each change the outbox holds, in words, acked or pending", () => {
+    render(<WaitingStrip changes={changes(3, 1)} />);
     expect(
-      shelfItems().map((li) => [li.dataset.acked, li.textContent]),
+      outboxItems().map((li) => [li.dataset.acked, li.textContent]),
     ).toEqual([
       ["true", "Remove #1, acked"],
       ["false", "Add #2, pending"],
@@ -39,15 +38,15 @@ describe("Shelf", () => {
   });
 
   it("counts what does not fit, without growing", () => {
-    render(<Shelf entries={entries(20)} />);
-    const items = shelfItems();
+    render(<WaitingStrip changes={changes(20)} />);
+    const items = outboxItems();
     expect(items).toHaveLength(8);
     expect(items.at(-1)?.textContent).toBe("+13 more");
   });
 
   it("is an empty list when the outbox is empty", () => {
-    render(<Shelf entries={[]} />);
-    expect(shelfItems()).toHaveLength(0);
+    render(<WaitingStrip changes={[]} />);
+    expect(outboxItems()).toHaveLength(0);
   });
 });
 
@@ -57,7 +56,7 @@ describe("Masthead", () => {
       <Masthead
         clientId={CLIENT}
         status={{ kind: "pending", pending: 2, acked: 1 }}
-        shelf={entries(3, 1)}
+        waiting={changes(3, 1)}
       />,
     );
     expect(
@@ -67,11 +66,13 @@ describe("Masthead", () => {
     expect(
       screen.getByText("2 pending · 1 acked").getAttribute("aria-live"),
     ).toBe("polite");
-    expect(shelfItems()).toHaveLength(3);
+    expect(outboxItems()).toHaveLength(3);
   });
 
   it("leaves the mark out until the device knows its id", () => {
-    render(<Masthead clientId={null} status={{ kind: "synced" }} shelf={[]} />);
+    render(
+      <Masthead clientId={null} status={{ kind: "synced" }} waiting={[]} />,
+    );
     expect(screen.queryByTitle(/^Device/)).toBeNull();
     expect(screen.getByText("Synced")).toBeTruthy();
   });

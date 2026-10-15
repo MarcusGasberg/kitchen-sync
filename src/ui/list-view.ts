@@ -6,7 +6,6 @@ import {
 } from "#/domain/grocery-item";
 import type { MutationIntent } from "#/domain/mutation";
 import type { Rejection, StoreState } from "#/lib/store";
-import { SYMBOL_FOR, type SymbolName } from "./symbols";
 
 // What a row shows of its sync: nothing once synced; otherwise the newest
 // change waiting for it, pending until the server acks it.
@@ -16,7 +15,6 @@ export type RowSync =
       readonly kind: "pending" | "acked";
       readonly clientMutationId: number;
       readonly intent: MutationIntent["_tag"];
-      readonly symbol: SymbolName;
     };
 
 export interface Row {
@@ -32,42 +30,38 @@ export interface Group {
   readonly left: number;
 }
 
-// One outbox entry, as the shelf draws it.
-export interface ShelfEntry {
+// One change the outbox still holds, as the header lists it.
+export interface WaitingChange {
   readonly clientMutationId: number;
   readonly intent: MutationIntent["_tag"];
-  readonly symbol: SymbolName;
   readonly acked: boolean;
 }
 
 export interface ListView {
   readonly groups: ReadonlyArray<Group>;
-  readonly shelf: ReadonlyArray<ShelfEntry>;
+  readonly waiting: ReadonlyArray<WaitingChange>;
   readonly rejected: ReadonlyArray<Rejection>;
 }
 
-// Everything the list and the shelf show, read off one client's state: the
+// Everything the list and the outbox show, read off one client's state: the
 // app's live store, or a world's snapshot at any instant.
 export const listView = (
   state: Pick<StoreState, "items" | "outbox" | "ackedThrough" | "rejected">,
 ): ListView => {
-  const shelf: Array<ShelfEntry> = [];
+  const waiting: Array<WaitingChange> = [];
   // The outbox is in id order, so the last entry per item is its newest.
   const newest = new Map<string, RowSync>();
   for (const { mutation } of state.outbox) {
     const acked = mutation.clientMutationId <= state.ackedThrough;
-    const symbol = SYMBOL_FOR[mutation._tag];
-    shelf.push({
+    waiting.push({
       clientMutationId: mutation.clientMutationId,
       intent: mutation._tag,
-      symbol,
       acked,
     });
     newest.set(mutation.itemId, {
       kind: acked ? "acked" : "pending",
       clientMutationId: mutation.clientMutationId,
       intent: mutation._tag,
-      symbol,
     });
   }
 
@@ -88,5 +82,5 @@ export const listView = (
     return [{ category, rows, left }];
   });
 
-  return { groups, shelf, rejected: state.rejected };
+  return { groups, waiting, rejected: state.rejected };
 };

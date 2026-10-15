@@ -3,7 +3,6 @@ import type { GroceryItem } from "#/domain/grocery-item";
 import { VERB } from "./intent-words";
 import styles from "./item-row.module.css";
 import type { RowSync } from "./list-view";
-import { Glyph } from "./symbols";
 
 // "2 l": a row's quantity and unit, set bold before its name.
 const amount = (item: GroceryItem) =>
@@ -19,9 +18,9 @@ interface ItemRowProps {
   readonly onRemove?: () => void;
 }
 
-// One grocery item. Its sync state changes its form inside a fixed box, so the
-// list never reflows when a change lands: synced lies flat with no marker,
-// pending hovers with its #id, acked sits half landed.
+// One grocery item. Its sync state changes form inside a fixed box, so the
+// list never reflows when a change lands: synced shows nothing, pending a
+// hollow ring with its #id, acked the ring half filled.
 export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
   const text = (
     <span className={styles.what}>
@@ -55,7 +54,7 @@ export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
       <span className={styles.state}>
         {sync.kind !== "synced" && (
           <>
-            <Glyph symbol={sync.symbol} className={styles.glyph} />
+            <span className={styles.ring} aria-hidden="true" />
             <span className="visually-hidden">{VERB[sync.intent]} </span>
             <span>#{sync.clientMutationId}</span>
             <span className={styles.word}>
@@ -75,7 +74,20 @@ export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
           <span className={styles.removeLabel} aria-hidden="true">
             Remove
           </span>
-          <Glyph symbol="hourglass" className={styles.removeGlyph} />
+          <svg
+            className={styles.cross}
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
         </button>
       )}
     </li>

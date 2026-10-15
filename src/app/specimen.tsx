@@ -8,13 +8,12 @@ import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
 import { GroceryList } from "#/ui/grocery-list";
-import type { Group, ShelfEntry } from "#/ui/list-view";
+import type { Group, WaitingChange } from "#/ui/list-view";
 import { Masthead } from "#/ui/masthead";
 import { Pane } from "#/ui/pane";
 import { PartTabs } from "#/ui/part-tabs";
 import { ScrubBar } from "#/ui/scrub-bar";
 import { StatusBand } from "#/ui/status-band";
-import { Glyph, SYMBOLS } from "#/ui/symbols";
 import type { SyncStatus } from "#/ui/sync-status";
 import styles from "./specimen.module.css";
 
@@ -57,7 +56,6 @@ const GROUPS: ReadonlyArray<Group> = [
           kind: "acked",
           clientMutationId: 14,
           intent: "SetItemChecked",
-          symbol: "circle",
         },
       },
       { item: item("Lemons", 3, null, "Produce", 2), sync: { kind: "synced" } },
@@ -73,7 +71,6 @@ const GROUPS: ReadonlyArray<Group> = [
           kind: "pending",
           clientMutationId: 15,
           intent: "AddItem",
-          symbol: "plus",
         },
       },
       {
@@ -99,7 +96,6 @@ const GROUPS: ReadonlyArray<Group> = [
           kind: "pending",
           clientMutationId: 1234,
           intent: "AddItem",
-          symbol: "plus",
         },
       },
     ],
@@ -125,44 +121,40 @@ const REJECTED: ReadonlyArray<Rejection> = [
   },
 ];
 
-const INTENTS = [
-  { intent: "AddItem", symbol: "plus" },
-  { intent: "SetItemChecked", symbol: "circle" },
-  { intent: "RemoveItem", symbol: "hourglass" },
-] as const;
+const INTENTS = ["AddItem", "SetItemChecked", "RemoveItem"] as const;
 
-const shelf = (count: number, ackedThrough: number): Array<ShelfEntry> =>
+const waiting = (count: number, ackedThrough: number): Array<WaitingChange> =>
   Array.from({ length: count }, (_, i) => ({
     clientMutationId: 13 + i,
-    ...(INTENTS[i % 3] ?? INTENTS[0]),
+    intent: INTENTS[i % 3] ?? "AddItem",
     acked: 13 + i <= ackedThrough,
   }));
 
 const STATES: ReadonlyArray<{
   readonly label: string;
   readonly status: SyncStatus;
-  readonly shelf: ReadonlyArray<ShelfEntry>;
+  readonly waiting: ReadonlyArray<WaitingChange>;
 }> = [
-  { label: "Synced", status: { kind: "synced" }, shelf: [] },
+  { label: "Synced", status: { kind: "synced" }, waiting: [] },
   {
     label: "Pending and acked",
     status: { kind: "pending", pending: 2, acked: 1 },
-    shelf: shelf(3, 13),
+    waiting: waiting(3, 13),
   },
   {
     label: "Retrying",
     status: { kind: "retrying", reason: "HTTP 503", waiting: 3 },
-    shelf: shelf(3, 13),
+    waiting: waiting(3, 13),
   },
   {
     label: "Offline, twenty waiting",
     status: { kind: "offline", waiting: 20 },
-    shelf: shelf(20, 13),
+    waiting: waiting(20, 13),
   },
   {
     label: "Stopped",
     status: { kind: "stopped", loop: "push", reason: "HTTP 400", waiting: 1 },
-    shelf: shelf(1, 0),
+    waiting: waiting(1, 0),
   },
 ];
 
@@ -183,7 +175,7 @@ export function Specimen() {
           <Masthead
             clientId={DEVICE}
             status={state.status}
-            shelf={state.shelf}
+            waiting={state.waiting}
           />
           <StatusBand status={state.status} onRetry={noop} />
         </section>
@@ -225,12 +217,6 @@ export function Specimen() {
           <Button kind="secondary">Dismiss</Button>
           <Button kind="breaking">Drop the ack</Button>
           <Button disabled>Add</Button>
-        </div>
-        <div className={styles.row}>
-          {SYMBOLS.map((symbol) => (
-            <Glyph key={symbol} symbol={symbol} className={styles.glyph} />
-          ))}
-          <Glyph symbol="starburst" inked className={styles.lemon} />
         </div>
         <div className={styles.cobalt}>
           <PartTabs

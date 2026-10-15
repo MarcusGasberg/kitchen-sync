@@ -49,7 +49,7 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
 
   return (
     <div className={styles.app}>
-      <Masthead clientId={clientId} status={status} shelf={view.shelf} />
+      <Masthead clientId={clientId} status={status} waiting={view.waiting} />
       <StatusBand
         status={status}
         onRetry={() =>

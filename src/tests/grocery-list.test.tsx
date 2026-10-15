@@ -60,7 +60,6 @@ describe("ItemRow", () => {
             kind,
             clientMutationId: 15,
             intent: "SetItemChecked",
-            symbol: "circle",
           }}
         />
       </ul>,
@@ -68,7 +67,6 @@ describe("ItemRow", () => {
     const row = screen.getByRole("listitem");
     expect(row.dataset.sync).toBe(kind);
     expect(row.textContent).toContain(`Check #15, ${kind}`);
-    expect(row.querySelector('svg[data-symbol="circle"]')).not.toBeNull();
   });
 
   it("checks and removes through its own controls", () => {
@@ -127,9 +125,6 @@ describe("RejectedRow", () => {
     expect(row.textContent).toContain("Coffee beans");
     expect(row.textContent).toContain("Check rejected: item not found");
     expect(row.textContent).not.toContain("5b0f2a9e");
-    expect(
-      row.querySelector('svg[data-symbol="circle"][data-variant="outline"]'),
-    ).not.toBeNull();
     fireEvent.click(
       screen.getByRole("button", {
         name: "Dismiss the rejection of Coffee beans",
