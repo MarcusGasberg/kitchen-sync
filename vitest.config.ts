@@ -15,6 +15,7 @@ export default defineConfig({
   plugins: [tanstackStart(), viteReact()],
   test: {
     environment: "jsdom",
+    setupFiles: ["src/tests/setup-dom.ts"],
     // Never the dev database: the tests truncate tables, and a running dev
     // server's sync loop deadlocks against the truncate.
     env: {
