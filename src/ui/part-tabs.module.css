@@ -1,7 +1,7 @@
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  column-gap: var(--space-5);
 }
 
 .tab {
@@ -9,27 +9,26 @@
   align-items: center;
   gap: var(--space-2);
   min-height: var(--target);
-  padding: 0 var(--space-3);
-  border: var(--rule) solid var(--plate);
-  color: var(--plate);
-  font-weight: 700;
+  border-bottom: var(--rule) solid transparent;
+  color: var(--text-2);
+  font-size: var(--text-sm);
   text-decoration: none;
   transition:
-    background-color var(--motion-state) var(--ease-out),
-    color var(--motion-state) var(--ease-out);
+    color var(--motion-state) var(--ease-out),
+    border-color var(--motion-state) var(--ease-out);
 }
 
-.tab:hover,
 .tab[aria-current="page"] {
-  background: var(--plate);
-  color: var(--cobalt);
+  border-bottom-color: var(--text);
+  color: var(--text);
 }
 
-.tab:focus-visible {
-  outline-color: var(--plate);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--text);
+  }
 }
 
-.glyph {
-  width: 1rem;
-  height: 1rem;
+.number {
+  font: 500 var(--text-xs) / 1 var(--font-mono);
 }

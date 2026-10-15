@@ -5,14 +5,9 @@ import styles from "./mark.module.css";
 export const shortClientId = (clientId: string) =>
   clientId.slice(0, 4).toUpperCase();
 
-interface MarkProps {
-  readonly clientId: string;
-  readonly tone?: "on-plate" | "on-cobalt";
-}
-
-export function Mark({ clientId, tone = "on-plate" }: MarkProps) {
+export function Mark({ clientId }: { readonly clientId: string }) {
   return (
-    <span className={styles.mark} data-tone={tone} title={`Device ${clientId}`}>
+    <span className={styles.mark} title={`Device ${clientId}`}>
       <span className="visually-hidden">Device </span>
       {shortClientId(clientId)}
     </span>

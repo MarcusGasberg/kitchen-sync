@@ -21,13 +21,11 @@ describe("PartTabs", () => {
           {
             href: "/blog/part-1",
             label: "The optimistic client",
-            symbol: "plus",
           },
-          { href: "/blog/part-2", label: "The server decides", symbol: "eye" },
+          { href: "/blog/part-2", label: "The server decides" },
           {
             href: "/blog/part-3",
             label: "Realtime and failure",
-            symbol: "starburst",
           },
         ]}
       />,

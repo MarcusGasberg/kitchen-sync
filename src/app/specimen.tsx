@@ -10,8 +10,8 @@ import { Caption } from "#/ui/caption";
 import { GroceryList } from "#/ui/grocery-list";
 import type { Group, ShelfEntry } from "#/ui/list-view";
 import { Masthead } from "#/ui/masthead";
+import { Pane } from "#/ui/pane";
 import { PartTabs } from "#/ui/part-tabs";
-import { Plate } from "#/ui/plate";
 import { ScrubBar } from "#/ui/scrub-bar";
 import { StatusBand } from "#/ui/status-band";
 import { Glyph, SYMBOLS } from "#/ui/symbols";
@@ -197,14 +197,14 @@ export function Specimen() {
         />
       </section>
       <section className={styles.plates} aria-label="A figure's plates">
-        <Plate title="Server" symbol="eye">
+        <Pane title="Server">
           <GroceryList
             groups={GROUPS.slice(0, 2)}
             rejected={[]}
             headingLevel={3}
           />
-        </Plate>
-        <Plate
+        </Pane>
+        <Pane
           title="A"
           clientId={DEVICE}
           band={<StatusBand status={{ kind: "offline", waiting: 2 }} />}
@@ -214,18 +214,16 @@ export function Specimen() {
             rejected={[]}
             headingLevel={3}
           />
-        </Plate>
-        <Plate title="B" clientId={OTHER}>
+        </Pane>
+        <Pane title="B" clientId={OTHER}>
           <GroceryList groups={[]} rejected={[]} headingLevel={3} />
-        </Plate>
+        </Pane>
       </section>
       <section className={styles.controls} aria-label="Controls">
         <div className={styles.row}>
-          <Button symbol="plus">Add</Button>
+          <Button>Add</Button>
           <Button kind="secondary">Dismiss</Button>
-          <Button kind="breaking" symbol="hourglass">
-            Drop the ack
-          </Button>
+          <Button kind="breaking">Drop the ack</Button>
           <Button disabled>Add</Button>
         </div>
         <div className={styles.row}>
@@ -241,17 +239,14 @@ export function Specimen() {
               {
                 href: "/blog/part-1",
                 label: "The optimistic client",
-                symbol: "plus",
               },
               {
                 href: "/blog/part-2",
                 label: "The server decides",
-                symbol: "eye",
               },
               {
                 href: "/blog/part-3",
                 label: "Realtime and failure",
-                symbol: "starburst",
               },
             ]}
           />

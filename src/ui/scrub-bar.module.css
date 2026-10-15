@@ -1,69 +1,64 @@
+/* A hairline of time with a dot for now, and a tick where each beat starts. */
 .scrub {
   position: relative;
-  padding-block: var(--space-2);
 }
 
-/* The thumb is 1rem across, so a tick's inset is half of it: --space-2. */
 .range {
-  appearance: none;
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
-  height: 1rem;
+  height: var(--target);
   margin: 0;
-  background: none;
+  background: transparent;
   cursor: pointer;
+  appearance: none;
 }
 
 .range::-webkit-slider-runnable-track {
   height: var(--rule);
-  background: var(--cobalt);
+  background: var(--edge);
 }
 
 .range::-moz-range-track {
   height: var(--rule);
-  background: var(--cobalt);
+  background: var(--edge);
 }
 
 .range::-webkit-slider-thumb {
-  appearance: none;
-  width: 1rem;
-  height: 1rem;
-  margin-top: calc((var(--rule) - 1rem) / 2);
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: calc(var(--rule) / 2 - 0.4375rem);
   border: 0;
-  border-radius: 0;
-  background: var(--cobalt);
+  border-radius: 50%;
+  background: var(--text);
+  appearance: none;
 }
 
 .range::-moz-range-thumb {
-  box-sizing: border-box;
-  width: 1rem;
-  height: 1rem;
+  width: 0.875rem;
+  height: 0.875rem;
   border: 0;
-  border-radius: 0;
-  background: var(--cobalt);
+  border-radius: 50%;
+  background: var(--text);
 }
 
-.range:focus-visible::-webkit-slider-thumb {
-  outline: var(--rule) solid var(--ink);
-  outline-offset: 2px;
+.range:focus-visible {
+  outline-offset: 0;
 }
 
-.range:focus-visible::-moz-range-thumb {
-  outline: var(--rule) solid var(--ink);
-  outline-offset: 2px;
-}
-
+/* Inset by half the dot, so a tick sits where the dot's centre would. */
 .ticks {
   position: absolute;
-  inset: auto var(--space-2) 0;
-  height: var(--space-2);
+  inset: 50% 0.4375rem auto;
+  height: 0.5rem;
+  translate: 0 -50%;
   pointer-events: none;
 }
 
 .tick {
   position: absolute;
-  translate: -50% 0;
   width: var(--rule);
   height: 100%;
-  background: var(--cobalt);
+  background: var(--text-3);
 }

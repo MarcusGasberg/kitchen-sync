@@ -1,6 +1,6 @@
 .caption {
-  max-width: 40ch;
-  font-size: var(--text-lg);
-  line-height: 1.35;
+  max-width: 38ch;
+  color: var(--text-2);
+  font: 400 var(--text-lg) / 1.55 var(--font-text);
   text-wrap: pretty;
 }

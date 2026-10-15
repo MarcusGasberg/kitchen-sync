@@ -91,7 +91,7 @@ describe("StatusBand", () => {
   it("stripes offline, with what waits in this tab", () => {
     render(<StatusBand status={{ kind: "offline", waiting: 3 }} />);
     const band = theBand();
-    expect(band.dataset.pattern).toBe("striped");
+    expect(band.dataset.pattern).toBe("solid");
     expect(band.hasAttribute("role")).toBe(false);
     expect(band.textContent).toBe(
       "Offline. 3 changes wait in this tab until it closes or reloads.",
@@ -123,7 +123,8 @@ describe("StatusBand", () => {
       />,
     );
     const band = theBand();
-    expect(band.dataset.pattern).toBe("striped");
+    expect(band.dataset.pattern).toBe("solid");
+    expect(band.dataset.tone).toBe("seal");
     expect(band.textContent).toContain(
       "Sync stopped. The push failed: HTTP 400. 1 change waits in this tab until it closes or reloads.",
     );

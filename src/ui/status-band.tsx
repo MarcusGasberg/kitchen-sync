@@ -12,15 +12,16 @@ interface StatusBandProps {
   readonly onRetry?: () => void;
 }
 
-// The band a client's state earns, if any. Offline and stopped are striped;
-// stopped adds its reason and Retry, so it never reads as offline. Retrying is
-// dashed, with its reason. Connecting, synced and pending draw nothing. A figure's plate uses it as well as the app.
+// The band a client's state earns, if any. Offline and stopped are solid;
+// stopped adds its reason and Retry, and its word in the seal, so it never
+// reads as offline. Retrying is dashed, with its reason. Connecting, synced
+// and pending draw nothing. A figure's pane uses it as well as the app.
 export function StatusBand({ status, onRetry }: StatusBandProps) {
   switch (status.kind) {
     case "offline":
       return (
         <Band
-          pattern="striped"
+          pattern="solid"
           label={
             <>
               <b>Offline.</b> {waitingSentence(status.waiting)}
@@ -42,7 +43,8 @@ export function StatusBand({ status, onRetry }: StatusBandProps) {
     case "stopped":
       return (
         <Band
-          pattern="striped"
+          pattern="solid"
+          tone="seal"
           label={
             <>
               <b>Sync stopped.</b> The {status.loop} failed: {status.reason}.{" "}

@@ -19,7 +19,7 @@ export function Masthead({ clientId, status, shelf }: MastheadProps) {
       <div className={styles.inner}>
         <div className={styles.top}>
           <h1 className={styles.name}>Kitchen Sync</h1>
-          {clientId !== null && <Mark clientId={clientId} tone="on-cobalt" />}
+          {clientId !== null && <Mark clientId={clientId} />}
         </div>
         <p className={styles.status} aria-live="polite">
           {statusLine(status)}

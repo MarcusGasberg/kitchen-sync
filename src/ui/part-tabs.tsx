@@ -1,10 +1,8 @@
 import styles from "./part-tabs.module.css";
-import { Glyph, type SymbolName } from "./symbols";
 
 export interface Part {
   readonly href: string;
   readonly label: string;
-  readonly symbol: SymbolName;
 }
 
 interface PartTabsProps {
@@ -13,25 +11,27 @@ interface PartTabsProps {
   readonly current: string;
 }
 
-// The series' parts as symbol tabs on the cobalt masthead. Plain links: each
-// part is its own page.
+// The series' parts in reading order. Plain links: each part is its own page.
+// The list is ordered, so the visible number is decoration for the eye.
 export function PartTabs({ parts, current }: PartTabsProps) {
   return (
     <nav aria-label="Parts">
-      <ul className={styles.tabs}>
-        {parts.map((part) => (
+      <ol className={styles.tabs}>
+        {parts.map((part, index) => (
           <li key={part.href}>
             <a
               href={part.href}
               className={styles.tab}
               aria-current={part.href === current ? "page" : undefined}
             >
-              <Glyph symbol={part.symbol} className={styles.glyph} />
+              <span className={styles.number} aria-hidden="true">
+                {index + 1}
+              </span>
               <span>{part.label}</span>
             </a>
           </li>
         ))}
-      </ul>
+      </ol>
     </nav>
   );
 }

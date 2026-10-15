@@ -1,0 +1,31 @@
+.pane {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 1.5rem;
+}
+
+.title {
+  margin-right: auto;
+  font: 500 var(--text-sm) / 1.2 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.status {
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}
+
+/* The list sits a little in from the basin's rounded corners. */
+.body {
+  min-width: 0;
+  padding-inline: var(--space-1);
+}

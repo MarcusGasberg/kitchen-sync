@@ -3,22 +3,21 @@ import { describe, expect, it, vi } from "vitest";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Mark, shortClientId } from "#/ui/mark";
-import { Plate } from "#/ui/plate";
+import { Pane } from "#/ui/pane";
 
 const CLIENT = "5b0f2a9e-3c1d-4e8f-9a2b-6c7d8e9f0a1b";
 
 describe("Button", () => {
-  it("is a plain button of its kind, with its symbol after the label", () => {
+  it("is a plain button of its kind", () => {
     const onClick = vi.fn();
     render(
-      <Button kind="breaking" symbol="hourglass" onClick={onClick}>
-        Drop
+      <Button kind="breaking" onClick={onClick}>
+        Drop the ack
       </Button>,
     );
-    const button = screen.getByRole("button", { name: "Drop" });
+    const button = screen.getByRole("button", { name: "Drop the ack" });
     expect(button.getAttribute("type")).toBe("button");
     expect(button.dataset.kind).toBe("breaking");
-    expect(button.querySelector('svg[data-symbol="hourglass"]')).not.toBeNull();
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledOnce();
   });
@@ -45,21 +44,24 @@ describe("Mark", () => {
   });
 });
 
-describe("Plate", () => {
-  it("is a region named by its title, with its mark and band", () => {
+describe("Pane", () => {
+  it("is a region named by its title, with its mark, state, basin, band and list", () => {
     render(
-      <Plate
+      <Pane
         title="A"
         clientId={CLIENT}
-        band={<Band pattern="striped" label="Offline" />}
+        status="v7 · synced"
+        basin={<p>basin</p>}
+        band={<Band pattern="solid" label="Offline" />}
       >
         <p>rows</p>
-      </Plate>,
+      </Pane>,
     );
-    const plate = screen.getByRole("region", { name: "A" });
-    expect(plate.textContent).toContain("5B0F");
-    expect(plate.textContent).toContain("rows");
-    expect(plate.querySelector("[data-pattern]")?.textContent).toBe("Offline");
+    const pane = screen.getByRole("region", { name: "A" });
+    for (const text of ["5B0F", "v7 · synced", "basin", "rows"]) {
+      expect(pane.textContent).toContain(text);
+    }
+    expect(pane.querySelector("[data-pattern]")?.textContent).toBe("Offline");
   });
 });
 
@@ -77,7 +79,15 @@ describe("Band", () => {
       .closest<HTMLElement>("[data-pattern]");
     expect(band?.dataset.pattern).toBe("dashed");
     expect(band?.hasAttribute("role")).toBe(false);
-    expect(band?.textContent).toContain("Retrying");
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  it("marks a stop with the seal", () => {
+    render(<Band pattern="solid" tone="seal" label="Sync stopped." />);
+    const band = screen
+      .getByText("Sync stopped.")
+      .closest<HTMLElement>("[data-pattern]");
+    expect(band?.dataset.pattern).toBe("solid");
+    expect(band?.dataset.tone).toBe("seal");
   });
 });

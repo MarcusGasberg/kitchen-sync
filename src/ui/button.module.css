@@ -1,107 +1,55 @@
+/* Labels in small tracked capitals, quiet beside the content they act on. */
 .button {
-  position: relative;
-  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
   min-height: var(--target);
-  padding: 0 var(--space-5) 0 var(--space-4);
-  border: 0;
-  background: none;
-  font: 700 var(--text-md) / 1 var(--font-text);
+  padding: 0 var(--space-5);
+  border: var(--rule) solid var(--text);
+  border-radius: var(--radius-control);
+  background: var(--text);
+  color: var(--page);
+  font: 500 var(--text-xs) / 1 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
   cursor: pointer;
-  transition: color var(--motion-state) var(--ease-out);
-}
-
-/* The fill is its own layer, so the pointed end never clips the focus ring. */
-.button::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  clip-path: polygon(
-    0 0,
-    calc(100% - 0.75rem) 0,
-    100% 50%,
-    calc(100% - 0.75rem) 100%,
-    0 100%
-  );
-  transition: background-color var(--motion-state) var(--ease-out);
-}
-
-.button[data-kind="primary"] {
-  color: var(--white);
-}
-
-.button[data-kind="primary"]::before {
-  background: var(--cobalt);
-}
-
-.button[data-kind="breaking"] {
-  color: var(--ink);
-}
-
-.button[data-kind="breaking"]::before {
-  background: var(--magenta);
-}
-
-/* Hover is the ink field: white stays readable on it, and so does magenta. */
-.button[data-kind="primary"]:not(:disabled):hover::before,
-.button[data-kind="breaking"]:not(:disabled):hover::before {
-  background: var(--ink);
-}
-
-.button[data-kind="breaking"]:not(:disabled):hover {
-  color: var(--magenta);
-}
-
-.button[data-kind="secondary"] {
-  padding-inline: var(--space-4);
-  border: var(--rule) solid var(--cobalt);
-  color: var(--cobalt);
   transition:
     background-color var(--motion-state) var(--ease-out),
+    border-color var(--motion-state) var(--ease-out),
     color var(--motion-state) var(--ease-out);
 }
 
-.button[data-kind="secondary"]::before {
-  content: none;
+.button[data-kind="secondary"] {
+  border-color: var(--edge);
+  background: transparent;
+  color: var(--text);
 }
 
-.button[data-kind="secondary"]:not(:disabled):hover {
-  background: var(--cobalt);
-  color: var(--white);
+.button[data-kind="breaking"] {
+  border-style: dashed;
+  border-color: var(--edge);
+  background: transparent;
+  color: var(--text-2);
 }
 
-/* Disabled is the outlined plate: a cobalt edge on the same pointed shape, plate
-   inside, a cobalt label. ::before is the edge, ::after the fill inset by one
-   rule. A secondary button already has its own border. */
+@media (hover: hover) {
+  .button[data-kind="primary"]:hover:not(:disabled) {
+    border-color: var(--text-2);
+    background: var(--text-2);
+  }
+
+  .button[data-kind="secondary"]:hover:not(:disabled),
+  .button[data-kind="breaking"]:hover:not(:disabled) {
+    border-color: var(--text);
+    color: var(--text);
+  }
+}
+
 .button:disabled {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--text-3);
   cursor: not-allowed;
-  color: var(--cobalt);
-}
-
-.button:disabled:not([data-kind="secondary"])::before {
-  background: var(--cobalt);
-}
-
-.button:disabled:not([data-kind="secondary"])::after {
-  content: "";
-  position: absolute;
-  inset: var(--rule);
-  z-index: -1;
-  background: var(--plate);
-  clip-path: polygon(
-    0 0,
-    calc(100% - 0.75rem + var(--rule) * 0.5) 0,
-    calc(100% - var(--rule) * 1.1) 50%,
-    calc(100% - 0.75rem + var(--rule) * 0.5) 100%,
-    0 100%
-  );
-}
-
-.glyph {
-  width: 0.875rem;
-  height: 0.875rem;
 }

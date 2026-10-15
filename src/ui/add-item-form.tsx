@@ -98,7 +98,7 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
         ))}
       </select>
       <span className={styles.add}>
-        <Button type="submit" symbol="plus" disabled={!canAdd}>
+        <Button type="submit" disabled={!canAdd}>
           Add
         </Button>
       </span>
