@@ -1,4 +1,7 @@
+/* The list is a container, so a row decides its form by the room it has, not
+   by the viewport. */
 .list {
+  container-type: inline-size;
   display: grid;
   gap: var(--space-5);
 }

@@ -43,10 +43,6 @@
   background: var(--cobalt);
 }
 
-.range:focus-visible {
-  outline: none;
-}
-
 .range:focus-visible::-webkit-slider-thumb {
   outline: var(--rule) solid var(--ink);
   outline-offset: 2px;

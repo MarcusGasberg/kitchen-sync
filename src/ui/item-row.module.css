@@ -129,8 +129,8 @@ label.label {
   display: none;
 }
 
-/* Wide enough, the control reads as Button does: its word, then its symbol. */
-@media (min-width: 45rem) {
+/* Given 30rem of list, the control reads as Button does: its word, then its symbol. */
+@container (min-width: 30rem) {
   .row {
     --remove-width: 6rem;
   }
