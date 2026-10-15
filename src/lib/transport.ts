@@ -92,7 +92,18 @@ const asStreamTransportFailure = <A, R>(
   pipe(
     effect,
     Stream.catchTags({
-      HttpClientError: (err) => Stream.fail(classifyHttpClientError(err)),
+      // The response is already in. Fetch reports a socket dropped
+      // mid-stream as a `DecodeError`: that is weather, not a broken
+      // contract. Anything else (a 204 with no body) is classified as usual.
+      HttpClientError: (err) =>
+        Stream.fail(
+          err.reason._tag === "DecodeError"
+            ? new TransportFailure({
+                reason: "poke stream lost its connection",
+                retryable: true,
+              })
+            : classifyHttpClientError(err),
+        ),
       Retry: () =>
         Stream.fail(
           new TransportFailure({ reason: `retry failure`, retryable: true }),
@@ -102,7 +113,6 @@ const asStreamTransportFailure = <A, R>(
           new TransportFailure({ reason: err.message, retryable: true }),
         ),
     }),
-    Stream.timeout("10 seconds"),
   );
 
 export class SyncTransportService extends Context.Service<
@@ -151,6 +161,28 @@ export class SyncTransportService extends Context.Service<
               Stream.decodeText(),
               Stream.pipeThroughChannel(Sse.decode()),
               asStreamTransportFailure,
+              // The route's heartbeat comes every 15 s, jittered to 12–18 s;
+              // a stream quiet past two of the longest is dead. Lost either
+              // way, quiet or ended, it fails retryably, so the pull loop
+              // subscribes again rather than live on its 30 s tick for good.
+              Stream.timeoutOrElse({
+                duration: "40 seconds",
+                orElse: () =>
+                  Stream.fail(
+                    new TransportFailure({
+                      reason: "poke stream went quiet",
+                      retryable: true,
+                    }),
+                  ),
+              }),
+              Stream.concat(
+                Stream.fail(
+                  new TransportFailure({
+                    reason: "poke stream ended",
+                    retryable: true,
+                  }),
+                ),
+              ),
               Stream.filter((s) => s.event === "poke"),
               Stream.mapEffect((s) =>
                 Schema.decodeUnknownEffect(Schema.FiniteFromString)(s.data),

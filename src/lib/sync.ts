@@ -2,7 +2,7 @@ import { Context, Effect, FiberHandle, Layer, Ref, Stream } from "effect";
 import { merge } from "effect/Stream";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
-import { retrySyncLoop } from "./retry";
+import { endIfHealthy, retrySyncLoop } from "./retry";
 import { StoreService, type SyncFailure } from "./store";
 import { SyncTransportService } from "./transport";
 
@@ -35,6 +35,7 @@ export class SyncEngineService extends Context.Service<
         (loop: SyncFailure["loop"]) =>
         <R>(iteration: Effect.Effect<void, TransportFailure, R>) =>
           iteration.pipe(
+            endIfHealthy,
             retrySyncLoop,
             Effect.forever,
             Effect.catch((failure) =>
@@ -80,7 +81,11 @@ export class SyncEngineService extends Context.Service<
         );
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
-          merge(transport.pokes, Stream.tick("30 seconds")).pipe(
+          // A poke stream that ends ends the iteration with it, and
+          // `untilFatal` subscribes again; the tick alone never ends.
+          merge(transport.pokes, Stream.tick("30 seconds"), {
+            haltStrategy: "left",
+          }).pipe(
             Stream.buffer({ capacity: 1, strategy: "sliding" }),
             Stream.runForEach((poke) => {
               return Effect.gen(function* () {

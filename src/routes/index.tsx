@@ -90,8 +90,9 @@ function Home() {
       <h1>Kitchen Sync</h1>
       {syncFailure && (
         <p role="alert" style={{ color: "red" }}>
-          Sync stopped ({syncFailure.loop}): {syncFailure.reason}. Your changes
-          are kept on this device.{" "}
+          {/* The outbox lives in memory: a reload loses what has not synced. */}
+          Sync stopped ({syncFailure.loop}): {syncFailure.reason}. Changes not
+          yet synced are kept in this tab until it closes or reloads.{" "}
           <button type="button" onClick={() => retrySync()}>
             Retry
           </button>

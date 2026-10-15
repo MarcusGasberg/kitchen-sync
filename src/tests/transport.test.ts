@@ -1,5 +1,15 @@
 import { it } from "@effect/vitest";
-import { DateTime, Effect, Fiber, Layer, Option, Ref } from "effect";
+import {
+  Cause,
+  DateTime,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  Ref,
+  Stream,
+} from "effect";
 import { TestClock } from "effect/testing";
 import {
   HttpClient,
@@ -27,7 +37,7 @@ const pushRequest = {
       _tag: "RemoveItem",
       clientMutationId: 1,
       issuedAt: DateTime.makeUnsafe("2026-09-25T08:00:00.000Z"),
-      itemId: "item-1",
+      itemId: "7c1e3b5a-2d4f-4a6b-8c9d-0e1f2a3b4c5d",
     },
   ],
 } as const;
@@ -246,7 +256,7 @@ describe("SyncTransportService.push", () => {
                 _tag: "RemoveItem",
                 clientMutationId: 1,
                 issuedAt: "2026-09-25T08:00:00.000Z",
-                itemId: "item-1",
+                itemId: "7c1e3b5a-2d4f-4a6b-8c9d-0e1f2a3b4c5d",
               },
             ],
           },
@@ -278,7 +288,7 @@ describe("SyncTransportService.push", () => {
             _tag: "EditItem",
             clientMutationId: 1,
             issuedAt: DateTime.makeUnsafe("2026-09-25T08:00:00.000Z"),
-            itemId: "item-1",
+            itemId: "7c1e3b5a-2d4f-4a6b-8c9d-0e1f2a3b4c5d",
             changes: { unit: Option.none(), category: Option.some("Dairy") },
           },
         ],
@@ -312,6 +322,123 @@ describe("SyncTransportService.push", () => {
         { clientMutationId: 1, reason: "stale" },
       ]);
       expect(yield* Ref.get(attempts)).toBe(1);
+    }),
+  );
+});
+
+// An SSE body the test writes into, as the route would.
+const sseBody = () => {
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start: (c) => {
+      controller = c;
+    },
+  });
+  const encoder = new TextEncoder();
+  const write = (text: string) => controller?.enqueue(encoder.encode(text));
+  return {
+    response: new Response(stream, {
+      headers: { "content-type": "text/event-stream" },
+    }),
+    ping: () => write("event: ping\ndata: \n\n"),
+    poke: (version: number) =>
+      write(`event: poke\ndata: ${version}\nid: ${version}\n\n`),
+    end: () => controller?.close(),
+    break: () => controller?.error(new TypeError("terminated")),
+  };
+};
+
+// Lets the body's promises settle, so what was written has been read.
+const settle = Effect.promise(
+  () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+);
+
+const subscribed = Effect.gen(function* () {
+  const body = sseBody();
+  const client = HttpClient.make((request) =>
+    Effect.succeed(HttpClientResponse.fromWeb(request, body.response)),
+  );
+  const pokes = yield* Ref.make<ReadonlyArray<number>>([]);
+  const fiber = yield* Effect.gen(function* () {
+    const transport = yield* SyncTransportService;
+    yield* transport.pokes.pipe(
+      Stream.runForEach((v) => Ref.update(pokes, (all) => [...all, v])),
+    );
+  }).pipe(
+    Effect.provide(
+      SyncTransportService.Live.pipe(
+        Layer.provide(Layer.succeed(HttpClient.HttpClient, client)),
+      ),
+    ),
+    Effect.forkChild,
+  );
+  yield* settle;
+  return { body, pokes, fiber } as const;
+});
+
+const failedRetryably = (exit: Exit.Exit<unknown, unknown>) =>
+  Exit.isFailure(exit) &&
+  Option.exists(
+    Cause.findErrorOption(exit.cause),
+    (e) => e instanceof TransportFailure && e.retryable,
+  );
+
+describe("SyncTransportService.pokes", () => {
+  // The route's heartbeat is jittered around 15 s: up to 18 s apart. The
+  // gaps add up past the timeout, so only the pings keep the stream alive.
+  it.effect("keeps delivering pokes across the quiet between heartbeats", () =>
+    Effect.gen(function* () {
+      const { body, pokes, fiber } = yield* subscribed;
+      yield* TestClock.adjust("18 seconds");
+      body.ping();
+      yield* settle;
+      yield* TestClock.adjust("18 seconds");
+      body.ping();
+      yield* settle;
+      yield* TestClock.adjust("18 seconds");
+      body.poke(7);
+      yield* settle;
+
+      expect(yield* Ref.get(pokes)).toEqual([7]);
+      expect(fiber.pollUnsafe()).toBeUndefined();
+      yield* Fiber.interrupt(fiber);
+    }),
+  );
+
+  // A dead connection sends nothing at all. Lost streams fail, rather than
+  // end, so the pull loop's retry subscribes again instead of falling back
+  // to its 30 s tick for good.
+  it.effect("fails retryably when the stream goes quiet past the timeout", () =>
+    Effect.gen(function* () {
+      const { fiber } = yield* subscribed;
+      yield* TestClock.adjust("41 seconds");
+      yield* settle;
+
+      expect(failedRetryably(yield* Fiber.await(fiber))).toBe(true);
+    }),
+  );
+
+  it.effect("fails retryably when the server ends the stream", () =>
+    Effect.gen(function* () {
+      const { body, fiber } = yield* subscribed;
+      body.end();
+      yield* settle;
+
+      expect(failedRetryably(yield* Fiber.await(fiber))).toBe(true);
+    }),
+  );
+
+  // The commonest disconnect: fetch reports a socket dropped mid-stream as a
+  // `DecodeError`, which outside a stream's body means a broken contract.
+  it.effect("fails retryably when the connection breaks mid-stream", () =>
+    Effect.gen(function* () {
+      const { body, fiber } = yield* subscribed;
+      body.ping();
+      yield* settle;
+      body.break();
+      yield* settle;
+
+      expect(failedRetryably(yield* Fiber.await(fiber))).toBe(true);
     }),
   );
 });

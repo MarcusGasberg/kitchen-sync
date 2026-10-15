@@ -16,12 +16,15 @@ export const Categories = [
 export const Category = Schema.Literals(Categories);
 export type Category = typeof Category.Type;
 
+// The table's id, and every mutation's: a wire looser than the table lets a
+// bad id through to the insert.
+export const ItemId = Schema.String.check(Schema.isUUID(4));
 export const ItemName = Schema.String.check(Schema.isLengthBetween(1, 50));
 export const Quantity = Schema.Finite.check(Schema.isGreaterThan(0));
 export const Unit = Schema.String.check(Schema.isLengthBetween(1, 20));
 
 export class GroceryItem extends Model.Class<GroceryItem>("GroceryItem")({
-  id: Model.GeneratedByApp(Schema.String.check(Schema.isUUID(4))),
+  id: Model.GeneratedByApp(ItemId),
   name: ItemName,
   quantity: Quantity,
   unit: Schema.OptionFromNullOr(Unit),

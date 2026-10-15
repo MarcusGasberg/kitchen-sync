@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 // The files that touch the test database. They truncate the same tables, so
 // they run one at a time; everything else stays parallel.
 const databaseTests = [
-  "src/tests/sync-server.contract.test.ts",
+  "src/tests/sync-server.contract.postgres.test.ts",
   "src/tests/sync-server.postgres.test.ts",
   "src/tests/json-route.test.ts",
   "src/tests/migrations.postgres.test.ts",
