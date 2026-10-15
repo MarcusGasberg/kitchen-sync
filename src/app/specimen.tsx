@@ -79,6 +79,8 @@ const SERVER: ReadonlyArray<GroceryItem> = [
   item(8, "Dish soap", 1, null, "Household", 8),
   item(9, "Birthday candles", 12, null, null, 9),
 ];
+// The same rows held in another order.
+const SERVER_REVERSED = [...SERVER].reverse();
 
 // A has added oat milk, waiting on the server as #15.
 const OAT_MILK = item(10, "Oat milk", 2, "l", "Dairy", 9);
@@ -335,7 +337,7 @@ function Sheet({ theme }: { readonly theme: "day" | "night" }) {
         <figure className={styles.specimenBasin}>
           <div className={styles.pair}>
             <Basin items={SERVER} label="The server's list" />
-            <Basin items={[...SERVER].reverse()} label="B's list" />
+            <Basin items={SERVER_REVERSED} label="B's list" />
           </div>
           <figcaption>
             The same rows, held in another order, draw one pattern.

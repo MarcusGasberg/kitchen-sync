@@ -43,9 +43,12 @@ export const createSettler = (duration: number) => {
 export interface BasinHost {
   // A renderer for the canvas, and how many canvas pixels to give each CSS
   // pixel; null where there is nothing to draw with.
-  readonly createRenderer: (
-    canvas: HTMLCanvasElement,
-  ) => { readonly renderer: Renderer; readonly pixelRatio: number } | null;
+  // settles: whether it can draw a settle at frame rate (the GPU can, the CPU cannot).
+  readonly createRenderer: (canvas: HTMLCanvasElement) => {
+    readonly renderer: Renderer;
+    readonly pixelRatio: number;
+    readonly settles: boolean;
+  } | null;
   readonly readTones: (element: HTMLElement) => ReadonlyArray<Rgb>;
   readonly matchMedia: (query: string) => MediaQueryList | undefined;
   readonly requestFrame: (callback: () => void) => number;
@@ -94,8 +97,8 @@ export const createSharedGpu = (
           unavailable = true;
         } else {
           const made = { canvas, renderer };
-          canvas.addEventListener("webglcontextlost", (event) => {
-            event.preventDefault();
+          // Not prevented: this canvas is abandoned for a fresh one, so the browser may free it.
+          canvas.addEventListener("webglcontextlost", () => {
             if (current === made) current = null;
           });
           current = made;
@@ -127,13 +130,18 @@ export const basinRenderer = (
     readonly gpu: SharedGpu;
     readonly devicePixelRatio: number;
   },
-): { readonly renderer: Renderer; readonly pixelRatio: number } => {
+): {
+  readonly renderer: Renderer;
+  readonly pixelRatio: number;
+  readonly settles: boolean;
+} => {
   const { context, cpu, gpu } = parts;
   const hasGpu = gpu.at(1, 1) !== null;
   return {
     // The GPU draws four samples a pixel at up to 1.5 device pixels; the
     // CPU one sample at half the box, which the browser smooths up.
     pixelRatio: hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5,
+    settles: hasGpu,
     renderer: {
       draw: (ops, tones) => {
         const { width, height } = canvas;
@@ -235,15 +243,18 @@ export const mountBasin = (
   };
   const resize = () => {
     if (made === null) return;
-    canvas.width = Math.max(
-      1,
-      Math.round(canvas.clientWidth * made.pixelRatio),
-    );
-    canvas.height = Math.max(
+    const width = Math.max(1, Math.round(canvas.clientWidth * made.pixelRatio));
+    const height = Math.max(
       1,
       Math.round(canvas.clientHeight * made.pixelRatio),
     );
-    redraw();
+    if (canvas.width === width && canvas.height === height) return;
+    canvas.width = width;
+    canvas.height = height;
+    // A resize clears the canvas: draw now, not next frame, so no frame
+    // paints it empty.
+    if (frame !== null) host.cancelFrame(frame);
+    draw();
   };
   const retone = () => {
     tones = host.readTones(canvas);
@@ -259,7 +270,11 @@ export const mountBasin = (
       if (shown && samePattern(ops, next)) return;
       shown = true;
       ops = next;
-      settler.see(next, host.now(), !(motion?.matches ?? false));
+      settler.see(
+        next,
+        host.now(),
+        made?.settles === true && !(motion?.matches ?? false),
+      );
       redraw();
     },
     unmount: () => {

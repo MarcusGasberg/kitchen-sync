@@ -28,7 +28,7 @@ interface GroceryListProps {
   readonly onIntent?: (intent: ListIntent) => void;
   readonly onDismiss?: (clientMutationIds: ReadonlyArray<number>) => void;
   readonly empty?: ReactNode;
-  // Category heads sit under the page's h1 in the app, and under a plate's h2
+  // Category heads sit under the page's h1 in the app, and under a pane's h2
   // in a figure.
   readonly headingLevel?: 2 | 3;
 }

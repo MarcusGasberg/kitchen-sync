@@ -31,7 +31,9 @@ const TONES: ReadonlyArray<Rgb> = Array.from(
 
 // A host the test drives by hand: frames run when told, time moves when told,
 // and the media queries change when told.
-const fakeHost = (options: { reduced?: boolean; renderer?: boolean } = {}) => {
+const fakeHost = (
+  options: { reduced?: boolean; renderer?: boolean; settles?: boolean } = {},
+) => {
   const draws: Array<ReadonlyArray<Operation>> = [];
   const renderer: Renderer = {
     draw: (ops) => {
@@ -43,10 +45,13 @@ const fakeHost = (options: { reduced?: boolean; renderer?: boolean } = {}) => {
   let nextFrame = 1;
   let time = 1_000;
   let toneReads = 0;
+  let resize = () => {};
   const listeners = new Map<string, Set<() => void>>();
   const host: BasinHost = {
     createRenderer: () =>
-      options.renderer === false ? null : { renderer, pixelRatio: 2 },
+      options.renderer === false
+        ? null
+        : { renderer, pixelRatio: 2, settles: options.settles ?? true },
     readTones: () => {
       toneReads += 1;
       return TONES;
@@ -73,11 +78,15 @@ const fakeHost = (options: { reduced?: boolean; renderer?: boolean } = {}) => {
     cancelFrame: (handle) => {
       frames.delete(handle);
     },
-    observeSize: () => () => {},
+    observeSize: (_, onResize) => {
+      resize = onResize;
+      return () => {};
+    },
     now: () => time,
   };
   return {
     host,
+    resize: () => resize(),
     draws,
     renderer,
     toneReads: () => toneReads,
@@ -146,6 +155,40 @@ describe("mountBasin", () => {
     basin.show([drop("a"), drop("b")]);
     fake.frame();
     expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+    expect(fake.waiting()).toBe(0);
+  });
+
+  it("skips the settle where the renderer cannot draw one at frame rate", () => {
+    const fake = fakeHost({ settles: false });
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+    expect(fake.waiting()).toBe(0);
+  });
+
+  it("draws at once when its box changes size, and not at all when it does not", () => {
+    const fake = fakeHost();
+    let clientWidth = 400;
+    const clientHeight = 160;
+    const canvas = document.createElement("canvas");
+    Object.defineProperty(canvas, "clientWidth", { get: () => clientWidth });
+    Object.defineProperty(canvas, "clientHeight", { get: () => clientHeight });
+    const basin = mountBasin(canvas, fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    const drawn = fake.draws.length;
+
+    fake.resize();
+    expect(fake.draws).toHaveLength(drawn);
+    expect(fake.waiting()).toBe(0);
+
+    clientWidth = 500;
+    fake.resize();
+    expect(fake.draws).toHaveLength(drawn + 1);
+    expect(canvas.width).toBe(1000);
     expect(fake.waiting()).toBe(0);
   });
 
@@ -238,7 +281,6 @@ describe("createSharedGpu", () => {
     const first = gpu.at(10, 4);
     const lost = new Event("webglcontextlost", { cancelable: true });
     first?.canvas.dispatchEvent(lost);
-    expect(lost.defaultPrevented).toBe(true);
     const next = gpu.at(10, 4);
     expect(makeRenderer).toHaveBeenCalledTimes(2);
     expect(next?.canvas).not.toBe(first?.canvas);
@@ -298,6 +340,7 @@ describe("basinRenderer", () => {
   it("draws on the GPU and copies the frame, at up to 1.5 pixels a pixel", () => {
     const { made, cpu, gpu, context, shared } = setup(true, 40, 16);
     expect(made.pixelRatio).toBe(1.5);
+    expect(made.settles).toBe(true);
     made.renderer.draw([drop("a")], TONES);
     expect(gpu.draws).toHaveLength(1);
     expect(cpu.draws).toHaveLength(0);
@@ -311,6 +354,7 @@ describe("basinRenderer", () => {
   it("draws on the CPU at half the box when there is no GPU", () => {
     const { made, cpu, gpu, context } = setup(false, 40, 16);
     expect(made.pixelRatio).toBe(0.5);
+    expect(made.settles).toBe(false);
     made.renderer.draw([drop("a")], TONES);
     expect(cpu.draws).toHaveLength(1);
     expect(gpu.draws).toHaveLength(0);

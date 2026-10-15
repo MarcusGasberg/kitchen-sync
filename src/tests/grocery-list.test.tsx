@@ -40,7 +40,7 @@ const viewOf = (items: ReadonlyArray<GroceryItem>) =>
 describe("ItemRow", () => {
   const milk = item("Oat milk", { quantity: 2, unit: "l" });
 
-  it("lies flat once synced, with no marker", () => {
+  it("shows no marker once synced", () => {
     render(
       <ul>
         <ItemRow item={milk} sync={{ kind: "synced" }} onCheck={() => {}} />
@@ -48,7 +48,8 @@ describe("ItemRow", () => {
     );
     const row = screen.getByRole("listitem");
     expect(row.dataset.sync).toBe("synced");
-    expect(row.querySelector("svg")).toBeNull();
+    expect(row.textContent).not.toMatch(/#\d/);
+    expect(row.textContent).not.toMatch(/pending|acked/);
   });
 
   it.each(["pending", "acked"] as const)("says %s, with its #id", (kind) => {
@@ -257,7 +258,7 @@ describe("GroceryList", () => {
     expect(screen.getByText("Nothing yet.")).toBeTruthy();
   });
 
-  // The spec's claim: the app's list and a figure's plate are one component.
+  // The spec's claim: the app's list and a figure's pane are one component.
   it.effect("renders a client of a running world", () =>
     Effect.gen(function* () {
       const world = yield* World;

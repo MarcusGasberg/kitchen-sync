@@ -89,7 +89,7 @@ describe("StatusBand", () => {
     expect(container.childElementCount).toBe(0);
   });
 
-  it("stripes offline, with what waits in this tab", () => {
+  it("bands offline, with what waits in this tab", () => {
     render(<StatusBand status={{ kind: "offline", waiting: 3 }} />);
     const band = theBand();
     expect(band.dataset.pattern).toBe("solid");
@@ -110,7 +110,7 @@ describe("StatusBand", () => {
     expect(band.textContent).toBe("Retrying. The last try failed: HTTP 503.");
   });
 
-  it("stripes a stop with its reason and Retry, so it never reads as offline", () => {
+  it("bands a stop with its reason, the seal and Retry, so it never reads as offline", () => {
     const onRetry = vi.fn();
     render(
       <StatusBand
