@@ -108,7 +108,11 @@ describe("patternOf", () => {
       ),
     );
     expect(tones.get(`${id(1)}:ink`)).toBe(5);
+    expect(tones.get(`${id(1)}:ring`)).toBe(5);
     expect(tones.get(`${id(1)}:core`)).toBe(5);
+    // Fresh ink never colours the clear water between the rings.
+    expect(tones.get(`${id(1)}:clear`)).toBe(0);
+    expect(tones.get(`${id(1)}:gap`)).toBe(0);
     expect(tones.get(`${id(2)}:ink`)).not.toBe(5);
   });
 
@@ -148,15 +152,36 @@ describe("patternOf", () => {
     expect(inks.at(-1)).toBe(`${id(70)}:ink`);
   });
 
-  it("keeps every drop on the water", () => {
-    const rows = Array.from({ length: 40 }, (_, i) => item(i + 1, i + 1));
+  // Each drop pushes the ones before it outward, so an item's outer ring ends
+  // at the square root of the sum of its drops' squared radii.
+  it("keeps every item's outer ring on the water", () => {
+    const rows = Array.from({ length: MAX_ITEMS }, (_, i) =>
+      item(i + 1, i + 1),
+    );
+    const items = new Map<string, { x: number; y: number; area: number }>();
     for (const op of patternOf({ items: rows })) {
       if (op.kind !== "drop") continue;
-      expect(op.x - op.radius).toBeGreaterThan(0);
-      expect(op.x + op.radius).toBeLessThan(WORLD_WIDTH);
-      expect(op.y - op.radius).toBeGreaterThan(0);
-      expect(op.y + op.radius).toBeLessThan(WORLD_HEIGHT);
+      const owner = op.key.slice(0, op.key.lastIndexOf(":"));
+      const seen = items.get(owner) ?? { x: op.x, y: op.y, area: 0 };
+      items.set(owner, { ...seen, area: seen.area + op.radius ** 2 });
     }
+    expect(items.size).toBe(MAX_ITEMS);
+    for (const { x, y, area } of items.values()) {
+      const edge = Math.sqrt(area);
+      expect(x - edge).toBeGreaterThan(0);
+      expect(x + edge).toBeLessThan(WORLD_WIDTH);
+      expect(y - edge).toBeGreaterThan(0);
+      expect(y + edge).toBeLessThan(WORLD_HEIGHT);
+    }
+  });
+
+  it("gives an item seven operations at most", () => {
+    const counts = new Map<string, number>();
+    for (const op of patternOf({ items: [item(1, 1, true), item(2, 2)] })) {
+      const owner = op.key.slice(0, op.key.lastIndexOf(":"));
+      counts.set(owner, (counts.get(owner) ?? 0) + 1);
+    }
+    expect([...counts.values()]).toEqual([7, 6]);
   });
 
   it("draws one picture for devices that agree, another for one behind or rebased", () => {

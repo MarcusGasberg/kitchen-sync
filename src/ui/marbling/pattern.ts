@@ -71,7 +71,8 @@ const itemOperations = (
 ): Array<Operation> => {
   const next = numbersFor(item.id);
   const x = 0.2 + next() * (WORLD_WIDTH - 0.4);
-  // Far enough in that the largest drop (radius 0.15) stays on the water.
+  // Far enough in that the outer ring stays on the water: the later drops
+  // push it out to about 1.045 × radius, under 0.16 for the largest (0.15).
   const y = 0.16 + next() * (WORLD_HEIGHT - 0.32);
   const radius = 0.08 + next() * 0.07;
   const tones = {
