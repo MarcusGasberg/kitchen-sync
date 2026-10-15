@@ -82,7 +82,7 @@ describe("patternOf", () => {
 
   it("puts what is still waiting last, in fresh ink", () => {
     const ops = patternOf({
-      items: [item(1, 9), item(2, 3)],
+      items: [item(1, 2), item(2, 9)],
       waiting: new Map([[id(1), 12]]),
     });
     const inks = ops.filter((op) => op.key.endsWith(":ink"));
