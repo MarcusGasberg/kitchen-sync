@@ -1,0 +1,24 @@
+.scrub {
+  position: relative;
+  padding-block: var(--space-2);
+}
+
+.range {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--cobalt);
+}
+
+.ticks {
+  position: absolute;
+  inset: auto var(--space-2) 0;
+  height: var(--space-2);
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  width: var(--rule);
+  height: 100%;
+  background: var(--cobalt);
+}
