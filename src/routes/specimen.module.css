@@ -1,0 +1,63 @@
+.page {
+  display: grid;
+  gap: var(--space-6);
+  padding-bottom: var(--space-7);
+}
+
+.note {
+  padding: var(--space-2) var(--space-4);
+  background: var(--lemon);
+  font-weight: 700;
+}
+
+/* Each state at a phone's width, 390 px. */
+.phone,
+.list {
+  width: 100%;
+  max-width: 24.375rem;
+  margin-inline: auto;
+}
+
+.list {
+  padding-inline: var(--space-4);
+}
+
+.plates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-4);
+  padding-inline: var(--space-4);
+}
+
+.controls {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--column);
+  margin-inline: auto;
+  padding-inline: var(--space-4);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.glyph {
+  width: 2rem;
+  height: 2rem;
+  color: var(--cobalt);
+}
+
+.lemon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--lemon);
+}
+
+.cobalt {
+  padding: var(--space-3);
+  background: var(--cobalt);
+}

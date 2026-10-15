@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as SpecimenRouteImport } from './routes/specimen'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiPushRouteImport } from './routes/api/push'
 import { Route as ApiPullStreamRouteImport } from './routes/api/pull/stream'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpecimenRoute = SpecimenRouteImport.update({
+  id: '/specimen',
+  path: '/specimen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPullRoute = ApiPullRouteImport.update({
@@ -44,6 +50,7 @@ const ApiPullStreamRoute = ApiPullStreamRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/specimen': typeof SpecimenRoute
   '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
   '/api/pull/stream': typeof ApiPullStreamRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/specimen': typeof SpecimenRoute
   '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
   '/api/pull/stream': typeof ApiPullStreamRoute
@@ -59,19 +67,33 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/specimen': typeof SpecimenRoute
   '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
   '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/api/pull' | '/api/push' | '/api/pull/stream'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/specimen'
+    | '/api/pull'
+    | '/api/push'
+    | '/api/pull/stream'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/api/pull' | '/api/push' | '/api/pull/stream'
+  to:
+    | '/'
+    | '/about'
+    | '/specimen'
+    | '/api/pull'
+    | '/api/push'
+    | '/api/pull/stream'
   id:
     | '__root__'
     | '/'
     | '/about'
+    | '/specimen'
     | '/api/pull'
     | '/api/push'
     | '/api/pull/stream'
@@ -80,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  SpecimenRoute: typeof SpecimenRoute
   ApiPullRoute: typeof ApiPullRouteWithChildren
   ApiPushRoute: typeof ApiPushRoute
 }
@@ -98,6 +121,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/specimen': {
+      id: '/specimen'
+      path: '/specimen'
+      fullPath: '/specimen'
+      preLoaderRoute: typeof SpecimenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/pull': {
@@ -138,6 +168,7 @@ const ApiPullRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  SpecimenRoute: SpecimenRoute,
   ApiPullRoute: ApiPullRouteWithChildren,
   ApiPushRoute: ApiPushRoute,
 }
