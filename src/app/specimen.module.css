@@ -1,40 +1,113 @@
 .page {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-5);
   padding-bottom: var(--space-7);
 }
 
 .note {
-  padding: var(--space-2) var(--space-4);
-  background: var(--lemon);
-  font-weight: 700;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--rule) solid var(--line);
+  color: var(--text-2);
+  font-size: var(--text-sm);
 }
 
-/* Each state at a phone's width, 390 px. */
-.phone,
+/* Day and night side by side on a desktop, one above the other on a phone.
+   Each column paints its own page, since its tokens resolve inside it. */
+.themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 44rem), 1fr));
+}
+
+.theme {
+  display: grid;
+  align-content: start;
+  gap: var(--space-7);
+  padding-block: var(--space-6);
+  background: var(--page);
+  color: var(--text);
+}
+
+.themeName {
+  padding-inline: var(--space-4);
+  color: var(--text-3);
+  font: 500 var(--text-xs) / 1.2 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.phones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-5);
+  padding-inline: var(--space-4);
+}
+
+.phone {
+  overflow: hidden;
+  border: var(--rule) solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+/* A phone's width, 390 px. */
 .list {
   width: 100%;
   max-width: 24.375rem;
   margin-inline: auto;
-}
-
-.list {
   padding-inline: var(--space-4);
 }
 
-.plates {
+.figure {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-6);
   padding-inline: var(--space-4);
+}
+
+.clients {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-5);
+}
+
+.basins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-6) var(--space-5);
+  padding-inline: var(--space-4);
+}
+
+.specimenBasin {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.specimenBasin figcaption {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.cpu {
+  aspect-ratio: 5 / 2;
+  overflow: hidden;
+  border-radius: var(--radius-basin);
+  background: var(--water);
+}
+
+.cpu canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .controls {
   display: grid;
-  gap: var(--space-4);
-  width: 100%;
-  max-width: var(--column);
-  margin-inline: auto;
+  gap: var(--space-5);
   padding-inline: var(--space-4);
 }
 
@@ -43,21 +116,4 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-}
-
-.glyph {
-  width: 2rem;
-  height: 2rem;
-  color: var(--cobalt);
-}
-
-.lemon {
-  width: 2rem;
-  height: 2rem;
-  color: var(--lemon);
-}
-
-.cobalt {
-  padding: var(--space-3);
-  background: var(--cobalt);
 }
