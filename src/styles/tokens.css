@@ -21,7 +21,7 @@
   --ink-2: light-dark(#1e2d4a, #aeb6c2);
   --ink-3: light-dark(#606d80, #7a8597);
   --ink-4: light-dark(#aeb6c2, #47546a);
-  --ink-fresh: light-dark(#23468f, #ffffff);
+  --ink-fresh: light-dark(#23468f, #8ea6ff);
 
   --font-text: "Commissioner Variable", system-ui, sans-serif;
   --font-mono: "Spline Sans Mono Variable", ui-monospace, monospace;

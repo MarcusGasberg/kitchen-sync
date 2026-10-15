@@ -7,19 +7,26 @@ import {
   WORLD_WIDTH,
 } from "./operations";
 
-// The newest items a pattern keeps. Five operations each stays within what
-// the renderers draw at speed; older items leave the pattern on every device
-// alike.
+// The newest items a pattern keeps. Seven operations each at most stays within
+// what the renderers draw at speed; older items leave the pattern on every
+// device alike.
 export const MAX_ITEMS = 64;
 
-// FNV-1a over the id's UTF-16 code units, then mulberry32: the same id gives
-// the same numbers on every device. Integer arithmetic only.
+// FNV-1a over the id's UTF-16 code units, finished with MurmurHash3's mixer so
+// ids that differ only in their last characters still land far apart, then
+// mulberry32: the same id gives the same numbers on every device. Integer
+// arithmetic only.
 const numbersFor = (id: string) => {
   let hash = 0x811c9dc5;
   for (let i = 0; i < id.length; i++) {
     hash ^= id.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
   let state = hash >>> 0;
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;
@@ -36,10 +43,26 @@ const unit = (a: number, b: number): readonly [number, number] => {
   return length === 0 ? [1, 0] : [a / length, b / length];
 };
 
-const inkTone = (n: number) => (1 + Math.floor(n * 4)) as Tone;
+// The outer ring mostly in the middle inks, the core sometimes in the
+// strongest, so the water reads as a few dark lines among quieter ones.
+const OUTER: ReadonlyArray<Tone> = [2, 3, 3, 4];
+const CORE: ReadonlyArray<Tone> = [1, 2, 3];
+const pick = (tones: ReadonlyArray<Tone>, n: number): Tone =>
+  tones[Math.floor(n * tones.length)] ?? 2;
 
-// One item's operations: a drop of ink, clear water inside it and a core of
-// ink, so it lands as rings; a light stroke that lays it into the water; and,
+// Each drop after the first pushes the ones before it outward, so these five
+// land as a core inside four thin rings, alternately clear and ink, about as
+// wide as each other: the fine lines later drops and strokes feather.
+const RINGS = [
+  { part: "ink", share: 0.55 },
+  { part: "clear", share: 0.45 },
+  { part: "ring", share: 0.5 },
+  { part: "gap", share: 0.4 },
+  { part: "core", share: 0.42 },
+] as const;
+
+// One item's operations: five drops that land as rings of ink and clear water
+// around a core; a stroke beside the centre that lays them into the water; and,
 // once checked, a stroke across the basin. Every number is drawn from the
 // item's id in a fixed order, so checking an item moves nothing else.
 const itemOperations = (
@@ -48,10 +71,16 @@ const itemOperations = (
 ): Array<Operation> => {
   const next = numbersFor(item.id);
   const x = 0.2 + next() * (WORLD_WIDTH - 0.4);
-  const y = 0.15 + next() * (WORLD_HEIGHT - 0.3);
-  const radius = 0.06 + next() * 0.05;
-  const outer = inkTone(next());
-  const core = inkTone(next());
+  // Far enough in that the largest drop (radius 0.15) stays on the water.
+  const y = 0.16 + next() * (WORLD_HEIGHT - 0.32);
+  const radius = 0.08 + next() * 0.07;
+  const tones = {
+    ink: pick(OUTER, next()),
+    clear: 0,
+    ring: pick(OUTER, next()),
+    gap: 0,
+    core: pick(CORE, next()),
+  } as const satisfies Record<(typeof RINGS)[number]["part"], Tone>;
   const [lx, ly] = unit(next() * 2 - 1, next() * 2 - 1);
   const lean = next() - 0.5;
   const [cx, cy] = unit(-ly + lean * lx, lx + lean * ly);
@@ -59,25 +88,27 @@ const itemOperations = (
   const id = item.id;
 
   const ops: Array<Operation> = [
-    { kind: "drop", key: `${id}:ink`, x, y, radius, tone: fresh ? 5 : outer },
-    { kind: "drop", key: `${id}:clear`, x, y, radius: radius * 0.66, tone: 0 },
-    {
-      kind: "drop",
-      key: `${id}:core`,
-      x,
-      y,
-      radius: radius * 0.36,
-      tone: fresh ? 5 : core,
-    },
+    ...RINGS.map(
+      ({ part, share }): Operation => ({
+        kind: "drop",
+        key: `${id}:${part}`,
+        x,
+        y,
+        radius: radius * share,
+        tone: fresh && tones[part] !== 0 ? 5 : tones[part],
+      }),
+    ),
+    // Beside the drop's centre, not through it: through the centre a stroke
+    // pulls a drop into a heart; beside it, into a feather.
     {
       kind: "tine",
       key: `${id}:lay`,
-      x,
-      y,
+      x: x - ly * radius * 0.55,
+      y: y + lx * radius * 0.55,
       ux: lx,
       uy: ly,
-      shift: radius * 0.9,
-      falloff: 0.05,
+      shift: radius * 3,
+      falloff: 0.18,
     },
   ];
   if (item.checked) {

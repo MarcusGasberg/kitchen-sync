@@ -46,7 +46,7 @@ export const palette: { readonly day: Theme; readonly night: Theme } = {
     ink2: "#AEB6C2",
     ink3: "#7A8597",
     ink4: "#47546A",
-    inkFresh: "#FFFFFF",
+    inkFresh: "#8EA6FF",
   },
 };
 

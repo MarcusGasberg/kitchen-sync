@@ -71,12 +71,27 @@ describe("patternOf", () => {
     expect(order).toEqual([`${id(1)}:ink`, `${id(3)}:ink`, `${id(2)}:ink`]);
   });
 
-  it("drops each item as ink, clear water and a core, then lays it in", () => {
+  it("drops each item as rings of ink and clear water around a core, then lays it in", () => {
     expect(keys(patternOf({ items: [item(1, 1)] }))).toEqual([
       `${id(1)}:ink`,
       `${id(1)}:clear`,
+      `${id(1)}:ring`,
+      `${id(1)}:gap`,
       `${id(1)}:core`,
       `${id(1)}:lay`,
+    ]);
+  });
+
+  it("lands the rings as alternating ink and clear water", () => {
+    const tones = patternOf({ items: [item(1, 1)] }).flatMap((op) =>
+      op.kind === "drop" ? [op.tone] : [],
+    );
+    expect(tones.map((tone) => tone === 0)).toEqual([
+      false,
+      true,
+      false,
+      true,
+      false,
     ]);
   });
 
