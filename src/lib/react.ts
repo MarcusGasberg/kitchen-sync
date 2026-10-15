@@ -4,7 +4,7 @@
 // anywhere -- tests, several clients on one page, a worker.
 import { Effect, Fiber, type ManagedRuntime, Stream } from "effect";
 import type { HttpClient } from "effect/unstable/http/HttpClient";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ensureClientId } from "./client-identity";
 import { EMPTY_STATE, StoreService } from "./store";
 import { SyncEngineService } from "./sync";
@@ -46,18 +46,26 @@ export function useSyncEngineStore() {
   );
 }
 
-export const useSyncService = (runtime: ClientRuntime | null) =>
+// Starts the engine while the calling component is mounted, and returns this
+// device's clientId once it is read (null before the first effect).
+export const useSyncService = (runtime: ClientRuntime | null) => {
+  const [clientId, setClientId] = useState<string | null>(null);
+
   useEffect(() => {
     if (runtime === null) return;
 
     // Read here, never during render: effects run only in the browser, and
     // on the server there is no `localStorage` to name.
-    const clientId = ensureClientId(localStorage);
+    const id = ensureClientId(localStorage);
+    setClientId(id);
     runtime.runFork(
-      Effect.flatMap(SyncEngineService, (sync) => sync.start(clientId)),
+      Effect.flatMap(SyncEngineService, (sync) => sync.start(id)),
     );
 
     return () => {
       runtime.runFork(Effect.flatMap(SyncEngineService, (sync) => sync.stop));
     };
   }, [runtime]);
+
+  return clientId;
+};

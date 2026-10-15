@@ -1,0 +1,18 @@
+/* Room at the foot for the docked form, so the last row can scroll clear of
+   it on a phone. */
+.app {
+  min-height: 100dvh;
+  padding-bottom: 9rem;
+}
+
+.list {
+  max-width: var(--column);
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+
+@media (min-width: 45rem) {
+  .app {
+    padding-bottom: 0;
+  }
+}
