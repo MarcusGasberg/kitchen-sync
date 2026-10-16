@@ -3,6 +3,7 @@ import {
   type BasinHost,
   basinRenderer,
   createSharedGpu,
+  forcedColors,
   mountBasin,
   SETTLE_MS,
 } from "#/ui/marbling/mount";
@@ -445,5 +446,29 @@ describe("basinRenderer", () => {
     expect(cpu.draws).toHaveLength(0);
     expect(gpu.draws).toHaveLength(0);
     expect(context.drawImage).not.toHaveBeenCalled();
+  });
+});
+
+describe("forcedColors", () => {
+  it("asks the browser whether High Contrast is on", () => {
+    const queries: Array<string> = [];
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: (query: string) => {
+        queries.push(query);
+        return { matches: true } as MediaQueryList;
+      },
+    });
+    try {
+      expect(forcedColors()).toBe(true);
+      expect(queries).toEqual(["(forced-colors: active)"]);
+    } finally {
+      Reflect.deleteProperty(window, "matchMedia");
+    }
+  });
+
+  it("is false where the browser cannot say, as jsdom cannot", () => {
+    expect(window.matchMedia).toBeUndefined();
+    expect(forcedColors()).toBe(false);
   });
 });

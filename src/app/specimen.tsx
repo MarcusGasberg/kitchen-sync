@@ -12,6 +12,7 @@ import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
 import { GroceryList } from "#/ui/grocery-list";
 import { type Group, listView, type WaitingChange } from "#/ui/list-view";
+import { forcedColors } from "#/ui/marbling/mount";
 import { patternOf, waitingOf } from "#/ui/marbling/pattern";
 import { canvasRenderer } from "#/ui/marbling/renderer";
 import { readTones } from "#/ui/marbling/tones";
@@ -239,7 +240,7 @@ function CpuBasin({ items }: { readonly items: ReadonlyArray<GroceryItem> }) {
     }
     element.width = element.clientWidth;
     element.height = element.clientHeight;
-    canvasRenderer(element)?.draw(ops, readTones(element));
+    canvasRenderer(element)?.draw(ops, readTones(element, forcedColors()));
   }, [ops]);
   return (
     <div className={styles.cpu} role="img" aria-label="The CPU's drawing">
@@ -376,7 +377,6 @@ function Sheet({ theme }: { readonly theme: "day" | "night" }) {
           <Button>Add</Button>
           <Button kind="secondary">Dismiss</Button>
           <Button kind="breaking">Drop the ack</Button>
-          <Button disabled>Add</Button>
           <Mark clientId={DEVICE} />
         </div>
         <PartTabs current="/blog/part-1" parts={PARTS} />

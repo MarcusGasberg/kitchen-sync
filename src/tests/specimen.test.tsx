@@ -43,4 +43,14 @@ describe("the specimen", () => {
       screen.getAllByRole("img", { name: /^Crowded: 70 items$/ }),
     ).toHaveLength(2);
   });
+
+  // Rendering both themes alone takes seconds in jsdom.
+  it("shows Add as the app does: never disabled", { timeout: 30_000 }, () => {
+    const { container } = render(<Specimen />);
+    const adds = [...container.querySelectorAll("button")].filter(
+      (button) => button.textContent === "Add",
+    );
+    expect(adds.length).toBeGreaterThan(0);
+    expect(adds.filter((button) => button.disabled)).toHaveLength(0);
+  });
 });

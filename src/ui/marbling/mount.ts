@@ -133,6 +133,11 @@ const matchMedia = (query: string) =>
     ? window.matchMedia(query)
     : undefined;
 
+// Whether High Contrast is on, so a basin's tones are read in the system's
+// own colours; false where the browser cannot say.
+export const forcedColors = (): boolean =>
+  matchMedia("(forced-colors: active)")?.matches ?? false;
+
 export const browserHost: BasinHost = {
   createRenderer: (canvas) => {
     // jsdom has no 2D context, and logs when asked for one.
@@ -147,8 +152,7 @@ export const browserHost: BasinHost = {
       devicePixelRatio: window.devicePixelRatio || 1,
     });
   },
-  readTones: (element) =>
-    readTones(element, matchMedia("(forced-colors: active)")?.matches ?? false),
+  readTones: (element) => readTones(element, forcedColors()),
   matchMedia,
   requestFrame: (callback) => window.requestAnimationFrame(callback),
   cancelFrame: (handle) => window.cancelAnimationFrame(handle),
