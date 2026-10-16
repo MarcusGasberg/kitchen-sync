@@ -30,7 +30,8 @@ void main() {
 // A still frame (`fine` 1) averages sixteen samples on a 4 × 4 grid over a
 // square 1.5 pixels across, a little wider than the pixel, so an edge is
 // smooth rather than stair-stepped. A frame of a settle (`fine` 0) takes four
-// on a rotated grid inside the pixel, cheap enough to draw every frame. The
+// on a rotated grid over the same square, cheap enough to draw every frame
+// and as soft as a still one, so a settle's last frame does not soften. The
 // CPU's `paint` takes one, at the pixel's centre.
 // Numbers from TypeScript reach the shader as uniforms, never spliced into
 // its source, where a whole number would read as an int and not compile.
@@ -104,10 +105,10 @@ void main() {
     colour = vec4(grid / 16.0, 1.0);
     return;
   }
-  vec3 sum = sampleAt(pixel + vec2(-0.125, -0.375))
-    + sampleAt(pixel + vec2(0.375, -0.125))
-    + sampleAt(pixel + vec2(0.125, 0.375))
-    + sampleAt(pixel + vec2(-0.375, 0.125));
+  vec3 sum = sampleAt(pixel + vec2(-0.125, -0.375) * 1.5)
+    + sampleAt(pixel + vec2(0.375, -0.125) * 1.5)
+    + sampleAt(pixel + vec2(0.125, 0.375) * 1.5)
+    + sampleAt(pixel + vec2(-0.375, 0.125) * 1.5);
   colour = vec4(sum * 0.25, 1.0);
 }`;
 
