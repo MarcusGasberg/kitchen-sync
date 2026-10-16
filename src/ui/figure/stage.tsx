@@ -217,14 +217,24 @@ export function Stage({
                 />
               }
             >
-              <GroceryList
-                groups={device.list.groups}
-                rejected={device.list.rejected}
-                headingLevel={4}
-                onIntent={
-                  live ? (intent) => onIntent(device.name, intent) : undefined
-                }
-              />
+              {/* Read-only during a scene, nothing on it a target, the list is
+                  compact; from the hand-over (a fork, so already a jump) it
+                  takes the app's rows and their targets. */}
+              {live ? (
+                <GroceryList
+                  groups={device.list.groups}
+                  rejected={device.list.rejected}
+                  headingLevel={4}
+                  onIntent={(intent) => onIntent(device.name, intent)}
+                />
+              ) : (
+                <GroceryList
+                  groups={device.list.groups}
+                  rejected={device.list.rejected}
+                  headingLevel={4}
+                  density="compact"
+                />
+              )}
               {live && (
                 <QuickAdd
                   label={`Add to ${device.name}'s list`}

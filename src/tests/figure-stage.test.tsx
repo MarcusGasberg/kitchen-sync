@@ -124,30 +124,38 @@ describe("Stage", () => {
     ).toBe(true);
   });
 
-  // Nothing on the server's list is a target, so it is set compact; every
-  // device's list keeps the app's own rows.
-  it("sets the server's list compact and every device's as the app's", async () => {
+  // Nothing on the server's list is ever a target, and nothing on a device's
+  // until the hand-over: in a scene every list is compact; in free play the
+  // devices' lists take the app's rows and targets, the server's stays
+  // compact.
+  it("sets device lists compact in a scene and regular in free play", async () => {
     const view = makeStageView()(await snapshot(), new Map());
-    render(
+    const stage = (live: boolean) => (
       <Stage
         view={view}
         flights={[]}
         lost={[]}
         settle
         scale={1}
-        live={false}
+        live={live}
         onIntent={noop}
         onAdd={noop}
         onRetry={noop}
-      />,
+      />
     );
     const density = (name: string) =>
       within(screen.getByRole("region", { name }))
         .getAllByRole("listitem")
         .map((row) => row.dataset.density);
+    const { rerender } = render(stage(false));
+    expect(density("Server")).toEqual(["compact"]);
+    expect(density("A")).toEqual(["compact"]);
+    expect(density("B")).toEqual(["compact"]);
+    rerender(stage(true));
     expect(density("Server")).toEqual(["compact"]);
     expect(density("A")).toEqual(["regular"]);
     expect(density("B")).toEqual(["regular"]);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
 
   it("runs each wire straight from the server basin's foot, set along it as its device sits along the row", async () => {
