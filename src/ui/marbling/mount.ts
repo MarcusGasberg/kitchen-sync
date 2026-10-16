@@ -198,7 +198,10 @@ export const mountBasin = (
   const scheme = host.matchMedia("(prefers-color-scheme: dark)");
   const forced = host.matchMedia("(forced-colors: active)");
   let made = host.createRenderer(canvas);
-  let tones = host.readTones(canvas);
+  // Nothing to draw into (jsdom has no canvas context): no inks to resolve.
+  const inks = (): ReadonlyArray<Rgb> =>
+    made === null ? [] : host.readTones(canvas);
+  let tones = inks();
   let ops: ReadonlyArray<Operation> = [];
   let frame: number | null = null;
   let shown = false;
@@ -235,7 +238,7 @@ export const mountBasin = (
     draw();
   };
   const retone = () => {
-    tones = host.readTones(canvas);
+    tones = inks();
     redraw();
   };
 

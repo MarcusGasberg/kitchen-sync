@@ -377,6 +377,16 @@ describe("mountBasin", () => {
     basin.unmount();
   });
 
+  it("reads no inks without a renderer, even when the system turns to night", () => {
+    const fake = fakeHost({ renderer: false });
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.emit("(prefers-color-scheme: dark)");
+    fake.emit("(forced-colors: active)");
+    expect(fake.toneReads()).toBe(0);
+    basin.unmount();
+  });
+
   it("lets the first drop on an empty list settle in", () => {
     const fake = fakeHost();
     const basin = mountBasin(canvasOf(400, 160), fake.host);
