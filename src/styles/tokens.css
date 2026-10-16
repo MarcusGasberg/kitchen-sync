@@ -50,6 +50,8 @@
   --radius-basin: 18px;
   --radius-badge: 10px;
   --row-height: 2.875rem;
+  /* A row nothing on which is a target: the server's list in a figure. */
+  --row-height-compact: 2rem;
   --target: 2.75rem;
   --column: 45rem;
 

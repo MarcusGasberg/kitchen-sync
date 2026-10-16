@@ -3,7 +3,7 @@ import { type ReactNode, useId } from "react";
 import type { MutationIntent } from "#/domain/mutation";
 import type { Rejection } from "#/lib/store";
 import styles from "./grocery-list.module.css";
-import { ItemRow } from "./item-row";
+import { type Density, ItemRow } from "./item-row";
 import type { Group } from "./list-view";
 import { RejectedRow } from "./rejected-row";
 
@@ -21,17 +21,32 @@ export const stamp = (
   issuedAt: DateTime.Utc,
 ): MutationIntent => ({ ...intent, issuedAt });
 
-interface GroceryListProps {
+interface ListBase {
   readonly groups: ReadonlyArray<Group>;
   readonly rejected: ReadonlyArray<Rejection>;
-  // Absent, the list is read-only, as a figure shows a client during a scene.
-  readonly onIntent?: (intent: ListIntent) => void;
-  readonly onDismiss?: (clientMutationIds: ReadonlyArray<number>) => void;
   readonly empty?: ReactNode;
   // Category heads sit under the page's h1 in the app, under a pane's h2 in
   // the specimen, and under a figure's panes (h3) in a figure.
   readonly headingLevel?: 2 | 3 | 4;
 }
+
+// A compact list takes no intents: with no targets on it, its rows can drop
+// the target's height. The server's list in a figure is one.
+type GroceryListProps = ListBase &
+  (
+    | {
+        readonly density?: "regular";
+        // Absent, the list is read-only, as a figure shows a client during a
+        // scene.
+        readonly onIntent?: (intent: ListIntent) => void;
+        readonly onDismiss?: (clientMutationIds: ReadonlyArray<number>) => void;
+      }
+    | {
+        readonly density: "compact";
+        readonly onIntent?: undefined;
+        readonly onDismiss?: undefined;
+      }
+  );
 
 // The shared list: rejections first, on their own rows, so none is ever below
 // the fold; then the items grouped by category. The app binds it to its
@@ -43,9 +58,10 @@ export function GroceryList({
   onDismiss,
   empty = "Nothing on the list yet.",
   headingLevel = 2,
+  density = "regular",
 }: GroceryListProps) {
   return (
-    <div className={styles.list}>
+    <div className={styles.list} data-density={density}>
       {rejected.length > 0 && (
         <ul className={styles.rejected} aria-label="Rejected changes">
           {rejected.map((rejection) => (
@@ -68,6 +84,7 @@ export function GroceryList({
             group={group}
             onIntent={onIntent}
             headingLevel={headingLevel}
+            density={density}
           />
         ))
       )}
@@ -79,9 +96,15 @@ interface GroupSectionProps {
   readonly group: Group;
   readonly onIntent: ((intent: ListIntent) => void) | undefined;
   readonly headingLevel: 2 | 3 | 4;
+  readonly density: Density;
 }
 
-function GroupSection({ group, onIntent, headingLevel }: GroupSectionProps) {
+function GroupSection({
+  group,
+  onIntent,
+  headingLevel,
+  density,
+}: GroupSectionProps) {
   const id = useId();
   const Heading = headingLevel === 4 ? "h4" : headingLevel === 3 ? "h3" : "h2";
   return (
@@ -98,6 +121,7 @@ function GroupSection({ group, onIntent, headingLevel }: GroupSectionProps) {
             key={item.id}
             item={item}
             sync={sync}
+            density={density}
             onCheck={
               onIntent &&
               ((checked) =>

@@ -219,6 +219,37 @@ describe("GroceryList", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
+  // A list nothing on which is a target sets its rows closer, each row in
+  // the same grammar: the mark, the amount and name, and a checked item's
+  // form and word.
+  it("sets its rows compact when asked, and as the app's otherwise", () => {
+    const view = viewOf([
+      item("Bananas", { category: "Produce" }),
+      item("Spinach", { category: "Produce", checked: true }),
+    ]);
+    const { rerender } = render(
+      <GroceryList groups={view.groups} rejected={[]} />,
+    );
+    const rows = () => screen.getAllByRole("listitem");
+    expect(rows().map((row) => row.dataset.density)).toEqual([
+      "regular",
+      "regular",
+    ]);
+    rerender(
+      <GroceryList groups={view.groups} rejected={[]} density="compact" />,
+    );
+    expect(rows().map((row) => row.dataset.density)).toEqual([
+      "compact",
+      "compact",
+    ]);
+    const [, spinach] = rows();
+    expect(spinach?.dataset.checked).toBe("true");
+    expect(spinach?.textContent).toContain("1 Spinach (checked)");
+    expect(
+      screen.getByRole("region", { name: "Produce" }).textContent,
+    ).toContain("1 left");
+  });
+
   it("asks for SetItemChecked and RemoveItem, for the binder to stamp", () => {
     const bananas = item("Bananas", { quantity: 6, category: "Produce" });
     const view = viewOf([bananas]);

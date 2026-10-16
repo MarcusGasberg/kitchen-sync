@@ -10,19 +10,32 @@ const amount = (item: GroceryItem) =>
     .filter((part) => part !== undefined)
     .join(" ");
 
+// How close a list sets its rows: "regular", the app's 46 px rows around
+// 44 px targets, or "compact", for rows nothing on which is a target.
+export type Density = "regular" | "compact";
+
 interface ItemRowProps {
   readonly item: GroceryItem;
   readonly sync: RowSync;
   // Absent, the row is read-only, as a figure shows it during a scene.
   readonly onCheck?: (checked: boolean) => void;
   readonly onRemove?: () => void;
+  // "compact" drops the target's height: only for a read-only row, as in a
+  // compact GroceryList, which takes no intents.
+  readonly density?: Density;
 }
 
 // One grocery item. Its sync state changes form inside a fixed box, so the
 // row never changes size when a change lands: pending is a hollow ring with
 // its #id, acked the ring half filled. Synced shows nothing, so the name
 // takes that room.
-export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
+export function ItemRow({
+  item,
+  sync,
+  onCheck,
+  onRemove,
+  density = "regular",
+}: ItemRowProps) {
   const text = (
     <span className={styles.what}>
       <span className={styles.amount}>{amount(item)}</span> {item.name}
@@ -34,6 +47,7 @@ export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
       data-sync={sync.kind}
       data-checked={item.checked}
       data-readonly={onCheck === undefined}
+      data-density={density}
     >
       {onCheck ? (
         <label className={styles.label}>

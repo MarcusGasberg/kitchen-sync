@@ -30,6 +30,16 @@ label.label {
   grid-column: span 2;
 }
 
+/* Compact: a read-only row, nothing on it a target, set closer. The mark,
+   the name and any state keep their form. */
+.row[data-density="compact"] {
+  min-height: var(--row-height-compact);
+}
+
+.row[data-density="compact"] .label {
+  min-height: 0;
+}
+
 /* An empty ring; checked, a drop of the text's ink. */
 .check {
   flex: none;
