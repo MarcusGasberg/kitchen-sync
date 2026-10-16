@@ -6,12 +6,18 @@ import type { ItemMutation, OutboxEntry } from "#/domain/mutation";
 import { isConverged } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
 import {
+  forward,
   type Operation,
   toneAt,
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "#/ui/marbling/operations";
-import { MAX_ITEMS, patternOf, waitingOf } from "#/ui/marbling/pattern";
+import {
+  landmarksOf,
+  MAX_ITEMS,
+  patternOf,
+  waitingOf,
+} from "#/ui/marbling/pattern";
 import { add, check } from "./sandbox-helpers";
 
 const at = DateTime.makeUnsafe(Date.UTC(2026, 9, 15, 9));
@@ -298,4 +304,37 @@ describe("a running world", () => {
       Effect.provide(World.layer({ clients: ["A", "B"], seed: "basin" })),
     ),
   );
+});
+
+describe("landmarksOf", () => {
+  // Eggs changed last, so its drops land after milk's and push them.
+  const milk = item(1, 1);
+  const eggs = item(2, 2);
+
+  it("finds a lone item at its drops' centre", () => {
+    const ops = patternOf({ items: [milk] });
+    const core = ops.find((op) => op.key === `${milk.id}:core`);
+    const marks = landmarksOf(ops, new Set([milk.id]));
+    expect(core?.kind).toBe("drop");
+    expect(marks.get(milk.id)).toEqual(
+      core?.kind === "drop" ? { x: core.x, y: core.y } : undefined,
+    );
+  });
+
+  it("follows an item as later drops push it", () => {
+    const ops = patternOf({ items: [milk, eggs] });
+    const core = ops.find((op) => op.key === `${milk.id}:core`);
+    if (core?.kind !== "drop") throw new Error("no core drop");
+    const later = ops.slice(ops.indexOf(core) + 1);
+    const expected = later.reduce((point, op) => forward(op, point), {
+      x: core.x,
+      y: core.y,
+    });
+    expect(landmarksOf(ops, new Set([milk.id])).get(milk.id)).toEqual(expected);
+  });
+
+  it("marks only the items asked for", () => {
+    const ops = patternOf({ items: [milk, eggs] });
+    expect([...landmarksOf(ops, new Set([eggs.id])).keys()]).toEqual([eggs.id]);
+  });
 });

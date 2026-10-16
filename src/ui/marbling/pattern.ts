@@ -1,7 +1,9 @@
 import type { GroceryItem } from "#/domain/grocery-item";
 import type { OutboxEntry } from "#/domain/mutation";
 import {
+  forward,
   type Operation,
+  type Point,
   type Tone,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -153,4 +155,27 @@ export const waitingOf = (
     waiting.set(mutation.itemId, mutation.clientMutationId);
   }
   return waiting;
+};
+
+// Where each item sits once every later operation has pushed it: its core
+// drop's centre, carried forward. A basin labels an item there. Keyed by item
+// id; an item that is not in the pattern has no landmark.
+export const landmarksOf = (
+  ops: ReadonlyArray<Operation>,
+  ids: ReadonlySet<string>,
+): ReadonlyMap<string, Point> => {
+  const marks = new Map<string, Point>();
+  for (const op of ops) {
+    for (const [id, point] of marks) marks.set(id, forward(op, point));
+    const split = op.key.lastIndexOf(":");
+    const id = op.key.slice(0, split);
+    if (
+      op.kind === "drop" &&
+      op.key.slice(split + 1) === "core" &&
+      ids.has(id)
+    ) {
+      marks.set(id, { x: op.x, y: op.y });
+    }
+  }
+  return marks;
 };

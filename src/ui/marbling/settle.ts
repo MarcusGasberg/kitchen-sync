@@ -146,6 +146,9 @@ export const createSettler = (duration: number) => {
       arriveBefore(next.length);
       entries = merged;
     },
+    // Whether anything is still settling at `now`.
+    moving: (now: number) =>
+      entries.some((entry) => now - entry.start < duration),
     // The pattern as far as it has settled at `now`, and whether anything is
     // still moving. An operation still to land is drawn at weight 0, which
     // changes nothing.

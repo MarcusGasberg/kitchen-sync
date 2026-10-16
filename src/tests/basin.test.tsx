@@ -38,6 +38,22 @@ describe("Basin", () => {
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });
+
+  it("labels an item where its drops sit, hidden from the accessibility tree with the rest of the picture", () => {
+    render(
+      <Basin
+        items={[milk, eggs]}
+        label="The server's list"
+        labels={new Map([[milk.id, "v1"]])}
+      />,
+    );
+    const label = screen.getByText("v1");
+    expect(label.style.left).toMatch(/%$/);
+    expect(label.style.top).toMatch(/%$/);
+    expect(
+      screen.getByRole("img", { name: /The server's list/ }).contains(label),
+    ).toBe(true);
+  });
 });
 
 describe("describeBasin", () => {

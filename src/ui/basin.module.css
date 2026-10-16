@@ -33,3 +33,24 @@
     border: var(--rule) solid CanvasText;
   }
 }
+
+/* A version set where its item's drops sit. A halo of water keeps it legible
+   over the ink without boxing it. */
+.label {
+  position: absolute;
+  z-index: 1;
+  translate: -50% -50%;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1 var(--font-mono);
+  text-shadow:
+    0 0 3px var(--water),
+    0 0 3px var(--water);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .label {
+    color: CanvasText;
+    text-shadow: none;
+  }
+}

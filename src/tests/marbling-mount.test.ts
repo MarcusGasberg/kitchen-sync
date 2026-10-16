@@ -324,6 +324,19 @@ describe("mountBasin", () => {
     expect(fake.waiting()).toBe(0);
   });
 
+  it("draws nothing for a scrub that lands on the pattern already standing", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    const drawn = fake.draws.length;
+
+    basin.show([drop("a")], { settle: false });
+    expect(fake.waiting()).toBe(0);
+    fake.frame();
+    expect(fake.draws.length).toBe(drawn);
+  });
+
   it("redraws in the new inks when the system turns to night", () => {
     const fake = fakeHost();
     const basin = mountBasin(canvasOf(400, 160), fake.host);

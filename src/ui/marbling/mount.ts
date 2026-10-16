@@ -247,9 +247,17 @@ export const mountBasin = (
   return {
     show: (next, options = {}) => {
       const settle = options.settle !== false;
-      // A scrub shows its instant at once, even when that instant is the
-      // pattern still settling in.
-      if (settle && shown && samePattern(ops, next)) return;
+      // The same pattern again changes nothing. A scrub (no settle) that finds
+      // it still settling in shows its instant at once; one that finds it
+      // standing draws nothing, as a scrub through a quiet stretch does on
+      // every frame.
+      if (
+        shown &&
+        samePattern(ops, next) &&
+        (settle || !settler.moving(host.now()))
+      ) {
+        return;
+      }
       shown = true;
       ops = next;
       settler.see(
