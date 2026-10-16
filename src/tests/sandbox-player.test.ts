@@ -144,6 +144,25 @@ describe("makePlayer", () => {
   );
 
   it.effect(
+    "play at the end starts over at the opening and reads its caption first",
+    () =>
+      Effect.gen(function* () {
+        const player = yield* makePlayer(scene, { autoplay: false });
+        const { opening, end } = player.view();
+        yield* player.scrub(end);
+        expect(player.view().ended).toBe(true);
+        yield* player.setVisible(true);
+        yield* player.play;
+        yield* player.tick(MAX_FRAME_MILLIS);
+        expect(player.view().at).toBe(opening);
+        expect(player.view().beat).toBe(1);
+        yield* tickUntil(player, () => player.view().at > opening);
+        expect(player.view().at).toBeGreaterThan(opening);
+        yield* player.close;
+      }),
+  );
+
+  it.effect(
     "scrubs to any instant, snapped to a quantum and kept within the scene",
     () =>
       Effect.gen(function* () {

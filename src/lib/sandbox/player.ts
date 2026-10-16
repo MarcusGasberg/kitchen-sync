@@ -284,9 +284,11 @@ export const makePlayer = (
         Effect.sync(() => {
           if (failure !== null) return;
           if (live === null) {
-            if (atEnd(segments, cursor)) cursor = cursorAt(segments, opening);
-            // A reader who pressed play had this caption in front of them.
-            cursor = pastDwell(segments, cursor);
+            // From the end the opening's caption is new to the reader, so it
+            // keeps its dwell; otherwise they had this caption in front of them.
+            cursor = atEnd(segments, cursor)
+              ? cursorAt(segments, opening)
+              : pastDwell(segments, cursor);
           }
           playing = true;
           publish();
