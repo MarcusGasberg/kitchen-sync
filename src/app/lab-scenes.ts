@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import type { Category } from "#/domain/grocery-item";
 import type { Scene } from "#/lib/sandbox/scene";
 import type { WorldHandle, WorldOptions } from "#/lib/sandbox/world";
 import { addItem } from "#/ui/figure/actions";
@@ -13,18 +14,34 @@ const WORLD: WorldOptions = {
   latency: "800 millis",
 };
 
+interface Row {
+  readonly name: string;
+  readonly category: Category;
+}
+
 const adds =
-  (client: string, ...names: ReadonlyArray<string>) =>
+  (client: string, ...rows: ReadonlyArray<Row>) =>
   (world: WorldHandle) =>
     Effect.forEach(
-      names,
-      (name) => addItem(client, name)(world).pipe(Effect.orDie),
+      rows,
+      ({ name, category }) =>
+        addItem(client, name, { category })(world).pipe(Effect.orDie),
       { discard: true },
     );
 
+// A short list in the app's own categories: rows enough that devices which
+// agree have lines to match, and a later drop rings to push.
+const SHORT_LIST: ReadonlyArray<Row> = [
+  { name: "Bananas", category: "Produce" },
+  { name: "Spinach", category: "Produce" },
+  { name: "Rye bread", category: "Bakery" },
+  { name: "Greek yogurt", category: "Dairy" },
+  { name: "Butter", category: "Dairy" },
+];
+
 const setup: Scene["beats"][number] = {
   caption: "Three phones share a short list.",
-  run: adds("A", "Bananas", "Rye bread", "Greek yogurt"),
+  run: adds("A", ...SHORT_LIST),
   until: ({ since }) => since.some((e) => e._tag === "Converged"),
 };
 
@@ -36,7 +53,7 @@ export const DROP_SCENE: Scene = {
     {
       caption:
         "A adds oat milk. It shows on A at once, in fresh ink, and waits in A's outbox.",
-      run: adds("A", "Oat milk"),
+      run: adds("A", { name: "Oat milk", category: "Dairy" }),
       until: ({ since }) =>
         since.some((e) => e._tag === "Sent" && e.message.kind === "push"),
     },

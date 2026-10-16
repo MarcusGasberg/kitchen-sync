@@ -1,5 +1,6 @@
 import { DateTime, Effect } from "effect";
 import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
+import type { MutationIntent } from "#/domain/mutation";
 import type { ClientName, MessageKind } from "#/lib/sandbox/trace";
 import type { WorldHandle } from "#/lib/sandbox/world";
 import { type ListIntent, stamp } from "#/ui/grocery-list";
@@ -14,17 +15,28 @@ export type Action = (
 const issuedAt = (world: WorldHandle) =>
   Effect.map(world.clock.now, (millis) => DateTime.makeUnsafe(millis));
 
+// What an added item may say besides its name: its quantity, unit and
+// category. A reader's quick add names the item alone; a scene's rows can say
+// more.
+export type ItemDetails = Omit<
+  Extract<MutationIntent, { readonly _tag: "AddItem" }>["item"],
+  "name"
+>;
+
 // Its id from the world's seeded ids and its time from the world's clock, so
 // a fork replays it exactly.
 export const addItem =
-  (client: ClientName, name: string): Action =>
+  (client: ClientName, name: string, details: ItemDetails = {}): Action =>
   (world) =>
     Effect.gen(function* () {
       const itemId = yield* world.newId;
       const at = yield* issuedAt(world);
-      yield* world
-        .client(client)
-        .apply({ _tag: "AddItem", itemId, issuedAt: at, item: { name } });
+      yield* world.client(client).apply({
+        _tag: "AddItem",
+        itemId,
+        issuedAt: at,
+        item: { ...details, name },
+      });
     });
 
 export const applyIntent =
