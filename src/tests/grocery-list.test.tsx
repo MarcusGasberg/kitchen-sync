@@ -52,6 +52,28 @@ describe("ItemRow", () => {
     expect(row.textContent).not.toMatch(/pending|acked/);
   });
 
+  // Synced, the name takes the state's slot as well; a waiting change takes
+  // it back. The row's own box is fixed either way.
+  it("keeps a state slot only while a change waits", () => {
+    const { rerender } = render(
+      <ul>
+        <ItemRow item={milk} sync={{ kind: "synced" }} />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.children).toHaveLength(1);
+    rerender(
+      <ul>
+        <ItemRow
+          item={milk}
+          sync={{ kind: "pending", clientMutationId: 3, intent: "AddItem" }}
+        />
+      </ul>,
+    );
+    expect(row.children).toHaveLength(2);
+    expect(row.children[1]?.textContent).toContain("#3");
+  });
+
   it.each(["pending", "acked"] as const)("says %s, with its #id", (kind) => {
     render(
       <ul>

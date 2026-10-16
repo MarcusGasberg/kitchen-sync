@@ -19,8 +19,9 @@ interface ItemRowProps {
 }
 
 // One grocery item. Its sync state changes form inside a fixed box, so the
-// list never reflows when a change lands: synced shows nothing, pending a
-// hollow ring with its #id, acked the ring half filled.
+// row never changes size when a change lands: pending is a hollow ring with
+// its #id, acked the ring half filled. Synced shows nothing, so the name
+// takes that room.
 export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
   const text = (
     <span className={styles.what}>
@@ -51,19 +52,17 @@ export function ItemRow({ item, sync, onCheck, onRemove }: ItemRowProps) {
           {item.checked && <span className="visually-hidden"> (checked)</span>}
         </span>
       )}
-      <span className={styles.state}>
-        {sync.kind !== "synced" && (
-          <>
-            <span className={styles.ring} aria-hidden="true" />
-            <span className="visually-hidden">{VERB[sync.intent]} </span>
-            <span>#{sync.clientMutationId}</span>
-            <span className={styles.word}>
-              <span className="visually-hidden">, </span>
-              {sync.kind}
-            </span>
-          </>
-        )}
-      </span>
+      {sync.kind !== "synced" && (
+        <span className={styles.state}>
+          <span className={styles.ring} aria-hidden="true" />
+          <span className="visually-hidden">{VERB[sync.intent]} </span>
+          <span>#{sync.clientMutationId}</span>
+          <span className={styles.word}>
+            <span className="visually-hidden">, </span>
+            {sync.kind}
+          </span>
+        </span>
+      )}
       {onRemove && (
         <button
           type="button"
