@@ -189,6 +189,12 @@ const rowKey = (item: GroceryItem) =>
     item.version,
   ]);
 
+// Whether two lists show the same rows in the same order.
+export const sameRows = (
+  a: Iterable<GroceryItem>,
+  b: Iterable<GroceryItem>,
+): boolean => [...a].map(rowKey).join("\n") === [...b].map(rowKey).join("\n");
+
 // Every online client shows the server's rows, and every outbox is empty.
 // An offline client's rows are left out (it cannot pull until it is back),
 // but not its outbox: a mutation it has not pushed is not agreed on.
@@ -196,13 +202,10 @@ const rowKey = (item: GroceryItem) =>
 // Rows are compared in order: the server's read and a pull both list them in
 // `order` order, and with nothing pending a client shows its last pull's rows.
 export const isConverged = (snapshot: WorldSnapshot): boolean => {
-  const server = snapshot.server.items.map(rowKey).join("\n");
   for (const [name, state] of snapshot.clients) {
     if (state.outbox.length > 0) return false;
     if (snapshot.offline.has(name)) continue;
-    if ([...state.items.values()].map(rowKey).join("\n") !== server) {
-      return false;
-    }
+    if (!sameRows(state.items.values(), snapshot.server.items)) return false;
   }
   return true;
 };
