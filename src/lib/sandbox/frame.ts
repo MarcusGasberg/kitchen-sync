@@ -100,3 +100,33 @@ export const previousInstant = (
   }
   return timeline.entries[index]?.event.at ?? null;
 };
+
+// How long a figure marks where a message was lost, in virtual time.
+export const LOST_MARK_MILLIS = 600;
+
+export interface Lost {
+  readonly message: Message;
+  // How far along its wire it had got.
+  readonly progress: number;
+  // Virtual milliseconds since it was lost.
+  readonly age: number;
+}
+
+// The messages lost on the wire in the LOST_MARK_MILLIS before `at`. A dropped
+// message leaves the snapshot the instant it is lost, so without this mark it
+// would simply vanish.
+export const lostAt = (timeline: Timeline, at: number): ReadonlyArray<Lost> => {
+  const lost: Array<Lost> = [];
+  for (let index = entryIndexAt(timeline, at); index >= 0; index--) {
+    const entry = timeline.entries[index];
+    if (entry === undefined || at - entry.event.at >= LOST_MARK_MILLIS) break;
+    if (entry.event._tag === "Dropped") {
+      lost.push({
+        message: entry.event.message,
+        progress: progressOf(entry.event.message, entry.event.at),
+        age: at - entry.event.at,
+      });
+    }
+  }
+  return lost;
+};

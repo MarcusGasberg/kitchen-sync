@@ -32,6 +32,18 @@ const scene: Scene = {
 };
 
 describe("runHeadless", () => {
+  it.effect("names each client's id, the same on every run", () =>
+    Effect.gen(function* () {
+      const first = yield* runHeadless(scene);
+      const second = yield* runHeadless(scene);
+      expect([...first.clientIds.keys()]).toEqual([...scene.world.clients]);
+      for (const id of first.clientIds.values()) {
+        expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4/);
+      }
+      expect(second.clientIds).toEqual(first.clientIds);
+    }),
+  );
+
   it.effect("runs each beat until its condition holds", () =>
     Effect.gen(function* () {
       const result = yield* runHeadless(scene);

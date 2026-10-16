@@ -30,7 +30,7 @@ import {
   runHeadless,
   type Scene,
 } from "./scene";
-import { snapshotDifference, type Timeline } from "./trace";
+import { type ClientName, snapshotDifference, type Timeline } from "./trace";
 import { FREE_PLAY_LIMIT, type WorldHandle } from "./world";
 
 export type Speed = 0.5 | 1 | 4;
@@ -73,6 +73,13 @@ export interface PlayerView {
   readonly skipping: number | null;
   // The defect that stopped the figure.
   readonly failure: string | null;
+  // Whether the playhead's last move was a jump (a scrub, a step, a
+  // restart, a fork, or Play at the end going back to the opening) rather
+  // than play: a figure shows that instant at once instead of settling
+  // into it.
+  readonly jumped: boolean;
+  // Each device's client id, for its mark. A fork keeps the scene's.
+  readonly clientIds: ReadonlyMap<ClientName, string>;
 }
 
 export interface PlayerOptions {
@@ -163,6 +170,7 @@ export const makePlayer = (
     let speed: Speed = 1;
     let busy = false;
     let failure: string | null = null;
+    let jumped = false;
 
     // Free play's "+N s": behind the live edge a quiet wait is known, so it
     // shows the whole wait; at the edge, the time run fast so far.
@@ -175,7 +183,16 @@ export const makePlayer = (
     };
 
     const compute = (): PlayerView => {
-      const shared = { opening, playing, visible, speed, busy, failure };
+      const shared = {
+        opening,
+        playing,
+        visible,
+        speed,
+        busy,
+        failure,
+        jumped,
+        clientIds: result.clientIds,
+      };
       if (live === null) {
         const beat = beatAt(segments, cursor, result.beats);
         return {
@@ -238,6 +255,7 @@ export const makePlayer = (
 
     const toOpening = () => {
       cursor = cursorAt(segments, opening);
+      jumped = true;
       handedBeats = result.beats;
       fastSince = null;
     };
@@ -286,6 +304,7 @@ export const makePlayer = (
             live = next;
             timeline = forked;
             at = forkedAt;
+            jumped = true;
             now = forkedAt;
             fastSince = null;
             handedBeats = handedBeats.filter(
@@ -331,11 +350,16 @@ export const makePlayer = (
         Effect.sync(() => {
           if (failure !== null) return;
           if (live === null) {
-            // From the end the opening's caption is new to the reader, so it
-            // keeps its dwell; otherwise they had this caption in front of them.
-            cursor = atEnd(segments, cursor)
-              ? cursorAt(segments, opening)
-              : pastDwell(segments, cursor);
+            // From the end the opening's caption is new to the reader, so
+            // it keeps its dwell, and the playhead jumps there: the figure
+            // shows the opening at once instead of settling backwards into
+            // it. Otherwise they had this caption in front of them.
+            if (atEnd(segments, cursor)) {
+              cursor = cursorAt(segments, opening);
+              jumped = true;
+            } else {
+              cursor = pastDwell(segments, cursor);
+            }
           }
           playing = true;
           publish();
@@ -383,6 +407,7 @@ export const makePlayer = (
             }
             fastSince = null;
           }
+          jumped = true;
           publish();
         }),
       ),
@@ -402,6 +427,7 @@ export const makePlayer = (
             at = previousInstant(timeline, at) ?? current.start;
             fastSince = null;
           }
+          jumped = true;
           publish();
         }),
       ),
@@ -422,6 +448,7 @@ export const makePlayer = (
               at = instant;
               fastSince = null;
             }
+            jumped = true;
             publish();
           }),
         ),
@@ -466,6 +493,7 @@ export const makePlayer = (
               );
               timeline = yield* session.timeline;
               now = yield* session.now;
+              jumped = false;
             }
             publish();
           }),
@@ -476,6 +504,7 @@ export const makePlayer = (
             guard(
               Effect.gen(function* () {
                 if (!playing || !visible || busy || failure !== null) return;
+                jumped = false;
                 const frame = Number.isFinite(millis)
                   ? Math.min(MAX_FRAME_MILLIS, Math.max(0, millis))
                   : 0;

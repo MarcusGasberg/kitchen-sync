@@ -1,6 +1,6 @@
 import { Data, Duration, Effect } from "effect";
 import type { RecordedInput } from "./inputs";
-import type { Timeline, TraceEvent } from "./trace";
+import type { ClientName, Timeline, TraceEvent } from "./trace";
 import {
   QUANTUM_MILLIS,
   World,
@@ -38,6 +38,9 @@ export interface SceneResult {
   // The options its world was built with: with `inputs`, the scene's
   // recording, enough to fork its world at any instant.
   readonly options: WorldOptions;
+  // Each client's id, which every fork of the scene's world shares: a figure
+  // shows it as the device's mark.
+  readonly clientIds: ReadonlyMap<ClientName, string>;
   readonly timeline: Timeline;
   readonly beats: ReadonlyArray<BeatResult>;
   readonly inputs: ReadonlyArray<RecordedInput>;
@@ -106,6 +109,11 @@ export const runHeadless = (
 
     return {
       options: worldOptions,
+      clientIds: new Map(
+        scene.world.clients.map(
+          (name) => [name, world.client(name).clientId] as const,
+        ),
+      ),
       timeline: yield* world.currentTimeline,
       beats,
       inputs: yield* world.inputs,

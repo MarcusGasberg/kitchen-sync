@@ -140,6 +140,52 @@ const addOn = (client: string, name: string) => (world: WorldHandle) =>
 
 describe("makePlayer", () => {
   it.effect(
+    "says when the playhead jumped, so a figure shows that instant at once",
+    () =>
+      Effect.gen(function* () {
+        const player = yield* makePlayer(scene, { autoplay: false });
+        expect(player.view().jumped).toBe(false);
+        yield* player.scrub(player.view().start + 500);
+        expect(player.view().jumped).toBe(true);
+        yield* player.setVisible(true);
+        yield* player.play;
+        yield* player.tick(MAX_FRAME_MILLIS);
+        expect(player.view().jumped).toBe(false);
+        yield* player.next;
+        expect(player.view().jumped).toBe(true);
+        yield* player.yourTurn;
+        expect(player.view().jumped).toBe(true);
+        yield* player.act(addOn("A", "Eggs"));
+        expect(player.view().jumped).toBe(false);
+        yield* player.restart;
+        expect(player.view().jumped).toBe(true);
+        // Play at the end starts over at the opening: a jump, though it plays.
+        yield* player.play;
+        yield* player.scrub(player.view().end);
+        yield* player.tick(MAX_FRAME_MILLIS);
+        expect(player.view()).toMatchObject({
+          ended: true,
+          playing: false,
+          jumped: false,
+        });
+        yield* player.play;
+        expect(player.view().jumped).toBe(true);
+        yield* player.close;
+      }),
+  );
+
+  it.effect("names each device's client id, in a scene and in free play", () =>
+    Effect.gen(function* () {
+      const player = yield* makePlayer(scene, { autoplay: false });
+      const ids = player.view().clientIds;
+      expect([...ids.keys()]).toEqual(["A", "B"]);
+      yield* player.yourTurn;
+      expect(player.view().clientIds).toEqual(ids);
+      yield* player.close;
+    }),
+  );
+
+  it.effect(
     "opens paused at the end of the setup, on the next beat's caption",
     () =>
       Effect.gen(function* () {

@@ -4,6 +4,8 @@ import { describe, expect } from "vitest";
 import {
   entryIndexAt,
   frameAt,
+  LOST_MARK_MILLIS,
+  lostAt,
   nextInstant,
   previousInstant,
   progressOf,
@@ -138,4 +140,30 @@ describe("frameAt", () => {
         Effect.provide(World.layer({ clients: ["A", "B"], seed: "frames" })),
       ),
   );
+});
+
+describe("lostAt", () => {
+  it("marks a message lost a moment ago where it was dropped", () => {
+    const dropped = push({
+      sentAt: 900,
+      departedAt: 900,
+      arriveAt: 1100,
+      fate: "dropped",
+    });
+    const event: TraceEvent = {
+      _tag: "Dropped",
+      message: dropped,
+      at: 1000,
+      seq: 1,
+    };
+    const t: Timeline = {
+      entries: [...timeline(0).entries, { event, snapshot: snapshot(1000) }],
+      trimmed: false,
+    };
+    expect(lostAt(t, 1100)).toEqual([
+      { message: dropped, progress: 0.5, age: 100 },
+    ]);
+    expect(lostAt(t, 1000 + LOST_MARK_MILLIS)).toEqual([]);
+    expect(lostAt(t, 999)).toEqual([]);
+  });
 });
