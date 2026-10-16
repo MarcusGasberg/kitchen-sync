@@ -1,0 +1,18 @@
+.lab {
+  display: grid;
+  gap: calc(var(--space-7) * 2);
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-7);
+}
+
+@media (min-width: 64rem) {
+  .lab {
+    padding-inline: var(--space-7);
+  }
+}
+
+.heading {
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.5 var(--font-text);
+}
