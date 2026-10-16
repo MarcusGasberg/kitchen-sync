@@ -25,3 +25,11 @@
   width: 100%;
   height: 100%;
 }
+
+/* High Contrast drops the shade and its ring: a plain edge in the system's
+   text colour keeps the water's shape. */
+@media (forced-colors: active) {
+  .basin {
+    border: var(--rule) solid CanvasText;
+  }
+}
