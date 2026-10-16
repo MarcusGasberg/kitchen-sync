@@ -1,0 +1,69 @@
+/* The server's pane, the wire band (the gap), then the devices. The wires are
+   drawn over all of it by the band's SVG. */
+.stage {
+  position: relative;
+  display: grid;
+  gap: calc(var(--space-7) + var(--space-6));
+  min-width: 0;
+}
+
+/* The server's pane, measured for where the wires start. Its header is
+   Pane's own. */
+.server {
+  min-width: 0;
+}
+
+/* The basin, then its list: beside it on a wide screen, under it below. */
+.serverBody {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .serverBody {
+    grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+    align-items: start;
+    gap: var(--space-6);
+  }
+}
+
+.serverList {
+  min-width: 0;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--target);
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.5 var(--font-text);
+  cursor: pointer;
+}
+
+/* One row of devices, however many: past the width they scroll sideways. */
+.devices {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(14rem, 1fr);
+  gap: var(--space-6);
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding-bottom: var(--space-2);
+}
+
+.device {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+/* A phone: a strip to swipe, the next device's edge in view. A set width
+   gives each list its inline-size container something to measure. */
+@media (max-width: 44.99rem) {
+  .devices {
+    grid-auto-columns: min(85%, 22rem);
+    gap: var(--space-5);
+  }
+}
