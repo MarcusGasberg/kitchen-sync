@@ -1,4 +1,5 @@
 import { Cause, Effect, Semaphore } from "effect";
+import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
 import { captionAt } from "./captions";
 import {
   entryIndexAt,
@@ -14,9 +15,11 @@ import {
   beatAt,
   type Cursor,
   cursorAt,
-  endCursor,
+  dwellOf,
   freeRate,
   pastDwell,
+  quietGap,
+  SKIP_SCREEN_MILLIS,
   sceneSegments,
   skippingAt,
   virtualAt,
@@ -63,7 +66,10 @@ export interface PlayerView {
   // A fork is being built: controls wait for it.
   readonly busy: boolean;
   readonly speed: Speed;
-  // Seconds of a quiet wait being shown fast, for the "+N s" marker.
+  // Seconds of a quiet wait being shown fast, for the "+N s" marker. In a
+  // scene and in free play's history the wait is known, so it is the whole
+  // wait's seconds; at free play's live edge, a running count of the seconds
+  // run fast so far.
   readonly skipping: number | null;
   // The defect that stopped the figure.
   readonly failure: string | null;
@@ -76,10 +82,13 @@ export interface PlayerOptions {
   // Opens in free play at the scene's end, as chapter 0 does.
   readonly free?: boolean;
   // Development: compare every fork with the recording; on a difference, log
-  // it and go back to the opening.
+  // it and go back to the opening. A free figure's opening is itself a fork,
+  // so there the figure stops with the difference as its failure instead.
   readonly check?: boolean;
 }
 
+// One player per mounted figure: it owns the live world it forks, and
+// `close` ends it for good.
 export interface Player {
   readonly view: () => PlayerView;
   // For `useSyncExternalStore`: `view` returns the same object until a change.
@@ -97,12 +106,19 @@ export interface Player {
   readonly yourTurn: Effect.Effect<void>;
   // A reader's change or breaking control. During a scene it hands the world
   // over first; in free play, at an earlier instant, it forks the world there.
+  // A change the client refuses locally (a stale or missing item) is part of
+  // the story, as in the app: the world records it, and the figure plays on.
   readonly act: (
-    action: (world: WorldHandle) => Effect.Effect<void>,
+    action: (
+      world: WorldHandle,
+    ) => Effect.Effect<void, ItemNotFoundError | StaleMutationError>,
   ) => Effect.Effect<void>;
-  // One animation frame: `millis` of screen time since the last. A frame that
-  // finds the player busy is dropped.
+  // One animation frame, given its delta: `millis` of screen time since the
+  // last frame. A frame that finds the player busy is dropped, and its time
+  // is lost: the next frame does not make it up.
   readonly tick: (millis: number) => Effect.Effect<void>;
+  // Final: it closes the live world and drops every listener. A figure that
+  // mounts again builds a new player.
   readonly close: Effect.Effect<void>;
 }
 
@@ -148,6 +164,16 @@ export const makePlayer = (
     let busy = false;
     let failure: string | null = null;
 
+    // Free play's "+N s": behind the live edge a quiet wait is known, so it
+    // shows the whole wait; at the edge, the time run fast so far.
+    const freeSkipping = (): number | null => {
+      if (at < now) {
+        const gap = quietGap(timeline, at);
+        return gap === null ? null : Math.round((gap.to - gap.from) / 1000);
+      }
+      return fastSince === null ? null : Math.round((at - fastSince) / 1000);
+    };
+
     const compute = (): PlayerView => {
       const shared = { opening, playing, visible, speed, busy, failure };
       if (live === null) {
@@ -176,8 +202,7 @@ export const makePlayer = (
         at,
         beat: null,
         caption: captionAt(timeline, at),
-        skipping:
-          fastSince === null ? null : Math.round((at - fastSince) / 1000),
+        skipping: freeSkipping(),
         ended: false,
       };
     };
@@ -187,20 +212,26 @@ export const makePlayer = (
       for (const listener of listeners) listener();
     };
 
-    // A defect inside a world stops the figure, not the page. An interruption
-    // (the figure unmounting) passes through.
+    // A defect inside a world stops the figure, not the page. The figure
+    // shows only its message, so the whole cause, stack and all, is logged
+    // for whoever builds the scene. An interruption (the figure unmounting)
+    // passes through.
     const guard = (effect: Effect.Effect<void>): Effect.Effect<void> =>
       Effect.catchCause(effect, (cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.failCause(cause)
-          : Effect.sync(() => {
-              const defect = Cause.squash(cause);
-              failure =
-                defect instanceof Error ? defect.message : String(defect);
-              playing = false;
-              busy = false;
-              publish();
-            }),
+          : Effect.logError("A figure stopped on a defect.", cause).pipe(
+              Effect.andThen(
+                Effect.sync(() => {
+                  const defect = Cause.squash(cause);
+                  failure =
+                    defect instanceof Error ? defect.message : String(defect);
+                  playing = false;
+                  busy = false;
+                  publish();
+                }),
+              ),
+            ),
       );
     const locked = (effect: Effect.Effect<void>) =>
       lock.withPermits(1)(guard(effect));
@@ -215,43 +246,62 @@ export const makePlayer = (
     // `check`, the fork is compared with `recorded`, what the figure showed
     // there; on a difference it is logged and the figure goes back to its
     // opening, and the result is null.
+    //
+    // Only building the fork can be interrupted (a figure unmounting
+    // mid-fork), and then the old world stays. Once built, the new world is
+    // swapped in or closed whatever happens: a defect closes it until `live`
+    // holds it, as nothing else would. `busy` clears however it ends, or
+    // every later frame would be dropped.
     const goLive = (from: Recording, recorded: Timeline, instant: number) =>
-      Effect.gen(function* () {
-        busy = true;
-        publish();
-        const next = yield* startLive(from, instant);
-        if (live !== null) yield* live.close;
-        live = null;
-        busy = false;
-        const forkedAt = yield* next.now;
-        const expected =
-          recorded.entries[entryIndexAt(recorded, forkedAt)]?.snapshot;
-        if (options.check === true && expected !== undefined) {
-          const difference = snapshotDifference(
-            expected,
-            yield* next.world.snapshot,
-          );
-          if (difference !== null) {
-            yield* Effect.logError(
-              `A replayed world differs from its recording at ${forkedAt} (${difference}); back to the opening.`,
-            );
-            yield* next.close;
-            toOpening();
-            playing = false;
-            if (options.free === true) {
-              failure = `The replayed world differs from its recording (${difference}).`;
+      Effect.uninterruptibleMask((restore) =>
+        Effect.gen(function* () {
+          busy = true;
+          publish();
+          const next = yield* restore(startLive(from, instant));
+          return yield* Effect.gen(function* () {
+            if (live !== null) yield* live.close;
+            live = null;
+            const forkedAt = yield* next.now;
+            const expected =
+              recorded.entries[entryIndexAt(recorded, forkedAt)]?.snapshot;
+            if (options.check === true && expected !== undefined) {
+              const difference = snapshotDifference(
+                expected,
+                yield* next.world.snapshot,
+              );
+              if (difference !== null) {
+                yield* Effect.logError(
+                  `A replayed world differs from its recording at ${forkedAt} (${difference}); back to the opening.`,
+                );
+                yield* next.close;
+                toOpening();
+                playing = false;
+                if (options.free === true) {
+                  failure = `The replayed world differs from its recording (${difference}).`;
+                }
+                return null;
+              }
             }
-            return null;
-          }
-        }
-        live = next;
-        timeline = yield* next.timeline;
-        at = forkedAt;
-        now = forkedAt;
-        fastSince = null;
-        handedBeats = handedBeats.filter((beat) => beat.startedAt <= forkedAt);
-        return next;
-      });
+            const forked = yield* next.timeline;
+            live = next;
+            timeline = forked;
+            at = forkedAt;
+            now = forkedAt;
+            fastSince = null;
+            handedBeats = handedBeats.filter(
+              (beat) => beat.startedAt <= forkedAt,
+            );
+            return next;
+          }).pipe(Effect.onError(() => next.close));
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              busy = false;
+              publish();
+            }),
+          ),
+        ),
+      );
 
     // The scene's world, handed to the reader at the playhead.
     const handOver = Effect.gen(function* () {
@@ -264,12 +314,9 @@ export const makePlayer = (
       return next;
     });
 
+    // `goLive` publishes as it ends, so the view opens in free play.
     if (options.free === true) {
-      yield* guard(
-        Effect.asVoid(goLive(recording, result.timeline, sceneEnd)).pipe(
-          Effect.tap(() => Effect.sync(publish)),
-        ),
-      );
+      yield* guard(Effect.asVoid(goLive(recording, result.timeline, sceneEnd)));
     }
 
     const player: Player = {
@@ -302,7 +349,10 @@ export const makePlayer = (
       ),
       restart: locked(
         Effect.gen(function* () {
+          // The way back from anything. It holds the lock, so no fork is
+          // being built, and a `busy` still set would only drop every frame.
           failure = null;
+          busy = false;
           if (live !== null) yield* live.close;
           live = null;
           toOpening();
@@ -315,12 +365,12 @@ export const makePlayer = (
       next: locked(
         Effect.gen(function* () {
           if (live === null) {
-            const from = virtualAt(segments, cursor);
-            const beat = result.beats.find((b) => b.startedAt > from);
-            cursor =
-              beat === undefined
-                ? endCursor(segments)
-                : cursorAt(segments, beat.startedAt);
+            // By beat, not by instant: beats that start at one instant each
+            // have their caption read. After the last beat, the end.
+            cursor = dwellOf(
+              segments,
+              beatAt(segments, cursor, result.beats) + 1,
+            );
           } else {
             const instant = nextInstant(timeline, at);
             if (instant !== null) {
@@ -339,11 +389,15 @@ export const makePlayer = (
       previous: locked(
         Effect.sync(() => {
           if (live === null) {
-            const from = virtualAt(segments, cursor);
-            const earlier = result.beats
-              .filter((b) => b.startedAt < from)
-              .at(-1);
-            cursor = cursorAt(segments, earlier?.startedAt ?? sceneStart);
+            // Back to the start of the beat on screen once it has begun to
+            // play; from its caption, back to the beat before. While the
+            // caption is read, time stands still, so that is its start.
+            const shown = beatAt(segments, cursor, result.beats);
+            const start = dwellOf(segments, shown);
+            cursor =
+              cursor.segment > start.segment
+                ? start
+                : dwellOf(segments, Math.max(0, shown - 1));
           } else {
             at = previousInstant(timeline, at) ?? current.start;
             fastSince = null;
@@ -355,9 +409,11 @@ export const makePlayer = (
         locked(
           Effect.sync(() => {
             const { start, end } = current;
-            const clamped = Number.isFinite(target)
-              ? Math.min(end, Math.max(start, target))
-              : start;
+            // An endless target clamps to its end of the bar; NaN has no
+            // place on it, so it goes to the start.
+            const clamped = Number.isNaN(target)
+              ? start
+              : Math.min(end, Math.max(start, target));
             // Quanta count from the world's start, which every fork shares.
             const instant = Math.max(start, snapToQuantum(sceneStart, clamped));
             if (live === null) {
@@ -400,7 +456,14 @@ export const makePlayer = (
               session = yield* goLive(yield* session.recording, timeline, at);
             }
             if (session !== null) {
-              yield* action(session.world);
+              // The world has recorded the refusal; a defect still stops
+              // the figure.
+              yield* action(session.world).pipe(
+                Effect.catchTags({
+                  ItemNotFoundError: () => Effect.void,
+                  StaleMutationError: () => Effect.void,
+                }),
+              );
               timeline = yield* session.timeline;
               now = yield* session.now;
             }
@@ -423,8 +486,18 @@ export const makePlayer = (
                   if (step.ended) playing = false;
                 } else if (at < now) {
                   // Behind the live edge, history plays back and nothing
-                  // runs.
-                  at = Math.min(now, at + budget);
+                  // runs. A long quiet wait plays in SKIP_SCREEN_MILLIS, as a
+                  // scene's does, and stops where it ends, so the event that
+                  // ends it is not run past within the frame.
+                  const gap = quietGap(timeline, at);
+                  at =
+                    gap === null
+                      ? Math.min(now, at + budget)
+                      : Math.min(
+                          gap.to,
+                          at +
+                            (budget * (gap.to - gap.from)) / SKIP_SCREEN_MILLIS,
+                        );
                 } else {
                   const latest = timeline.entries.at(-1);
                   const rate =

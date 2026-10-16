@@ -1,14 +1,15 @@
-import { entryIndexAt } from "./frame";
+import { entryIndexAt, nextInstant } from "./frame";
 import type { BeatResult } from "./scene";
-import { sameRows, type Timeline, type WorldSnapshot } from "./trace";
+import { rowsKey, type Timeline, type WorldSnapshot } from "./trace";
 
 // How a figure spends screen time on virtual time. A scene is known to its
 // end, so it is cut into segments: play (1:1), skip (a long quiet wait, shown
 // short) and dwell (a beat's caption read while time stands still). Free play
-// cannot see ahead, so it only picks a rate per frame. Every length here is
-// screen time at 1×; a faster speed spends it faster.
+// cannot see past its live edge, so there it only picks a rate per frame.
+// Every length here is screen time at 1×; a faster speed spends it faster.
 
-// A quiet gap in a scene longer than this plays in SKIP_SCREEN_MILLIS.
+// A quiet gap longer than this, in a scene or in free play's history, plays
+// in SKIP_SCREEN_MILLIS.
 export const SKIP_OVER_MILLIS = 2000;
 export const SKIP_SCREEN_MILLIS = 500;
 // Free play's rate through a quiet wait, once it has been quiet this long.
@@ -56,6 +57,24 @@ const movingAt = (timeline: Timeline, at: number): boolean =>
     (message) => message.fate === "inFlight",
   ) ?? false;
 
+// A wait from `from` to `to` that plays short: long, and with nothing in
+// flight as it starts, so nothing moves on screen through it.
+const isQuiet = (timeline: Timeline, from: number, to: number): boolean =>
+  to - from > SKIP_OVER_MILLIS && !movingAt(timeline, from);
+
+// The wait between two events that `at` falls in, if it plays short. Free
+// play's history is known, as a scene is, so it is paced as a scene is.
+export const quietGap = (
+  timeline: Timeline,
+  at: number,
+): { readonly from: number; readonly to: number } | null => {
+  const from = timeline.entries[entryIndexAt(timeline, at)]?.event.at;
+  const to = nextInstant(timeline, at);
+  return from === undefined || to === null || !isQuiet(timeline, from, to)
+    ? null
+    : { from, to };
+};
+
 // A scene's segments, from its first beat's start to its last beat's end.
 // Each beat gets a dwell where it starts, so even a beat that ends the
 // instant it starts is read.
@@ -90,8 +109,8 @@ export const sceneSegments = (
     }
     const to = sorted[index + 1];
     if (to === undefined) break;
-    const quiet = to - from > SKIP_OVER_MILLIS && !movingAt(timeline, from);
-    segments.push({ kind: quiet ? "skip" : "play", from, to });
+    const kind = isQuiet(timeline, from, to) ? "skip" : "play";
+    segments.push({ kind, from, to });
   }
   return segments;
 };
@@ -179,6 +198,19 @@ export const advanceCursor = (
   }
 };
 
+// The cursor at the start of beat `beat`'s own dwell, though other beats'
+// dwells share its instant; past the last beat, the end. Stepping goes by
+// beat, so a beat that starts where another does still has its caption read.
+export const dwellOf = (
+  segments: ReadonlyArray<Segment>,
+  beat: number,
+): Cursor => {
+  const index = segments.findIndex(
+    (segment) => segment.kind === "dwell" && segment.beat === beat,
+  );
+  return index < 0 ? endCursor(segments) : { segment: index, offset: 0 };
+};
+
 // Past the dwell the cursor waits in, if any: a reader who pressed play had
 // that caption in front of them while the figure was paused. A second beat
 // starting at the same instant keeps its own dwell.
@@ -222,12 +254,11 @@ export const skippingAt = (
 // Whether waiting helps: some client that can reach the server and has not
 // stopped still has changes to send, or rows the server has since changed.
 export const awaitingSync = (snapshot: WorldSnapshot): boolean => {
+  // Asked every frame, so the server's rows are keyed once, not per client.
+  const server = rowsKey(snapshot.server.items);
   for (const [name, state] of snapshot.clients) {
     if (snapshot.offline.has(name) || state.syncFailure !== null) continue;
-    if (
-      state.outbox.length > 0 ||
-      !sameRows(state.items.values(), snapshot.server.items)
-    ) {
+    if (state.outbox.length > 0 || rowsKey(state.items.values()) !== server) {
       return true;
     }
   }

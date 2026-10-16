@@ -189,11 +189,16 @@ const rowKey = (item: GroceryItem) =>
     item.version,
   ]);
 
+// A list's rows in order, as one string: equal for two lists that show the
+// same rows in the same order. Key a list once to compare it with many.
+export const rowsKey = (items: Iterable<GroceryItem>): string =>
+  [...items].map(rowKey).join("\n");
+
 // Whether two lists show the same rows in the same order.
 export const sameRows = (
   a: Iterable<GroceryItem>,
   b: Iterable<GroceryItem>,
-): boolean => [...a].map(rowKey).join("\n") === [...b].map(rowKey).join("\n");
+): boolean => rowsKey(a) === rowsKey(b);
 
 // Every online client shows the server's rows, and every outbox is empty.
 // An offline client's rows are left out (it cannot pull until it is back),

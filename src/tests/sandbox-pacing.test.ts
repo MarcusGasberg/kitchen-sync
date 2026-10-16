@@ -8,9 +8,12 @@ import {
   beatAt,
   cursorAt,
   dwellFor,
+  dwellOf,
+  endCursor,
   FAST_RATE,
   freeRate,
   pastDwell,
+  quietGap,
   type Segment,
   sceneSegments,
   skippingAt,
@@ -114,6 +117,38 @@ describe("sceneSegments", () => {
     const playing = advanceCursor(segments, second, 1250).cursor;
     expect(virtualAt(segments, playing)).toBe(50);
     expect(beatAt(segments, playing, stacked)).toBe(1);
+  });
+
+  it("finds each beat's own dwell, and the end past the last beat", () => {
+    const stacked = [
+      beat("Setup.", 0, 100),
+      beat("First.", 100, 100),
+      beat("Second.", 100, 200),
+    ];
+    const segments = sceneSegments(
+      timeline(entry(0), entry(100), entry(200)),
+      stacked,
+    );
+    expect(dwellOf(segments, 0)).toEqual({ segment: 0, offset: 0 });
+    // Both dwells are at 100: each beat finds its own, not the first.
+    expect(dwellOf(segments, 1)).toEqual({ segment: 2, offset: 0 });
+    expect(dwellOf(segments, 2)).toEqual({ segment: 3, offset: 0 });
+    expect(beatAt(segments, dwellOf(segments, 2), stacked)).toBe(2);
+    expect(dwellOf(segments, 3)).toEqual(endCursor(segments));
+  });
+});
+
+describe("quietGap", () => {
+  it("finds the long, quiet wait between two events an instant falls in", () => {
+    expect(quietGap(SCENE, 200)).toEqual({ from: 200, to: 5200 });
+    expect(quietGap(SCENE, 2700)).toEqual({ from: 200, to: 5200 });
+    // Too short to skip.
+    expect(quietGap(SCENE, 150)).toBeNull();
+    // Long, but a message is in flight when it starts.
+    expect(quietGap(SCENE, 6000)).toBeNull();
+    // Before the first event and after the last there is no gap to know.
+    expect(quietGap(SCENE, -5)).toBeNull();
+    expect(quietGap(SCENE, 9500)).toBeNull();
   });
 });
 
