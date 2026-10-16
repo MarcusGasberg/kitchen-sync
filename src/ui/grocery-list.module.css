@@ -19,7 +19,10 @@
   padding-bottom: var(--space-2);
 }
 
+/* No margin of its own at any level: a figure's heads are h4s, which the
+   page's reset does not reach. */
 .title {
+  margin: 0;
   color: var(--text-3);
   font: 500 var(--text-xs) / 1.2 var(--font-text);
   letter-spacing: var(--tracking-label);
