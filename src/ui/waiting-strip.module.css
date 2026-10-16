@@ -8,11 +8,20 @@
   initial-value: 0px;
 }
 
+/* The header keeps this line whether the outbox holds anything or not. */
+.line {
+  display: flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+
+/* Shrinks to the line and scrolls, but never grows past its changes, so an
+   empty list takes no room from the words beside it. */
 .strip {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  min-height: 1.5rem;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   color: var(--text-2);
@@ -74,6 +83,12 @@
 .more {
   color: var(--text-3);
   white-space: nowrap;
+}
+
+/* An empty outbox, in the text face at the strip's size, with no ring. */
+.nothing {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.2 var(--font-text);
 }
 
 /* High Contrast drops backgrounds, which would empty the acked ring. */

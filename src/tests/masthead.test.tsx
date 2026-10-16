@@ -63,9 +63,18 @@ describe("WaitingStrip", () => {
     expect(items.at(-1)?.textContent).toBe("+13 more");
   });
 
-  it("is an empty list when the outbox is empty", () => {
+  it("says nothing is waiting beside an empty list when the outbox is empty", () => {
     render(<WaitingStrip changes={[]} />);
     expect(outboxItems()).toHaveLength(0);
+    const words = screen.getByText("nothing waiting");
+    expect(screen.getByRole("list", { name: "Outbox" }).contains(words)).toBe(
+      false,
+    );
+  });
+
+  it("does not say nothing is waiting while a change waits", () => {
+    render(<WaitingStrip changes={changes(1)} />);
+    expect(screen.queryByText("nothing waiting")).toBeNull();
   });
 });
 
