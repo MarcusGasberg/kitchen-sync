@@ -13,6 +13,11 @@
 /* A phone: play or pause, back, step and restart share one row, each as
    wide as the others where the row allows, none narrower than its label. */
 @media (max-width: 44.99rem) {
+  /* A step closer, as the figure is on a phone. */
+  .controls {
+    gap: var(--space-3);
+  }
+
   .buttons {
     justify-self: stretch;
     flex-wrap: nowrap;

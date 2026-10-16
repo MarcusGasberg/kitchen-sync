@@ -43,7 +43,13 @@
   text-wrap: balance;
 }
 
+/* A phone also sets its words, playback and the stage a step closer: the
+   whole of the server's basin reaches the first screen. */
 @media (max-width: 44.99rem) {
+  .figure {
+    row-gap: var(--space-4);
+  }
+
   .title {
     font-size: var(--text-2xl-phone);
   }

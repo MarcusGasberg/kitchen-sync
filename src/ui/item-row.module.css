@@ -79,6 +79,13 @@ label.label {
   text-decoration-thickness: var(--rule);
 }
 
+/* Compact rows sit in narrow columns: a name that will not fit wraps, the
+   row growing to hold it, rather than losing its end. */
+.row[data-density="compact"] .what {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
 /* The #id over the state's word, beside a ring: hollow while pending, half
    filled once acked. */
 .state {
