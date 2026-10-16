@@ -286,8 +286,10 @@ const SIDES: ReadonlyArray<readonly [LabelSide, number, number]> = [
 ];
 
 // Where rings press into one another the water just outside one is the next
-// one's ink: a label may step out this far, twice, to find clear water.
+// one's ink: a label may step out this far, twice, to find clear water, and
+// further, up to MAX_STEPS in all, where every nearer spot is another label's.
 const STEP_OUT = 0.04;
+const MAX_STEPS = 8;
 
 // How far out each item's outer ring lands: marbling keeps each drop's area,
 // so its five drops end at the root of their squared radii.
@@ -372,8 +374,10 @@ const clearIn = (
 // the basin's size) is clear water, and all of it on the water. Measured from
 // the item's landmark and its outer ring at the pattern's own scale; where
 // rings press together it steps out a little further, the nearest spot
-// winning a tie. An item whose label fits nowhere keeps it east, moved onto
-// the water; one pushed off the water has none.
+// winning a tie. No label touches another: one that would takes another side
+// of its drop, or steps further out. An item whose label finds no free spot
+// on the water, or that has been pushed off the water, has none; the list
+// beside the basin says the same.
 export const labelSpotsOf = (
   ops: ReadonlyArray<Operation>,
   ids: ReadonlySet<string>,
@@ -381,34 +385,45 @@ export const labelSpotsOf = (
 ): ReadonlyMap<string, LabelSpot> => {
   const rings = outerRings(ops);
   const spots = new Map<string, LabelSpot>();
-  for (const [id, mark] of landmarksOf(ops, ids)) {
+  // Every label set so far, with half a gap round it: no two labels touch.
+  const taken: Array<Box> = [];
+  const pad = label.gap / 2;
+  const free = ([left, top, right, bottom]: Box) =>
+    taken.every(
+      ([l, t, r, b]) =>
+        right + pad <= l ||
+        left - pad >= r ||
+        bottom + pad <= t ||
+        top - pad >= b,
+    );
+  // The newest item first: an older item's label gives way to a newer one's.
+  for (const [id, mark] of [...landmarksOf(ops, ids)].reverse()) {
     if (!onWater([mark.x, mark.y, mark.x, mark.y])) continue;
     const ring = Math.sqrt(rings.get(id) ?? 0);
-    let best: { spot: LabelSpot; clear: number } | null = null;
-    for (let step = 0; step < 3 && (best?.clear ?? 0) < CLEAR; step++) {
+    let best: { spot: LabelSpot; box: Box; clear: number } | null = null;
+    for (
+      let step = 0;
+      step < MAX_STEPS &&
+      (best?.clear ?? 0) < CLEAR &&
+      (step < 3 || best === null);
+      step++
+    ) {
       const reach = ring + step * STEP_OUT;
       for (const [side, dx, dy] of SIDES) {
         const x = mark.x + dx * reach;
         const y = mark.y + dy * reach;
         const box = boxOf(label, x, y, dx, dy);
-        if (!onWater(box)) continue;
+        if (!onWater(box) || !free(box)) continue;
         // A margin short of the gap: the item's own ring stays out of it.
         const clear = clearIn(ops, box, label.gap * 0.75);
         if (best === null || clear > best.clear) {
-          best = { spot: { x, y, side }, clear };
+          best = { spot: { x, y, side }, box, clear };
         }
       }
     }
-    if (best !== null) {
-      spots.set(id, best.spot);
-      continue;
-    }
-    const { width, height, gap } = label;
-    spots.set(id, {
-      x: Math.min(Math.max(mark.x + ring, 0), WORLD_WIDTH - gap - width),
-      y: Math.min(Math.max(mark.y, height / 2), WORLD_HEIGHT - height / 2),
-      side: "east",
-    });
+    if (best === null) continue;
+    spots.set(id, best.spot);
+    taken.push(best.box);
   }
   return spots;
 };

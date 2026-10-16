@@ -547,6 +547,48 @@ describe("labelSpotsOf", () => {
     expect(labelBoxFor(700).gap).toBeCloseTo(labelBoxFor(350).gap / 2);
   });
 
+  // Labels that would touch take another side of their drop, or step out.
+  it("never sets one label over another, each still on the water", () => {
+    for (const count of [5, 8, 12]) {
+      const rows = Array.from({ length: count }, (_, i) => item(i + 1, i + 1));
+      const ops = patternOf({ items: rows, scale: scaleFor(count) });
+      const ids = new Set(rows.slice(-5).map((row) => row.id));
+      for (const basinPx of [350, 548]) {
+        const label = labelBoxFor(basinPx);
+        const boxes = [...labelSpotsOf(ops, ids, label).values()].map((spot) =>
+          boxOn(spot, label),
+        );
+        for (const box of boxes) {
+          expect(box.left).toBeGreaterThanOrEqual(0);
+          expect(box.top).toBeGreaterThanOrEqual(0);
+          expect(box.right).toBeLessThanOrEqual(WORLD_WIDTH);
+          expect(box.bottom).toBeLessThanOrEqual(WORLD_HEIGHT);
+        }
+        for (const [i, a] of boxes.entries()) {
+          for (const b of boxes.slice(i + 1)) {
+            const apart =
+              a.right <= b.left ||
+              b.right <= a.left ||
+              a.bottom <= b.top ||
+              b.bottom <= a.top;
+            expect(apart, `${count} items at ${basinPx} px`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it("gives way to a newer item's label where two would meet", () => {
+    // The newest item's label is set first, where it would sit alone; an
+    // older label that would meet it is the one that moves.
+    const older = item(1, 1);
+    const newer = item(2, 2);
+    const ops = patternOf({ items: [older, newer] });
+    const both = new Set([older.id, newer.id]);
+    const alone = labelSpotsOf(ops, new Set([newer.id])).get(newer.id);
+    expect(labelSpotsOf(ops, both).get(newer.id)).toEqual(alone);
+  });
+
   it("labels only the items asked for", () => {
     const rows = [item(1, 1), item(2, 2)];
     const ops = patternOf({ items: rows });
