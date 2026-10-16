@@ -63,6 +63,17 @@ describe("Pane", () => {
     }
     expect(pane.querySelector("[data-pattern]")?.textContent).toBe("Offline");
   });
+
+  it("names a pane at the level it sits under", () => {
+    render(
+      <Pane title="A" level={3}>
+        <p>list</p>
+      </Pane>,
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "A" }).tagName).toBe(
+      "H3",
+    );
+  });
 });
 
 describe("Band", () => {

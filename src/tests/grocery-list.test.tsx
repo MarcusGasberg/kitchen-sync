@@ -284,4 +284,18 @@ describe("GroceryList", () => {
       expect(screen.getByRole("listitem").textContent).toContain("1 Milk");
     }).pipe(Effect.provide(World.layer({ clients: ["A", "B"], seed: "list" }))),
   );
+
+  it("heads each category at h4 when a figure's pane sits under an h3", () => {
+    const view = viewOf([item("Bananas", { category: "Produce" })]);
+    render(
+      <GroceryList
+        groups={view.groups}
+        rejected={view.rejected}
+        headingLevel={4}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { level: 4, name: "Produce" }).tagName,
+    ).toBe("H4");
+  });
 });

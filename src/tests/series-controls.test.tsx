@@ -10,6 +10,15 @@ describe("Caption", () => {
     const caption = screen.getByText("The edit leaves at once, alone.");
     expect(caption.getAttribute("aria-live")).toBe("polite");
   });
+
+  it("lets a caption keep quiet while free play streams events", () => {
+    const { rerender } = render(<Caption>One</Caption>);
+    const caption = screen.getByText("One");
+    expect(caption.getAttribute("aria-live")).toBe("polite");
+    expect(caption.getAttribute("aria-atomic")).toBe("true");
+    rerender(<Caption live="off">One</Caption>);
+    expect(caption.getAttribute("aria-live")).toBe("off");
+  });
 });
 
 describe("PartTabs", () => {
@@ -59,7 +68,7 @@ describe("ScrubBar", () => {
     );
     const range = screen.getByRole("slider", { name: "Scene time" });
     expect(range.getAttribute("step")).toBe("50");
-    expect(range.getAttribute("aria-valuetext")).toBe("1.5 s");
+    expect(range.getAttribute("aria-valuetext")).toBe("1.50 s");
 
     fireEvent.change(range, { target: { value: "2000" } });
     expect(onScrub).toHaveBeenCalledWith(2000);
@@ -68,5 +77,27 @@ describe("ScrubBar", () => {
       (tick) => tick.style.left,
     );
     expect(ticks).toEqual(["0%", "25%", "75%"]);
+  });
+
+  it("reads the scrub's time to the step it moves by, and keys a tick by its place", () => {
+    // React logs a duplicate key with console.error.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <ScrubBar
+        label="Time"
+        value={1250}
+        max={5000}
+        beats={[0, 1200, 1200]}
+        onScrub={() => {}}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("slider", { name: "Time" })
+        .getAttribute("aria-valuetext"),
+    ).toBe("1.25 s");
+    // Two beats starting at one instant: no duplicate-key warning.
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 });

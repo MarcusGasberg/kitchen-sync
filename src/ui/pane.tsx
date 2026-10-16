@@ -13,6 +13,8 @@ interface PaneProps {
   // A `StatusBand`, when the device's state earns one.
   readonly band?: ReactNode;
   readonly children: ReactNode;
+  // A figure's panes sit under its h2 title.
+  readonly level?: 2 | 3;
 }
 
 // One device in a figure: its name and state on a line, its basin, then its
@@ -25,14 +27,16 @@ export function Pane({
   basin,
   band,
   children,
+  level = 2,
 }: PaneProps) {
   const id = useId();
+  const Heading = level === 3 ? "h3" : "h2";
   return (
     <section className={styles.pane} aria-labelledby={id}>
       <header className={styles.header}>
-        <h2 id={id} className={styles.title}>
+        <Heading id={id} className={styles.title}>
           {title}
-        </h2>
+        </Heading>
         {status !== undefined && (
           <span className={styles.status}>{status}</span>
         )}

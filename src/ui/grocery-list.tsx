@@ -28,9 +28,9 @@ interface GroceryListProps {
   readonly onIntent?: (intent: ListIntent) => void;
   readonly onDismiss?: (clientMutationIds: ReadonlyArray<number>) => void;
   readonly empty?: ReactNode;
-  // Category heads sit under the page's h1 in the app, and under a pane's h2
-  // in a figure.
-  readonly headingLevel?: 2 | 3;
+  // Category heads sit under the page's h1 in the app, under a pane's h2 in
+  // the specimen, and under a figure's panes (h3) in a figure.
+  readonly headingLevel?: 2 | 3 | 4;
 }
 
 // The shared list: rejections first, on their own rows, so none is ever below
@@ -78,12 +78,12 @@ export function GroceryList({
 interface GroupSectionProps {
   readonly group: Group;
   readonly onIntent: ((intent: ListIntent) => void) | undefined;
-  readonly headingLevel: 2 | 3;
+  readonly headingLevel: 2 | 3 | 4;
 }
 
 function GroupSection({ group, onIntent, headingLevel }: GroupSectionProps) {
   const id = useId();
-  const Heading = headingLevel === 3 ? "h3" : "h2";
+  const Heading = headingLevel === 4 ? "h4" : headingLevel === 3 ? "h3" : "h2";
   return (
     <section className={styles.group} aria-labelledby={id}>
       <header className={styles.head}>

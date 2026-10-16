@@ -1,0 +1,35 @@
+/* One line: the field, then Add; the hint, when there is one, on its own
+   line under them. */
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.field {
+  min-width: 0;
+  min-height: var(--target);
+  padding: 0 var(--space-3);
+  border: var(--rule) solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--water);
+  font: 400 var(--text-md) / 1.5 var(--font-text);
+  transition: border-color var(--motion-state) var(--ease-out);
+}
+
+.field::placeholder {
+  color: var(--text-3);
+  opacity: 1;
+}
+
+.field:focus-visible {
+  border-color: var(--text);
+  outline-offset: 0;
+}
+
+.hint {
+  grid-column: 1 / -1;
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.5 var(--font-text);
+}
