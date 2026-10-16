@@ -64,7 +64,7 @@ describe("makeNetwork", () => {
       const [sent] = yield* events;
       expect(sent).toMatchObject({
         _tag: "Sent",
-        message: { sentAt: 0, arriveAt: 100 },
+        message: { sentAt: 0, departedAt: 0, arriveAt: 100 },
       });
     }),
   );
@@ -117,6 +117,26 @@ describe("makeNetwork", () => {
       yield* TestClock.adjust("100 millis");
       expect(yield* Fiber.join(fiber)).toBe("delivered");
       expect(yield* tags).toEqual(["Sent", "Held", "Released", "Delivered"]);
+    }),
+  );
+
+  it.effect("a held message departs when it is released", () =>
+    Effect.gen(function* () {
+      const { network, recorder, events } = yield* setup;
+      yield* network.hold({ client: "A", kind: "push" });
+      const { fiber } = yield* watch(network.carry("A", "push", "#1"));
+
+      yield* TestClock.adjust("1 second");
+      const [held] = (yield* recorder.snapshot).messages;
+      expect(held).toMatchObject({ sentAt: 0, departedAt: null });
+
+      yield* network.release(held?.id ?? -1);
+      yield* TestClock.adjust("100 millis");
+      yield* Fiber.join(fiber);
+      const released = (yield* events).find((e) => e._tag === "Released");
+      expect(released).toMatchObject({
+        message: { sentAt: 0, departedAt: 1000, arriveAt: 1100 },
+      });
     }),
   );
 

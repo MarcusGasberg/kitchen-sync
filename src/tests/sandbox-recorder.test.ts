@@ -47,6 +47,7 @@ const message: Message = {
   kind: "push",
   label: "#1",
   sentAt: 0,
+  departedAt: 0,
   arriveAt: 150,
   fate: "inFlight",
 };

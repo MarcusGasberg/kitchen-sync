@@ -128,6 +128,7 @@ export const makeNetwork = (options: {
           kind,
           label,
           sentAt,
+          departedAt: action === "hold" ? null : sentAt,
           arriveAt: action === "hold" ? null : sentAt + latencyMillis,
           fate: action === "hold" ? "held" : "inFlight",
         };
@@ -143,6 +144,7 @@ export const makeNetwork = (options: {
             current = {
               ...current,
               fate: "inFlight",
+              departedAt: releasedAt,
               arriveAt: releasedAt + latencyMillis,
             };
             yield* recorder.record({ _tag: "Released", message: current });

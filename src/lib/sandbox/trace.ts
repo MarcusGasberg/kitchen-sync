@@ -27,6 +27,9 @@ export interface Message {
   // What a figure writes beside it, e.g. "#3–#5" or "v7".
   readonly label: string;
   readonly sentAt: number;
+  // When it starts along its wire: when sent, or when released after a hold.
+  // Null while it is held, so a figure keeps it at its sender.
+  readonly departedAt: number | null;
   // When it lands if nothing intervenes; null while it is held.
   readonly arriveAt: number | null;
   readonly fate: MessageFate;
