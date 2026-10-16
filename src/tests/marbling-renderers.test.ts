@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { type Operation, toneAt } from "#/ui/marbling/operations";
 import { FEATHER, paint, shadeAt } from "#/ui/marbling/renderer";
-import { parseRgb, type Rgb, toneSources } from "#/ui/marbling/tones";
+import {
+  parseAlpha,
+  parseRgb,
+  type Rgb,
+  readTones,
+  toneSources,
+} from "#/ui/marbling/tones";
 import { pack } from "#/ui/marbling/webgl";
 
 const TONES: ReadonlyArray<Rgb> = [
@@ -165,6 +171,7 @@ describe("parseRgb", () => {
     ["rgba(1, 2, 3, 0.5)", [1, 2, 3]],
     ["rgb(10 20 30)", [10, 20, 30]],
     ["color(srgb 1 0.5 0)", [255, 128, 0]],
+    ["color(srgb 1 0.5 0 / 0.5)", [255, 128, 0]],
   ])("reads %s", (value, rgb) => {
     expect(parseRgb(value)).toEqual(rgb);
   });
@@ -172,6 +179,54 @@ describe("parseRgb", () => {
   it("gives up on anything else", () => {
     expect(parseRgb("")).toBeNull();
     expect(parseRgb("var(--water)")).toBeNull();
+  });
+});
+
+describe("parseAlpha", () => {
+  it.each([
+    ["rgba(5, 0, 73, 0.8)", 0.8],
+    ["rgb(5 0 73 / 0.25)", 0.25],
+    ["color(srgb 1 0.5 0 / 0.5)", 0.5],
+    ["rgb(10, 20, 30)", 1],
+    ["color(srgb 1 0.5 0)", 1],
+  ])("reads %s", (value, alpha) => {
+    expect(parseAlpha(value)).toBe(alpha);
+  });
+});
+
+describe("readTones", () => {
+  it("lays a translucent colour over the water, which it reads first", () => {
+    const parent = document.createElement("div");
+    const canvas = document.createElement("canvas");
+    parent.append(canvas);
+    // What a forced palette resolves the six sources to, in order, with a
+    // highlight the browser gives at 80%.
+    const computed = [
+      "rgb(255, 255, 255)",
+      "rgb(0, 0, 0)",
+      "rgb(0, 0, 0)",
+      "rgb(0, 0, 0)",
+      "rgb(0, 0, 0)",
+      "rgba(5, 0, 73, 0.8)",
+    ];
+    let call = 0;
+    const spy = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation(
+        () => ({ color: computed[call++] }) as CSSStyleDeclaration,
+      );
+    try {
+      expect(readTones(canvas, true)).toEqual([
+        [255, 255, 255],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+        [55, 51, 109],
+      ]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

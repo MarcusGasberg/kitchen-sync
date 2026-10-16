@@ -28,11 +28,14 @@ const FORCED = [
 export const toneSources = (forced: boolean): ReadonlyArray<string> =>
   forced ? FORCED : PALETTE;
 
+// Three channels and, where the colour is translucent, its alpha.
 const NUMBER = String.raw`(\d+(?:\.\d+)?)`;
 const RGB = new RegExp(
-  `^rgba?\\(\\s*${NUMBER}[,\\s]+${NUMBER}[,\\s]+${NUMBER}`,
+  `^rgba?\\(\\s*${NUMBER}[,\\s]+${NUMBER}[,\\s]+${NUMBER}(?:\\s*[,/]\\s*${NUMBER})?`,
 );
-const SRGB = new RegExp(`^color\\(srgb\\s+${NUMBER}\\s+${NUMBER}\\s+${NUMBER}`);
+const SRGB = new RegExp(
+  `^color\\(srgb\\s+${NUMBER}\\s+${NUMBER}\\s+${NUMBER}(?:\\s*/\\s*${NUMBER})?`,
+);
 
 const unitChannel = (value: string | undefined) =>
   Math.round(Number(value) * 255);
@@ -49,11 +52,27 @@ export const parseRgb = (value: string): Rgb | null => {
   return null;
 };
 
+// A computed colour's alpha, from `rgba(…)` or `color(srgb … / a)`; 1 where
+// it gives none.
+export const parseAlpha = (value: string): number => {
+  const alpha = (value.match(RGB) ?? value.match(SRGB))?.[4];
+  return alpha === undefined ? 1 : Number(alpha);
+};
+
+// `top` at `alpha` laid over `beneath`.
+const over = (top: Rgb, alpha: number, beneath: Rgb): Rgb => [
+  Math.round(top[0] * alpha + beneath[0] * (1 - alpha)),
+  Math.round(top[1] * alpha + beneath[1] * (1 - alpha)),
+  Math.round(top[2] * alpha + beneath[2] * (1 - alpha)),
+];
+
 // The basin's six colours, read where the basin sits, so a pinned day or
 // night column or the system's own setting decides them. A hidden probe takes
 // each as its `color`, which the browser resolves, `light-dark()` included.
 // The probe opts out of forced colours, so High Contrast leaves its `color`
-// alone and a system colour resolves to the palette's real value.
+// alone and a system colour resolves to the palette's real value. A system
+// colour can come translucent (a highlight often does), and the basin draws
+// opaque, so such a tone is laid over the water, as the page would show it.
 export const readTones = (
   element: HTMLElement,
   forced = false,
@@ -63,10 +82,15 @@ export const readTones = (
   probe.style.forcedColorAdjust = "none";
   element.parentElement?.append(probe);
   try {
-    return toneSources(forced).map((source) => {
+    const read = toneSources(forced).map((source) => {
       probe.style.color = source;
-      return parseRgb(getComputedStyle(probe).color) ?? [0, 0, 0];
+      const value = getComputedStyle(probe).color;
+      return { rgb: parseRgb(value) ?? [0, 0, 0], alpha: parseAlpha(value) };
     });
+    const water = read[0]?.rgb ?? [0, 0, 0];
+    return read.map(({ rgb, alpha }) =>
+      alpha < 1 ? over(rgb, alpha, water) : rgb,
+    );
   } finally {
     probe.remove();
   }
