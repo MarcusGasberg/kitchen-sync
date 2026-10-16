@@ -343,7 +343,7 @@ Quiet labels beside the content they act on: small tracked capitals in a 44 px b
 ### Inputs / Fields
 - **Style:** water ground, 1 px control edge, 6 px corners, 2.75rem minimum height, 0.75rem side padding, body type; placeholders in `--text-3` at full opacity. The category select draws its own chevron.
 - **Focus:** the edge turns to `--text` over 200 ms and the outline sits flush (offset 0).
-- **Error:** none drawn. Add is always ready; a value the schema would refuse is never sent, and the cursor moves to the first field at fault.
+- **Error:** Add is always ready; a value the schema would refuse is never sent, and the cursor moves to the first field at fault. That field takes `aria-invalid` and is described by one short hint on a full-width line under the fields ("Name the item first.", "Use a quantity above 0.", "Keep the unit to 20 characters."), body-small in `--text-2`, never the seal. Editing that field, or an add, clears it.
 
 ### Navigation (PartTabs)
 The series' parts as plain links in reading order, 1.5rem apart: body-small `--text-2` at rest, 44 px tall, with the ordinal number before each label. Hover and the current page (`aria-current="page"`) turn to `--text`; the current page adds a 1 px `--text` underline.

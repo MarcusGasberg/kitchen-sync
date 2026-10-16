@@ -29,6 +29,58 @@ describe("AddItemForm", () => {
     expect(addButton().disabled).toBe(false);
   });
 
+  it("says why an empty name is refused, at the item, until the item is edited", () => {
+    const onAdd = vi.fn();
+    render(<AddItemForm onAdd={onAdd} />);
+    submit();
+    expect(onAdd).not.toHaveBeenCalled();
+    const item = screen.getByRole("textbox", {
+      name: "Item",
+      description: "Name the item first.",
+    });
+    expect(item.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByText("Name the item first.")).toBeTruthy();
+
+    // Another field's edit leaves the hint where it is.
+    fill("Quantity", "2");
+    expect(item.getAttribute("aria-invalid")).toBe("true");
+
+    fill("Item", "O");
+    expect(item.hasAttribute("aria-invalid")).toBe(false);
+    expect(item.hasAttribute("aria-describedby")).toBe(false);
+    expect(screen.queryByText("Name the item first.")).toBeNull();
+  });
+
+  it("gives a quantity of zero its own hint", () => {
+    render(<AddItemForm onAdd={vi.fn()} />);
+    fill("Item", "Oat milk");
+    fill("Quantity", "0");
+    submit();
+    const quantity = screen.getByRole("spinbutton", {
+      name: "Quantity",
+      description: "Use a quantity above 0.",
+    });
+    expect(quantity.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByLabelText("Item").hasAttribute("aria-invalid")).toBe(
+      false,
+    );
+  });
+
+  it("gives a long unit its own hint", () => {
+    render(<AddItemForm onAdd={vi.fn()} />);
+    fill("Item", "Oat milk");
+    fill("Unit", "x".repeat(21));
+    submit();
+    expect(
+      screen
+        .getByRole("textbox", {
+          name: "Unit",
+          description: "Keep the unit to 20 characters.",
+        })
+        .getAttribute("aria-invalid"),
+    ).toBe("true");
+  });
+
   it("sends the trimmed item, leaving out what was not given", () => {
     const onAdd = vi.fn();
     render(<AddItemForm onAdd={onAdd} />);

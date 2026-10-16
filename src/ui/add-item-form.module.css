@@ -74,6 +74,15 @@ select.field {
   display: grid;
 }
 
+/* Why an entry was refused: a line of its own under the fields, only while
+   there is one. Quiet text, never the seal, which marks a rejection and a
+   stopped sync alone. */
+.hint {
+  grid-column: 1 / -1;
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.4 var(--font-text);
+}
+
 /* A desktop: no thumb to reach with, so the form is the first row under the
    header. */
 @media (min-width: 45rem) {
