@@ -119,7 +119,21 @@ describe("Figure", () => {
     host.show(0, 1);
     await screen.findByText("This figure stopped.");
     expect(screen.getByText(/the scene broke/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Restart" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    // Mounted afresh: its title and its stage are back, on a new element the
+    // host observes, and the scene builds again once that shows.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Broken" }),
+    ).toBeTruthy();
+    const figure = screen.getByRole("figure", { name: "Broken" });
+    expect(
+      within(figure).getByRole("group", { name: "Broken: the world" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("This figure stopped.")).toBeNull();
+    expect(host.observed()).toHaveLength(2);
+    expect(host.observed()[1]).toBe(figure);
+    host.show(1, 1);
+    await screen.findByText("This figure stopped.");
     error.mockRestore();
   });
 
