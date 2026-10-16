@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { Categories, type Category } from "#/domain/grocery-item";
 import type { MutationIntent } from "#/domain/mutation";
 import styles from "./add-item-form.module.css";
@@ -16,28 +16,40 @@ interface AddItemFormProps {
 }
 
 // Docked at the bottom on a phone, the first row under the masthead on a
-// desktop. It refuses what the schema would (a name of 1–50 characters, a
-// quantity above 0, a unit of up to 20) before anything is sent, and keeps
-// the category for the next item, since a list is added in runs.
+// desktop. Add is always ready, but what the schema would refuse (a name of
+// 1–50 characters, a quantity above 0, a unit of up to 20) is never sent:
+// the cursor goes to the first field at fault instead. It keeps the category
+// for the next item, since a list is added in runs.
 export function AddItemForm({ onAdd }: AddItemFormProps) {
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState("");
   const [category, setCategory] = useState<Category | "">("");
+  const nameField = useRef<HTMLInputElement>(null);
+  const quantityField = useRef<HTMLInputElement>(null);
+  const unitField = useRef<HTMLInputElement>(null);
 
   const trimmedName = name.trim();
   const trimmedUnit = unit.trim();
   const parsedQuantity = Number(quantity);
-  const canAdd =
-    trimmedName.length > 0 &&
-    trimmedName.length <= 50 &&
-    Number.isFinite(parsedQuantity) &&
-    parsedQuantity > 0 &&
-    trimmedUnit.length <= 20;
+
+  // In the order the fields come, so the cursor lands on the first at fault.
+  const refused = () => {
+    if (trimmedName.length === 0 || trimmedName.length > 50) return nameField;
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      return quantityField;
+    }
+    if (trimmedUnit.length > 20) return unitField;
+    return null;
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canAdd) return;
+    const field = refused();
+    if (field !== null) {
+      field.current?.focus();
+      return;
+    }
     onAdd({
       name: trimmedName,
       quantity: parsedQuantity,
@@ -50,8 +62,16 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
   };
 
   return (
-    <form className={styles.form} onSubmit={submit} aria-label="Add an item">
+    // noValidate: the browser would stop at a negative quantity before an
+    // empty name, so the form's own order decides instead.
+    <form
+      className={styles.form}
+      onSubmit={submit}
+      aria-label="Add an item"
+      noValidate
+    >
       <input
+        ref={nameField}
         className={`${styles.field} ${styles.name}`}
         type="text"
         value={name}
@@ -63,6 +83,7 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
         enterKeyHint="done"
       />
       <input
+        ref={quantityField}
         className={`${styles.field} ${styles.quantity}`}
         type="number"
         inputMode="decimal"
@@ -73,6 +94,7 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
         step="any"
       />
       <input
+        ref={unitField}
         className={`${styles.field} ${styles.unit}`}
         type="text"
         value={unit}
@@ -98,9 +120,7 @@ export function AddItemForm({ onAdd }: AddItemFormProps) {
         ))}
       </select>
       <span className={styles.add}>
-        <Button type="submit" disabled={!canAdd}>
-          Add
-        </Button>
+        <Button type="submit">Add</Button>
       </span>
     </form>
   );

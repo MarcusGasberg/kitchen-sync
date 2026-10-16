@@ -10,12 +10,22 @@ const submit = () =>
   fireEvent.submit(screen.getByRole("form", { name: "Add an item" }));
 
 describe("AddItemForm", () => {
-  it("waits for a name before it can add", () => {
-    render(<AddItemForm onAdd={vi.fn()} />);
-    expect(addButton().disabled).toBe(true);
+  it("sends nothing for an empty or blank name, and takes the cursor to the item", () => {
+    const onAdd = vi.fn();
+    render(<AddItemForm onAdd={onAdd} />);
+    expect(addButton().disabled).toBe(false);
+    fireEvent.click(addButton());
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByLabelText("Item"));
+
+    // The item comes first, even when the quantity is refused as well, and
+    // the browser's own check of the quantity does not get there first.
     fill("Item", "   ");
-    expect(addButton().disabled).toBe(true);
-    fill("Item", "Oat milk");
+    fill("Quantity", "-1");
+    screen.getByLabelText<HTMLInputElement>("Unit").focus();
+    fireEvent.click(addButton());
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByLabelText("Item"));
     expect(addButton().disabled).toBe(false);
   });
 
@@ -49,13 +59,23 @@ describe("AddItemForm", () => {
     );
   });
 
-  it("refuses a quantity of zero", () => {
+  it("refuses a quantity of zero, and takes the cursor to it", () => {
     const onAdd = vi.fn();
     render(<AddItemForm onAdd={onAdd} />);
     fill("Item", "Oat milk");
     fill("Quantity", "0");
     submit();
     expect(onAdd).not.toHaveBeenCalled();
-    expect(addButton().disabled).toBe(true);
+    expect(document.activeElement).toBe(screen.getByLabelText("Quantity"));
+  });
+
+  it("refuses a unit past 20 characters, and takes the cursor to it", () => {
+    const onAdd = vi.fn();
+    render(<AddItemForm onAdd={onAdd} />);
+    fill("Item", "Oat milk");
+    fill("Unit", "x".repeat(21));
+    submit();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByLabelText("Unit"));
   });
 });
