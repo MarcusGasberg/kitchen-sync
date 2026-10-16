@@ -55,6 +55,32 @@ describe("Figure", () => {
     ).toBeTruthy();
   });
 
+  // A phone sets the speed and the hand-over under the stage: reading and
+  // focus order follow it there, and play stays the first thing reached.
+  it("reads playback, the stage, then the speed, the hand-over and the breaks", async () => {
+    const host = fakeHost({ reduced: true });
+    render(<Figure scene={scene} title="Order" host={host.host} />);
+    await shown(host);
+    const figure = screen.getByRole("figure", { name: "Order" });
+    const inOrder = [
+      within(figure).getByRole("button", { name: "Play" }),
+      within(figure).getByRole("slider"),
+      within(figure).getByRole("group", { name: "Order: the world" }),
+      within(figure).getByRole("radio", { name: "1×" }),
+      within(figure).getByRole("button", { name: "Your turn" }),
+      within(figure).getByRole("button", { name: "Take A offline" }),
+    ];
+    for (const [index, element] of inOrder.slice(1).entries()) {
+      expect(
+        inOrder[index]?.compareDocumentPosition(element) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        element.textContent ?? element.getAttribute("aria-label") ?? "",
+      ).toBeTruthy();
+    }
+    const [first] = within(figure).getAllByRole("button");
+    expect(first?.textContent).toBe("Play");
+  });
+
   it("plays with space and steps with the arrows on the stage", async () => {
     const host = fakeHost({ reduced: true });
     render(<Figure scene={scene} title="Keys" host={host.host} />);

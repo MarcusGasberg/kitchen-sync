@@ -6,6 +6,19 @@
   padding: var(--space-6) var(--space-4) var(--space-7);
 }
 
+/* A phone: the first figure starts close under the route's name, so its
+   server's basin can reach the first screen. The figures stay far apart. */
+@media (max-width: 44.99rem) {
+  .lab {
+    padding-top: var(--space-4);
+    gap: var(--space-5);
+  }
+
+  .lab > figure + figure {
+    margin-top: calc(var(--space-7) * 2 - var(--space-5));
+  }
+}
+
 @media (min-width: 64rem) {
   .lab {
     padding-inline: var(--space-7);

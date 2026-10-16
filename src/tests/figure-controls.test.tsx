@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { PlayerView } from "#/lib/sandbox/player";
 import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { BreakingControls } from "#/ui/figure/breaking-controls";
-import { PlayerControls, whereIs } from "#/ui/figure/player-controls";
+import {
+  PaceControls,
+  PlayerControls,
+  whereIs,
+} from "#/ui/figure/player-controls";
 
 const viewOf = (overrides: Partial<PlayerView> = {}): PlayerView => ({
   mode: "scene",
@@ -37,8 +41,6 @@ const handlers = () => ({
   onNext: vi.fn(),
   onRestart: vi.fn(),
   onScrub: vi.fn(),
-  onSpeed: vi.fn(),
-  onYourTurn: vi.fn(),
 });
 
 describe("PlayerControls", () => {
@@ -66,19 +68,6 @@ describe("PlayerControls", () => {
     );
   });
 
-  it("sets the speed, and hands over only during a scene", () => {
-    const on = handlers();
-    const { rerender } = render(<PlayerControls view={viewOf()} {...on} />);
-    fireEvent.click(screen.getByRole("radio", { name: "4×" }));
-    expect(on.onSpeed).toHaveBeenCalledWith(4);
-    fireEvent.click(screen.getByRole("button", { name: "Your turn" }));
-    expect(on.onYourTurn).toHaveBeenCalled();
-    rerender(
-      <PlayerControls view={viewOf({ mode: "free", beat: null })} {...on} />,
-    );
-    expect(screen.queryByRole("button", { name: "Your turn" })).toBeNull();
-  });
-
   it("waits while a fork is built", () => {
     render(<PlayerControls view={viewOf({ busy: true })} {...handlers()} />);
     expect(
@@ -88,6 +77,58 @@ describe("PlayerControls", () => {
     expect((screen.getByRole("slider") as HTMLInputElement).disabled).toBe(
       true,
     );
+  });
+
+  it("keeps the speed and the hand-over for the pace controls", () => {
+    render(<PlayerControls view={viewOf()} {...handlers()} />);
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Your turn" })).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Play",
+      "Back",
+      "Step",
+      "Restart",
+    ]);
+  });
+});
+
+describe("PaceControls", () => {
+  it("sets the speed, and hands over only during a scene", () => {
+    const onSpeed = vi.fn();
+    const onYourTurn = vi.fn();
+    const { rerender } = render(
+      <PaceControls
+        view={viewOf()}
+        onSpeed={onSpeed}
+        onYourTurn={onYourTurn}
+      />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "4×" }));
+    expect(onSpeed).toHaveBeenCalledWith(4);
+    fireEvent.click(screen.getByRole("button", { name: "Your turn" }));
+    expect(onYourTurn).toHaveBeenCalled();
+    rerender(
+      <PaceControls
+        view={viewOf({ mode: "free", beat: null })}
+        onSpeed={onSpeed}
+        onYourTurn={onYourTurn}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Your turn" })).toBeNull();
+  });
+
+  it("waits while a fork is built", () => {
+    render(
+      <PaceControls
+        view={viewOf({ busy: true })}
+        onSpeed={vi.fn()}
+        onYourTurn={vi.fn()}
+      />,
+    );
+    expect(
+      (screen.getByRole("button", { name: "Your turn" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 });
 

@@ -13,6 +13,10 @@ interface PlayerControlsProps {
   readonly onRestart: () => void;
   // An absolute instant on the world's clock.
   readonly onScrub: (at: number) => void;
+}
+
+interface PaceControlsProps {
+  readonly view: PlayerView;
   readonly onSpeed: (speed: Speed) => void;
   readonly onYourTurn: () => void;
 }
@@ -28,9 +32,12 @@ export const whereIs = (view: PlayerView): string => {
     : `your turn · ${time}`;
 };
 
+// A control waits while a fork is built, and on a stopped figure.
+const waitingOf = (view: PlayerView) => view.busy || view.failure !== null;
+
 // Playback: play or pause first (the first thing a keyboard reaches, so a
 // world that started on its own stops at once), then back, step and restart;
-// the time; the speed; and, during a scene, the hand-over.
+// then the time.
 export function PlayerControls({
   view,
   onPlay,
@@ -39,11 +46,8 @@ export function PlayerControls({
   onNext,
   onRestart,
   onScrub,
-  onSpeed,
-  onYourTurn,
 }: PlayerControlsProps) {
-  const speedName = useId();
-  const waiting = view.busy || view.failure !== null;
+  const waiting = waitingOf(view);
   return (
     <div className={styles.controls}>
       <div className={styles.buttons}>
@@ -76,6 +80,19 @@ export function PlayerControls({
           <span className={styles.skip}>+{view.skipping} s</span>
         )}
       </p>
+    </div>
+  );
+}
+
+// How the figure plays on: its speed and, during a scene, the hand-over. A
+// figure sets them under its stage on a phone and a tablet, and under
+// playback on a wide screen; either way they follow the stage in reading
+// order, and play or pause stays first.
+export function PaceControls({ view, onSpeed, onYourTurn }: PaceControlsProps) {
+  const speedName = useId();
+  const waiting = waitingOf(view);
+  return (
+    <div className={styles.controls}>
       <fieldset className={styles.speed}>
         <legend className={styles.legend}>Speed</legend>
         {SPEEDS.map((speed) => (

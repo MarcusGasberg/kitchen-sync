@@ -32,6 +32,9 @@
   --text-lg: 1.125rem;
   --text-xl: 1.5rem;
   --text-2xl: 2.75rem;
+  /* A chapter's title below 45rem, where 2.75rem would hold the server's
+     basin off a phone's first screen. */
+  --text-2xl-phone: 2rem;
   --tracking-label: 0.18em;
 
   --space-1: 0.25rem;

@@ -25,7 +25,7 @@ import {
 import { BreakingControls } from "./breaking-controls";
 import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
-import { PlayerControls } from "./player-controls";
+import { PaceControls, PlayerControls } from "./player-controls";
 import { Stage } from "./stage";
 import { makeStageView, mostRows } from "./stage-view";
 import { usePlayer } from "./use-player";
@@ -174,8 +174,6 @@ function FigureBody({
             onNext={() => run(player.next)}
             onRestart={() => run(player.restart)}
             onScrub={(at) => run(player.scrub(at))}
-            onSpeed={(speed) => run(player.setSpeed(speed))}
-            onYourTurn={() => run(player.yourTurn)}
           />
         )}
       </div>
@@ -206,6 +204,17 @@ function FigureBody({
             }
             onAdd={(client, name) => run(player.act(addItem(client, name)))}
             onRetry={(client) => run(player.act(retrySync(client)))}
+          />
+        )}
+      </div>
+
+      {/* After the stage in reading order, as on a phone they are under it. */}
+      <div className={styles.pace}>
+        {view !== null && player !== null && (
+          <PaceControls
+            view={view}
+            onSpeed={(speed) => run(player.setSpeed(speed))}
+            onYourTurn={() => run(player.yourTurn)}
           />
         )}
       </div>
