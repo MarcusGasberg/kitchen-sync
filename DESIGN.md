@@ -363,7 +363,7 @@ The page ground with a hairline foot. One grid line holds the basin badge, the a
 Above every category, never below the fold: water ground, a dashed 1 px seal edge with 6 px corners, a dashed seal ring, the item's name (600, ellipsised) over its verb and the server's reason ("Check rejected: item not found"; an id the row already names is not repeated, others are cut to their first block) in seal body-small, and a secondary Dismiss.
 
 ### Band and StatusBand
-A full-width strip across whatever it changes the state of: water ground, 1 px control-edge rules above and below, a body-small `--text-2` sentence led by the state's word in 600 `--text`. Offline is solid; retrying is dashed, with the server's reason; stopped is solid with "Sync stopped." in the seal, its reason, what closing the tab would lose, and a primary Retry. Connecting, synced and pending draw no band. The band is not a live region; the status line announces.
+A full-width strip across whatever it changes the state of: water ground, 1 px control-edge rules above and below, a body-small `--text-2` sentence led by the state's word in 600 `--text`. Offline is solid; retrying is dashed, with the server's reason; stopped is solid with "Sync stopped." in the seal, its reason and a primary Retry. Offline and stopped add what closing the tab would lose while anything waits, and nothing more when nothing does. Connecting, synced and pending draw no band. The band is not a live region; the status line announces.
 
 ### Basin (signature)
 A device's list as marbled water, `role="img"` named in words ("A's list: 10 items, 1 in fresh ink"), so the pattern carries no fact the list beside it does not say.
