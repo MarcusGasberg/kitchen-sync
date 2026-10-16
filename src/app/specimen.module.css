@@ -105,6 +105,13 @@
   height: 100%;
 }
 
+/* High Contrast keeps the CPU's water framed, as it does a basin's. */
+@media (forced-colors: active) {
+  .cpu {
+    border: var(--rule) solid CanvasText;
+  }
+}
+
 .controls {
   display: grid;
   gap: var(--space-5);
