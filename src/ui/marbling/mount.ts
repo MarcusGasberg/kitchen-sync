@@ -1,5 +1,5 @@
 import { type Operation, sameOperation } from "./operations";
-import { canvasRenderer, FEATHER_CSS_PX, type Renderer } from "./renderer";
+import { basinFeather, canvasRenderer, type Renderer } from "./renderer";
 import { createSettler } from "./settle";
 import { type Rgb, readTones } from "./tones";
 import { webglRenderer } from "./webgl";
@@ -109,9 +109,6 @@ export const basinRenderer = (
   // at up to 1.5 device pixels; the CPU four at half the box, which the
   // browser smooths up.
   const pixelRatio = hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5;
-  // The canvas is sized at this ratio whichever draws it, so its edges fade
-  // over the same CSS pixels.
-  const feather = FEATHER_CSS_PX * pixelRatio;
   return {
     pixelRatio,
     settles: hasGpu,
@@ -119,6 +116,9 @@ export const basinRenderer = (
       draw: (ops, tones, frame = {}) => {
         const { width, height } = canvas;
         if (width === 0 || height === 0) return;
+        // The canvas is sized at this ratio whichever draws it, so its edges
+        // fade over the same CSS pixels, scaled to the basin's own width.
+        const feather = basinFeather(canvas.clientWidth, pixelRatio);
         const shared = gpu.at(width, height);
         if (shared === null) {
           cpu.draw(ops, tones, { ...frame, feather });

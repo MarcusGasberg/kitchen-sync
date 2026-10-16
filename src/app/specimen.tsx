@@ -14,7 +14,7 @@ import { GroceryList } from "#/ui/grocery-list";
 import { type Group, listView, type WaitingChange } from "#/ui/list-view";
 import { forcedColors } from "#/ui/marbling/mount";
 import { patternOf, waitingOf } from "#/ui/marbling/pattern";
-import { canvasRenderer, FEATHER_CSS_PX } from "#/ui/marbling/renderer";
+import { basinFeather, canvasRenderer } from "#/ui/marbling/renderer";
 import { readTones } from "#/ui/marbling/tones";
 import { Mark } from "#/ui/mark";
 import { Masthead } from "#/ui/masthead";
@@ -244,7 +244,7 @@ function CpuBasin({ items }: { readonly items: ReadonlyArray<GroceryItem> }) {
     const ratio =
       element.clientWidth > 0 ? element.width / element.clientWidth : 1;
     canvasRenderer(element)?.draw(ops, readTones(element, forcedColors()), {
-      feather: FEATHER_CSS_PX * ratio,
+      feather: basinFeather(element.clientWidth, ratio),
     });
   }, [ops]);
   return (

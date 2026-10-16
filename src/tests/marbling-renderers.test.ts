@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { type Operation, toneAt } from "#/ui/marbling/operations";
-import {
-  FADE_SHARE,
-  FEATHER_CSS_PX,
-  paint,
-  shadeAt,
-} from "#/ui/marbling/renderer";
+import { FEATHER_CSS_PX, paint, shadeAt } from "#/ui/marbling/renderer";
 import {
   parseAlpha,
   parseRgb,
@@ -121,20 +116,6 @@ describe("shadeAt", () => {
 
   it("shows half ink and half water half a pixel in from the edge", () => {
     within(shade(lone, 1.25 - 0.5 * SCALE), HALF, 1e-6);
-  });
-
-  it("keeps a tiny drop's core in full ink, fading only a share of its size", () => {
-    // 2.5 px across its radius, below FEATHER_CSS_PX / FADE_SHARE: a full
-    // 1.75 px fade would reach past half its radius.
-    expect(FEATHER_CSS_PX / FADE_SHARE).toBeGreaterThan(2.5);
-    const tiny: ReadonlyArray<Operation> = [
-      { kind: "drop", key: "a", x: 1, y: 0.5, radius: 0.025, tone: 1 },
-    ];
-    for (const x of [1, 1.0125]) {
-      expect(shadeAt(tiny, x, 0.5, SHADES, SCALE, FEATHER_CSS_PX)).toEqual([
-        150, 160, 170,
-      ]);
-    }
   });
 
   // A drop at the same centre pushes the first one out into the band from its

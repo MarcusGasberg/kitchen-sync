@@ -11,6 +11,7 @@ import type { Drop, Operation } from "#/ui/marbling/operations";
 import {
   FEATHER_CSS_PX,
   type Frame,
+  FULL_FADE_WIDTH,
   type Renderer,
 } from "#/ui/marbling/renderer";
 import type { Rgb } from "#/ui/marbling/tones";
@@ -393,7 +394,13 @@ describe("basinRenderer", () => {
     };
     return { draws, frames, renderer };
   };
-  const setup = (gpuAvailable: boolean, width: number, height: number) => {
+  // A basin wide enough for the full fade unless told otherwise.
+  const setup = (
+    gpuAvailable: boolean,
+    width: number,
+    height: number,
+    clientWidth = 400,
+  ) => {
     const cpu = recorder();
     const gpu = recorder();
     const context = { drawImage: vi.fn() };
@@ -404,6 +411,7 @@ describe("basinRenderer", () => {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
+    Object.defineProperty(canvas, "clientWidth", { value: clientWidth });
     const made = basinRenderer(canvas, {
       context,
       cpu: cpu.renderer,
@@ -434,13 +442,22 @@ describe("basinRenderer", () => {
     expect(gpu.frames.map((frame) => frame?.fine)).toEqual([false, true]);
   });
 
-  it("fades each edge over the same CSS pixels, in the canvas's own pixels", () => {
-    const onGpu = setup(true, 40, 16);
+  it("fades a wide basin's edges over the full CSS pixels, in the canvas's own pixels", () => {
+    const onGpu = setup(true, 40, 16, FULL_FADE_WIDTH);
     onGpu.made.renderer.draw([drop("a")], TONES);
     expect(onGpu.gpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 1.5);
-    const onCpu = setup(false, 40, 16);
+    const onCpu = setup(false, 40, 16, 2 * FULL_FADE_WIDTH);
     onCpu.made.renderer.draw([drop("a")], TONES);
     expect(onCpu.cpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 0.5);
+  });
+
+  it("shrinks the fade in step with a narrower basin, so a badge keeps its ink", () => {
+    const badge = setup(true, 138, 56, 92);
+    badge.made.renderer.draw([drop("a")], TONES);
+    expect(badge.gpu.frames[0]?.feather).toBeCloseTo(
+      FEATHER_CSS_PX * (92 / FULL_FADE_WIDTH) * 1.5,
+      12,
+    );
   });
 
   it("draws on the CPU at half the box when there is no GPU", () => {
