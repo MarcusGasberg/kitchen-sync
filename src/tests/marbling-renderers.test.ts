@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Operation } from "#/ui/marbling/operations";
 import { paint } from "#/ui/marbling/renderer";
-import { parseRgb, type Rgb } from "#/ui/marbling/tones";
+import { parseRgb, type Rgb, toneSources } from "#/ui/marbling/tones";
 import { pack } from "#/ui/marbling/webgl";
 
 const TONES: ReadonlyArray<Rgb> = [
@@ -72,5 +72,29 @@ describe("parseRgb", () => {
   it("gives up on anything else", () => {
     expect(parseRgb("")).toBeNull();
     expect(parseRgb("var(--water)")).toBeNull();
+  });
+});
+
+describe("toneSources", () => {
+  it("names the palette's water and inks, in tone order", () => {
+    expect(toneSources(false)).toEqual([
+      "var(--water)",
+      "var(--ink-1)",
+      "var(--ink-2)",
+      "var(--ink-3)",
+      "var(--ink-4)",
+      "var(--ink-fresh)",
+    ]);
+  });
+
+  it("names the system's own colours under forced colours: ink on clear water, fresh ink marked", () => {
+    expect(toneSources(true)).toEqual([
+      "Canvas",
+      "CanvasText",
+      "CanvasText",
+      "CanvasText",
+      "CanvasText",
+      "Highlight",
+    ]);
   });
 });

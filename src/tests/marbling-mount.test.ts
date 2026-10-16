@@ -246,6 +246,23 @@ describe("mountBasin", () => {
     expect(fake.draws.length).toBe(draws + 1);
   });
 
+  it("redraws in the system's colours when High Contrast turns on, until unmounted", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    const reads = fake.toneReads();
+    const draws = fake.draws.length;
+    fake.emit("(forced-colors: active)");
+    fake.frame();
+    expect(fake.toneReads()).toBe(reads + 1);
+    expect(fake.draws.length).toBe(draws + 1);
+
+    basin.unmount();
+    fake.emit("(forced-colors: active)");
+    expect(fake.toneReads()).toBe(reads + 1);
+  });
+
   it("does nothing without a renderer, and never throws", () => {
     const fake = fakeHost({ renderer: false });
     const basin = mountBasin(canvasOf(400, 160), fake.host);

@@ -127,6 +127,11 @@ export const basinRenderer = (
   };
 };
 
+const matchMedia = (query: string) =>
+  typeof window.matchMedia === "function"
+    ? window.matchMedia(query)
+    : undefined;
+
 export const browserHost: BasinHost = {
   createRenderer: (canvas) => {
     // jsdom has no 2D context, and logs when asked for one.
@@ -141,11 +146,9 @@ export const browserHost: BasinHost = {
       devicePixelRatio: window.devicePixelRatio || 1,
     });
   },
-  readTones,
-  matchMedia: (query) =>
-    typeof window.matchMedia === "function"
-      ? window.matchMedia(query)
-      : undefined,
+  readTones: (element) =>
+    readTones(element, matchMedia("(forced-colors: active)")?.matches ?? false),
+  matchMedia,
   requestFrame: (callback) => window.requestAnimationFrame(callback),
   cancelFrame: (handle) => window.cancelAnimationFrame(handle),
   observeSize: (element, onResize) => {
@@ -182,7 +185,9 @@ export const mountBasin = (
 ): MountedBasin => {
   const settler = createSettler(SETTLE_MS);
   const motion = host.matchMedia("(prefers-reduced-motion: reduce)");
+  // Night and High Contrast each change the colours the tones resolve to.
   const scheme = host.matchMedia("(prefers-color-scheme: dark)");
+  const forced = host.matchMedia("(forced-colors: active)");
   let made = host.createRenderer(canvas);
   let tones = host.readTones(canvas);
   let ops: ReadonlyArray<Operation> = [];
@@ -221,6 +226,7 @@ export const mountBasin = (
 
   const stopObserving = host.observeSize(canvas, resize);
   scheme?.addEventListener("change", retone);
+  forced?.addEventListener("change", retone);
   resize();
 
   return {
@@ -242,6 +248,7 @@ export const mountBasin = (
       frame = null;
       stopObserving();
       scheme?.removeEventListener("change", retone);
+      forced?.removeEventListener("change", retone);
       made?.renderer.dispose();
       made = null;
     },
