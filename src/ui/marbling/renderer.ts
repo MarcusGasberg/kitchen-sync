@@ -26,14 +26,14 @@ export interface Renderer {
 // of ending hard.
 export const FEATHER_CSS_PX = 1.75;
 
-// From this CSS width a basin's edges take the full fade, and a smaller
-// basin's fade shrinks in step, so a badge keeps its ink.
+// From this CSS width a basin's edges take the full fade; below it the fade
+// shrinks with the square of the width, so a badge keeps its ink.
 export const FULL_FADE_WIDTH = 320;
 
 // The fade, in canvas pixels, for a basin `cssWidth` CSS pixels wide drawn at
 // `pixelRatio` canvas pixels to a CSS pixel.
 export const basinFeather = (cssWidth: number, pixelRatio: number): number =>
-  FEATHER_CSS_PX * Math.min(1, cssWidth / FULL_FADE_WIDTH) * pixelRatio;
+  FEATHER_CSS_PX * Math.min(1, cssWidth / FULL_FADE_WIDTH) ** 2 * pixelRatio;
 
 // The colour the water shows at (x, y): `toneAt`'s walk, with each drop's
 // outer edge faded into what lay just outside it over `featherPx` canvas

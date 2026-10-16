@@ -451,11 +451,11 @@ describe("basinRenderer", () => {
     expect(onCpu.cpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 0.5);
   });
 
-  it("shrinks the fade in step with a narrower basin, so a badge keeps its ink", () => {
+  it("shrinks the fade with the square of a narrower basin's width, so a badge keeps its ink", () => {
     const badge = setup(true, 138, 56, 92);
     badge.made.renderer.draw([drop("a")], TONES);
     expect(badge.gpu.frames[0]?.feather).toBeCloseTo(
-      FEATHER_CSS_PX * (92 / FULL_FADE_WIDTH) * 1.5,
+      FEATHER_CSS_PX * (92 / FULL_FADE_WIDTH) ** 2 * 1.5,
       12,
     );
   });
