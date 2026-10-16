@@ -14,21 +14,45 @@ const TONES: ReadonlyArray<Rgb> = [
 ];
 
 describe("paint", () => {
-  it("fills every pixel: ink where a drop lies, water elsewhere", () => {
-    const width = 50;
-    const height = 20;
+  // 50 × 20 pixels show the whole world, 0.05 a pixel, with no margin.
+  const width = 50;
+  const height = 20;
+  const painted = (
+    ops: ReadonlyArray<Operation>,
+    tones: ReadonlyArray<Rgb>,
+  ) => {
     const pixels = new Uint8ClampedArray(width * height * 4);
-    const ops: ReadonlyArray<Operation> = [
-      { kind: "drop", key: "a", x: 1.25, y: 0.5, radius: 0.2, tone: 1 },
-    ];
-    paint(pixels, width, height, ops, TONES);
+    paint(pixels, width, height, ops, tones);
     const at = (col: number, row: number) => {
       const i = (row * width + col) * 4;
       return Array.from(pixels.slice(i, i + 4));
     };
+    return { pixels, at };
+  };
+
+  it("fills every pixel: ink wholly inside a drop, water wholly outside", () => {
+    const { pixels, at } = painted(
+      [{ kind: "drop", key: "a", x: 1.25, y: 0.5, radius: 0.2, tone: 1 }],
+      TONES,
+    );
     expect(at(25, 10)).toEqual([10, 20, 30, 255]);
     expect(at(0, 0)).toEqual([1, 2, 3, 255]);
     expect(pixels.every((_, i) => i % 4 !== 3 || pixels[i] === 255)).toBe(true);
+  });
+
+  it("averages a pixel's samples, so a pixel across a drop's edge is half ink", () => {
+    // The drop's right edge runs through the centre of pixel (28, 10): half
+    // its samples land in the drop, half in the water.
+    const { at } = painted(
+      [{ kind: "drop", key: "a", x: 1.25, y: 0.525, radius: 0.175, tone: 1 }],
+      [
+        [0, 0, 0],
+        [100, 200, 40],
+      ],
+    );
+    expect(at(27, 10)).toEqual([100, 200, 40, 255]);
+    expect(at(28, 10)).toEqual([50, 100, 20, 255]);
+    expect(at(29, 10)).toEqual([0, 0, 0, 255]);
   });
 });
 

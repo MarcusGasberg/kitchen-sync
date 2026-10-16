@@ -106,20 +106,21 @@ export const basinRenderer = (
   const { context, cpu, gpu } = parts;
   const hasGpu = gpu.at(1, 1) !== null;
   return {
-    // The GPU draws four samples a pixel at up to 1.5 device pixels; the
-    // CPU one sample at half the box, which the browser smooths up.
+    // The GPU draws sixteen samples a pixel when still, four while settling,
+    // at up to 1.5 device pixels; the CPU four at half the box, which the
+    // browser smooths up.
     pixelRatio: hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5,
     settles: hasGpu,
     renderer: {
-      draw: (ops, tones) => {
+      draw: (ops, tones, fine) => {
         const { width, height } = canvas;
         if (width === 0 || height === 0) return;
         const shared = gpu.at(width, height);
         if (shared === null) {
-          cpu.draw(ops, tones);
+          cpu.draw(ops, tones, fine);
           return;
         }
-        shared.renderer.draw(ops, tones);
+        shared.renderer.draw(ops, tones, fine);
         context.drawImage(shared.canvas, 0, 0);
       },
       dispose: () => {},
@@ -198,7 +199,8 @@ export const mountBasin = (
     frame = null;
     if (made === null) return;
     const now = settler.at(host.now());
-    made.renderer.draw(now.ops, tones);
+    // A still frame is drawn fine: a settle's last, a resize, a re-ink.
+    made.renderer.draw(now.ops, tones, !now.moving);
     if (now.moving) frame = host.requestFrame(draw);
   };
   const redraw = () => {

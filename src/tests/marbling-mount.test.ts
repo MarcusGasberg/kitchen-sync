@@ -35,9 +35,12 @@ const fakeHost = (
   options: { reduced?: boolean; renderer?: boolean; settles?: boolean } = {},
 ) => {
   const draws: Array<ReadonlyArray<Operation>> = [];
+  // Whether each draw was asked for fine, as a still frame is.
+  const fine: Array<boolean | undefined> = [];
   const renderer: Renderer = {
-    draw: (ops) => {
+    draw: (ops, _, isFine) => {
       draws.push(ops);
+      fine.push(isFine);
     },
     dispose: vi.fn(),
   };
@@ -88,6 +91,7 @@ const fakeHost = (
     host,
     resize: () => resize(),
     draws,
+    fine,
     renderer,
     toneReads: () => toneReads,
     advance: (ms: number) => {
@@ -145,6 +149,22 @@ describe("mountBasin", () => {
     fake.frame();
     expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
     expect(fake.waiting()).toBe(0);
+  });
+
+  it("draws a settle's moving frames coarse, and every still frame fine", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    fake.advance(SETTLE_MS / 4);
+    fake.frame();
+    fake.advance(SETTLE_MS);
+    fake.frame();
+    // Sizing the canvas on mount, the first pattern, two frames of the
+    // settle, and its last.
+    expect(fake.fine).toEqual([true, true, false, false, true]);
   });
 
   it("lets a removed drop shrink out where it was, then lets it go", () => {
@@ -358,13 +378,15 @@ describe("createSharedGpu", () => {
 describe("basinRenderer", () => {
   const recorder = () => {
     const draws: Array<ReadonlyArray<Operation>> = [];
+    const fine: Array<boolean | undefined> = [];
     const renderer: Renderer = {
-      draw: (ops) => {
+      draw: (ops, _, isFine) => {
         draws.push(ops);
+        fine.push(isFine);
       },
       dispose: () => {},
     };
-    return { draws, renderer };
+    return { draws, fine, renderer };
   };
   const setup = (gpuAvailable: boolean, width: number, height: number) => {
     const cpu = recorder();
@@ -398,6 +420,13 @@ describe("basinRenderer", () => {
       0,
       0,
     );
+  });
+
+  it("asks the GPU for a fine frame only when the frame is still", () => {
+    const { made, gpu } = setup(true, 40, 16);
+    made.renderer.draw([drop("a")], TONES, false);
+    made.renderer.draw([drop("a")], TONES, true);
+    expect(gpu.fine).toEqual([false, true]);
   });
 
   it("draws on the CPU at half the box when there is no GPU", () => {

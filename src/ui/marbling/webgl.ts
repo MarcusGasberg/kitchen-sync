@@ -23,11 +23,16 @@ void main() {
 }`;
 
 // The walk `toneAt` in operations.ts takes, per sample: change both.
+// A still frame (`fine` 1) averages sixteen samples on a 4 × 4 grid over a
+// square 1.5 pixels across, as renderer.ts's `paint` does with four, so an
+// edge feathers into the water. A frame of a settle (`fine` 0) takes four on
+// a rotated grid inside the pixel, cheap enough to draw every frame.
 const FRAGMENT = `#version 300 es
 precision highp float;
 precision highp int;
 uniform highp sampler2D ops;
 uniform int count;
+uniform int fine;
 uniform vec2 size;
 uniform vec3 view;
 uniform vec3 tones[6];
@@ -60,6 +65,16 @@ vec3 sampleAt(vec2 pixel) {
 
 void main() {
   vec2 pixel = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y);
+  if (fine == 1) {
+    vec3 grid = vec3(0.0);
+    for (int j = 0; j < 4; j++) {
+      for (int i = 0; i < 4; i++) {
+        grid += sampleAt(pixel + ((vec2(i, j) + 0.5) / 4.0 - 0.5) * 1.5);
+      }
+    }
+    colour = vec4(grid / 16.0, 1.0);
+    return;
+  }
   vec3 sum = sampleAt(pixel + vec2(-0.125, -0.375))
     + sampleAt(pixel + vec2(0.375, -0.125))
     + sampleAt(pixel + vec2(0.125, 0.375))
@@ -141,6 +156,7 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
   const at = {
     ops: uniform("ops"),
     count: uniform("count"),
+    fine: uniform("fine"),
     size: uniform("size"),
     view: uniform("view"),
     tones: uniform("tones"),
@@ -148,7 +164,7 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
 
   return {
     lost: () => gl.isContextLost(),
-    draw: (ops, tones) => {
+    draw: (ops, tones, fine = false) => {
       gl.useProgram(program);
       const { width, height } = canvas;
       if (width === 0 || height === 0) return;
@@ -171,6 +187,7 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
       const view = coverView(width, height);
       gl.uniform1i(at.ops, 0);
       gl.uniform1i(at.count, ops.length);
+      gl.uniform1i(at.fine, fine ? 1 : 0);
       gl.uniform2f(at.size, width, height);
       gl.uniform3f(at.view, view.originX, view.originY, view.scale);
       gl.uniform3fv(
