@@ -4,19 +4,23 @@ import styles from "./basin.module.css";
 import { browserHost, type MountedBasin, mountBasin } from "./marbling/mount";
 import { patternOf } from "./marbling/pattern";
 
+// A basin's counts in words, as "10 items, 1 waiting".
+export const basinCounts = (
+  items: ReadonlyArray<GroceryItem>,
+  waiting?: ReadonlyMap<string, number>,
+): string => {
+  const count = `${items.length} ${items.length === 1 ? "item" : "items"}`;
+  const fresh = items.filter((item) => waiting?.has(item.id)).length;
+  return fresh > 0 ? `${count}, ${fresh} waiting` : count;
+};
+
 // What a basin shows, in words: the pattern carries no fact the list beside
 // it does not also say.
 export const describeBasin = (
   label: string,
   items: ReadonlyArray<GroceryItem>,
   waiting?: ReadonlyMap<string, number>,
-): string => {
-  const count = `${items.length} ${items.length === 1 ? "item" : "items"}`;
-  const fresh = items.filter((item) => waiting?.has(item.id)).length;
-  return fresh > 0
-    ? `${label}: ${count}, ${fresh} waiting`
-    : `${label}: ${count}`;
-};
+): string => `${label}: ${basinCounts(items, waiting)}`;
 
 interface BasinProps {
   readonly items: ReadonlyArray<GroceryItem>;

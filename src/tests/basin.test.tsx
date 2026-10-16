@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { DateTime, Option } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { GroceryItem } from "#/domain/grocery-item";
-import { Basin, describeBasin } from "#/ui/basin";
+import { Basin, basinCounts, describeBasin } from "#/ui/basin";
 
 const at = DateTime.makeUnsafe(0);
 
@@ -51,6 +51,16 @@ describe("describeBasin", () => {
   it("counts only waiting changes for items still on the list", () => {
     expect(describeBasin("A's list", [eggs], new Map([[milk.id, 3]]))).toBe(
       "A's list: 1 item",
+    );
+  });
+});
+
+describe("basinCounts", () => {
+  it("says how many items, and how many of them wait", () => {
+    const items = [item(1, "Milk"), item(2, "Eggs")];
+    expect(basinCounts([items[0]])).toBe("1 item");
+    expect(basinCounts(items, new Map([[items[1].id, 4]]))).toBe(
+      "2 items, 1 waiting",
     );
   });
 });
