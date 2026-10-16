@@ -69,11 +69,19 @@ export const layWires = (
 // other, so a push and the pull response passing it never sit on each other.
 export const LANE_PX = 6;
 
+// How far above a device's pane a message's dot stops, at its lane and
+// however its wire leans: half its label's height (7 px of 12 px type), the
+// label's halo (3 px) and a gap (2 px). A message leaving, held at or
+// arriving at a device, and a loss there, never sits on the pane's header,
+// whose state line is the word the caption points at. The wire itself is
+// drawn on to the pane.
+export const DEVICE_INSET_PX = 7 + 3 + 2;
+
 // Two messages on one side of one wire can still meet: an ack and the poke
 // its push set off leave the server in the same instant for the same device.
 // A message within this distance of earlier ones queues behind them, toward
 // its sender, so that consecutive dots end up at least STACK_PX apart and
-// within the wire (see `queue`).
+// within its lane (see `queue`).
 export const STACK_PX = 16;
 
 export interface Placed {
@@ -97,23 +105,48 @@ const across = (wire: Wire): Point => {
   return { x: dy / length || 0, y: -dx / length || 0 };
 };
 
+interface Lane {
+  readonly from: Point;
+  readonly to: Point;
+}
+
+const fromDeviceOf = (message: Message) => senderOf(message.kind) === "client";
+
+// The path a message travels, from its sender to its receiver: its wire, set
+// LANE_PX to its side, from the server's end to DEVICE_INSET_PX above the
+// device's pane.
+const laneOf = (wire: Wire, fromDevice: boolean): Lane => {
+  const normal = across(wire);
+  const side = fromDevice ? -1 : 1;
+  const offset = { x: side * LANE_PX * normal.x, y: side * LANE_PX * normal.y };
+  const dx = wire.device.x - wire.server.x;
+  const dy = wire.device.y - wire.server.y;
+  // The share of the wire the lane runs, so that its device end, lane offset
+  // and all, sits DEVICE_INSET_PX over the pane.
+  const reach =
+    dy > 0
+      ? Math.min(1, Math.max(0, (dy - DEVICE_INSET_PX - offset.y) / dy))
+      : 1;
+  const server = { x: wire.server.x + offset.x, y: wire.server.y + offset.y };
+  const device = { x: server.x + dx * reach, y: server.y + dy * reach };
+  return fromDevice
+    ? { from: device, to: server }
+    : { from: server, to: device };
+};
+
 export const placeMessage = (
   wire: Wire,
   message: Message,
   progress: number,
   age: number | null = null,
 ): Placed => {
-  const fromDevice = senderOf(message.kind) === "client";
-  const [start, end] = fromDevice
-    ? [wire.device, wire.server]
-    : [wire.server, wire.device];
-  const side = fromDevice ? -1 : 1;
-  const normal = across(wire);
+  const fromDevice = fromDeviceOf(message);
+  const { from, to } = laneOf(wire, fromDevice);
   return {
     key: String(message.id),
     message,
-    x: start.x + (end.x - start.x) * progress + side * LANE_PX * normal.x,
-    y: start.y + (end.y - start.y) * progress + side * LANE_PX * normal.y,
+    x: from.x + (to.x - from.x) * progress,
+    y: from.y + (to.y - from.y) * progress,
     side: fromDevice ? "start" : "end",
     held: message.departedAt === null,
     age,
@@ -123,8 +156,8 @@ export const placeMessage = (
 const byClient = (wires: ReadonlyArray<Wire>) =>
   new Map(wires.map((wire) => [wire.client, wire] as const));
 
-const lengthOf = (wire: Wire) =>
-  Math.hypot(wire.device.x - wire.server.x, wire.device.y - wire.server.y);
+const lengthOf = ({ from, to }: Lane) =>
+  Math.hypot(to.x - from.x, to.y - from.y);
 
 // The distance of each flight from its sender, in pixels, once those on one
 // wire and side are kept STACK_PX apart. Two passes: from the front (nearest
@@ -160,7 +193,15 @@ export const placeFlights = (
   const wireOf = byClient(wires);
   const onWires = flights.flatMap((flight) => {
     const wire = wireOf.get(flight.message.client);
-    return wire === undefined ? [] : [{ ...flight, wire }];
+    return wire === undefined
+      ? []
+      : [
+          {
+            ...flight,
+            wire,
+            length: lengthOf(laneOf(wire, fromDeviceOf(flight.message))),
+          },
+        ];
   });
   // The flights of each wire and side, in order, queue together.
   const lanes = new Map<string, Array<number>>();
@@ -172,25 +213,24 @@ export const placeFlights = (
   for (const indexes of lanes.values()) {
     const queued = queue(
       indexes.map((index) => {
-        const { wire, progress } = onWires[index] ?? {
-          wire: null,
+        const { length, progress } = onWires[index] ?? {
+          length: 0,
           progress: 0,
         };
-        return progress * (wire === null ? 0 : lengthOf(wire));
+        return progress * length;
       }),
     );
     for (const [at, index] of indexes.entries()) {
       along.set(index, queued[at] ?? 0);
     }
   }
-  return onWires.map(({ message, wire, progress }, index) => {
-    const length = lengthOf(wire);
-    return placeMessage(
+  return onWires.map(({ message, wire, progress, length }, index) =>
+    placeMessage(
       wire,
       message,
       length === 0 ? progress : (along.get(index) ?? 0) / length,
-    );
-  });
+    ),
+  );
 };
 
 export const placeLost = (

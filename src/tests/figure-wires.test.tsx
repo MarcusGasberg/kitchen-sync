@@ -4,6 +4,7 @@ import type { Message } from "#/lib/sandbox/trace";
 import { WireBand } from "#/ui/figure/wire-band";
 import {
   CORNER_PX,
+  DEVICE_INSET_PX,
   LANE_PX,
   layWires,
   type Placed,
@@ -19,6 +20,10 @@ const wire: Wire = {
   server: { x: 100, y: 0 },
   device: { x: 100, y: 80 },
 };
+
+// A plumb wire's lanes run from the server's end to DEVICE_INSET_PX above the
+// device's pane.
+const near = 80 - DEVICE_INSET_PX;
 
 const message = (overrides: Partial<Message> = {}): Message => ({
   id: 7,
@@ -104,8 +109,8 @@ describe("placeMessage", () => {
   it("rises from the device on one side of the wire", () => {
     const start = placeMessage(wire, message(), 0);
     const half = placeMessage(wire, message(), 0.5);
-    expect(start).toMatchObject({ x: 100 - LANE_PX, y: 80, side: "start" });
-    expect(half).toMatchObject({ x: 100 - LANE_PX, y: 40 });
+    expect(start).toMatchObject({ x: 100 - LANE_PX, y: near, side: "start" });
+    expect(half).toMatchObject({ x: 100 - LANE_PX, y: near / 2 });
   });
 
   it("falls from the server on the other side", () => {
@@ -115,12 +120,80 @@ describe("placeMessage", () => {
       y: 0,
       side: "end",
     });
-    expect(placeMessage(wire, ack, 1)).toMatchObject({ y: 80 });
+    expect(placeMessage(wire, ack, 1)).toMatchObject({ y: near });
   });
 
   it("keeps a held message at its sender", () => {
     const held = message({ departedAt: null, arriveAt: null, fate: "held" });
-    expect(placeMessage(wire, held, 0)).toMatchObject({ y: 80, held: true });
+    expect(placeMessage(wire, held, 0)).toMatchObject({ y: near, held: true });
+  });
+});
+
+// A label is 12 px type, set on the dot's line: about 7 px each side of it,
+// and a 3 px halo of the page round that.
+const LABEL_REACH_PX = 7 + 3;
+
+describe("clear of a device's header", () => {
+  // The server's basin over the middle of a 900 px row, so the wires to the
+  // outer devices lean each way, and a device's header line is its top.
+  const basin = { left: 200, top: 20, right: 700, bottom: 260 };
+  const row = { left: 0, width: 900 };
+  const devices = [
+    { client: "A", box: { left: 0, top: 340, right: 280, bottom: 700 } },
+    { client: "B", box: { left: 310, top: 340, right: 590, bottom: 700 } },
+    { client: "C", box: { left: 620, top: 340, right: 900, bottom: 700 } },
+  ];
+  const wires = layWires(basin, row, devices);
+  const top = 340;
+  const clear = (placed: Placed | undefined) =>
+    expect(
+      (placed?.y ?? Number.POSITIVE_INFINITY) + LABEL_REACH_PX,
+    ).toBeLessThan(top);
+
+  it("keeps the drawn wire to the pane's top", () => {
+    for (const wire of wires) expect(wire.device.y).toBe(top);
+  });
+
+  it("starts a message from a device with its label clear of the pane's header", () => {
+    for (const wire of wires) {
+      const push = message({ client: wire.client });
+      clear(placeMessage(wire, push, 0));
+      // Under reduced motion a reply sits at the device for half its flight.
+      const ack = message({
+        client: wire.client,
+        kind: "ack",
+        label: "ack #5",
+      });
+      clear(placeMessage(wire, ack, 1));
+      // A loss at the device fades where it was.
+      const [lost] = placeLost(
+        [wire],
+        [{ message: push, progress: 0, age: 100 }],
+      );
+      clear(lost);
+    }
+  });
+
+  it("keeps a message held at a device clear of the pane's header", () => {
+    for (const wire of wires) {
+      const held = (id: number) =>
+        message({
+          id,
+          client: wire.client,
+          departedAt: null,
+          arriveAt: null,
+          fate: "held",
+        });
+      const placed = placeFlights(
+        [wire],
+        [
+          { message: held(1), progress: 0 },
+          { message: held(2), progress: 0 },
+        ],
+      );
+      expect(placed).toHaveLength(2);
+      for (const one of placed) clear(one);
+    }
   });
 });
 
@@ -135,13 +208,13 @@ describe("placing a frame", () => {
       ],
     );
     expect(placed).toHaveLength(1);
-    expect(placed[0]?.y).toBe(60);
+    expect(placed[0]?.y).toBe(near * 0.75);
 
     const lost = placeLost(
       [wire],
       [{ message: message({ fate: "dropped" }), progress: 0.5, age: 150 }],
     );
-    expect(lost[0]).toMatchObject({ y: 40, age: 150 });
+    expect(lost[0]).toMatchObject({ y: near / 2, age: 150 });
   });
 
   it("queues a reply that would sit on another, back toward the server", () => {
@@ -155,7 +228,7 @@ describe("placing a frame", () => {
         { message: poke, progress: 0.5 },
       ],
     );
-    expect(first).toMatchObject({ x: 100 + LANE_PX, y: 40 });
+    expect(first).toMatchObject({ x: 100 + LANE_PX, y: near / 2 });
     expect(second?.x).toBe(100 + LANE_PX);
     expect((first?.y ?? 0) - (second?.y ?? 0)).toBeCloseTo(STACK_PX);
   });
@@ -178,7 +251,7 @@ describe("a queue at the sender", () => {
     expect(apart(first, second)).toBeGreaterThanOrEqual(STACK_PX - 1e-9);
     for (const placed of [first, second]) {
       expect(placed?.y).toBeGreaterThanOrEqual(0);
-      expect(placed?.y).toBeLessThanOrEqual(80);
+      expect(placed?.y).toBeLessThanOrEqual(near);
     }
   });
 
@@ -201,7 +274,7 @@ describe("a queue at the sender", () => {
         STACK_PX - 1e-9,
       );
     }
-    for (const one of placed) expect(one.y).toBeLessThanOrEqual(80);
+    for (const one of placed) expect(one.y).toBeLessThanOrEqual(near);
   });
 });
 
