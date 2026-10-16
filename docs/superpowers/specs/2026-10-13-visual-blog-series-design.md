@@ -459,9 +459,13 @@ review and DESIGN.md).
   in a swipeable strip.
 - **Pane stage:** panes are HTML, each rendering `GroceryList` from its
   client's snapshot at *t*. One SVG overlay draws the wires and travelling
-  messages; a message sits at `(t − sent) / (arrive − sent)` along its wire.
-  Anchors are measured with a ResizeObserver. Rendering is a pure function of
-  the timeline and *t*.
+  messages; a message sits at `(t − departed) / (arrive − departed)` along its
+  wire. Anchors are measured with a ResizeObserver. Rendering is a pure
+  function of the timeline and *t*. The wires run through a band 5rem tall
+  between the server's pane and the devices (the user's choice, 2026-10-16).
+  Requests rise on one side of a wire and replies fall on the other. A push is
+  a fresh-ink dot, a held message a dashed ring at its sender, and a lost one
+  leaves a fading "lost" mark where it was dropped.
 - **Clock driver:** one `requestAnimationFrame` loop per visible world, speeds
   0.5×, 1× and 4×. A wait over 2 s with nothing in flight plays in 0.5 s of
   screen time, with a visible "+N s" marker. Free play cannot see how long a
@@ -491,7 +495,8 @@ Four plans, each on its own branch off `visual-blog-series`:
    (`docs/superpowers/plans/2026-10-16-scene-player-core.md`): React-free, in
    `src/lib/sandbox/`. Frames at any instant, recordings and forks, pacing,
    captions in free play, the live session, and the player.
-2. **The figure:** the pane stage and its wires, the player's controls and
+2. **The figure** (`docs/superpowers/plans/2026-10-16-the-figure.md`): the
+   pane stage and its wires, the player's controls and
    keyboard, the breaking controls, visibility and one world at a time on
    phones, the error boundary. Built on a development route, with
    Impeccable's finish on the figure.

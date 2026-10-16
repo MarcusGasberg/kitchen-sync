@@ -38,6 +38,7 @@ A new drop lands crisp at the moment its device applies the change and settles i
 
 - State is never carried by colour or pattern alone: every state has a form and a word (pending, acked, synced, rejected, offline, retrying, stopped). Offline and stopped share one treatment; stopped adds its reason and Retry.
 - Every message on a wire carries its label (`#3–#5`, `ack #5`, `pull v4`, `v7` for a pull response, `poke v7`), so its kind never rests on shape alone.
+- Messages travel on a wire band (user, 2026-10-16, over drops through air and a lane per device). A band 5rem tall separates the server's pane from the devices. Each device has one hairline wire from the foot of the server's basin to the top of its pane. A message is a small dot with its mono label: requests rise to one side of the wire and replies fall to the other, and a push's dot is fresh ink. A held message waits at its sender as a dashed ring ("… · held"). A lost one leaves "… · lost" where it was dropped, fading over 600 ms.
 - Breaking controls (drop a message, take a client offline, stop the server) sit apart from playback, separated by space.
 - Lists always render as real text on the still margin beside their basin; the basin never replaces the list.
 
