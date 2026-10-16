@@ -464,7 +464,12 @@ review and DESIGN.md).
   the timeline and *t*.
 - **Clock driver:** one `requestAnimationFrame` loop per visible world, speeds
   0.5×, 1× and 4×. A wait over 2 s with nothing in flight plays in 0.5 s of
-  screen time, with a visible "+N s" marker.
+  screen time, with a visible "+N s" marker. Free play cannot see how long a
+  wait will be (every client's push loop wakes every 300 ms, so the clock's
+  next wake says nothing), so there a world that has been quiet for 0.5 s,
+  with nothing in flight, while some online and unstopped client still waits
+  on the server, runs at 16× with a running "+N s", and stops at the first
+  thing that happens.
 - **Scene player:** restart, play/pause, previous/next beat (previous/next
   event in free play), a scrub bar with beat ticks, speed, "Your turn".
   Keyboard: space, ← and →. Breaking controls are separate.
@@ -477,6 +482,57 @@ review and DESIGN.md).
   today's with `shiki-magic-move`.
 - **Performance:** a world runs only while its figure is on screen and the tab
   is visible; on phones one world runs at a time.
+
+### Plans (2026-10-16)
+
+Four plans, each on its own branch off `visual-blog-series`:
+
+1. **The scene player core**
+   (`docs/superpowers/plans/2026-10-16-scene-player-core.md`): React-free, in
+   `src/lib/sandbox/`. Frames at any instant, recordings and forks, pacing,
+   captions in free play, the live session, and the player.
+2. **The figure:** the pane stage and its wires, the player's controls and
+   keyboard, the breaking controls, visibility and one world at a time on
+   phones, the error boundary. Built on a development route, with
+   Impeccable's finish on the figure.
+3. **The code panel:** the Shiki build plugin, `#region` snippets, lit lines
+   from the trace, then-and-now morphs, the "not running in this figure"
+   panel.
+4. **The blog routes:** MDX, `/blog` and `/blog/part-1` with the page rhythm,
+   prerendering with each scene's first frame, the standalone tests, and
+   Impeccable's finish with DESIGN.md.
+
+### How the player plays (2026-10-16)
+
+- **A scene plays from its recording.** When a figure first nears the view,
+  its scene runs headless to its end in the page (`runHeadless`, the real
+  engine). The scrub bar then spans the whole scene with every beat tick, and
+  playing, stepping and scrubbing read the recorded timeline without running
+  anything. `runHeadless` stays the only place beats step, so a live player
+  never starts a beat late.
+- **Forks.** "Your turn" forks a live world at the playhead by replaying the
+  recording (its options and inputs) to that instant, rounded down to a
+  quantum. From then the world advances with the playhead and never past it,
+  so a reader's change lands at the instant on screen. Any reader action
+  during a scene, a list change or a breaking control, hands the world over
+  first. In free play, an action at an earlier instant forks the world there
+  and drops the old future. Free play keeps the last 2,000 events.
+- **A scene opens at the end of its first beat**, which sets it up; the scrub
+  bar still reaches back to its start. Restart returns there.
+- **Captions are read before their motion.** Playback holds at each beat's
+  start for the caption's reading time (260 ms a word, 1.2 to 4 s, divided
+  by the speed), so even a beat that ends the instant it starts is read. Play
+  pressed on a paused beat skips that hold: the caption was on screen.
+- **Stepping.** Previous and next go between beat starts in a scene and
+  between event instants in free play. At free play's live edge, next runs
+  the world until its next event, at most 35 s.
+- **Messages depart** when sent, or when released after a hold; a held
+  message waits at its sender. Under reduced motion a message sits at its
+  sender for the first half of its flight and at its receiver for the
+  second.
+- **The replay check.** In development, every fork compares the replayed world
+  with the recorded snapshot at that instant; on a difference it logs where
+  they differ and returns to the scene's opening.
 
 ## Sub-project 4: Part 1
 
