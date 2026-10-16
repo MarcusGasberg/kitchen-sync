@@ -61,7 +61,12 @@ export function BasinBadge({ items, waiting, clientId }: BasinBadgeProps) {
               Devices that hold the same list show the same pattern. Fresh ink
               is a change still waiting in this tab.
             </p>
-            <Basin items={items} waiting={waiting} label={NAME} />
+            <Basin
+              items={items}
+              waiting={waiting}
+              label={NAME}
+              className={styles.full}
+            />
             <div className={styles.foot}>
               <span className={styles.counts}>
                 {basinCounts(items, waiting)}

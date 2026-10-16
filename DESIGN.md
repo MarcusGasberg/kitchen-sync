@@ -374,7 +374,7 @@ A device's list as marbled water, `role="img"` named in words ("A's list: 10 ite
 - **Shape:** 5:2, 18 px corners, the basin inset shade; still water when the list is empty.
 
 ### Basin Badge and Dialog
-The basin at the size of a word beside the app's name: 5.75rem wide (about 92 × 37 px), 10 px corners, with a transparent button laid over it whose hit area reaches 44 px and whose transparent 1 px edge lets High Contrast frame it; on hover the edge shows in the control edge. Pressed, it opens a modal dialog: the page ground, a hairline edge, 18 px corners, the dialog shadow over its scrim, a light title, a body-small note (44ch), the full-size basin, and a foot with the counts in mono, the device mark and a secondary Close. The full-size basin draws only while open.
+The basin at the size of a word beside the app's name: 5.75rem wide (about 92 × 37 px), 10 px corners, with a transparent button laid over it whose hit area reaches 44 px and whose transparent 1 px edge lets High Contrast frame it; on hover the edge shows in the control edge. Pressed, it opens a modal dialog: the page ground, a hairline edge, 18 px corners, the dialog shadow over its scrim, a light title, a body-small note (44ch), the full-size basin, and a foot with the counts in mono, the device mark and a secondary Close. The full-size basin draws only while open, centred and no wider than `(100dvh - 16rem) * 2.5`, so the dialog fits a landscape phone with Close in view.
 
 ### Pane
 One device in a figure: its name in Label Large, its state in mono (`--text-2`), its mark, then its basin, any band, and its list.

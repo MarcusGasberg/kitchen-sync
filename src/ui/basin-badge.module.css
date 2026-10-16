@@ -70,6 +70,16 @@
   line-height: 1.5;
 }
 
+/* The basin full size, but no taller than the viewport leaves once the
+   title, note and foot are in, so Close stays in view on a landscape phone.
+   16rem is those, the gaps, the padding and the browser's margin round a
+   modal, with a little to spare; 2.5 is the basin's 5 / 2. */
+.full {
+  justify-self: center;
+  width: 100%;
+  max-inline-size: calc((100dvh - 16rem) * 2.5);
+}
+
 .foot {
   display: flex;
   flex-wrap: wrap;
