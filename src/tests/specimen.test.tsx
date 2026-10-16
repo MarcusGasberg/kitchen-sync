@@ -37,7 +37,9 @@ describe("the specimen", () => {
       screen.getAllByText("Extra-virgin cold-pressed olive oil from Crete tin"),
     ).toHaveLength(2);
     expect(
-      screen.getAllByRole("img", { name: "A's list: 10 items, 1 waiting" }),
+      screen.getAllByRole("img", {
+        name: "A's list: 10 items, 1 in fresh ink",
+      }),
     ).toHaveLength(2);
     expect(
       screen.getAllByRole("img", { name: /^Crowded: 70 items$/ }),

@@ -33,7 +33,7 @@ describe("Basin", () => {
       />,
     );
     expect(
-      screen.getByRole("img", { name: "A's list: 2 items, 1 waiting" }),
+      screen.getByRole("img", { name: "A's list: 2 items, 1 in fresh ink" }),
     ).toBeTruthy();
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
@@ -41,7 +41,7 @@ describe("Basin", () => {
 });
 
 describe("describeBasin", () => {
-  it("counts items, and says nothing of waiting when nothing waits", () => {
+  it("counts items, and says nothing of fresh ink when nothing waits", () => {
     expect(describeBasin("The server's list", [milk])).toBe(
       "The server's list: 1 item",
     );
@@ -56,11 +56,11 @@ describe("describeBasin", () => {
 });
 
 describe("basinCounts", () => {
-  it("says how many items, and how many of them wait", () => {
+  it("says how many items, and how many of them are in fresh ink", () => {
     const items = [item(1, "Milk"), item(2, "Eggs")];
     expect(basinCounts([items[0]])).toBe("1 item");
     expect(basinCounts(items, new Map([[items[1].id, 4]]))).toBe(
-      "2 items, 1 waiting",
+      "2 items, 1 in fresh ink",
     );
   });
 });

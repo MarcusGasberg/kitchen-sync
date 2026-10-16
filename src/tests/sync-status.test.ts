@@ -116,6 +116,14 @@ describe("syncStatus", () => {
         reason: "HTTP 400",
         waiting: 0,
       }),
-    ).toBe("Sync stopped · nothing waiting");
+    ).toBe("Sync stopped");
+  });
+
+  // The outbox's strip says "nothing waiting", once.
+  it("says only the state's word when nothing is waiting", () => {
+    expect(statusLine({ kind: "offline", waiting: 0 })).toBe("Offline");
+    expect(
+      statusLine({ kind: "retrying", reason: "HTTP 503", waiting: 0 }),
+    ).toBe("Retrying");
   });
 });

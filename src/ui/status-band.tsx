@@ -4,11 +4,12 @@ import type { SyncStatus } from "./sync-status";
 
 // What only the band says: the status line already counts what waits, but
 // not what closing the tab costs. The count stays, since a figure's pane
-// shows this band without the status line.
-const waitingSentence = (waiting: number) =>
+// shows this band without the status line. With nothing waiting it says
+// nothing more: the outbox's strip says so, once.
+const whatClosingLoses = (waiting: number) =>
   waiting === 0
-    ? "Nothing is waiting."
-    : `Closing or reloading this tab loses the ${waiting === 1 ? "change" : `${waiting} changes`} waiting in it.`;
+    ? ""
+    : ` Closing or reloading this tab loses the ${waiting === 1 ? "change" : `${waiting} changes`} waiting in it.`;
 
 interface StatusBandProps {
   readonly status: SyncStatus;
@@ -27,7 +28,8 @@ export function StatusBand({ status, onRetry }: StatusBandProps) {
           pattern="solid"
           label={
             <>
-              <b>Offline.</b> {waitingSentence(status.waiting)}
+              <b>Offline.</b>
+              {whatClosingLoses(status.waiting)}
             </>
           }
         />
@@ -50,8 +52,8 @@ export function StatusBand({ status, onRetry }: StatusBandProps) {
           tone="seal"
           label={
             <>
-              <b>Sync stopped.</b> The {status.loop} failed: {status.reason}.{" "}
-              {waitingSentence(status.waiting)}
+              <b>Sync stopped.</b> The {status.loop} failed: {status.reason}.
+              {whatClosingLoses(status.waiting)}
             </>
           }
           action={onRetry && <Button onClick={onRetry}>Retry</Button>}

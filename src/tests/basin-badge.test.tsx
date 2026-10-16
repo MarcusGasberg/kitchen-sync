@@ -33,7 +33,7 @@ describe("BasinBadge", () => {
     render(<BasinBadge items={ITEMS} waiting={WAITING} clientId={CLIENT} />);
     expect(
       screen.getByRole("img", {
-        name: "This device's basin: 2 items, 1 waiting",
+        name: "This device's basin: 2 items, 1 in fresh ink",
       }),
     ).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -45,10 +45,10 @@ describe("BasinBadge", () => {
     const dialog = screen.getByRole("dialog", { name: "This device's basin" });
     expect(
       within(dialog).getByRole("img", {
-        name: "This device's basin: 2 items, 1 waiting",
+        name: "This device's basin: 2 items, 1 in fresh ink",
       }),
     ).toBeTruthy();
-    expect(within(dialog).getByText("2 items, 1 waiting")).toBeTruthy();
+    expect(within(dialog).getByText("2 items, 1 in fresh ink")).toBeTruthy();
     expect(within(dialog).getByTitle(`Device ${CLIENT}`)).toBeTruthy();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));

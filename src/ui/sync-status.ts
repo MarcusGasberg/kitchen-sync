@@ -59,8 +59,10 @@ export const syncStatus = (
   return { kind: "pending", pending, acked: waiting - pending };
 };
 
-const waitingWords = (waiting: number) =>
-  waiting === 0 ? "nothing waiting" : `${waiting} waiting in this tab`;
+// The state's word, then what is waiting, if anything: the outbox's strip
+// says "nothing waiting", once.
+const withWaiting = (word: string, waiting: number) =>
+  waiting === 0 ? word : `${word} · ${waiting} waiting in this tab`;
 
 // The masthead's status line: the state's word, then what is waiting.
 export const statusLine = (status: SyncStatus): string => {
@@ -76,10 +78,10 @@ export const statusLine = (status: SyncStatus): string => {
       return parts.join(" · ");
     }
     case "retrying":
-      return `Retrying · ${waitingWords(status.waiting)}`;
+      return withWaiting("Retrying", status.waiting);
     case "offline":
-      return `Offline · ${waitingWords(status.waiting)}`;
+      return withWaiting("Offline", status.waiting);
     case "stopped":
-      return `Sync stopped · ${waitingWords(status.waiting)}`;
+      return withWaiting("Sync stopped", status.waiting);
   }
 };

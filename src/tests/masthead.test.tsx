@@ -153,6 +153,11 @@ describe("StatusBand", () => {
     );
   });
 
+  it("bands offline in a word when nothing is waiting, since the outbox says so", () => {
+    render(<StatusBand status={{ kind: "offline", waiting: 0 }} />);
+    expect(theBand().textContent).toBe("Offline.");
+  });
+
   it("dashes a retry, with its reason", () => {
     render(
       <StatusBand
@@ -185,5 +190,22 @@ describe("StatusBand", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("bands a stop with its reason alone when nothing is waiting", () => {
+    render(
+      <StatusBand
+        status={{
+          kind: "stopped",
+          loop: "push",
+          reason: "HTTP 400",
+          waiting: 0,
+        }}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(theBand().querySelector("p")?.textContent).toBe(
+      "Sync stopped. The push failed: HTTP 400.",
+    );
   });
 });
