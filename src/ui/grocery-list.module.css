@@ -34,19 +34,9 @@
   font: 400 var(--text-xs) / 1.2 var(--font-mono);
 }
 
-/* Compact: category groups closer, their heads tighter over their rows, and
-   the groups flowing in two columns where the list has room for two 10rem
-   ones, a group never split across them: the server's list on a phone or a
-   tablet, and in the 22rem column a desktop gives it beside its basin. A
-   device's list in a figure is narrower and keeps one column. */
+/* Compact: category groups closer and their heads tighter over their rows. */
 .list[data-density="compact"] {
   display: block;
-  columns: 10rem 2;
-  column-gap: var(--space-5);
-}
-
-.list[data-density="compact"] > * {
-  break-inside: avoid;
 }
 
 .list[data-density="compact"] > * + * {
@@ -55,6 +45,18 @@
 
 .list[data-density="compact"] .head {
   padding-bottom: var(--space-1);
+}
+
+/* Two columns, asked for (`columns={2}`, the server's list in a figure): the
+   groups flow in two where the list has room for two 10rem ones, a group
+   never split across them. A device's list keeps one at any width. */
+.list[data-columns="2"] {
+  columns: 10rem 2;
+  column-gap: var(--space-5);
+}
+
+.list[data-columns="2"] > * {
+  break-inside: avoid;
 }
 
 .empty {

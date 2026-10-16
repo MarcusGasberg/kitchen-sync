@@ -7,9 +7,11 @@ import type { Point } from "#/ui/marbling/operations";
 // and places the messages.
 
 // One device's wire, in the stage's pixels: a straight line, as a message
-// travels, from the foot of the server's basin to the top of the device's
-// pane, above its middle. The server's list sits above the basin (narrow) or
-// beside it, no taller than it (wide), so no wire crosses it.
+// travels, from the server's row to the top of the device's pane, above its
+// middle. Its server end is at the band's top, the lower of the server
+// basin's foot and its list's, under the basin: the list sits above the
+// basin (a narrow stage) or beside it (a wide one), so no wire crosses it,
+// however long a reader makes it.
 export interface Wire {
   readonly client: ClientName;
   readonly server: Point;
@@ -34,20 +36,30 @@ export interface Row {
   readonly width: number;
 }
 
-// Each device's wire, in device order. Its server end sits along the basin's
-// foot (inset from its corners) where its device's middle sits along the
+// The server's row as the stage measures it: its basin and, above or beside
+// it, its list.
+export interface ServerRow {
+  readonly basin: Box;
+  readonly list?: Box;
+}
+
+// Each device's wire, in device order. Its server end sits across the basin's
+// span (inset from its corners) where its device's middle sits along the
 // device row, so each wire leans as little as the layout allows and their
-// order never crosses, wherever a phone's strip has scrolled. Where the basin
-// sits left of its list (a wide screen), the fan still leans right: the cost
-// of the list beside its basin ("lists always render as real text on the
-// still margin beside their basin").
+// order never crosses, wherever a phone's strip has scrolled; and down at the
+// band's top, the basin's foot unless a list beside it runs lower, when the
+// wires leave from under the basin at the list's foot. Where the basin sits
+// left of its list (a wide stage), the fan still leans right: the cost of the
+// list beside its basin ("lists always render as real text on the still
+// margin beside their basin").
 export const layWires = (
-  basin: Box,
+  { basin, list }: ServerRow,
   row: Row,
   devices: ReadonlyArray<{ readonly client: ClientName; readonly box: Box }>,
 ): ReadonlyArray<Wire> => {
   const left = basin.left + CORNER_PX;
   const span = Math.max(0, basin.right - CORNER_PX - left);
+  const foot = Math.max(basin.bottom, list?.bottom ?? basin.bottom);
   return devices.map(({ client, box }) => {
     const middle = (box.left + box.right) / 2;
     const along =
@@ -58,7 +70,7 @@ export const layWires = (
       client,
       server: {
         x: span === 0 ? (basin.left + basin.right) / 2 : left + span * along,
-        y: basin.bottom,
+        y: foot,
       },
       device: { x: middle, y: box.top },
     };

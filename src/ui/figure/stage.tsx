@@ -43,10 +43,11 @@ interface Layout {
 const EMPTY: Layout = { width: 0, height: 0, wires: [] };
 
 // The wires as the stage lays out its panes, in the stage's pixels: straight
-// from the foot of the server's basin (`data-anchor='server-basin'`) to each
-// device's pane (`data-anchor='device'`), placed along the basin's foot as
-// the device sits along its row (`data-anchor='devices'`, the whole strip
-// however a phone has scrolled it).
+// from under the server's basin (`data-anchor='server-basin'`), at the lower
+// of its foot and its list's (`data-anchor='server-list'`), to each device's
+// pane (`data-anchor='device'`), placed across the basin as the device sits
+// along its row (`data-anchor='devices'`, the whole strip however a phone has
+// scrolled it).
 const measure = (stage: HTMLElement): Layout => {
   const box = stage.getBoundingClientRect();
   const within = (rect: DOMRect): Box => ({
@@ -56,6 +57,7 @@ const measure = (stage: HTMLElement): Layout => {
     bottom: rect.bottom - box.top,
   });
   const basin = stage.querySelector("[data-anchor='server-basin']");
+  const list = stage.querySelector("[data-anchor='server-list']");
   const strip = stage.querySelector<HTMLElement>("[data-anchor='devices']");
   if (basin === null || strip === null) {
     return { ...EMPTY, width: box.width, height: box.height };
@@ -76,7 +78,14 @@ const measure = (stage: HTMLElement): Layout => {
   return {
     width: box.width,
     height: box.height,
-    wires: layWires(within(basin.getBoundingClientRect()), row, devices),
+    wires: layWires(
+      {
+        basin: within(basin.getBoundingClientRect()),
+        list: list === null ? undefined : within(list.getBoundingClientRect()),
+      },
+      row,
+      devices,
+    ),
   };
 };
 
@@ -155,10 +164,11 @@ export function Stage({
   return (
     <div ref={stage} className={styles.stage}>
       {/* The server is a pane like a device's: its list, always open as
-          text and compact, since nothing on it is a target, then its basin.
-          On a wide screen the list sits beside the basin instead, in two
-          columns no taller than it, so the wires leave straight from the
-          basin's foot and never cross it. */}
+          text and compact, since nothing on it is a target, in two columns
+          where it has room, then its basin. On a wide stage the list sits
+          beside the basin instead. Either way the wires leave from under the
+          basin, at the lower of its foot and the list's, and never cross the
+          list. */}
       <div className={styles.server}>
         <Pane level={3} title="Server" status={server.line}>
           <div className={styles.serverBody}>
@@ -167,12 +177,14 @@ export function Stage({
               className={styles.serverList}
               role="group"
               aria-label="The server's items"
+              data-anchor="server-list"
             >
               <GroceryList
                 groups={server.list.groups}
                 rejected={[]}
                 headingLevel={4}
                 density="compact"
+                columns={2}
               />
             </div>
             <div className={styles.serverBasin} data-anchor="server-basin">

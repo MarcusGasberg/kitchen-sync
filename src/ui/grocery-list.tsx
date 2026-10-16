@@ -40,11 +40,16 @@ type GroceryListProps = ListBase &
         // scene.
         readonly onIntent?: (intent: ListIntent) => void;
         readonly onDismiss?: (clientMutationIds: ReadonlyArray<number>) => void;
+        readonly columns?: 1;
       }
     | {
         readonly density: "compact";
         readonly onIntent?: undefined;
         readonly onDismiss?: undefined;
+        // Two: the groups flow in two columns where the list has room for
+        // two 10rem ones, as the server's list in a figure does. A device's
+        // keeps one, so it never reflows at the hand-over.
+        readonly columns?: 1 | 2;
       }
   );
 
@@ -59,9 +64,10 @@ export function GroceryList({
   empty = "Nothing on the list yet.",
   headingLevel = 2,
   density = "regular",
+  columns = 1,
 }: GroceryListProps) {
   return (
-    <div className={styles.list} data-density={density}>
+    <div className={styles.list} data-density={density} data-columns={columns}>
       {rejected.length > 0 && (
         <ul className={styles.rejected} aria-label="Rejected changes">
           {rejected.map((rejection) => (

@@ -49,7 +49,9 @@ describe("layWires", () => {
   });
 
   it("runs each wire straight from the basin's foot to the top of its device's pane", () => {
-    const [wire] = layWires(basin, row, [{ client: "A", box: device(310) }]);
+    const [wire] = layWires({ basin }, row, [
+      { client: "A", box: device(310) },
+    ]);
     expect(wire?.device).toEqual({ x: 450, y: 340 });
     expect(wire?.server.y).toBe(260);
     expect(Object.keys(wire ?? {}).sort()).toEqual([
@@ -60,7 +62,7 @@ describe("layWires", () => {
   });
 
   it("sets each server end along the basin's foot as its device sits along the row", () => {
-    const wires = layWires(basin, row, [
+    const wires = layWires({ basin }, row, [
       { client: "A", box: device(0) },
       { client: "B", box: device(310) },
       { client: "C", box: device(620) },
@@ -83,7 +85,7 @@ describe("layWires", () => {
       right: 900 + CORNER_PX,
       bottom: 260,
     };
-    for (const wire of layWires(wide, row, [
+    for (const wire of layWires({ basin: wide }, row, [
       { client: "A", box: device(0) },
       { client: "B", box: device(310) },
     ])) {
@@ -95,13 +97,38 @@ describe("layWires", () => {
   // the basin's foot, measured along the whole strip.
   it("keeps device order along a scrolled strip", () => {
     const strip = { left: -400, width: 1000 };
-    const [a, b, c] = layWires(basin, strip, [
+    const [a, b, c] = layWires({ basin }, strip, [
       { client: "A", box: device(-400) },
       { client: "B", box: device(-60) },
       { client: "C", box: device(280) },
     ]).map((wire) => wire.server.x);
     expect(a).toBeLessThan(b ?? 0);
     expect(b).toBeLessThan(c ?? 0);
+  });
+
+  // The band's top is the lower of the two feet: a list above the basin, or
+  // beside it and shorter, leaves the wires at the basin's foot; one beside
+  // it that runs lower moves them down to its own, still across the basin.
+  it("leaves from the lower of the basin's foot and its list's", () => {
+    const devices = [
+      { client: "A", box: device(0) },
+      { client: "B", box: device(620) },
+    ];
+    const above = { left: 0, top: -120, right: 600, bottom: 10 };
+    const shorter = { left: 630, top: 20, right: 900, bottom: 200 };
+    const longer = { left: 630, top: 20, right: 900, bottom: 320 };
+    for (const list of [undefined, above, shorter]) {
+      for (const wire of layWires({ basin, list }, row, devices)) {
+        expect(wire.server.y).toBe(260);
+      }
+    }
+    const under = layWires({ basin, list: longer }, row, devices);
+    expect(under.map((wire) => wire.server)).toEqual(
+      layWires({ basin }, row, devices).map((wire) => ({
+        x: wire.server.x,
+        y: 320,
+      })),
+    );
   });
 });
 
@@ -143,7 +170,7 @@ describe("clear of a device's header", () => {
     { client: "B", box: { left: 310, top: 340, right: 590, bottom: 700 } },
     { client: "C", box: { left: 620, top: 340, right: 900, bottom: 700 } },
   ];
-  const wires = layWires(basin, row, devices);
+  const wires = layWires({ basin }, row, devices);
   const top = 340;
   const clear = (placed: Placed | undefined) =>
     expect(

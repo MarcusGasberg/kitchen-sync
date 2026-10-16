@@ -158,26 +158,52 @@ describe("Stage", () => {
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
 
-  it("runs each wire straight from the server basin's foot, set along it as its device sits along the row", async () => {
+  // Two columns are the server's list's alone: a device's list keeps one at
+  // any width, so it never reflows at the hand-over.
+  it("flows only the server's list in two columns", async () => {
     const view = makeStageView()(await snapshot(), new Map());
-    const rect = (left: number, top: number, right: number, bottom: number) =>
-      ({
-        left,
-        top,
-        right,
-        bottom,
-        width: right - left,
-        height: bottom - top,
-        x: left,
-        y: top,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    const boxes = new Map<string, DOMRect>([
-      ["server-basin", rect(0, 60, 600, 300)],
-      ["devices", rect(0, 380, 900, 700)],
-      ["A", rect(0, 380, 280, 700)],
-      ["B", rect(320, 380, 600, 700)],
-    ]);
+    const stage = (live: boolean) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={live}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const columns = (name: string) =>
+      screen
+        .getByRole("region", { name })
+        .querySelector<HTMLElement>("[data-columns]")?.dataset.columns;
+    const { rerender } = render(stage(false));
+    expect(columns("Server")).toBe("2");
+    expect(columns("A")).toBe("1");
+    expect(columns("B")).toBe("1");
+    rerender(stage(true));
+    expect(columns("Server")).toBe("2");
+    expect(columns("A")).toBe("1");
+  });
+
+  // The stage's panes as a layout sets them, and the wires it draws over
+  // them: [x1, y1, x2, y2] each.
+  const rect = (left: number, top: number, right: number, bottom: number) =>
+    ({
+      left,
+      top,
+      right,
+      bottom,
+      width: right - left,
+      height: bottom - top,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+  const wiresOver = async (boxes: ReadonlyMap<string, DOMRect>) => {
+    const view = makeStageView()(await snapshot(), new Map());
     const measured = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
       .mockImplementation(function (this: Element) {
@@ -192,24 +218,44 @@ describe("Stage", () => {
           rect(0, 0, 900, 800)
         );
       });
-    const { container } = render(
-      <Stage
-        view={view}
-        flights={[]}
-        lost={[]}
-        settle
-        scale={1}
-        live={false}
-        onIntent={noop}
-        onAdd={noop}
-        onRetry={noop}
-      />,
+    try {
+      const { container } = render(
+        <Stage
+          view={view}
+          flights={[]}
+          lost={[]}
+          settle
+          scale={1}
+          live={false}
+          onIntent={noop}
+          onAdd={noop}
+          onRetry={noop}
+        />,
+      );
+      expect(container.querySelector("polyline, path")).toBeNull();
+      return [...container.querySelectorAll("line")].map(
+        (line) =>
+          ["x1", "y1", "x2", "y2"].map((name) =>
+            Number(line.getAttribute(name)),
+          ) as [number, number, number, number],
+      );
+    } finally {
+      measured.mockRestore();
+    }
+  };
+
+  // The list beside the basin and no taller than it, as the scene sets it at
+  // 1440 px: the band starts at the basin's foot.
+  it("runs each wire straight from the server basin's foot, set along it as its device sits along the row", async () => {
+    const lines = await wiresOver(
+      new Map([
+        ["server-basin", rect(0, 60, 600, 300)],
+        ["server-list", rect(630, 60, 900, 200)],
+        ["devices", rect(0, 380, 900, 700)],
+        ["A", rect(0, 380, 280, 700)],
+        ["B", rect(320, 380, 600, 700)],
+      ]),
     );
-    const lines = [...container.querySelectorAll("line")].map((line) =>
-      ["x1", "y1", "x2", "y2"].map((name) => Number(line.getAttribute(name))),
-    );
-    measured.mockRestore();
-    expect(container.querySelector("polyline, path")).toBeNull();
     // The basin's foot less 24 px at each corner (552 px), each end where
     // its device's middle sits along the 900 px row (140 and 460).
     const expected = [
@@ -220,6 +266,38 @@ describe("Stage", () => {
     for (const [index, line] of lines.entries()) {
       for (const [at, value] of line.entries()) {
         expect(value).toBeCloseTo(expected[index]?.[at] ?? Number.NaN);
+      }
+    }
+  });
+
+  // A reader's adds grow the list beside the basin past its foot: the wires
+  // leave from under the basin at the band's top, the list's foot, so none
+  // runs through the list.
+  it("starts the wires at the list's foot, under the basin, where the list beside it is taller", async () => {
+    const list = rect(530, 60, 900, 400);
+    const lines = await wiresOver(
+      new Map([
+        ["server-basin", rect(0, 60, 500, 260)],
+        ["server-list", list],
+        ["devices", rect(0, 480, 900, 800)],
+        // B under the list, as C is in the lab's scenes.
+        ["A", rect(0, 480, 280, 800)],
+        ["B", rect(620, 480, 900, 800)],
+      ]),
+    );
+    expect(lines).toHaveLength(2);
+    for (const [x1, y1, x2, y2] of lines) {
+      expect(y1).toBe(400);
+      expect(x1).toBeGreaterThanOrEqual(24);
+      expect(x1).toBeLessThanOrEqual(500 - 24);
+      expect(y2).toBe(480);
+      // Nowhere along it inside the list's box.
+      for (let step = 0; step <= 100; step++) {
+        const x = x1 + ((x2 - x1) * step) / 100;
+        const y = y1 + ((y2 - y1) * step) / 100;
+        const inside =
+          x > list.left && x < list.right && y > list.top && y < list.bottom;
+        expect(inside, `${x}, ${y}`).toBe(false);
       }
     }
   });
