@@ -42,9 +42,26 @@ const why = (reason: string): string => {
   return reason;
 };
 
-// An item by the name the client last showed it.
+// The name an add in the outbox gave an item, for one no pull has brought.
+const addedAs = (
+  state: StoreState | undefined,
+  itemId: string,
+): string | undefined => {
+  for (const { mutation } of state?.outbox ?? []) {
+    if (mutation._tag === "AddItem" && mutation.itemId === itemId) {
+      return mutation.item.name;
+    }
+  }
+  return undefined;
+};
+
+// An item by the name the client last showed it. One added and removed
+// before any pull shows nowhere, but its add is still in the outbox.
 const nameIn = (state: StoreState | undefined, itemId: string): string =>
-  state?.items.get(itemId)?.name ?? state?.base.get(itemId)?.name ?? "an item";
+  state?.items.get(itemId)?.name ??
+  state?.base.get(itemId)?.name ??
+  addedAs(state, itemId) ??
+  "an item";
 
 const change = (
   mutation: ItemMutation,
@@ -136,18 +153,21 @@ export const narrate = (entry: Entry): string | null => {
         event.classification,
         event.reason,
       );
+    // An offline client's poke stream is down, so it gets none.
     case "Poked":
-      return `The server is at v${event.serverVersion} and pokes every client.`;
+      return `The server is at v${event.serverVersion} and pokes every online client.`;
     case "Acked":
       return `${event.client}'s outbox is acked through #${event.ackedThrough}.`;
     case "Reconciled":
       return `${event.client} holds the server's list at v${event.appliedVersion}.`;
     case "Renumbered":
       return `${event.client}'s first pull renumbers ${ids(event.from)} as ${ids(event.to)}.`;
+    // The client's own pull, said so: with clients named A, B and C, "a
+    // pull" would read as A's.
     case "Confirmed": {
       const leave =
         event.clientMutationIds.length === 1 ? "it leaves" : "they leave";
-      return `A pull confirms ${event.client}'s ${ids(event.clientMutationIds)}; ${leave} the outbox.`;
+      return `${event.client}'s pull confirms ${ids(event.clientMutationIds)}; ${leave} its outbox.`;
     }
     case "Rejected":
       return `${event.client} takes #${event.clientMutationId} out of its outbox: ${why(event.reason)}.`;

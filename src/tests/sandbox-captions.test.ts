@@ -58,7 +58,9 @@ describe("narrate", () => {
       expect(lines).toContain("A adds Milk as #1; it waits in A's outbox.");
       expect(lines).toContain("A pushes #1.");
       expect(lines).toContain("The server applies A's #1.");
-      expect(lines).toContain("The server is at v1 and pokes every client.");
+      expect(lines).toContain(
+        "The server is at v1 and pokes every online client.",
+      );
       expect(lines).toContain("The server answers B with the list at v1.");
       expect(lines).toContain("A removes Milk as #2; it waits in A's outbox.");
       expect(lines).toContain(
@@ -68,6 +70,21 @@ describe("narrate", () => {
         "Every outbox is empty, and every online device shows the server's list.",
       );
     }),
+  );
+
+  it.effect("names an item no pull has brought by the add in the outbox", () =>
+    Effect.gen(function* () {
+      const world = yield* World;
+      yield* world.clock.advance("1 second");
+      const milk = yield* add(world, "Milk");
+      yield* world.client("A").apply(milk);
+      // At once: the add has not reached the server, let alone a pull.
+      yield* world.client("A").apply(yield* remove(world, milk.itemId));
+      const lines = (yield* world.currentTimeline).entries.map(narrate);
+      expect(lines).toContain("A removes Milk as #2; it waits in A's outbox.");
+    }).pipe(
+      Effect.provide(World.layer({ clients: ["A", "B"], seed: "captions" })),
+    ),
   );
 
   it("tells the server's decisions, the network's tricks and a loop's trouble", () => {
@@ -115,9 +132,13 @@ describe("narrate", () => {
     expect(
       told({ _tag: "Renumbered", client: "A", from: [1, 2], to: [4, 5] }),
     ).toBe("A's first pull renumbers #1, #2 as #4, #5.");
+    // Its own pull: every figure names its clients A, B and C.
     expect(
       told({ _tag: "Confirmed", client: "A", clientMutationIds: [3, 4] }),
-    ).toBe("A pull confirms A's #3, #4; they leave the outbox.");
+    ).toBe("A's pull confirms #3, #4; they leave its outbox.");
+    expect(
+      told({ _tag: "Confirmed", client: "B", clientMutationIds: [3] }),
+    ).toBe("B's pull confirms #3; it leaves its outbox.");
     expect(
       told({
         _tag: "Retrying",
@@ -146,7 +167,7 @@ describe("captionAt", () => {
       trimmed: false,
     };
     expect(captionAt(timeline, 300)).toBe(
-      "The server is at v3 and pokes every client.",
+      "The server is at v3 and pokes every online client.",
     );
     expect(captionAt(timeline, 50)).toBeNull();
   });
