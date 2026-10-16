@@ -49,7 +49,8 @@ export type Operation = Drop | Tine;
 const lineDistance = (op: Tine, x: number, y: number) =>
   Math.abs((x - op.x) * -op.uy + (y - op.y) * op.ux);
 
-const tineShift = (op: Tine, x: number, y: number) =>
+// How far a tine carries the water at (x, y) along its line.
+export const tineShift = (op: Tine, x: number, y: number) =>
   (op.shift * op.falloff) / (lineDistance(op, x, y) + op.falloff);
 
 // Where the water at `p` goes when `op` happens.
@@ -86,8 +87,10 @@ export const inverse = (op: Operation, q: Point): Point | null => {
 };
 
 // What the water shows at (x, y) once every operation has happened, oldest
-// first. The renderers' hot loop, so it allocates nothing.
-// `src/ui/marbling/webgl.ts` runs the same walk on the GPU: change both.
+// first: the hard, logical walk the pattern's tests and fingerprints read. It
+// allocates nothing. The renderers draw with the same walk, each drop's edge
+// feathered: `shadeAt` in renderer.ts on the CPU, and its twin in webgl.ts on
+// the GPU. Change all three together.
 export const toneAt = (
   ops: ReadonlyArray<Operation>,
   x: number,

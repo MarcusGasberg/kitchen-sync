@@ -1,5 +1,5 @@
 import { coverView, type Operation } from "./operations";
-import type { Renderer } from "./renderer";
+import { FEATHER, type Renderer } from "./renderer";
 
 // Two RGBA texels per operation, one row each: (kind, x, y, tone) and
 // (radius or shift, ux, uy, falloff). Kind 0 is a drop, 1 a tine.
@@ -22,11 +22,13 @@ void main() {
   gl_Position = vec4(corner, 0.0, 1.0);
 }`;
 
-// The walk `toneAt` in operations.ts takes, per sample: change both.
+// `shadeAt` in renderer.ts, per sample: the walk `toneAt` in operations.ts
+// takes, with each drop's edge faded into what lay just outside it. Change
+// all three together.
 // A still frame (`fine` 1) averages sixteen samples on a 4 × 4 grid over a
 // square 1.5 pixels across, as renderer.ts's `paint` does with four, so an
-// edge feathers into the water. A frame of a settle (`fine` 0) takes four on
-// a rotated grid inside the pixel, cheap enough to draw every frame.
+// edge is smooth. A frame of a settle (`fine` 0) takes four on a rotated
+// grid inside the pixel, cheap enough to draw every frame.
 const FRAGMENT = `#version 300 es
 precision highp float;
 precision highp int;
@@ -38,8 +40,13 @@ uniform vec3 view;
 uniform vec3 tones[6];
 out vec4 colour;
 
-int toneAt(vec2 q) {
+const float FEATHER = ${FEATHER};
+
+vec3 shadeAt(vec2 q) {
+  vec3 shade = vec3(0.0);
+  float through = 1.0;
   for (int k = count - 1; k >= 0; k--) {
+    if (through <= 1.0 / 512.0) break;
     vec4 a = texelFetch(ops, ivec2(0, k), 0);
     vec4 b = texelFetch(ops, ivec2(1, k), 0);
     vec2 c = a.yz;
@@ -48,7 +55,14 @@ int toneAt(vec2 q) {
       if (r2 == 0.0) continue;
       vec2 d = q - c;
       float m2 = dot(d, d);
-      if (m2 <= r2) return int(a.w + 0.5);
+      if (m2 <= r2) {
+        float depth = (b.x - sqrt(m2)) / (b.x * FEATHER);
+        float cover = depth >= 1.0 ? 1.0 : depth * depth * (3.0 - 2.0 * depth);
+        shade += through * cover * tones[int(a.w + 0.5)];
+        through *= 1.0 - cover;
+        q = c;
+        continue;
+      }
       q = c + d * sqrt(1.0 - r2 / m2);
     } else {
       vec2 u = b.yz;
@@ -56,11 +70,11 @@ int toneAt(vec2 q) {
       q -= u * (b.x * b.w / (distance + b.w));
     }
   }
-  return 0;
+  return shade + through * tones[0];
 }
 
 vec3 sampleAt(vec2 pixel) {
-  return tones[toneAt(view.xy + pixel * view.z)];
+  return shadeAt(view.xy + pixel * view.z);
 }
 
 void main() {
