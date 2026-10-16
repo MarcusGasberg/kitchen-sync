@@ -12,6 +12,7 @@ import { SyncEngineService } from "#/lib/sync";
 import { AddItemForm } from "#/ui/add-item-form";
 import { GroceryList, stamp } from "#/ui/grocery-list";
 import { listView } from "#/ui/list-view";
+import { waitingOf } from "#/ui/marbling/pattern";
 import { Masthead } from "#/ui/masthead";
 import { StatusBand } from "#/ui/status-band";
 import { syncStatus } from "#/ui/sync-status";
@@ -33,6 +34,10 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
   const clientId = useSyncService(runtime);
   const state = useSyncEngineStore();
   const view = useMemo(() => listView(state), [state]);
+  // Memoised on the state they come from, so the basin's pattern is worked
+  // out only when the list or the outbox changes.
+  const items = useMemo(() => [...state.items.values()], [state.items]);
+  const waiting = useMemo(() => waitingOf(state.outbox), [state.outbox]);
   const status = syncStatus(state);
 
   // A change refused locally (its item left in a pull a moment ago) never
@@ -49,7 +54,13 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
 
   return (
     <div className={styles.app}>
-      <Masthead clientId={clientId} status={status} waiting={view.waiting} />
+      <Masthead
+        clientId={clientId}
+        status={status}
+        changes={view.waiting}
+        items={items}
+        waiting={waiting}
+      />
       <StatusBand
         status={status}
         onRetry={() =>

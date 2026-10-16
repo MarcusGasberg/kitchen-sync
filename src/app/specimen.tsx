@@ -262,7 +262,9 @@ function Sheet({ theme }: { readonly theme: "day" | "night" }) {
             <Masthead
               clientId={DEVICE}
               status={state.status}
-              waiting={state.waiting}
+              changes={state.waiting}
+              items={A_ITEMS}
+              waiting={A_WAITING}
             />
             <StatusBand status={state.status} onRetry={noop} />
           </section>

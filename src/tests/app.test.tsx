@@ -64,6 +64,21 @@ const outboxEmpties = () =>
   );
 
 describe("the grocery app", () => {
+  it("shows the list's basin beside the name, drawn from the list", async () => {
+    render(<GroceryApp runtime={fresh()} />);
+    expect(
+      screen.getByRole("img", { name: "This device's basin: 0 items" }),
+    ).toBeTruthy();
+    addItem("Oat milk", "Dairy");
+    expect(
+      await screen.findByRole(
+        "img",
+        { name: "This device's basin: 1 item" },
+        settle,
+      ),
+    ).toBeTruthy();
+  });
+
   it("adds an item under its category, and the outbox empties as it syncs", async () => {
     render(<GroceryApp runtime={fresh()} />);
     // Before anything has synced the line is never blank. The first pull may

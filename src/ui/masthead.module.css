@@ -5,17 +5,24 @@
 
 .inner {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
   max-width: var(--column);
   margin-inline: auto;
   padding: var(--space-5) var(--space-4) var(--space-4);
 }
 
+/* The badge, the name over the status line, and the mark. */
 .top {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
+}
+
+.title {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
 }
 
 .name {

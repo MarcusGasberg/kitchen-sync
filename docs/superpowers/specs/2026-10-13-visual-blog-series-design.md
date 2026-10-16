@@ -402,8 +402,9 @@ prerendering uses it to produce each scene's first frame.
 Built first in Collective Plate (branch `design-system`, 2026-10-15) and
 rejected; rebuilt in Ink Basin on branch `ink-basin`, in two plans:
 `docs/superpowers/plans/2026-10-15-ink-basin-world.md` (the world, its basin
-and every shared component) and a second plan for the app, written after the
-app's surface round.
+and every shared component) and
+`docs/superpowers/plans/2026-10-16-ink-basin-app.md` (the app, its finish
+review and DESIGN.md).
 
 - Tokens in `src/styles/tokens.css` as `light-dark()` pairs; components in
   `src/ui/` with CSS Modules. No CSS framework.
@@ -431,9 +432,11 @@ app's surface round.
   `SetItemChecked` instead of `EditItem { checked }`.
 - The grocery runtime lives in the `/` route (`src/app/grocery-runtime.ts`), so
   no other route starts the app's sync engine or writes a clientId.
-- Impeccable runs a surface round for the app inside Ink Basin before its plan
-  is written; the brief is `.impeccable/surfaces/src-routes-index-tsx.md`.
-  Rows offer check and remove only; editing waits for Part 2.
+- The app's composition is Basin Badge, chosen in its surface round
+  (2026-10-16): the list leads, and this device's basin sits beside the app's
+  name as a badge that opens full size in a dialog, to hold beside another
+  device. The brief is `.impeccable/surfaces/src-routes-index-tsx.md`. Rows
+  offer check and remove only; editing waits for Part 2.
 
 ## Sub-project 3: blog building blocks
 

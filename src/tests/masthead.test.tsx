@@ -75,7 +75,9 @@ describe("Masthead", () => {
       <Masthead
         clientId={CLIENT}
         status={{ kind: "pending", pending: 2, acked: 1 }}
-        waiting={changes(3, 1)}
+        changes={changes(3, 1)}
+        items={[]}
+        waiting={new Map()}
       />,
     );
     expect(
@@ -90,10 +92,34 @@ describe("Masthead", () => {
 
   it("leaves the mark out until the device knows its id", () => {
     render(
-      <Masthead clientId={null} status={{ kind: "synced" }} waiting={[]} />,
+      <Masthead
+        clientId={null}
+        status={{ kind: "synced" }}
+        changes={[]}
+        items={[]}
+        waiting={new Map()}
+      />,
     );
     expect(screen.queryByTitle(/^Device/)).toBeNull();
     expect(screen.getByText("Synced")).toBeTruthy();
+  });
+
+  it("carries this device's basin beside the name, as a badge that opens", () => {
+    render(
+      <Masthead
+        clientId={CLIENT}
+        status={{ kind: "synced" }}
+        changes={[]}
+        items={[]}
+        waiting={new Map()}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "This device's basin: 0 items" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open this device's basin" }),
+    ).toBeTruthy();
   });
 });
 
