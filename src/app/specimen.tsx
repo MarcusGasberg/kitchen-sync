@@ -14,7 +14,7 @@ import { GroceryList } from "#/ui/grocery-list";
 import { type Group, listView, type WaitingChange } from "#/ui/list-view";
 import { forcedColors } from "#/ui/marbling/mount";
 import { patternOf, waitingOf } from "#/ui/marbling/pattern";
-import { canvasRenderer } from "#/ui/marbling/renderer";
+import { canvasRenderer, FEATHER_CSS_PX } from "#/ui/marbling/renderer";
 import { readTones } from "#/ui/marbling/tones";
 import { Mark } from "#/ui/mark";
 import { Masthead } from "#/ui/masthead";
@@ -240,7 +240,12 @@ function CpuBasin({ items }: { readonly items: ReadonlyArray<GroceryItem> }) {
     }
     element.width = element.clientWidth;
     element.height = element.clientHeight;
-    canvasRenderer(element)?.draw(ops, readTones(element, forcedColors()));
+    // Canvas pixels to a CSS pixel, so the edges fade as far as the GPU's.
+    const ratio =
+      element.clientWidth > 0 ? element.width / element.clientWidth : 1;
+    canvasRenderer(element)?.draw(ops, readTones(element, forcedColors()), {
+      feather: FEATHER_CSS_PX * ratio,
+    });
   }, [ops]);
   return (
     <div className={styles.cpu} role="img" aria-label="The CPU's drawing">

@@ -1,5 +1,5 @@
 import { coverView, type Operation } from "./operations";
-import { FEATHER, type Renderer } from "./renderer";
+import { FEATHER_CSS_PX, type Renderer } from "./renderer";
 
 // Two RGBA texels per operation, one row each: (kind, x, y, tone) and
 // (radius or shift, ux, uy, falloff). Kind 0 is a drop, 1 a tine.
@@ -22,9 +22,11 @@ void main() {
   gl_Position = vec4(corner, 0.0, 1.0);
 }`;
 
-// `shadeAt` in renderer.ts, per sample: the walk `toneAt` in operations.ts
-// takes, with each drop's edge faded into what lay just outside it. Change
-// all three together.
+// `shadeAt` in renderer.ts, per sample, step for step: the walk `toneAt` in
+// operations.ts takes, carrying its Jacobian J = dq/dp (a column-major mat2,
+// so each operation's derivative D updates it as D * J), with each drop's
+// edge faded over `feather` canvas pixels into what lay just outside it.
+// Change all three together.
 // A still frame (`fine` 1) averages sixteen samples on a 4 × 4 grid over a
 // square 1.5 pixels across, as renderer.ts's `paint` does with four, so an
 // edge is smooth. A frame of a settle (`fine` 0) takes four on a rotated
@@ -35,14 +37,14 @@ precision highp int;
 uniform highp sampler2D ops;
 uniform int count;
 uniform int fine;
+uniform float feather;
 uniform vec2 size;
 uniform vec3 view;
 uniform vec3 tones[6];
 out vec4 colour;
 
-const float FEATHER = ${FEATHER};
-
 vec3 shadeAt(vec2 q) {
+  mat2 J = mat2(view.z);
   vec3 shade = vec3(0.0);
   float through = 1.0;
   for (int k = count - 1; k >= 0; k--) {
@@ -56,18 +58,26 @@ vec3 shadeAt(vec2 q) {
       vec2 d = q - c;
       float m2 = dot(d, d);
       if (m2 <= r2) {
-        float depth = (b.x - sqrt(m2)) / (b.x * FEATHER);
-        float cover = depth >= 1.0 ? 1.0 : depth * depth * (3.0 - 2.0 * depth);
+        float m = sqrt(m2);
+        float rate = m > 0.0 ? length(transpose(J) * d) / m : 0.0;
+        float depth = rate > 0.0 ? (b.x - m) / (rate * feather) : 1.0;
+        float cover = depth < 1.0 ? depth * depth * (3.0 - 2.0 * depth) : 1.0;
         shade += through * cover * tones[int(a.w + 0.5)];
         through *= 1.0 - cover;
         q = c;
+        J = mat2(0.0);
         continue;
       }
-      q = c + d * sqrt(1.0 - r2 / m2);
+      float back = sqrt(1.0 - r2 / m2);
+      J = (mat2(back) + r2 / (back * m2 * m2) * outerProduct(d, d)) * J;
+      q = c + d * back;
     } else {
       vec2 u = b.yz;
-      float distance = abs(dot(q - c, vec2(-u.y, u.x)));
-      q -= u * (b.x * b.w / (distance + b.w));
+      vec2 n = vec2(-u.y, u.x);
+      float t = dot(q - c, n);
+      float reach = abs(t) + b.w;
+      J = (mat2(1.0) + b.x * b.w / (reach * reach) * sign(t) * outerProduct(u, n)) * J;
+      q -= u * (b.x * b.w / reach);
     }
   }
   return shade + through * tones[0];
@@ -171,6 +181,7 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
     ops: uniform("ops"),
     count: uniform("count"),
     fine: uniform("fine"),
+    feather: uniform("feather"),
     size: uniform("size"),
     view: uniform("view"),
     tones: uniform("tones"),
@@ -178,7 +189,7 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
 
   return {
     lost: () => gl.isContextLost(),
-    draw: (ops, tones, fine = false) => {
+    draw: (ops, tones, frame = {}) => {
       gl.useProgram(program);
       const { width, height } = canvas;
       if (width === 0 || height === 0) return;
@@ -201,7 +212,8 @@ export const webglRenderer = (canvas: HTMLCanvasElement): Renderer | null => {
       const view = coverView(width, height);
       gl.uniform1i(at.ops, 0);
       gl.uniform1i(at.count, ops.length);
-      gl.uniform1i(at.fine, fine ? 1 : 0);
+      gl.uniform1i(at.fine, frame.fine === true ? 1 : 0);
+      gl.uniform1f(at.feather, frame.feather ?? FEATHER_CSS_PX);
       gl.uniform2f(at.size, width, height);
       gl.uniform3f(at.view, view.originX, view.originY, view.scale);
       gl.uniform3fv(

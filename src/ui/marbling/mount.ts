@@ -1,5 +1,5 @@
 import { type Operation, sameOperation } from "./operations";
-import { canvasRenderer, type Renderer } from "./renderer";
+import { canvasRenderer, FEATHER_CSS_PX, type Renderer } from "./renderer";
 import { createSettler } from "./settle";
 import { type Rgb, readTones } from "./tones";
 import { webglRenderer } from "./webgl";
@@ -105,22 +105,26 @@ export const basinRenderer = (
 } => {
   const { context, cpu, gpu } = parts;
   const hasGpu = gpu.at(1, 1) !== null;
+  // The GPU draws sixteen samples a pixel when still, four while settling,
+  // at up to 1.5 device pixels; the CPU four at half the box, which the
+  // browser smooths up.
+  const pixelRatio = hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5;
+  // The canvas is sized at this ratio whichever draws it, so its edges fade
+  // over the same CSS pixels.
+  const feather = FEATHER_CSS_PX * pixelRatio;
   return {
-    // The GPU draws sixteen samples a pixel when still, four while settling,
-    // at up to 1.5 device pixels; the CPU four at half the box, which the
-    // browser smooths up.
-    pixelRatio: hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5,
+    pixelRatio,
     settles: hasGpu,
     renderer: {
-      draw: (ops, tones, fine) => {
+      draw: (ops, tones, frame = {}) => {
         const { width, height } = canvas;
         if (width === 0 || height === 0) return;
         const shared = gpu.at(width, height);
         if (shared === null) {
-          cpu.draw(ops, tones, fine);
+          cpu.draw(ops, tones, { ...frame, feather });
           return;
         }
-        shared.renderer.draw(ops, tones, fine);
+        shared.renderer.draw(ops, tones, { ...frame, feather });
         context.drawImage(shared.canvas, 0, 0);
       },
       dispose: () => {},
@@ -204,7 +208,7 @@ export const mountBasin = (
     if (made === null) return;
     const now = settler.at(host.now());
     // A still frame is drawn fine: a settle's last, a resize, a re-ink.
-    made.renderer.draw(now.ops, tones, !now.moving);
+    made.renderer.draw(now.ops, tones, { fine: !now.moving });
     if (now.moving) frame = host.requestFrame(draw);
   };
   const redraw = () => {

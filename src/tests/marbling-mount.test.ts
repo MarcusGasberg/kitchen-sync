@@ -8,7 +8,11 @@ import {
   SETTLE_MS,
 } from "#/ui/marbling/mount";
 import type { Drop, Operation } from "#/ui/marbling/operations";
-import type { Renderer } from "#/ui/marbling/renderer";
+import {
+  FEATHER_CSS_PX,
+  type Frame,
+  type Renderer,
+} from "#/ui/marbling/renderer";
 import type { Rgb } from "#/ui/marbling/tones";
 
 const drop = (key: string): Drop => ({
@@ -39,9 +43,9 @@ const fakeHost = (
   // Whether each draw was asked for fine, as a still frame is.
   const fine: Array<boolean | undefined> = [];
   const renderer: Renderer = {
-    draw: (ops, _, isFine) => {
+    draw: (ops, _, frame) => {
       draws.push(ops);
-      fine.push(isFine);
+      fine.push(frame?.fine);
     },
     dispose: vi.fn(),
   };
@@ -379,15 +383,15 @@ describe("createSharedGpu", () => {
 describe("basinRenderer", () => {
   const recorder = () => {
     const draws: Array<ReadonlyArray<Operation>> = [];
-    const fine: Array<boolean | undefined> = [];
+    const frames: Array<Frame | undefined> = [];
     const renderer: Renderer = {
-      draw: (ops, _, isFine) => {
+      draw: (ops, _, frame) => {
         draws.push(ops);
-        fine.push(isFine);
+        frames.push(frame);
       },
       dispose: () => {},
     };
-    return { draws, fine, renderer };
+    return { draws, frames, renderer };
   };
   const setup = (gpuAvailable: boolean, width: number, height: number) => {
     const cpu = recorder();
@@ -425,9 +429,18 @@ describe("basinRenderer", () => {
 
   it("asks the GPU for a fine frame only when the frame is still", () => {
     const { made, gpu } = setup(true, 40, 16);
-    made.renderer.draw([drop("a")], TONES, false);
-    made.renderer.draw([drop("a")], TONES, true);
-    expect(gpu.fine).toEqual([false, true]);
+    made.renderer.draw([drop("a")], TONES, { fine: false });
+    made.renderer.draw([drop("a")], TONES, { fine: true });
+    expect(gpu.frames.map((frame) => frame?.fine)).toEqual([false, true]);
+  });
+
+  it("fades each edge over the same CSS pixels, in the canvas's own pixels", () => {
+    const onGpu = setup(true, 40, 16);
+    onGpu.made.renderer.draw([drop("a")], TONES);
+    expect(onGpu.gpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 1.5);
+    const onCpu = setup(false, 40, 16);
+    onCpu.made.renderer.draw([drop("a")], TONES);
+    expect(onCpu.cpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 0.5);
   });
 
   it("draws on the CPU at half the box when there is no GPU", () => {
