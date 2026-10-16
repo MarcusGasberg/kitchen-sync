@@ -1,0 +1,72 @@
+/* A phone stacks the figure: its words, playback, the stage, then the breaking
+   controls. A desktop keeps the words, playback and the breaking controls in
+   the left third and gives the stage the rest. */
+.figure {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-areas:
+    "copy"
+    "playback"
+    "stage"
+    "breaking";
+  min-width: 0;
+  margin: 0;
+}
+
+@media (min-width: 64rem) {
+  .figure {
+    grid-template-columns: minmax(18rem, 1fr) minmax(0, 2fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "copy stage"
+      "playback stage"
+      "breaking stage";
+    column-gap: var(--space-7);
+    align-items: start;
+  }
+}
+
+.copy {
+  grid-area: copy;
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Titles are light: the figure's is the chapter's own, at 2.75rem. */
+.title {
+  font: 300 var(--text-2xl) / 1.1 var(--font-text);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.playback {
+  grid-area: playback;
+}
+
+.stage {
+  grid-area: stage;
+  min-width: 0;
+  border-radius: var(--radius-control);
+}
+
+.stage:focus-visible {
+  outline-offset: var(--space-2);
+}
+
+.preparing {
+  display: grid;
+  place-items: center;
+  min-height: 24rem;
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.5 var(--font-text);
+}
+
+/* Set apart from playback, by space. */
+.breaking {
+  grid-area: breaking;
+  padding-top: var(--space-6);
+}
+
+.stopped {
+  margin: 0;
+}
