@@ -147,6 +147,38 @@ describe("mountBasin", () => {
     expect(fake.waiting()).toBe(0);
   });
 
+  it("lets a removed drop shrink out where it was, then lets it go", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    basin.show([drop("a")]);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+
+    fake.advance(SETTLE_MS / 4);
+    fake.frame();
+    const quarter = radiusOf(fake.draws.at(-1) ?? [], "b") ?? 0;
+    expect(quarter).toBeGreaterThan(0);
+    expect(quarter).toBeLessThan(0.1);
+
+    fake.advance(SETTLE_MS);
+    fake.frame();
+    expect(fake.draws.at(-1)?.map((op) => op.key)).toEqual(["a"]);
+    expect(fake.waiting()).toBe(0);
+  });
+
+  it("shows a pattern at once when asked not to settle, as a scrub does", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("b")], { settle: false });
+    fake.frame();
+    expect(fake.draws.at(-1)?.map((op) => op.key)).toEqual(["b"]);
+    expect(fake.waiting()).toBe(0);
+  });
+
   it("skips the settle when motion is reduced", () => {
     const fake = fakeHost({ reduced: true });
     const basin = mountBasin(canvasOf(400, 160), fake.host);

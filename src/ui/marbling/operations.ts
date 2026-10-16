@@ -148,3 +148,20 @@ export const partway = (op: Operation, progress: number): Operation => {
 // The exponential ease-out every settle uses: quick to land, slow to still.
 export const easeOut = (t: number): number =>
   t >= 1 ? 1 : t <= 0 ? 0 : 1 - 2 ** (-10 * t);
+
+// Whether two operations are the same in every number. A settle keeps such
+// an operation still from one pattern to the next.
+export const sameOperation = (a: Operation, b: Operation): boolean => {
+  if (a.key !== b.key || a.x !== b.x || a.y !== b.y) return false;
+  if (a.kind === "drop" && b.kind === "drop") {
+    return a.radius === b.radius && a.tone === b.tone;
+  }
+  return (
+    a.kind === "tine" &&
+    b.kind === "tine" &&
+    a.ux === b.ux &&
+    a.uy === b.uy &&
+    a.shift === b.shift &&
+    a.falloff === b.falloff
+  );
+};

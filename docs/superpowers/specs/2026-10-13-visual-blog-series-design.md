@@ -134,9 +134,13 @@ in short:
   id range (`#3–#5`), an ack `ack #5`, a pull `pull v4`, a pull response `v7`,
   a poke `poke v7`. The label is always drawn, so a message's kind never rests
   on its shape alone. Sub-project 3 draws them.
-- **Motion:** a new drop or stroke settles in over 900 ms with an exponential
-  ease-out; messages travel straight paths on one fixed time scale (distance
-  is time); hard cuts between scripted beats; no bounce. A world starts when
+- **Motion:** every change to a basin settles over 900 ms with an exponential
+  ease-out: a new drop grows and a stroke draws in; a removed item shrinks out
+  where it was; an item that moves in the order or changes its ink lifts out
+  of its old place as it lands in its new one, so the water never jumps; a
+  scrub shows its instant at once. Messages travel straight paths on one
+  fixed time scale (distance is time); hard cuts between scripted beats; no
+  bounce. A world starts when
   its figure is at least half in view and pauses when the figure leaves the
   view or the tab is hidden; nothing runs off screen. Only a world paused that
   way resumes on its own: one the reader paused stays paused when it scrolls
@@ -510,9 +514,10 @@ scene states the claim its prose makes, and its test asserts that claim.
   controls and keyboard.
 - **The basin:** its operations invert exactly; a list's pattern is the same
   for the same rows in any order and differs for a device behind or rebased;
-  a converged world draws one pattern on every device; `mountBasin` settles,
-  re-inks on a theme change, skips the settle under reduced motion and
-  survives a lost GPU context, all against a fake host.
+  a converged world draws one pattern on every device; `mountBasin` settles
+  every change without a jump, re-inks on a theme change, skips the settle
+  under reduced motion and survives a lost GPU context, all against a fake
+  host.
 - **Snippet regions:** every referenced region resolves.
 - **Blog routes stand alone:** each `/blog` route, rendered, makes no `/api`
   request and writes nothing to localStorage.

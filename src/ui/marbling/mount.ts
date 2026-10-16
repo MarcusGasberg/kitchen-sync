@@ -1,43 +1,11 @@
-import { easeOut, type Operation, partway } from "./operations";
+import { type Operation, sameOperation } from "./operations";
 import { canvasRenderer, type Renderer } from "./renderer";
+import { createSettler } from "./settle";
 import { type Rgb, readTones } from "./tones";
 import { webglRenderer } from "./webgl";
 
-// How long a new drop or stroke takes to settle in. tokens.css's --settle.
+// How long a change takes to settle. tokens.css's --settle.
 export const SETTLE_MS = 900;
-
-// When each operation first appeared, so a new one settles in while the rest
-// stay put. Whatever the first call sees counts as long settled: a basin
-// opens on still water.
-export const createSettler = (duration: number) => {
-  const firstSeen = new Map<string, number>();
-  let primed = false;
-  return {
-    see: (ops: ReadonlyArray<Operation>, now: number, animate: boolean) => {
-      const keys = new Set(ops.map((op) => op.key));
-      for (const key of firstSeen.keys()) {
-        if (!keys.has(key)) firstSeen.delete(key);
-      }
-      for (const key of keys) {
-        if (!firstSeen.has(key)) {
-          firstSeen.set(key, primed && animate ? now : -Infinity);
-        }
-      }
-      primed = true;
-    },
-    // Each operation as far as it has settled at `now`.
-    at: (ops: ReadonlyArray<Operation>, now: number) => {
-      let moving = false;
-      const settled = ops.map((op) => {
-        const t = (now - (firstSeen.get(op.key) ?? -Infinity)) / duration;
-        if (t >= 1) return op;
-        moving = true;
-        return partway(op, easeOut(t));
-      });
-      return { ops: settled, moving };
-    },
-  };
-};
 
 // Everything a basin needs from the browser, so a test can stand in for it.
 export interface BasinHost {
@@ -189,34 +157,24 @@ export const browserHost: BasinHost = {
   now: () => performance.now(),
 };
 
-const sameOperation = (a: Operation, b: Operation) => {
-  if (a.key !== b.key || a.x !== b.x || a.y !== b.y) return false;
-  if (a.kind === "drop" && b.kind === "drop") {
-    return a.radius === b.radius && a.tone === b.tone;
-  }
-  return (
-    a.kind === "tine" &&
-    b.kind === "tine" &&
-    a.ux === b.ux &&
-    a.uy === b.uy &&
-    a.shift === b.shift &&
-    a.falloff === b.falloff
-  );
-};
-
 const samePattern = (
   a: ReadonlyArray<Operation>,
   b: ReadonlyArray<Operation>,
 ) => a.length === b.length && a.every((op, i) => sameOperation(op, b[i]));
 
 export interface MountedBasin {
-  // Shows a new pattern; what is new settles in unless motion is reduced.
-  readonly show: (ops: ReadonlyArray<Operation>) => void;
+  // Shows a new pattern. The change settles in unless motion is reduced, the
+  // renderer cannot settle at frame rate, or `settle` is false (a scrub shows
+  // its instant at once).
+  readonly show: (
+    ops: ReadonlyArray<Operation>,
+    options?: { readonly settle?: boolean },
+  ) => void;
   readonly unmount: () => void;
 }
 
 // Takes over a canvas and keeps it drawing a basin's pattern: at the box's
-// size, in the inks the page shows now, settling what is new. Draws only when
+// size, in the inks the page shows now, settling every change. Draws only when
 // something changed.
 export const mountBasin = (
   canvas: HTMLCanvasElement,
@@ -234,7 +192,7 @@ export const mountBasin = (
   const draw = () => {
     frame = null;
     if (made === null) return;
-    const now = settler.at(ops, host.now());
+    const now = settler.at(host.now());
     made.renderer.draw(now.ops, tones);
     if (now.moving) frame = host.requestFrame(draw);
   };
@@ -266,14 +224,16 @@ export const mountBasin = (
   resize();
 
   return {
-    show: (next) => {
+    show: (next, options = {}) => {
       if (shown && samePattern(ops, next)) return;
       shown = true;
       ops = next;
       settler.see(
         next,
         host.now(),
-        made?.settles === true && !(motion?.matches ?? false),
+        options.settle !== false &&
+          made?.settles === true &&
+          !(motion?.matches ?? false),
       );
       redraw();
     },
