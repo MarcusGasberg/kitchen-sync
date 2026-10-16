@@ -1,5 +1,5 @@
 import type { GroceryItem } from "#/domain/grocery-item";
-import type { ClientName, WorldSnapshot } from "#/lib/sandbox/trace";
+import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { type ListView, listView } from "#/ui/list-view";
 import { waitingOf } from "#/ui/marbling/pattern";
@@ -91,6 +91,19 @@ const serverPane = (
       .map((item) => [item.id, `v${item.version}`]),
   ),
 });
+
+// The most rows the server or any device holds at any instant of a timeline:
+// what a figure sizes its basins' one scale by.
+export const mostRows = (timeline: Timeline): number => {
+  let most = 0;
+  for (const { snapshot } of timeline.entries) {
+    most = Math.max(most, snapshot.server.items.length);
+    for (const state of snapshot.clients.values()) {
+      most = Math.max(most, state.items.size);
+    }
+  }
+  return most;
+};
 
 // What fixes the server's rows: their ids and versions. A version alone does
 // not, since a fork's world can reach the same version another way.

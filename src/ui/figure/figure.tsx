@@ -13,6 +13,7 @@ import type { Scene } from "#/lib/sandbox/scene";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
+import { scaleFor } from "#/ui/marbling/pattern";
 import {
   addItem,
   applyIntent,
@@ -26,7 +27,7 @@ import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PlayerControls } from "./player-controls";
 import { Stage } from "./stage";
-import { makeStageView } from "./stage-view";
+import { makeStageView, mostRows } from "./stage-view";
 import { usePlayer } from "./use-player";
 
 export interface FigureProps {
@@ -80,6 +81,15 @@ function FigureBody({
     host,
   });
   const stageOf = useMemo(() => makeStageView(), []);
+  // One scale for every basin, taken once from the fullest list in the
+  // recorded scene and kept for the figure's life: however many items a
+  // reader adds or removes, no basin jumps, and a device that is behind is
+  // visibly short against the same water. Set in the render that first has
+  // the recording, so no basin ever draws at another scale.
+  const [scale, setScale] = useState<number | null>(null);
+  if (scale === null && view !== null) {
+    setScale(scaleFor(mostRows(view.timeline)));
+  }
   const reduced = host.reducedMotion();
   const frame =
     view === null ? null : frameAt(view.timeline, view.at, { reduced });
@@ -190,6 +200,7 @@ function FigureBody({
             lost={lostAt(view.timeline, view.at)}
             settle={!view.jumped}
             live={view.mode === "free"}
+            scale={scale ?? 1}
             onIntent={(client, intent) =>
               run(player.act(applyIntent(client, intent)))
             }

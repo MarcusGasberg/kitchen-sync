@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { DROP_SCENE, FREE_SCENE, Lab } from "#/app/lab";
 import { runHeadless } from "#/lib/sandbox/scene";
 import { isConverged } from "#/lib/sandbox/trace";
+import { mostRows } from "#/ui/figure/stage-view";
 
 describe("the lab", () => {
   effect.effect("plays both scenes to agreement", () =>
@@ -34,6 +35,7 @@ describe("the lab", () => {
           for (const item of items ?? []) {
             expect(Option.isSome(item.category), item.name).toBe(true);
           }
+          expect(mostRows(result.timeline)).toBe(items?.length);
         }
       }),
   );

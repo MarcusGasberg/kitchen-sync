@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "#/lib/sandbox/trace";
 import { WireBand } from "#/ui/figure/wire-band";
 import {
+  CORNER_PX,
   LANE_PX,
+  layWires,
   type Placed,
   placeFlights,
   placeLost,
@@ -28,6 +30,41 @@ const message = (overrides: Partial<Message> = {}): Message => ({
   arriveAt: 800,
   fate: "inFlight",
   ...overrides,
+});
+
+describe("layWires", () => {
+  const basin = { left: 40, top: 20, right: 640, bottom: 260 };
+  const device = (left: number) => ({
+    left,
+    top: 340,
+    right: left + 280,
+    bottom: 700,
+  });
+
+  it("leaves the server basin's foot evenly spread in device order, inset from its corners", () => {
+    const wires = layWires(basin, [
+      { client: "A", box: device(0) },
+      { client: "B", box: device(300) },
+      { client: "C", box: device(600) },
+    ]);
+    expect(wires.map((wire) => wire.client)).toEqual(["A", "B", "C"]);
+    const share = (640 - CORNER_PX - (40 + CORNER_PX)) / 3;
+    expect(wires.map((wire) => wire.server)).toEqual([
+      { x: 40 + CORNER_PX + share / 2, y: 260 },
+      { x: 40 + CORNER_PX + share * 1.5, y: 260 },
+      { x: 40 + CORNER_PX + share * 2.5, y: 260 },
+    ]);
+    // Even steps between the server ends: the wires fan out together.
+    const [a, b, c] = wires.map((wire) => wire.server.x);
+    expect((b ?? 0) - (a ?? 0)).toBeCloseTo((c ?? 0) - (b ?? 0));
+  });
+
+  it("reaches the top of each device's pane, above its middle", () => {
+    const [wire] = layWires(basin, [{ client: "A", box: device(600) }]);
+    expect(wire?.device).toEqual({ x: 740, y: 340 });
+    // A lone device's wire leaves the middle of the basin's foot.
+    expect(wire?.server).toEqual({ x: 340, y: 260 });
+  });
 });
 
 describe("placeMessage", () => {

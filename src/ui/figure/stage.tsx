@@ -1,10 +1,4 @@
-import {
-  type RefObject,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import type { Flight, Lost } from "#/lib/sandbox/frame";
 import type { ClientName } from "#/lib/sandbox/trace";
 import { Basin } from "#/ui/basin";
@@ -15,7 +9,13 @@ import { StatusBand } from "#/ui/status-band";
 import styles from "./stage.module.css";
 import type { StageView } from "./stage-view";
 import { WireBand } from "./wire-band";
-import { placeFlights, placeLost, type Wire } from "./wires";
+import {
+  type Box,
+  layWires,
+  placeFlights,
+  placeLost,
+  type Wire,
+} from "./wires";
 
 interface StageProps {
   readonly view: StageView;
@@ -25,6 +25,9 @@ interface StageProps {
   readonly settle: boolean;
   // Free play: lists take checks and removals, and each device can add.
   readonly live: boolean;
+  // The figure's one scale for every basin (`scaleFor`), fixed for its life,
+  // so a device that is behind is visibly short against the same water.
+  readonly scale: number;
   readonly onIntent: (client: ClientName, intent: ListIntent) => void;
   readonly onAdd: (client: ClientName, name: string) => void;
   readonly onRetry: (client: ClientName) => void;
@@ -38,46 +41,34 @@ interface Layout {
 
 const EMPTY: Layout = { width: 0, height: 0, wires: [] };
 
-// How far in from the server basin's corners a wire may start.
-const CORNER_PX = 24;
-
-// Each device's wire, from the foot of the server's pane (the band's top)
-// straight down to the top of its pane where the two overlap, or slanting in
-// from the nearest point under the server's basin: a phone's strip scrolls
-// devices out from under it. The foot of the pane, not of the basin: the
-// server's list sits under the basin (narrow) or beside it (wide), and no
-// wire crosses it.
+// The wires as the stage lays out its panes: from the server's basin
+// (`data-anchor='server'`), whose foot is the band's top, to each device's
+// pane (`data-anchor='device'`), in the stage's pixels.
 const measure = (stage: HTMLElement): Layout => {
   const box = stage.getBoundingClientRect();
-  const pane = stage
-    .querySelector("[data-anchor='server']")
-    ?.getBoundingClientRect();
-  const basin = stage
-    .querySelector("[data-anchor='server-basin']")
-    ?.getBoundingClientRect();
-  if (pane === undefined || basin === undefined) {
+  const within = (rect: DOMRect): Box => ({
+    left: rect.left - box.left,
+    top: rect.top - box.top,
+    right: rect.right - box.left,
+    bottom: rect.bottom - box.top,
+  });
+  const basin = stage.querySelector("[data-anchor='server']");
+  if (basin === null) {
     return { ...EMPTY, width: box.width, height: box.height };
   }
-  const left = basin.left - box.left + CORNER_PX;
-  const right = basin.right - box.left - CORNER_PX;
-  const wires: Array<Wire> = [];
-  for (const device of stage.querySelectorAll<HTMLElement>(
-    "[data-anchor='device']",
-  )) {
+  const devices = [
+    ...stage.querySelectorAll<HTMLElement>("[data-anchor='device']"),
+  ].flatMap((device) => {
     const client = device.dataset.client;
-    if (client === undefined) continue;
-    const rect = device.getBoundingClientRect();
-    const x = rect.left + rect.width / 2 - box.left;
-    wires.push({
-      client,
-      server: {
-        x: Math.min(Math.max(x, left), Math.max(left, right)),
-        y: pane.bottom - box.top,
-      },
-      device: { x, y: rect.top - box.top },
-    });
-  }
-  return { width: box.width, height: box.height, wires };
+    return client === undefined
+      ? []
+      : [{ client, box: within(device.getBoundingClientRect()) }];
+  });
+  return {
+    width: box.width,
+    height: box.height,
+    wires: layWires(within(basin.getBoundingClientRect()), devices),
+  };
 };
 
 const sameLayout = (a: Layout, b: Layout) =>
@@ -134,23 +125,6 @@ const useWires = (
   return layout;
 };
 
-// Wide enough for the server's list beside its basin. Below it (a phone, and
-// a tablet too) the list is a disclosure under the basin.
-const WIDE = "(min-width: 64rem)";
-
-const subscribeWide = (onChange: () => void) => {
-  const query = window.matchMedia?.(WIDE);
-  query?.addEventListener("change", onChange);
-  return () => query?.removeEventListener("change", onChange);
-};
-
-const useWide = () =>
-  useSyncExternalStore(
-    subscribeWide,
-    () => window.matchMedia?.(WIDE).matches ?? false,
-    () => false,
-  );
-
 // One instant of a world: the server's pane, the wire band, the devices, and
 // every message on the wires between them.
 export function Stage({
@@ -159,6 +133,7 @@ export function Stage({
   lost,
   settle,
   live,
+  scale,
   onIntent,
   onAdd,
   onRetry,
@@ -166,35 +141,38 @@ export function Stage({
   const stage = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   const layout = useWires(stage, strip);
-  const wide = useWide();
   const { server } = view;
-  const serverList = (
-    <GroceryList groups={server.list.groups} rejected={[]} headingLevel={4} />
-  );
 
   return (
     <div ref={stage} className={styles.stage}>
-      {/* The server is a pane like a device's, its list beside or under its
-          basin. Its foot is where the wires start. */}
-      <div className={styles.server} data-anchor="server">
+      {/* The server is a pane like a device's: its list, always open as
+          text, then its basin, whose foot is where the wires leave. On a
+          wide screen the list sits beside the basin instead, and the basin
+          keeps to the row's foot. */}
+      <div className={styles.server}>
         <Pane level={3} title="Server" status={server.line}>
           <div className={styles.serverBody}>
-            <div data-anchor="server-basin">
+            {/* biome-ignore lint/a11y/useSemanticElements: a group of the list's sections, not a form's fields */}
+            <div
+              className={styles.serverList}
+              role="group"
+              aria-label="The server's items"
+            >
+              <GroceryList
+                groups={server.list.groups}
+                rejected={[]}
+                headingLevel={4}
+              />
+            </div>
+            <div className={styles.serverBasin} data-anchor="server">
               <Basin
                 items={server.items}
                 labels={server.labels}
                 label="The server's list"
                 settle={settle}
+                scale={scale}
               />
             </div>
-            {wide ? (
-              <div className={styles.serverList}>{serverList}</div>
-            ) : (
-              <details className={styles.serverList}>
-                <summary className={styles.summary}>The server's list</summary>
-                {serverList}
-              </details>
-            )}
           </div>
         </Pane>
       </div>
@@ -218,6 +196,7 @@ export function Stage({
                   waiting={device.waiting}
                   label={`${device.name}'s list`}
                   settle={settle}
+                  scale={scale}
                 />
               }
               band={

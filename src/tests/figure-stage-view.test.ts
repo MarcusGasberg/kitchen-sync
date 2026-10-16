@@ -1,9 +1,15 @@
 import { it } from "@effect/vitest";
-import { Effect } from "effect";
+import { DateTime, Effect } from "effect";
 import { describe, expect } from "vitest";
+import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
 import { EMPTY_STATE } from "#/lib/store";
-import { deviceLine, LABELLED, makeStageView } from "#/ui/figure/stage-view";
+import {
+  deviceLine,
+  LABELLED,
+  makeStageView,
+  mostRows,
+} from "#/ui/figure/stage-view";
 import { syncStatus } from "#/ui/sync-status";
 import { add } from "./sandbox-helpers";
 
@@ -64,6 +70,41 @@ describe("makeStageView", () => {
         expect(second.server).toBe(first.server);
       }).pipe(
         Effect.provide(World.layer({ clients: ["A", "B"], seed: "stage" })),
+      ),
+  );
+});
+
+describe("mostRows", () => {
+  it.effect(
+    "counts the most rows the server or any device held at any instant",
+    () =>
+      Effect.gen(function* () {
+        const world = yield* World;
+        yield* world.clock.advance("1 second");
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("2 seconds");
+        // B, offline, holds three rows the server never sees.
+        yield* world.net.offline("B", true);
+        for (const name of ["Eggs", "Rye"]) {
+          yield* world.client("B").apply(yield* add(world, name));
+        }
+        // Then A removes the milk everywhere it can reach.
+        const milk = [...(yield* world.snapshot).server.items][0];
+        if (milk === undefined) throw new Error("no milk");
+        yield* world.client("A").apply({
+          _tag: "RemoveItem",
+          itemId: milk.id,
+          issuedAt: DateTime.makeUnsafe(yield* world.clock.now),
+        });
+        yield* world.clock.advance("2 seconds");
+
+        const timeline = yield* world.currentTimeline;
+        const last = timeline.entries.at(-1)?.snapshot;
+        expect(last?.server.items).toHaveLength(0);
+        expect(mostRows(timeline)).toBe(3);
+        expect(mostRows(EMPTY_TIMELINE)).toBe(0);
+      }).pipe(
+        Effect.provide(World.layer({ clients: ["A", "B"], seed: "most" })),
       ),
   );
 });

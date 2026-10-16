@@ -7,38 +7,43 @@
   min-width: 0;
 }
 
-/* The server's pane, measured for where the wires start. Its header is
-   Pane's own. */
+/* The server's pane. Its header is Pane's own. */
 .server {
   min-width: 0;
 }
 
-/* The basin, then its list: beside it on a wide screen, under it below. */
+/* The list, open as text, then the basin under it, whose foot is the pane's
+   foot and the band's top. */
 .serverBody {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
 }
 
+/* Wide enough for the list beside the basin. The basin keeps to the row's
+   foot, so however long the list runs, the wires leave from under the
+   basin and never cross it. */
 @media (min-width: 64rem) {
   .serverBody {
     grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+    grid-template-areas: "basin list";
     align-items: start;
     gap: var(--space-6);
   }
+
+  .serverList {
+    grid-area: list;
+  }
+
+  .serverBasin {
+    grid-area: basin;
+    align-self: end;
+  }
 }
 
-.serverList {
+.serverList,
+.serverBasin {
   min-width: 0;
-}
-
-.summary {
-  display: flex;
-  align-items: center;
-  min-height: var(--target);
-  color: var(--text-2);
-  font: 400 var(--text-sm) / 1.5 var(--font-text);
-  cursor: pointer;
 }
 
 /* One row of devices, however many: past the width they scroll sideways. */

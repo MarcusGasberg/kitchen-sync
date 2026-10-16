@@ -2,16 +2,53 @@ import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
 import type { ClientName, Message } from "#/lib/sandbox/trace";
 import type { Point } from "#/ui/marbling/operations";
 
-// Where the messages of one instant sit on the wires between the server and
-// its devices. Pure: the stage measures the wires; this only places.
+// The wires between the server and its devices, and where the messages of one
+// instant sit on them. Pure: the stage measures its panes; this lays the wires
+// and places the messages.
 
 // One device's wire, in the stage's pixels: from the foot of the server's
-// pane, below its basin, to the top of the device's pane.
+// basin, where the wires leave spread evenly in device order, to the top of
+// the device's pane, above its middle. The server's list never sits below
+// the basin's foot, so no wire crosses it.
 export interface Wire {
   readonly client: ClientName;
   readonly server: Point;
   readonly device: Point;
 }
+
+// A measured box, in the stage's pixels.
+export interface Box {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+// How far in from the server basin's 18 px corners the outermost wires leave.
+export const CORNER_PX = 24;
+
+// Each device's wire, in device order. Their server ends share the basin's
+// foot evenly, inset from its corners, each at the middle of its share, so
+// the wires fan out together however wide the basin and wherever a phone's
+// strip has scrolled its devices.
+export const layWires = (
+  basin: Box,
+  devices: ReadonlyArray<{ readonly client: ClientName; readonly box: Box }>,
+): ReadonlyArray<Wire> => {
+  const left = basin.left + CORNER_PX;
+  const span = Math.max(0, basin.right - CORNER_PX - left);
+  return devices.map(({ client, box }, index) => ({
+    client,
+    server: {
+      x:
+        span === 0
+          ? (basin.left + basin.right) / 2
+          : left + (span * (index + 0.5)) / devices.length,
+      y: basin.bottom,
+    },
+    device: { x: (box.left + box.right) / 2, y: box.top },
+  }));
+};
 
 // Requests rise this far to one side of a wire and replies fall as far to the
 // other, so a push and the pull response passing it never sit on each other.

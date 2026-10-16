@@ -31,6 +31,7 @@ describe("Stage", () => {
         flights={[]}
         lost={[]}
         settle
+        scale={1}
         live={false}
         onIntent={noop}
         onAdd={noop}
@@ -63,6 +64,7 @@ describe("Stage", () => {
         flights={[]}
         lost={[]}
         settle
+        scale={1}
         live
         onIntent={onIntent}
         onAdd={onAdd}
@@ -83,5 +85,100 @@ describe("Stage", () => {
     );
     fireEvent.click(within(b).getByRole("button", { name: "Add" }));
     expect(onAdd).toHaveBeenCalledWith("B", "Eggs");
+  });
+
+  // Below 64rem the server's list cannot sit beside its basin: it reads
+  // first, open, and the basin's foot is the pane's foot. A wide screen moves
+  // the list beside the basin by layout alone.
+  it("opens the server's list as text before its basin, the two named apart", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const { container } = render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    const server = screen.getByRole("region", { name: "Server" });
+    const list = within(server).getByRole("group", {
+      name: "The server's items",
+    });
+    const basin = within(server).getByRole("img", {
+      name: "The server's list: 1 item",
+    });
+    expect(within(list).getByText(/Milk/)).toBeTruthy();
+    expect(
+      list.compareDocumentPosition(basin) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Nothing to open: no disclosure hides it.
+    expect(container.querySelector("details, summary")).toBeNull();
+    // The basin is where the wires leave.
+    expect(
+      container.querySelector("[data-anchor='server']")?.contains(basin),
+    ).toBe(true);
+  });
+
+  it("starts each wire at the server basin's foot, spread evenly in device order", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const rect = (left: number, top: number, right: number, bottom: number) =>
+      ({
+        left,
+        top,
+        right,
+        bottom,
+        width: right - left,
+        height: bottom - top,
+        x: left,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    const boxes = new Map<string, DOMRect>([
+      ["server", rect(0, 60, 600, 300)],
+      ["A", rect(0, 380, 280, 700)],
+      ["B", rect(320, 380, 600, 700)],
+    ]);
+    const measured = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: Element) {
+        const anchor =
+          this instanceof HTMLElement
+            ? this.dataset.anchor === "device"
+              ? this.dataset.client
+              : this.dataset.anchor
+            : undefined;
+        return (
+          (anchor === undefined ? undefined : boxes.get(anchor)) ??
+          rect(0, 0, 900, 800)
+        );
+      });
+    const { container } = render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    const lines = [...container.querySelectorAll("line")].map((line) =>
+      ["x1", "y1", "x2", "y2"].map((name) => Number(line.getAttribute(name))),
+    );
+    measured.mockRestore();
+    // From the basin's foot, its 600 px less 24 px at each corner shared
+    // evenly: 24 + 552 / 4 and 24 + 552 × 3 / 4.
+    expect(lines).toEqual([
+      [162, 300, 140, 380],
+      [438, 300, 460, 380],
+    ]);
   });
 });
