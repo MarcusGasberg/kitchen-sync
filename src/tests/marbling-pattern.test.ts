@@ -445,8 +445,12 @@ describe("scaleFor", () => {
   });
 
   // Scaling a drop thickens its rings: at any figure's scale every band stays
-  // a fine line, under 0.05 of the water's height (about 9 px across a 472 px
-  // desktop server basin).
+  // a fine line, under 0.05 world units. A world unit is a basin's width over
+  // WORLD_WIDTH (2.5), so that is about 9.4 px in a desktop server basin
+  // 472 px wide (whose water, one unit tall, is 189 px). The widest band
+  // MAX_SCALE allows, the ring of a 0.15 radius at 1.75, is 0.049; the old
+  // scale (FILL 0.55, MAX_SCALE 3) drew these items' bands to 0.075 (14 px)
+  // and fails here.
   it("keeps every ring band a fine line at a figure's scale", () => {
     for (const count of [1, 3, 5, 6, 12]) {
       const rows = Array.from({ length: count }, (_, i) => item(i + 1, i + 1));

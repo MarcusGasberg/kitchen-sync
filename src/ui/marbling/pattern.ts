@@ -134,8 +134,10 @@ const itemOperations = (
 // figure scales them. Scaling a drop thickens its rings with it, so the two
 // are a balance: a quarter of the water lets neighbouring drops meet and
 // push one another into crescents, and MAX_SCALE keeps every ring band a
-// fine line, about 3 to 8 px in a desktop server basin (the app's badge, at
-// 1, draws them under a pixel), so no item reads as a bullseye.
+// fine line, so no item reads as a bullseye. In a desktop server basin
+// 472 px wide the lab's bands measure about 3.5 to 8 px (median 5), and none
+// can pass 0.05 of a world unit, about 9.4 px there; the app's badge, at 1,
+// draws them about a pixel wide.
 const FILL = 0.27;
 export const MAX_SCALE = 1.75;
 

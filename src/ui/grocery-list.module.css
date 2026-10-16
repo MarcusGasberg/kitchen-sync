@@ -36,8 +36,9 @@
 
 /* Compact: category groups closer, their heads tighter over their rows, and
    the groups flowing in two columns where the list has room for two 10rem
-   ones (a phone's or a tablet's server pane, never the narrow column beside
-   a desktop's basin), a group never split across them. */
+   ones, a group never split across them: the server's list on a phone or a
+   tablet, and in the 22rem column a desktop gives it beside its basin. A
+   device's list in a figure is narrower and keeps one column. */
 .list[data-density="compact"] {
   display: block;
   columns: 10rem 2;
