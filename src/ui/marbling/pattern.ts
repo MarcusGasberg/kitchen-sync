@@ -131,9 +131,13 @@ const itemOperations = (
 };
 
 // The share of the water a figure's items should cover, and the most a
-// figure scales them.
-const FILL = 0.55;
-export const MAX_SCALE = 3;
+// figure scales them. Scaling a drop thickens its rings with it, so the two
+// are a balance: a quarter of the water lets neighbouring drops meet and
+// push one another into crescents, and MAX_SCALE keeps every ring band a
+// fine line, about 3 to 8 px in a desktop server basin (the app's badge, at
+// 1, draws them under a pixel), so no item reads as a bullseye.
+const FILL = 0.27;
+export const MAX_SCALE = 1.75;
 
 // An item's ink and clear water at scale 1, on average: five drops whose
 // radii are shares of one radius drawn evenly from 0.08 to 0.15. Marbling
@@ -144,7 +148,7 @@ const MEAN_AREA =
   RINGS.reduce((sum, { share }) => sum + share * share, 0);
 
 // The scale at which `rows` items, laid down, cover about FILL of the water,
-// so that each new drop presses into the rings before it. A figure takes one
+// so that new drops press into the rings near them. A figure takes one
 // from the most rows its scene holds and keeps it, however many items come
 // and go. Never below the app's 1 nor above MAX_SCALE.
 export const scaleFor = (rows: number): number =>

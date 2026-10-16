@@ -437,10 +437,34 @@ describe("scaleFor", () => {
     return area / (WORLD_WIDTH * WORLD_HEIGHT);
   };
 
-  it("lets a few items cover about half the water", () => {
+  it("lets a few items cover about a quarter of the water", () => {
     for (const count of [4, 5, 6, 7]) {
-      expect(covered(count), `${count} items`).toBeGreaterThan(0.35);
-      expect(covered(count), `${count} items`).toBeLessThan(0.8);
+      expect(covered(count), `${count} items`).toBeGreaterThan(0.15);
+      expect(covered(count), `${count} items`).toBeLessThan(0.4);
+    }
+  });
+
+  // Scaling a drop thickens its rings: at any figure's scale every band stays
+  // a fine line, under 0.05 of the water's height (about 9 px across a 472 px
+  // desktop server basin).
+  it("keeps every ring band a fine line at a figure's scale", () => {
+    for (const count of [1, 3, 5, 6, 12]) {
+      const rows = Array.from({ length: count }, (_, i) => item(i + 1, i + 1));
+      for (const drops of dropsOf(
+        patternOf({ items: rows, scale: scaleFor(count) }),
+      ).values()) {
+        // The bands from the core out: each drop's edge once those inside it
+        // have pushed it, less the edge inside.
+        let area = 0;
+        let inner = 0;
+        for (const op of [...drops].reverse()) {
+          area += op.radius ** 2;
+          const edge = Math.sqrt(area);
+          if (inner > 0)
+            expect(edge - inner, `${count} items`).toBeLessThan(0.05);
+          inner = edge;
+        }
+      }
     }
   });
 
