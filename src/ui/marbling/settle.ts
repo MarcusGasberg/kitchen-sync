@@ -2,8 +2,11 @@ import { easeOut, type Operation, partway, sameOperation } from "./operations";
 
 // The longest run of operations two patterns share, in order, as pairs of
 // indices into each: what stays still while the rest leave or arrive. The
-// shared head and tail are paired first, so a usual change leaves a small
-// table to fill.
+// shared head and tail are paired first, and only what lies between them
+// fills the table. In this app an edit moves its item to the end of the
+// pattern, so a change rarely shares a tail, and the table runs from the
+// edited item to the end: an edit to an older item fills most of it. At 64
+// items that is about 2–3 ms and 400 KB per change, in each basin.
 export const commonRun = (
   before: ReadonlyArray<Operation>,
   after: ReadonlyArray<Operation>,

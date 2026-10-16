@@ -221,6 +221,39 @@ describe("a change to a list", () => {
     expect(settler.at(DURATION)).toEqual({ ops: to, moving: false });
   });
 
+  it("never jumps when changes chain mid-settle, and ends on the last", () => {
+    const rows = Array.from({ length: 12 }, (_, i) => item(i + 1, i + 1));
+    const start: PatternInput = { items: rows };
+    const confirmed = rows.map((row, i) => (i === 2 ? item(3, 14) : row));
+    // Item 3 is checked here and unchecked 300 ms later, and the server
+    // confirms both at 500 ms; item 5 goes at 600 ms; at 650 ms the list
+    // reverts to where it began. Each lands while the last still settles.
+    const changes: ReadonlyArray<readonly [number, PatternInput]> = [
+      [
+        0,
+        {
+          items: rows.map((row, i) => (i === 2 ? item(3, 3, true) : row)),
+          waiting: new Map([[id(3), 1]]),
+        },
+      ],
+      [300, { items: rows, waiting: new Map([[id(3), 2]]) }],
+      [500, { items: confirmed }],
+      [600, { items: confirmed.filter((_, i) => i !== 4) }],
+      [650, start],
+    ];
+    const settler = createSettler(DURATION);
+    settler.see(patternOf(start), 0, true);
+    for (const [now, input] of changes) {
+      const before = fingerprint(settler.at(now).ops);
+      settler.see(patternOf(input), now, true);
+      expect(fingerprint(settler.at(now).ops), `at ${now} ms`).toEqual(before);
+    }
+    expect(settler.at(650 + DURATION)).toEqual({
+      ops: patternOf(start),
+      moving: false,
+    });
+  });
+
   it("lifts and lands only the item that changed, even in a crowded list", () => {
     const rows = Array.from({ length: 64 }, (_, i) => item(i + 1, i + 1));
     const from = patternOf({ items: rows });
