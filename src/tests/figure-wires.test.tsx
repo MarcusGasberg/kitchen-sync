@@ -4,6 +4,7 @@ import type { Message } from "#/lib/sandbox/trace";
 import { WireBand } from "#/ui/figure/wire-band";
 import {
   LANE_PX,
+  type Placed,
   placeFlights,
   placeLost,
   placeMessage,
@@ -87,6 +88,50 @@ describe("placing a frame", () => {
     expect(first).toMatchObject({ x: 100 + LANE_PX, y: 40 });
     expect(second?.x).toBe(100 + LANE_PX);
     expect((first?.y ?? 0) - (second?.y ?? 0)).toBeCloseTo(STACK_PX);
+  });
+});
+
+describe("a queue at the sender", () => {
+  const apart = (a: Placed | undefined, b: Placed | undefined) =>
+    Math.hypot((a?.x ?? 0) - (b?.x ?? 0), (a?.y ?? 0) - (b?.y ?? 0));
+
+  it("keeps an ack and a poke leaving together STACK_PX apart", () => {
+    const ack = message({ id: 10, kind: "ack", label: "ack #5" });
+    const poke = message({ id: 11, kind: "poke", label: "poke v7" });
+    const [first, second] = placeFlights(
+      [wire],
+      [
+        { message: ack, progress: 0 },
+        { message: poke, progress: 0 },
+      ],
+    );
+    expect(apart(first, second)).toBeGreaterThanOrEqual(STACK_PX - 1e-9);
+    for (const placed of [first, second]) {
+      expect(placed?.y).toBeGreaterThanOrEqual(0);
+      expect(placed?.y).toBeLessThanOrEqual(80);
+    }
+  });
+
+  it("keeps held messages at one sender STACK_PX apart", () => {
+    const held = (id: number) =>
+      message({ id, departedAt: null, arriveAt: null, fate: "held" });
+    const placed = placeFlights(
+      [wire],
+      [
+        { message: held(1), progress: 0 },
+        { message: held(2), progress: 0 },
+        { message: held(3), progress: 0 },
+      ],
+    );
+    for (const [a, b] of [
+      [0, 1],
+      [1, 2],
+    ] as const) {
+      expect(apart(placed[a], placed[b])).toBeGreaterThanOrEqual(
+        STACK_PX - 1e-9,
+      );
+    }
+    for (const one of placed) expect(one.y).toBeLessThanOrEqual(80);
   });
 });
 
