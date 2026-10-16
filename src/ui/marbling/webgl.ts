@@ -28,9 +28,10 @@ void main() {
 // edge faded over `feather` canvas pixels into what lay just outside it.
 // Change all three together.
 // A still frame (`fine` 1) averages sixteen samples on a 4 × 4 grid over a
-// square 1.5 pixels across, as renderer.ts's `paint` does with four, so an
-// edge is smooth. A frame of a settle (`fine` 0) takes four on a rotated
-// grid inside the pixel, cheap enough to draw every frame.
+// square 1.5 pixels across, a little wider than the pixel, so an edge is
+// smooth rather than stair-stepped. A frame of a settle (`fine` 0) takes four
+// on a rotated grid inside the pixel, cheap enough to draw every frame. The
+// CPU's `paint` takes one, at the pixel's centre.
 // Numbers from TypeScript reach the shader as uniforms, never spliced into
 // its source, where a whole number would read as an int and not compile.
 const FRAGMENT = `#version 300 es

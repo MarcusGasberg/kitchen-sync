@@ -106,7 +106,7 @@ export const basinRenderer = (
   const { context, cpu, gpu } = parts;
   const hasGpu = gpu.at(1, 1) !== null;
   // The GPU draws sixteen samples a pixel when still, four while settling,
-  // at up to 1.5 device pixels; the CPU four at half the box, which the
+  // at up to 1.5 device pixels; the CPU one at half the box, which the
   // browser smooths up.
   // The canvas is sized at this ratio whichever draws it, so each frame's
   // fade, which `mountBasin` measures with the box, suits either.

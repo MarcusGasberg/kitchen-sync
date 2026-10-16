@@ -1,4 +1,4 @@
-import { coverView, type Operation, tineShift } from "./operations";
+import { coverView, type Operation } from "./operations";
 import type { Rgb } from "./tones";
 
 // How a draw is asked for. `fine` marks a still frame, which may take more
@@ -37,6 +37,12 @@ export const basinFeather = (cssWidth: number, pixelRatio: number): number => {
   return FEATHER_CSS_PX * share * share * pixelRatio;
 };
 
+// A shade as `shadeAt` works it out: red, green and blue, not yet rounded.
+export type Shade = [number, number, number];
+
+// A tone missing from the palette draws black.
+const NO_TONE: Rgb = [0, 0, 0];
+
 // The colour the water shows at (x, y): `toneAt`'s walk, with each drop's
 // outer edge faded into what lay just outside it over `featherPx` canvas
 // pixels. `scale` is the world units to a canvas pixel. Composited front to
@@ -49,6 +55,8 @@ export const basinFeather = (cssWidth: number, pixelRatio: number): number => {
 // left-multiplies J by its own derivative. Inside a drop, Jᵀ(d / m) is how
 // fast the distance to its centre grows per pixel, which turns the depth into
 // pixels. `webgl.ts` runs the same walk on the GPU: change both.
+// It writes the shade into `out` as red, green and blue, and returns it, so a
+// whole frame reuses one array.
 export const shadeAt = (
   ops: ReadonlyArray<Operation>,
   x: number,
@@ -56,7 +64,8 @@ export const shadeAt = (
   tones: ReadonlyArray<Rgb>,
   scale: number,
   featherPx: number,
-): Rgb => {
+  out: Shade,
+): Shade => {
   let qx = x;
   let qy = y;
   // J by rows: (ja, jb) is dqx/dp, (jc, jd) is dqy/dp.
@@ -89,10 +98,10 @@ export const shadeAt = (
         const fade = rate * featherPx;
         const depth = fade > 0 ? Math.max(0, (op.radius - m) / fade) : 1;
         const cover = depth < 1 ? depth * depth * (3 - 2 * depth) : 1;
-        const [r, g, b] = tones[op.tone] ?? [0, 0, 0];
-        red += through * cover * r;
-        green += through * cover * g;
-        blue += through * cover * b;
+        const ink = tones[op.tone] ?? NO_TONE;
+        red += through * cover * ink[0];
+        green += through * cover * ink[1];
+        blue += through * cover * ink[2];
         through *= 1 - cover;
         // What lay outside the edge was one point, with no edge below it.
         qx = op.x;
@@ -125,7 +134,8 @@ export const shadeAt = (
       const t = (qx - op.x) * nx + (qy - op.y) * ny;
       const reach = Math.abs(t) + op.falloff;
       const shear = ((op.shift * op.falloff) / (reach * reach)) * Math.sign(t);
-      const along = tineShift(op, qx, qy);
+      // `tineShift`, with the distance to the line already in hand.
+      const along = (op.shift * op.falloff) / reach;
       const na = ja + shear * op.ux * (nx * ja + ny * jc);
       const nb = jb + shear * op.ux * (nx * jb + ny * jd);
       jc += shear * op.uy * (nx * ja + ny * jc);
@@ -136,24 +146,17 @@ export const shadeAt = (
       qy -= op.uy * along;
     }
   }
-  const [r, g, b] = tones[0] ?? [0, 0, 0];
-  return [red + through * r, green + through * g, blue + through * b];
+  const water = tones[0] ?? NO_TONE;
+  out[0] = red + through * water[0];
+  out[1] = green + through * water[1];
+  out[2] = blue + through * water[2];
+  return out;
 };
 
-// A still frame spreads each pixel's samples evenly over a square 1.5 pixels
-// across, centred on the pixel: a little wider than the pixel, so a band's
-// edge is smooth rather than stair-stepped. The CPU takes a
-// 2 × 2 grid of them, at these offsets in pixels from the centre; the GPU's
-// fine frame takes 4 × 4 over the same square (webgl.ts: change both).
-const GRID = 2;
-const OFFSETS = Array.from(
-  { length: GRID },
-  (_, i) => ((i + 0.5) / GRID - 0.5) * 1.5,
-);
-const SAMPLES = GRID * GRID;
-
-// Fills a width × height RGBA buffer with the pattern, each pixel the average
-// of its samples' shades, each edge fading over `featherPx` pixels.
+// Fills a width × height RGBA buffer with the pattern, each edge fading over
+// `featherPx` pixels. Each pixel is shaded once, at its centre: the fade
+// already softens every edge, and the browser smooths the half-size canvas
+// `mountBasin` gives the CPU as it scales it up.
 export const paint = (
   pixels: Uint8ClampedArray,
   width: number,
@@ -163,25 +166,16 @@ export const paint = (
   featherPx: number,
 ): void => {
   const view = coverView(width, height);
+  const shade: Shade = [0, 0, 0];
   for (let row = 0; row < height; row++) {
+    const y = view.originY + (row + 0.5) * view.scale;
     for (let col = 0; col < width; col++) {
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      for (const dy of OFFSETS) {
-        const y = view.originY + (row + 0.5 + dy) * view.scale;
-        for (const dx of OFFSETS) {
-          const x = view.originX + (col + 0.5 + dx) * view.scale;
-          const [tr, tg, tb] = shadeAt(ops, x, y, tones, view.scale, featherPx);
-          r += tr;
-          g += tg;
-          b += tb;
-        }
-      }
+      const x = view.originX + (col + 0.5) * view.scale;
+      shadeAt(ops, x, y, tones, view.scale, featherPx, shade);
       const i = (row * width + col) * 4;
-      pixels[i] = r / SAMPLES;
-      pixels[i + 1] = g / SAMPLES;
-      pixels[i + 2] = b / SAMPLES;
+      pixels[i] = shade[0];
+      pixels[i + 1] = shade[1];
+      pixels[i + 2] = shade[2];
       pixels[i + 3] = 255;
     }
   }

@@ -406,7 +406,7 @@
         "fresh": "Highlight",
         "edge": "1px CanvasText"
       },
-      "renderers": "one shared WebGL2 context (16 samples still, 4 while settling, up to 1.5 device px); CPU fallback at half the box, never settles"
+      "renderers": "one shared WebGL2 context (16 samples still, 4 while settling, up to 1.5 device px); CPU fallback at half the box, one sample a pixel, never settles"
     }
   },
   "components": [

@@ -55,9 +55,9 @@ describe("paint", () => {
     expect(pixels.every((_, i) => i % 4 !== 3 || pixels[i] === 255)).toBe(true);
   });
 
-  it("averages a pixel's shaded samples, so the pixels inside a drop's edge fade into the water", () => {
+  it("shades each pixel once, at its centre, so a pixel inside a drop's edge fades into the water", () => {
     // The drop's right edge runs through the centre of pixel (28, 10); its
-    // fade reaches 1.75 px in, across pixels 27 and 26.
+    // fade reaches 1.75 px in, to the centre of pixel 27 but not of 26.
     const ops: ReadonlyArray<Operation> = [
       { kind: "drop", key: "a", x: 1.025, y: 0.525, radius: 0.4, tone: 1 },
     ];
@@ -66,28 +66,25 @@ describe("paint", () => {
       [100, 200, 40],
     ];
     const { at } = painted(ops, tones);
-    // paint's 2 × 2 samples, ±0.375 of a pixel from its centre.
-    const expected = (col: number) => {
-      const sum = [0, 0, 0];
-      for (const dy of [-0.375, 0.375]) {
-        for (const dx of [-0.375, 0.375]) {
-          const shade = shadeAt(
-            ops,
-            (col + 0.5 + dx) * 0.05,
-            (10.5 + dy) * 0.05,
-            tones,
-            0.05,
-            FEATHER_CSS_PX,
-          );
-          for (const i of [0, 1, 2]) sum[i] += shade[i];
-        }
-      }
-      return [...Uint8ClampedArray.from(sum.map((v) => v / 4)), 255];
-    };
+    const expected = (col: number) => [
+      ...Uint8ClampedArray.from(
+        shadeAt(
+          ops,
+          (col + 0.5) * 0.05,
+          10.5 * 0.05,
+          tones,
+          0.05,
+          FEATHER_CSS_PX,
+          [0, 0, 0],
+        ),
+      ),
+      255,
+    ];
     for (const col of [26, 27, 28]) expect(at(col, 10)).toEqual(expected(col));
     expect(at(27, 10)).not.toEqual([100, 200, 40, 255]);
-    expect(at(25, 10)).toEqual([100, 200, 40, 255]);
-    expect(at(29, 10)).toEqual([0, 0, 0, 255]);
+    expect(at(27, 10)).not.toEqual([0, 0, 0, 255]);
+    expect(at(26, 10)).toEqual([100, 200, 40, 255]);
+    expect(at(28, 10)).toEqual([0, 0, 0, 255]);
   });
 });
 
@@ -103,7 +100,7 @@ describe("shadeAt", () => {
   ];
   const HALF: Rgb = [100, 110, 120];
   const shade = (ops: ReadonlyArray<Operation>, x: number, y = 0.5) =>
-    shadeAt(ops, x, y, SHADES, SCALE, FADE);
+    shadeAt(ops, x, y, SHADES, SCALE, FADE, [0, 0, 0]);
   const within = (actual: Rgb, expected: Rgb, tolerance: number) => {
     for (const i of [0, 1, 2]) {
       expect(Math.abs(actual[i] - expected[i])).toBeLessThanOrEqual(tolerance);
@@ -115,6 +112,14 @@ describe("shadeAt", () => {
 
   it("shows a drop's own ink two pixels in from its edge", () => {
     expect(shade(lone, 1.25 - 2 * SCALE)).toEqual([150, 160, 170]);
+  });
+
+  it("writes its shade into the caller's array, so a frame needs only one", () => {
+    const out: [number, number, number] = [9, 9, 9];
+    expect(shadeAt(lone, 1.5, 0.5, SHADES, SCALE, FADE, out)).toBe(out);
+    expect(out).toEqual([50, 60, 70]);
+    shadeAt(lone, 1.25 - 2 * SCALE, 0.5, SHADES, SCALE, FADE, out);
+    expect(out).toEqual([150, 160, 170]);
   });
 
   it("shows the water at a lone drop's edge, and beyond it", () => {
@@ -237,15 +242,21 @@ describe("shadeAt", () => {
     const expected: Rgb = [0, 1, 2].map(
       (i) => SHADES[0][i] + cover * (SHADES[1][i] - SHADES[0][i]),
     ) as unknown as Rgb;
-    within(shadeAt(ops, p.x, p.y, SHADES, SCALE, fade), expected, 0.01);
+    within(
+      shadeAt(ops, p.x, p.y, SHADES, SCALE, fade, [0, 0, 0]),
+      expected,
+      0.01,
+    );
   });
 
   it("covers fully where the fade has no width", () => {
     // A basin with no width draws a canvas a pixel wide, with no fade.
-    expect(shadeAt(lone, 1.25 - 0.5 * SCALE, 0.5, SHADES, SCALE, 0)).toEqual([
+    expect(
+      shadeAt(lone, 1.25 - 0.5 * SCALE, 0.5, SHADES, SCALE, 0, [0, 0, 0]),
+    ).toEqual([150, 160, 170]);
+    expect(shadeAt(lone, 1.25, 0.5, SHADES, SCALE, 0, [0, 0, 0])).toEqual([
       150, 160, 170,
     ]);
-    expect(shadeAt(lone, 1.25, 0.5, SHADES, SCALE, 0)).toEqual([150, 160, 170]);
   });
 
   it("walks a tine as toneAt does, away from any drop's edge", () => {
@@ -267,7 +278,7 @@ describe("shadeAt", () => {
       [1.25, 0.85],
       [2, 0.3],
     ]) {
-      expect(shadeAt(ops, x, y, TONES, SCALE, FADE)).toEqual(
+      expect(shadeAt(ops, x, y, TONES, SCALE, FADE, [0, 0, 0])).toEqual(
         TONES[toneAt(ops, x, y)],
       );
     }
