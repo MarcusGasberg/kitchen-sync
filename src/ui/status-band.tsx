@@ -2,10 +2,13 @@ import { Band } from "./band";
 import { Button } from "./button";
 import type { SyncStatus } from "./sync-status";
 
+// What only the band says: the status line already counts what waits, but
+// not what closing the tab costs. The count stays, since a figure's pane
+// shows this band without the status line.
 const waitingSentence = (waiting: number) =>
   waiting === 0
     ? "Nothing is waiting."
-    : `${waiting} ${waiting === 1 ? "change waits" : "changes wait"} in this tab until it closes or reloads.`;
+    : `Closing or reloading this tab loses the ${waiting === 1 ? "change" : `${waiting} changes`} waiting in it.`;
 
 interface StatusBandProps {
   readonly status: SyncStatus;

@@ -143,13 +143,13 @@ describe("StatusBand", () => {
     expect(container.childElementCount).toBe(0);
   });
 
-  it("bands offline, with what waits in this tab", () => {
+  it("bands offline, with what closing this tab would lose", () => {
     render(<StatusBand status={{ kind: "offline", waiting: 3 }} />);
     const band = theBand();
     expect(band.dataset.pattern).toBe("solid");
     expect(band.hasAttribute("role")).toBe(false);
     expect(band.textContent).toBe(
-      "Offline. 3 changes wait in this tab until it closes or reloads.",
+      "Offline. Closing or reloading this tab loses the 3 changes waiting in it.",
     );
   });
 
@@ -181,7 +181,7 @@ describe("StatusBand", () => {
     expect(band.dataset.pattern).toBe("solid");
     expect(band.dataset.tone).toBe("seal");
     expect(band.textContent).toContain(
-      "Sync stopped. The push failed: HTTP 400. 1 change waits in this tab until it closes or reloads.",
+      "Sync stopped. The push failed: HTTP 400. Closing or reloading this tab loses the change waiting in it.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledOnce();
