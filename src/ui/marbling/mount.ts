@@ -246,15 +246,16 @@ export const mountBasin = (
 
   return {
     show: (next, options = {}) => {
-      if (shown && samePattern(ops, next)) return;
+      const settle = options.settle !== false;
+      // A scrub shows its instant at once, even when that instant is the
+      // pattern still settling in.
+      if (settle && shown && samePattern(ops, next)) return;
       shown = true;
       ops = next;
       settler.see(
         next,
         host.now(),
-        options.settle !== false &&
-          made?.settles === true &&
-          !(motion?.matches ?? false),
+        settle && made?.settles === true && !(motion?.matches ?? false),
       );
       redraw();
     },

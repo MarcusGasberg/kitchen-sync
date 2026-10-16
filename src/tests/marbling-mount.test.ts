@@ -209,6 +209,22 @@ describe("mountBasin", () => {
     expect(fake.waiting()).toBe(0);
   });
 
+  it("shows a pattern at once when asked not to settle, even one still settling in", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0);
+    // A scrub lands on the pattern already settling in.
+    basin.show([drop("a"), drop("b")], { settle: false });
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+    expect(fake.fine.at(-1)).toBe(true);
+    expect(fake.waiting()).toBe(0);
+  });
+
   it("skips the settle when motion is reduced", () => {
     const fake = fakeHost({ reduced: true });
     const basin = mountBasin(canvasOf(400, 160), fake.host);
