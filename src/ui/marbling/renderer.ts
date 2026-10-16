@@ -26,6 +26,10 @@ export interface Renderer {
 // of ending hard.
 export const FEATHER_CSS_PX = 1.75;
 
+// The most of a drop's own on-screen radius its fade may take, so a drop only
+// a few pixels across (as in the badge) keeps its ink at its core.
+export const FADE_SHARE = 0.35;
+
 // The colour the water shows at (x, y): `toneAt`'s walk, with each drop's
 // outer edge faded into what lay just outside it over `featherPx` canvas
 // pixels. `scale` is the world units to a canvas pixel. Composited front to
@@ -70,10 +74,16 @@ export const shadeAt = (
         // How fast the distance to the centre grows per canvas pixel,
         // |Jᵀ(d / m)|. At the centre, or below an edge collapsed to a point,
         // the sample is deep inside: fully covered.
+        // The fade is featherPx, or FADE_SHARE of the drop's radius in local
+        // on-screen pixels (r / rate) where that is less.
         const m = Math.sqrt(m2);
         const rate =
           m > 0 ? Math.hypot(ja * dx + jc * dy, jb * dx + jd * dy) / m : 0;
-        const depth = rate > 0 ? (op.radius - m) / (rate * featherPx) : 1;
+        const depth =
+          rate > 0
+            ? (op.radius - m) /
+              (rate * Math.min(featherPx, (FADE_SHARE * op.radius) / rate))
+            : 1;
         const cover = depth < 1 ? depth * depth * (3 - 2 * depth) : 1;
         const [r, g, b] = tones[op.tone] ?? [0, 0, 0];
         red += through * cover * r;

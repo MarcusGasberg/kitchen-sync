@@ -1,5 +1,5 @@
 import { coverView, type Operation } from "./operations";
-import { FEATHER_CSS_PX, type Renderer } from "./renderer";
+import { FADE_SHARE, FEATHER_CSS_PX, type Renderer } from "./renderer";
 
 // Two RGBA texels per operation, one row each: (kind, x, y, tone) and
 // (radius or shift, ux, uy, falloff). Kind 0 is a drop, 1 a tine.
@@ -25,14 +25,15 @@ void main() {
 // `shadeAt` in renderer.ts, per sample, step for step: the walk `toneAt` in
 // operations.ts takes, carrying its Jacobian J = dq/dp (a column-major mat2,
 // so each operation's derivative D updates it as D * J), with each drop's
-// edge faded over `feather` canvas pixels into what lay just outside it.
+// edge faded over `feather` canvas pixels (or FADE_SHARE of a small drop's
+// on-screen radius) into what lay just outside it.
 // Change all three together.
 // A still frame (`fine` 1) averages sixteen samples on a 4 × 4 grid over a
 // square 1.5 pixels across, as renderer.ts's `paint` does with four, so an
 // edge is smooth. A frame of a settle (`fine` 0) takes four on a rotated
 // grid inside the pixel, cheap enough to draw every frame.
-// Numbers from TypeScript reach the shader as uniforms, never spliced into
-// its source, where a whole number would read as an int and not compile.
+// A number from TypeScript reaches the shader as a uniform, or spliced in
+// with toFixed, so a whole number can never read as an int and not compile.
 const FRAGMENT = `#version 300 es
 precision highp float;
 precision highp int;
@@ -40,6 +41,7 @@ uniform highp sampler2D ops;
 uniform int count;
 uniform int fine;
 uniform float feather;
+const float FADE_SHARE = ${FADE_SHARE.toFixed(6)};
 uniform vec2 size;
 uniform vec3 view;
 uniform vec3 tones[6];
@@ -62,7 +64,9 @@ vec3 shadeAt(vec2 q) {
       if (m2 <= r2) {
         float m = sqrt(m2);
         float rate = m > 0.0 ? length(transpose(J) * d) / m : 0.0;
-        float depth = rate > 0.0 ? (b.x - m) / (rate * feather) : 1.0;
+        float depth = rate > 0.0
+          ? (b.x - m) / (rate * min(feather, FADE_SHARE * b.x / rate))
+          : 1.0;
         float cover = depth < 1.0 ? depth * depth * (3.0 - 2.0 * depth) : 1.0;
         shade += through * cover * tones[int(a.w + 0.5)];
         through *= 1.0 - cover;
