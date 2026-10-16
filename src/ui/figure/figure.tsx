@@ -3,6 +3,7 @@ import {
   Component,
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -74,6 +75,7 @@ function FigureBody({
   host = browserFigureHost,
 }: FigureProps) {
   const element = useRef<HTMLElement>(null);
+  const world = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const { player, view, error } = usePlayer(element, scene, {
     free,
@@ -104,12 +106,42 @@ function FigureBody({
   );
   const offered = breaks ?? offlineToggles(scene.world.clients);
 
+  // A hand-over the reader asked for takes away the control they pressed
+  // (Your turn) or disables it while the fork builds (a breaking control),
+  // and a browser can drop focus to the page with it. Once the world is in
+  // free play, focus that left the figure goes to the stage, which names the
+  // world, not to the top of the document.
+  const handingOver = useRef(false);
+  useEffect(() => {
+    if (!handingOver.current || view === null) return;
+    if (view.failure !== null) {
+      handingOver.current = false;
+      return;
+    }
+    if (view.busy || view.mode !== "free") return;
+    handingOver.current = false;
+    const figure = element.current;
+    const active = figure?.ownerDocument.activeElement ?? null;
+    if (
+      figure !== null &&
+      (active === null ||
+        active === figure.ownerDocument.body ||
+        !figure.contains(active))
+    ) {
+      world.current?.focus();
+    }
+  }, [view]);
+
   // A scene that cannot be played stops the figure through its boundary,
   // whose Restart builds it afresh.
   if (error !== null) throw new Error(error);
 
   const run = (effect: Effect.Effect<void> | undefined) => {
     if (effect !== undefined) Effect.runFork(effect);
+  };
+  const handOver = (effect: Effect.Effect<void>) => {
+    handingOver.current = true;
+    run(effect);
   };
 
   // A defect in a playing world stops the figure in place. This is the same
@@ -126,6 +158,18 @@ function FigureBody({
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (player === null || view === null) return;
     if (event.target instanceof Element && event.target.closest(CONTROLS)) {
+      return;
+    }
+    // A key with a modifier is the browser's or the reader's own (Alt+← is
+    // Back). A held key's repeats would each queue a step: at free play's
+    // live edge, a run of up to 35 s of the world apiece.
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.repeat
+    ) {
       return;
     }
     if (event.key === " ") {
@@ -180,6 +224,7 @@ function FigureBody({
 
       {/* biome-ignore lint/a11y/useSemanticElements: the stage is not a form group; the role names the world whose keys it takes */}
       <div
+        ref={world}
         className={styles.stage}
         role="group"
         aria-label={`${title}: the world`}
@@ -214,7 +259,7 @@ function FigureBody({
           <PaceControls
             view={view}
             onSpeed={(speed) => run(player.setSpeed(speed))}
-            onYourTurn={() => run(player.yourTurn)}
+            onYourTurn={() => handOver(player.yourTurn)}
           />
         )}
       </div>
@@ -226,7 +271,9 @@ function FigureBody({
             offline={snapshot.offline}
             disabled={view.busy}
             onBreak={(b) =>
-              run(player.act(breakAction(b, snapshot.offline.has(b.client))))
+              handOver(
+                player.act(breakAction(b, snapshot.offline.has(b.client))),
+              )
             }
           />
         )}

@@ -94,6 +94,86 @@ describe("Figure", () => {
     await screen.findByRole("button", { name: "Pause" });
   });
 
+  // Alt+← is the browser's Back, and Ctrl, Meta and Shift with an arrow or
+  // space are the browser's or the reader's own: the stage leaves them alone.
+  it("leaves keys with a modifier to the browser", async () => {
+    const host = fakeHost({ reduced: true });
+    render(<Figure scene={scene} title="Modified" host={host.host} />);
+    await shown(host);
+    const stage = screen.getByRole("group", { name: "Modified: the world" });
+    for (const [key, modifier] of [
+      ["ArrowLeft", "altKey"],
+      ["ArrowRight", "altKey"],
+      ["ArrowLeft", "ctrlKey"],
+      ["ArrowRight", "metaKey"],
+      [" ", "shiftKey"],
+    ] as const) {
+      // Not cancelled: the browser gets the key.
+      expect(fireEvent.keyDown(stage, { key, [modifier]: true })).toBe(true);
+    }
+    await act(async () => {});
+    expect(
+      screen.getByText("A adds milk; it waits in A's outbox."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  });
+
+  // Holding → would queue a step for every repeat: at free play's live edge,
+  // each one a run of up to 35 s of the world.
+  it("takes a held key once, not once per repeat", async () => {
+    const host = fakeHost({ reduced: true });
+    render(<Figure scene={scene} title="Held" host={host.host} />);
+    await shown(host);
+    const stage = screen.getByRole("group", { name: "Held: the world" });
+    fireEvent.keyDown(stage, { key: "ArrowRight", repeat: true });
+    await act(async () => {});
+    expect(
+      screen.getByText("A adds milk; it waits in A's outbox."),
+    ).toBeTruthy();
+  });
+
+  // Your turn goes once the world is handed over: focus that fell with it to
+  // the page goes to the stage, which names the world, not to the page's top.
+  it("moves focus to the stage when Your turn hands the world over", async () => {
+    const host = fakeHost({ reduced: true });
+    render(<Figure scene={scene} title="Handed" host={host.host} />);
+    await shown(host);
+    const yourTurn = screen.getByRole("button", { name: "Your turn" });
+    yourTurn.focus();
+    expect(document.activeElement).toBe(yourTurn);
+    fireEvent.click(yourTurn);
+    await screen.findByRole("textbox", { name: "Add to A's list" });
+    expect(document.activeElement).toBe(
+      screen.getByRole("group", { name: "Handed: the world" }),
+    );
+  });
+
+  // A breaking control waits, disabled, while the world is handed over. One
+  // that kept its focus keeps it; where focus fell to the page (a browser can
+  // blur a control it disables, and Safari never focuses a clicked button),
+  // the stage takes it.
+  it("keeps a breaking control's focus through the hand-over, or gives a lost one to the stage", async () => {
+    const host = fakeHost({ reduced: true });
+    render(<Figure scene={scene} title="Broken off" host={host.host} />);
+    await shown(host);
+    const offline = screen.getByRole("button", { name: "Take A offline" });
+    offline.focus();
+    fireEvent.click(offline);
+    await screen.findByRole("button", { name: "Bring A online" });
+    expect(document.activeElement).toBe(offline);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    await screen.findByRole("button", { name: "Your turn" });
+    // jsdom cannot blur a disabled control, so focus leaves it first.
+    offline.blur();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.click(screen.getByRole("button", { name: "Take A offline" }));
+    await screen.findByRole("button", { name: "Bring A online" });
+    expect(document.activeElement).toBe(
+      screen.getByRole("group", { name: "Broken off: the world" }),
+    );
+  });
+
   it("leaves keys on a control to that control", async () => {
     const host = fakeHost({ reduced: true });
     render(<Figure scene={scene} title="Controls" host={host.host} />);
