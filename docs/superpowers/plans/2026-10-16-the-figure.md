@@ -29,7 +29,7 @@
 - No new dependencies.
 - Effects from the player run with `Effect.runFork`, never during render.
 - Effect idioms come from the vendored `repos/effect/` (read-only, never imported).
-- Every task ends green on `npx tsc --noEmit`, `npx biome check .` and `npx vitest run --project unit`.
+- Every task ends green on `npx tsc --noEmit`, `npx biome check .` and `npx vitest run --project unit`. Run `npx biome check --write` on the task's own files first: it formats them, orders their imports and applies the safe fixes.
 - Commits are conventional and end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Decisions taken while planning
@@ -37,12 +37,13 @@
 Implementers follow these; reviewers check against them.
 
 - **Messages travel on a wire band** (the user chose it, 2026-10-16, over drops through air and a lane per device).
-  - A band 5rem tall separates the server's pane from the devices' row. Each device has one hairline wire, from the foot of the server's basin to the top of its pane.
-  - A message is a small dot with its mono label (`#3–#5`, `ack #5`, `pull v4`, `v7`, `poke v7`). Requests rise 6 px to one side of the wire and replies fall 6 px to the other, so two messages never sit on each other.
+  - A band 5rem tall separates the server's pane from the devices' row. Each device has one hairline wire, from the foot of the server's pane, below its basin, to the top of its pane. A wire starts at the pane's foot, not the basin's, because the server's list sits under the basin (narrow) or beside it (wide) and no wire may cross it; where it starts stays within the basin's width.
+  - A message is a small dot with its mono label (`#3–#5`, `ack #5`, `pull v4`, `v7`, `poke v7`). Requests rise 6 px to one side of the wire and replies fall 6 px to the other. Two messages on the same side can still meet (a push's ack and the poke it set off leave the server in one instant), so a message within 16 px (`STACK_PX`) of earlier ones on its side queues behind them, toward its sender. So two messages never sit on each other, except at the sender itself, where the queue stops.
+  - A message's place on its wire is the share of its latency gone. Distance is time on each wire, so on a longer wire a message moves more pixels a second. That is accepted: the spec's one fixed time scale holds per wire.
   - A push's dot is fresh ink (it carries changes); every other dot is `--text-2`.
   - A held message waits at its sender as a dashed ring, labelled "… · held". A lost one leaves "… · lost" where it was dropped, fading over 600 ms of virtual time (`lostAt`).
   - The overlay is `aria-hidden`: the lists and the captions carry every fact.
-- **The server's pane** shows its basin, with the newest five items' versions labelled where their drops sit (`v3` … `v7`, as the world's decision mock has them). Beside the basin on a desktop, and in a disclosure under it on a phone, is the server's list: a basin never replaces its list.
+- **The server's pane** shows its basin, with the newest five items' versions labelled where their drops sit (`v3` … `v7`, as the world's decision mock has them). Beside the basin from 64rem up, and in a disclosure under it below that (a phone, and a tablet too, where a list beside the basin does not fit), is the server's list: a basin never replaces its list. The server is a `Pane` like a device's, with the basin and the list as its children.
 - **A device's pane** carries:
   - its name;
   - its state line in mono: "connecting", "v9 · synced", "v7 · 2 behind", "v9 · 1 pending · 1 acked", or "v9 · offline · 2 waiting";
@@ -52,9 +53,9 @@ Implementers follow these; reviewers check against them.
   - its list.
 
   In free play the list takes checks and removals, and a one-field add sits under it ("Add to A's list").
-- **Basins settle only while the scene plays.** A scrub, a step, a restart or a fork shows its instant at once. The player says which happened (`jumped`, Task 1).
+- **Basins settle only while the scene plays.** A scrub, a step, a restart or a fork shows its instant at once, and so does Play at the scene's end, which starts over at the opening. The player says which happened (`jumped`, Task 1).
 - **Headings.** The figure's title is an `h2`. Panes are `h3`, so `Pane` gains a `level`. A pane's category heads are `h4`, so `GroceryList`'s `headingLevel` gains 4. The figure's title is light (300) at 2.75rem, which makes `--text-2xl` a role.
-- **Breaking controls are per figure.** A figure takes `breaks`: an offline toggle ("Take B offline" / "Bring B online") or a drop ("Drop A's next ack"). It defaults to an offline toggle per device. They sit apart below playback and use `Button kind="breaking"`. During a scene they hand the world over first (the player's `act`).
+- **Breaking controls are per figure.** A figure takes `breaks`: an offline toggle ("Take B offline" / "Bring B online") or a drop ("Drop A's next ack"). It defaults to an offline toggle per device. They sit apart below playback and use `Button kind="breaking"`. During a scene they hand the world over first (the player's `act`). Stopping the server is not among them: it is parked (below).
 - **Captions as live regions.**
   - In a scene the caption is a polite, atomic live region; beats change slowly, with dwells.
   - In free play it is not live, because the event stream would flood a screen reader. A reader steps or reads it instead.
@@ -66,15 +67,18 @@ Implementers follow these; reviewers check against them.
   - Play/Pause is the first focusable control (WCAG 2.2.2).
 - **When a world runs.**
   - The player is built when the figure first comes within a screen of the view (`rootMargin: 100%`); that is when the scene runs headless.
-  - It runs while at least half the figure is in view and the tab is shown.
+  - It runs while it is half in view and the tab is shown. Half in view is half the figure showing, or the figure filling half the screen: a figure taller than two screens, as on a phone, never shows half of itself.
   - On a phone (below 45rem) only the most visible figure runs.
   - Under reduced motion it never starts on its own.
-- **A stopped figure** says "This figure stopped." with the defect and Restart, on a quiet solid band, not the seal. This covers a render error (an error boundary) and a defect in the world (`view.failure`).
+- **A stopped figure** says "This figure stopped." with the defect and Restart, on a quiet solid band, not the seal. This covers a render error (an error boundary) and a defect in the world (`view.failure`). A defect in the world stops the figure in place, in the same `<figure>` element, which the host goes on observing, so the world runs again after Restart.
 - **Scenes want about 0.8 s of latency**, so a flight reads at 1×. The lab's scenes set `latency: "800 millis"`; Part 1's content will choose its own.
 - **From plan 1's final review:**
-  - The player's `close` is final but not enforced. `usePlayer` closes a player only on unmount, when its handlers have gone with it, so nothing calls `act` or `yourTurn` after `close`. Keep it that way.
+  - The player's `close` is final but not enforced. `usePlayer` closes a player only on unmount, when its handlers have gone with it, so nothing calls `act` or `yourTurn` after `close`. Keep it that way. Its build effect also closes and rebuilds when the scene or another build input changes; a figure's scene is a module-level constant, so that never happens, and `FigureProps` says so.
   - Two leftovers stay parked. Free play's history replays the stretch after its last event up to the live edge at 1×. And `startLive` has a tiny interrupt window that could drop a built world, which is idle and unclosed. Take either up only if the finish shows it.
-- **Parked, not in this plan:** the app's add-form refusal hint is not announced when focus is already on the field. That is an app concern, kept in the follow-ups memory. The prerendered first frame is plan 4. The code panel is plan 3.
+- **Parked, not in this plan:**
+  - The app's add-form refusal hint is not announced when focus is already on the field. That is an app concern, kept in the follow-ups memory.
+  - Stopping the server as a breaking control (the spec names it). The sandbox world has no input that stops its server, so it needs a world change first, for sub-project 4's scenes if Part 1 wants it.
+  - The prerendered first frame is plan 4. The code panel is plan 3.
 
 ## Review Focus
 
@@ -106,22 +110,23 @@ Implementers follow these; reviewers check against them.
 | `src/app/lab-scenes.ts`, `src/app/lab.tsx`, `lab.module.css`, `src/routes/lab.tsx` (create) | the development route with two figures |
 | `src/routeTree.gen.ts` (regenerated) | the `/lab` route |
 | `DESIGN.md`, `.impeccable/design.json` (modify) | the figure's components, from the build |
+| `src/tests/figure-helpers.tsx` (create) | a fake browser (`fakeHost`) for the hook's and the figure's tests (Task 8) |
 | tests in `src/tests/` | as each task names |
 
 Commands, from the worktree root:
 - one file: `npx vitest run --project unit src/tests/<file>`
 - the unit suite: `npx vitest run --project unit`
 - types: `npx tsc --noEmit`
-- lint and format: `npx biome check .` (fix formatting with `npx biome check --write <files>`)
+- lint and format: `npx biome check .`. Before it, run `npx biome check --write <files>` on the files the task touched: it formats them, orders their imports and applies the safe fixes (such as `useOptionalChain`).
 
-A component that renders a `Basin` under jsdom logs a canvas error (jsdom has no canvas). Silence it in that test as `basin.test.tsx` does: `vi.spyOn(console, "error").mockImplementation(() => {})`.
+The repo has no jest-dom: tests assert as the existing ones do (`getBy…` alone or `.toBeTruthy()`, `getAttribute(…)` with `.toBe`, `.disabled`, `.value`, `textContent` with `.toContain`). A test spies on `console.error` only where React itself logs, and restores the spy with `mockRestore` in that test.
 
 ---
 
 ### Task 1: What the figure needs from the player
 
 Three small additions in `src/lib/sandbox/`:
-- **`PlayerView.jumped`:** whether the playhead's last move was a jump (a scrub, a step, a restart or a fork) rather than play. A figure shows a jump's instant at once.
+- **`PlayerView.jumped`:** whether the playhead's last move was a jump (a scrub, a step, a restart, a fork, or Play at the scene's end going back to the opening) rather than play. A figure shows a jump's instant at once.
 - **`PlayerView.clientIds`:** each device's client id, for its mark.
 - **`lostAt`:** the messages lost on the wire a moment ago, so a figure can mark where.
 
@@ -176,6 +181,17 @@ In `src/tests/sandbox-player.test.ts`, inside `describe("makePlayer", …)` (the
       yield* player.act(addOn("A", "Eggs"));
       expect(player.view().jumped).toBe(false);
       yield* player.restart;
+      expect(player.view().jumped).toBe(true);
+      // Play at the end starts over at the opening: a jump, though it plays.
+      yield* player.play;
+      yield* player.scrub(player.view().end);
+      yield* player.tick(MAX_FRAME_MILLIS);
+      expect(player.view()).toMatchObject({
+        ended: true,
+        playing: false,
+        jumped: false,
+      });
+      yield* player.play;
       expect(player.view().jumped).toBe(true);
       yield* player.close;
     }),
@@ -244,9 +260,10 @@ In `src/lib/sandbox/player.ts`:
 2. Add to `PlayerView`:
 
    ```ts
-     // Whether the playhead's last move was a jump (a scrub, a step, a restart
-     // or a fork) rather than play: a figure shows that instant at once
-     // instead of settling into it.
+     // Whether the playhead's last move was a jump (a scrub, a step, a
+     // restart, a fork, or Play at the end going back to the opening) rather
+     // than play: a figure shows that instant at once instead of settling
+     // into it.
      readonly jumped: boolean;
      // Each device's client id, for its mark. A fork keeps the scene's.
      readonly clientIds: ReadonlyMap<ClientName, string>;
@@ -259,7 +276,25 @@ In `src/lib/sandbox/player.ts`:
    - in `toOpening`;
    - in `next` and `previous`, before their `publish()`;
    - in `scrub`, before its `publish()`;
-   - in `restart`, after `toOpening()`.
+   - in `play`, where a cursor at the scene's end goes back to the opening. Replace the `if (live === null) { … }` block in `play` with:
+
+     ```ts
+               if (live === null) {
+                 // From the end the opening's caption is new to the reader, so
+                 // it keeps its dwell, and the playhead jumps there: the
+                 // figure shows the opening at once instead of settling
+                 // backwards into it. Otherwise they had this caption in
+                 // front of them.
+                 if (atEnd(segments, cursor)) {
+                   cursor = cursorAt(segments, opening);
+                   jumped = true;
+                 } else {
+                   cursor = pastDwell(segments, cursor);
+                 }
+               }
+     ```
+
+   (`restart` needs no line of its own: it calls `toOpening()`, which sets it.)
 6. Set `jumped = false;`:
    - in `tick`, right after its first guard line (`if (!playing || …) return;`), since a frame that runs moves the playhead by play;
    - in `act`, after the action has run (beside `now = yield* session.now;`), since a reader's change settles in.
@@ -353,10 +388,14 @@ In `src/tests/marbling-mount.test.ts`, inside `describe("mountBasin", …)`:
   });
 ```
 
-In `src/tests/marbling-pattern.test.ts`, import `landmarksOf` from `#/ui/marbling/pattern` and `forward` from `#/ui/marbling/operations`, and add:
+In `src/tests/marbling-pattern.test.ts`, add `landmarksOf` to its `#/ui/marbling/pattern` import and `forward` to its `#/ui/marbling/operations` import, and add (`item(n, version)` is the file's own fixture):
 
 ```ts
 describe("landmarksOf", () => {
+  // Eggs changed last, so its drops land after milk's and push them.
+  const milk = item(1, 1);
+  const eggs = item(2, 2);
+
   it("finds a lone item at its drops' centre", () => {
     const ops = patternOf({ items: [milk] });
     const core = ops.find((op) => op.key === `${milk.id}:core`);
@@ -386,13 +425,10 @@ describe("landmarksOf", () => {
 });
 ```
 
-(`milk` and `eggs` are the test file's existing fixtures; if it names them differently, use two of its items with distinct versions.)
-
-In `src/tests/basin.test.tsx`, add:
+In `src/tests/basin.test.tsx`, inside `describe("Basin", …)` (`milk` and `eggs` are the file's own fixtures), add:
 
 ```ts
   it("labels an item where its drops sit, hidden from the accessibility tree with the rest of the picture", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     render(
       <Basin
         items={[milk, eggs]}
@@ -403,7 +439,9 @@ In `src/tests/basin.test.tsx`, add:
     const label = screen.getByText("v1");
     expect(label.style.left).toMatch(/%$/);
     expect(label.style.top).toMatch(/%$/);
-    expect(screen.getByRole("img", { name: /The server's list/ })).toContainElement(label);
+    expect(
+      screen.getByRole("img", { name: /The server's list/ }).contains(label),
+    ).toBe(true);
   });
 ```
 
@@ -572,7 +610,7 @@ Heading levels for panes and their lists. The caption's live setting. The scrub 
 **Files:**
 - Modify: `src/ui/pane.tsx`, `src/ui/grocery-list.tsx`, `src/ui/caption.tsx`, `src/ui/scrub-bar.tsx`
 - Create: `src/ui/quick-add.tsx`, `src/ui/quick-add.module.css`
-- Test: `src/tests/primitives.test.tsx` (or the existing test file for each component; check with `grep -ln "ScrubBar\|Caption\|Pane" src/tests`), `src/tests/grocery-list.test.tsx`, `src/tests/quick-add.test.tsx` (create)
+- Test: `src/tests/primitives.test.tsx` (Pane), `src/tests/series-controls.test.tsx` (Caption and ScrubBar, including the existing ScrubBar test's value text), `src/tests/grocery-list.test.tsx`, `src/tests/quick-add.test.tsx` (create)
 
 **Interfaces:**
 - Produces:
@@ -580,49 +618,66 @@ Heading levels for panes and their lists. The caption's live setting. The scrub 
   - `GroceryList` `headingLevel?: 2 | 3 | 4`
   - `Caption` prop `live?: "polite" | "off"` (default "polite"), always `aria-atomic="true"`
   - `ScrubBar`: `aria-valuetext` to two decimals; unique tick keys; prop `disabled?: boolean`
-  - `QuickAdd({ label, onAdd })`, where `label` is the field's accessible name ("Add to A's list") and `onAdd(name: string)` receives the trimmed name
+  - `QuickAdd({ label, onAdd })`, where `label` is the field's accessible name ("Add to A's list") and `onAdd(name: string)` receives the trimmed name. A refused name moves the cursor to the field, with its hint already in place.
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to the file that tests these components (put each where it fits):
+In `src/tests/primitives.test.tsx`, inside `describe("Pane", …)`:
 
 ```tsx
-it("names a pane at the level it sits under", () => {
-  render(
-    <Pane title="A" level={3}>
-      <p>list</p>
-    </Pane>,
-  );
-  expect(screen.getByRole("heading", { level: 3, name: "A" })).toBeInTheDocument();
-});
+  it("names a pane at the level it sits under", () => {
+    render(
+      <Pane title="A" level={3}>
+        <p>list</p>
+      </Pane>,
+    );
+    expect(
+      screen.getByRole("heading", { level: 3, name: "A" }).tagName,
+    ).toBe("H3");
+  });
+```
 
-it("lets a caption keep quiet while free play streams events", () => {
-  const { rerender } = render(<Caption>One</Caption>);
-  const caption = screen.getByText("One");
-  expect(caption).toHaveAttribute("aria-live", "polite");
-  expect(caption).toHaveAttribute("aria-atomic", "true");
-  rerender(<Caption live="off">One</Caption>);
-  expect(caption).toHaveAttribute("aria-live", "off");
-});
+In `src/tests/series-controls.test.tsx`, inside `describe("Caption", …)`:
 
-it("reads the scrub's time to the step it moves by, and keys a tick by its place", () => {
-  const error = vi.spyOn(console, "error").mockImplementation(() => {});
-  render(
-    <ScrubBar
-      label="Time"
-      value={1250}
-      max={5000}
-      beats={[0, 1200, 1200]}
-      onScrub={() => {}}
-    />,
-  );
-  expect(screen.getByRole("slider", { name: "Time" })).toHaveAttribute(
-    "aria-valuetext",
-    "1.25 s",
-  );
-  // Two beats starting at one instant: no duplicate-key warning.
-  expect(error).not.toHaveBeenCalled();
-});
+```tsx
+  it("lets a caption keep quiet while free play streams events", () => {
+    const { rerender } = render(<Caption>One</Caption>);
+    const caption = screen.getByText("One");
+    expect(caption.getAttribute("aria-live")).toBe("polite");
+    expect(caption.getAttribute("aria-atomic")).toBe("true");
+    rerender(<Caption live="off">One</Caption>);
+    expect(caption.getAttribute("aria-live")).toBe("off");
+  });
+```
+
+and inside `describe("ScrubBar", …)`:
+
+```tsx
+  it("reads the scrub's time to the step it moves by, and keys a tick by its place", () => {
+    // React logs a duplicate key with console.error.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <ScrubBar
+        label="Time"
+        value={1250}
+        max={5000}
+        beats={[0, 1200, 1200]}
+        onScrub={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("slider", { name: "Time" }).getAttribute("aria-valuetext"),
+    ).toBe("1.25 s");
+    // Two beats starting at one instant: no duplicate-key warning.
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+```
+
+In the same file, the existing ScrubBar test ("scrubs in 50 ms quanta and ticks each beat") reads its value text to two decimals now: change its `expect(range.getAttribute("aria-valuetext")).toBe("1.5 s");` to
+
+```tsx
+    expect(range.getAttribute("aria-valuetext")).toBe("1.50 s");
 ```
 
 In `src/tests/grocery-list.test.tsx`, add a test that `headingLevel={4}` renders the category heads as `h4`. Use an existing fixture with a category; `screen.getByRole("heading", { level: 4, name: /produce/i })`, or whichever category the fixture has.
@@ -634,6 +689,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QuickAdd } from "#/ui/quick-add";
 
+// The text of what a field's aria-describedby points at.
+const descriptionOf = (element: HTMLElement) =>
+  document.getElementById(element.getAttribute("aria-describedby") ?? "")
+    ?.textContent;
+
 describe("QuickAdd", () => {
   it("adds the trimmed name and clears the field", () => {
     const onAdd = vi.fn();
@@ -642,7 +702,7 @@ describe("QuickAdd", () => {
     fireEvent.change(field, { target: { value: "  Oat milk " } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(onAdd).toHaveBeenCalledWith("Oat milk");
-    expect(field).toHaveValue("");
+    expect((field as HTMLInputElement).value).toBe("");
   });
 
   it("refuses an empty name, or one over 50 characters, and says why", () => {
@@ -651,14 +711,24 @@ describe("QuickAdd", () => {
     const field = screen.getByRole("textbox", { name: "Add to A's list" });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(onAdd).not.toHaveBeenCalled();
-    expect(field).toHaveAttribute("aria-invalid", "true");
-    expect(field).toHaveAccessibleDescription("Name the item first.");
+    expect(field.getAttribute("aria-invalid")).toBe("true");
+    expect(descriptionOf(field)).toBe("Name the item first.");
 
     fireEvent.change(field, { target: { value: "x".repeat(51) } });
-    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(field.getAttribute("aria-invalid")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(onAdd).not.toHaveBeenCalled();
-    expect(field).toHaveAccessibleDescription("Keep the name to 50 characters.");
+    expect(descriptionOf(field)).toBe("Keep the name to 50 characters.");
+  });
+
+  it("moves the cursor to the field it refused, so its hint is read out", () => {
+    render(<QuickAdd label="Add to A's list" onAdd={vi.fn()} />);
+    const add = screen.getByRole("button", { name: "Add" });
+    add.focus();
+    fireEvent.click(add);
+    expect(document.activeElement).toBe(
+      screen.getByRole("textbox", { name: "Add to A's list" }),
+    );
   });
 });
 ```
@@ -666,7 +736,7 @@ describe("QuickAdd", () => {
 - [ ] **Step 2: Run them to see them fail**
 
 Run each test file you touched.
-Expected: FAIL. There is no `level`, no `live`, the value text is "1.3 s", React warns about duplicate keys, there is no `h4`, and `QuickAdd` does not exist.
+Expected: FAIL. There is no `level`, no `live`, the value text is "1.3 s" (and "1.5 s" where the existing test now wants "1.50 s"), React warns about duplicate keys, there is no `h4`, and `QuickAdd` does not exist.
 
 - [ ] **Step 3: Pane and list heading levels**
 
@@ -715,7 +785,8 @@ In `src/ui/scrub-bar.tsx`:
 Create `src/ui/quick-add.tsx`:
 
 ```tsx
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Button } from "./button";
 import styles from "./quick-add.module.css";
 
@@ -729,21 +800,30 @@ interface QuickAddProps {
 const MAX_NAME = 50;
 
 // A one-field add for a device in a figure: the item's name and Add. The
-// binder mints the id and the time from its world.
+// binder mints the id and the time from its world. A name it would refuse is
+// never sent: the cursor goes to the field, and a hint says why.
 export function QuickAdd({ label, onAdd }: QuickAddProps) {
   const [name, setName] = useState("");
   const [hint, setHint] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
   const hintId = useId();
+
+  // The hint is in place before the cursor lands, so the field is read out
+  // with it, as the app's add form does.
+  const refuse = (why: string) => {
+    flushSync(() => setHint(why));
+    field.current?.focus();
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (trimmed.length === 0) {
-      setHint("Name the item first.");
+      refuse("Name the item first.");
       return;
     }
     if (trimmed.length > MAX_NAME) {
-      setHint("Keep the name to 50 characters.");
+      refuse("Keep the name to 50 characters.");
       return;
     }
     onAdd(trimmed);
@@ -754,6 +834,7 @@ export function QuickAdd({ label, onAdd }: QuickAddProps) {
   return (
     <form className={styles.form} noValidate onSubmit={submit}>
       <input
+        ref={field}
         className={styles.field}
         aria-label={label}
         placeholder="Add an item"
@@ -845,8 +926,8 @@ What a figure draws of one instant: each device's items, outbox ink, list, statu
 **Interfaces:**
 - Consumes: `WorldSnapshot`, `ClientName` (`#/lib/sandbox/trace`); `StoreState` (`#/lib/store`); `listView`, `ListView` (`#/ui/list-view`); `waitingOf` (`#/ui/marbling/pattern`); `syncStatus`, `SyncStatus` (`#/ui/sync-status`).
 - Produces:
-  - `interface DeviceView { name; clientId: string | undefined; offline: boolean; items: ReadonlyArray<GroceryItem>; waiting: ReadonlyMap<string, number>; list: ListView; status: SyncStatus; line: string }`
-  - `interface ServerPaneView { version: number; items; list: ListView; line: string; labels: ReadonlyMap<string, string> }`
+  - `interface DeviceView { name; clientId: string | undefined; items: ReadonlyArray<GroceryItem>; waiting: ReadonlyMap<string, number>; list: ListView; status: SyncStatus; line: string }` (whether it is offline is in its `status` and `line`; the breaking controls read `snapshot.offline`)
+  - `interface ServerPaneView { items; list: ListView; line: string; labels: ReadonlyMap<string, string> }` (its version is in its `line`)
   - `interface StageView { server: ServerPaneView; devices: ReadonlyArray<DeviceView> }`
   - `LABELLED = 5`
   - `deviceLine(state: StoreState, status: SyncStatus, serverVersion: number): string`
@@ -915,7 +996,6 @@ describe("makeStageView", () => {
       expect(a2?.items).toBe(a1?.items);
       expect(a2?.list).toBe(a1?.list);
       expect(b2?.items).not.toBe(b1?.items);
-      expect(b2?.offline).toBe(true);
       expect(b2?.line).toBe("v6 · offline · 1 waiting");
       expect(b2?.waiting.size).toBe(1);
       // The server did not change either.
@@ -950,7 +1030,6 @@ import { type SyncStatus, syncStatus } from "#/ui/sync-status";
 export interface DeviceView {
   readonly name: ClientName;
   readonly clientId: string | undefined;
-  readonly offline: boolean;
   readonly items: ReadonlyArray<GroceryItem>;
   // From `waitingOf(outbox)`: what the device's basin draws in fresh ink.
   readonly waiting: ReadonlyMap<string, number>;
@@ -961,7 +1040,6 @@ export interface DeviceView {
 }
 
 export interface ServerPaneView {
-  readonly version: number;
   readonly items: ReadonlyArray<GroceryItem>;
   readonly list: ListView;
   // As "v7 · 5 items".
@@ -1015,7 +1093,6 @@ const serverPane = (
   version: number,
   items: ReadonlyArray<GroceryItem>,
 ): ServerPaneView => ({
-  version,
   items,
   list: listView({
     items: new Map(items.map((item) => [item.id, item])),
@@ -1072,12 +1149,12 @@ export const makeStageView = () => {
     return {
       server: server.view,
       devices: [...snapshot.clients].map(([name, state]) => {
-        const offline = snapshot.offline.has(name);
-        const status = syncStatus(state, { offline });
+        const status = syncStatus(state, {
+          offline: snapshot.offline.has(name),
+        });
         return {
           name,
           clientId: clientIds.get(name),
-          offline,
           ...partsOf(state),
           status,
           line: deviceLine(state, status, serverVersion),
@@ -1117,13 +1194,14 @@ Where a message sits on its device's wire, and the SVG that draws the wires, the
 - Consumes:
   - `Flight`, `Lost`, `senderOf`, `LOST_MARK_MILLIS` from `#/lib/sandbox/frame`. `Lost` and `LOST_MARK_MILLIS` come from Task 1.
   - `Message`, `ClientName` from `#/lib/sandbox/trace`.
+  - `type Point` from `#/ui/marbling/operations` (the marbling's own `{ x, y }`).
 - Produces:
-  - `interface Point { x: number; y: number }`.
-  - `interface Wire { client: ClientName; server: Point; device: Point }`: the foot of the server's basin, and the top of the device's pane, in the stage's pixels.
+  - `interface Wire { client: ClientName; server: Point; device: Point }`: the foot of the server's pane, below its basin, and the top of the device's pane, in the stage's pixels.
   - `LANE_PX = 6`.
+  - `STACK_PX = 16`: a message within this distance of earlier ones on its side of the same wire queues behind them, toward its sender.
   - `interface Placed { key: string; message: Message; x: number; y: number; side: "start" | "end"; held: boolean; age: number | null }`.
   - `placeMessage(wire, message, progress, age?)`.
-  - `placeFlights(wires, flights)`.
+  - `placeFlights(wires, flights)`, which queues messages that would sit on each other.
   - `placeLost(wires, lost)`.
   - `WireBand({ width, height, wires, flights, lost })`.
 
@@ -1141,6 +1219,7 @@ import {
   placeFlights,
   placeLost,
   placeMessage,
+  STACK_PX,
   type Wire,
 } from "#/ui/figure/wires";
 
@@ -1201,6 +1280,22 @@ describe("placing a frame", () => {
     ]);
     expect(lost[0]).toMatchObject({ y: 40, age: 150 });
   });
+
+  it("queues a reply that would sit on another, back toward the server", () => {
+    // A push's ack and the poke it set off leave the server in one instant.
+    const ack = message({ id: 10, kind: "ack", label: "ack #5" });
+    const poke = message({ id: 11, kind: "poke", label: "poke v7" });
+    const [first, second] = placeFlights(
+      [wire],
+      [
+        { message: ack, progress: 0.5 },
+        { message: poke, progress: 0.5 },
+      ],
+    );
+    expect(first).toMatchObject({ x: 100 + LANE_PX, y: 40 });
+    expect(second?.x).toBe(100 + LANE_PX);
+    expect((first?.y ?? 0) - (second?.y ?? 0)).toBeCloseTo(STACK_PX);
+  });
 });
 
 describe("WireBand", () => {
@@ -1217,7 +1312,7 @@ describe("WireBand", () => {
       />,
     );
     const svg = container.querySelector("svg");
-    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
     expect(container.querySelectorAll("line")).toHaveLength(1);
     expect(svg?.textContent).toContain("#3–#5");
     expect(svg?.textContent).toContain("ack #2 · lost");
@@ -1237,17 +1332,13 @@ Create `src/ui/figure/wires.ts`:
 ```ts
 import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
 import type { ClientName, Message } from "#/lib/sandbox/trace";
+import type { Point } from "#/ui/marbling/operations";
 
 // Where the messages of one instant sit on the wires between the server and
 // its devices. Pure: the stage measures the wires; this only places.
 
-export interface Point {
-  readonly x: number;
-  readonly y: number;
-}
-
 // One device's wire, in the stage's pixels: from the foot of the server's
-// basin to the top of the device's pane.
+// pane, below its basin, to the top of the device's pane.
 export interface Wire {
   readonly client: ClientName;
   readonly server: Point;
@@ -1257,6 +1348,12 @@ export interface Wire {
 // Requests rise this far to one side of a wire and replies fall as far to the
 // other, so a push and the pull response passing it never sit on each other.
 export const LANE_PX = 6;
+
+// Two messages on one side of one wire can still meet: an ack and the poke
+// its push set off leave the server in the same instant for the same device.
+// A message within this distance of earlier ones queues behind them, toward
+// its sender: the n-th moves back n × STACK_PX, no further than the sender.
+export const STACK_PX = 16;
 
 export interface Placed {
   readonly key: string;
@@ -1305,14 +1402,32 @@ export const placeMessage = (
 const byClient = (wires: ReadonlyArray<Wire>) =>
   new Map(wires.map((wire) => [wire.client, wire] as const));
 
+const lengthOf = (wire: Wire) =>
+  Math.hypot(wire.device.x - wire.server.x, wire.device.y - wire.server.y);
+
 export const placeFlights = (
   wires: ReadonlyArray<Wire>,
   flights: ReadonlyArray<Flight>,
 ): ReadonlyArray<Placed> => {
   const wireOf = byClient(wires);
+  // How far from its sender each message placed so far sits, in pixels, by
+  // wire and side.
+  const placed = new Map<string, Array<number>>();
   return flights.flatMap(({ message, progress }) => {
     const wire = wireOf.get(message.client);
-    return wire === undefined ? [] : [placeMessage(wire, message, progress)];
+    if (wire === undefined) return [];
+    const length = lengthOf(wire);
+    const along = progress * length;
+    const lane = `${wire.client}:${senderOf(message.kind)}`;
+    const earlier = placed.get(lane) ?? [];
+    const ahead = earlier.filter(
+      (other) => Math.abs(other - along) < STACK_PX,
+    ).length;
+    placed.set(lane, [...earlier, along]);
+    const queued = Math.max(0, along - ahead * STACK_PX);
+    return [
+      placeMessage(wire, message, length === 0 ? progress : queued / length),
+    ];
   });
 };
 
@@ -1526,7 +1641,8 @@ The server's pane across the top, the wire band, then the devices: a row on a wi
   - `onIntent(client, intent: ListIntent)`.
   - `onAdd(client, name)`.
   - `onRetry(client)`.
-  - Each device's wrapper carries `data-anchor="device"` and `data-client`. The server's basin's wrapper carries `data-anchor="server"`.
+  - Each device's wrapper carries `data-anchor="device"` and `data-client`. The server's pane's wrapper carries `data-anchor="server"` (a wire's y, the pane's foot), and its basin's wrapper `data-anchor="server-basin"` (the span a wire's x keeps to).
+  - The server is a `Pane level={3} title="Server"` with its line as `status`, and its basin and list as children.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1535,7 +1651,7 @@ Create `src/tests/figure-stage.test.tsx`:
 ```tsx
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { World } from "#/lib/sandbox/world";
 import { Stage } from "#/ui/figure/stage";
 import { makeStageView } from "#/ui/figure/stage-view";
@@ -1558,10 +1674,6 @@ const snapshot = () =>
 const noop = () => {};
 
 describe("Stage", () => {
-  beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
   it("shows the server and every device, read-only during a scene", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     render(
@@ -1576,13 +1688,20 @@ describe("Stage", () => {
         onRetry={noop}
       />,
     );
-    expect(screen.getByRole("heading", { level: 3, name: "Server" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Server" }),
+    ).toBeTruthy();
+    // The server is a pane like a device's, with its line and its basin.
+    const server = screen.getByRole("region", { name: "Server" });
+    expect(within(server).getByText("v1 · 1 item")).toBeTruthy();
+    expect(
+      within(server).getByRole("img", { name: /The server's list/ }),
+    ).toBeTruthy();
     const a = screen.getByRole("region", { name: "A" });
-    expect(within(a).getByText("v1 · synced")).toBeInTheDocument();
-    expect(within(a).getByText(/Milk/)).toBeInTheDocument();
+    expect(within(a).getByText("v1 · synced")).toBeTruthy();
+    expect(within(a).getByText(/Milk/)).toBeTruthy();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.getByRole("img", { name: /The server's list/ })).toBeInTheDocument();
   });
 
   it("takes a reader's changes in free play, naming the device", async () => {
@@ -1631,7 +1750,6 @@ Create `src/ui/figure/stage.tsx`:
 import {
   type RefObject,
   useEffect,
-  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -1669,18 +1787,28 @@ interface Layout {
 
 const EMPTY: Layout = { width: 0, height: 0, wires: [] };
 
-// How far in from the server basin's corners a wire may meet it.
+// How far in from the server basin's corners a wire may start.
 const CORNER_PX = 24;
 
-// Each device's wire, from the foot of the server's basin straight down to the
-// top of its pane where the two overlap, or slanting in from the nearest point
-// the basin allows: a phone's strip scrolls devices out from under it.
+// Each device's wire, from the foot of the server's pane (the band's top)
+// straight down to the top of its pane where the two overlap, or slanting in
+// from the nearest point under the server's basin: a phone's strip scrolls
+// devices out from under it. The foot of the pane, not of the basin: the
+// server's list sits under the basin (narrow) or beside it (wide), and no
+// wire crosses it.
 const measure = (stage: HTMLElement): Layout => {
   const box = stage.getBoundingClientRect();
-  const server = stage
+  const pane = stage
     .querySelector("[data-anchor='server']")
     ?.getBoundingClientRect();
-  if (server === undefined) return { ...EMPTY, width: box.width, height: box.height };
+  const basin = stage
+    .querySelector("[data-anchor='server-basin']")
+    ?.getBoundingClientRect();
+  if (pane === undefined || basin === undefined) {
+    return { ...EMPTY, width: box.width, height: box.height };
+  }
+  const left = basin.left - box.left + CORNER_PX;
+  const right = basin.right - box.left - CORNER_PX;
   const wires: Array<Wire> = [];
   for (const device of stage.querySelectorAll<HTMLElement>(
     "[data-anchor='device']",
@@ -1689,13 +1817,11 @@ const measure = (stage: HTMLElement): Layout => {
     if (client === undefined) continue;
     const rect = device.getBoundingClientRect();
     const x = rect.left + rect.width / 2 - box.left;
-    const left = server.left - box.left + CORNER_PX;
-    const right = server.right - box.left - CORNER_PX;
     wires.push({
       client,
       server: {
         x: Math.min(Math.max(x, left), Math.max(left, right)),
-        y: server.bottom - box.top,
+        y: pane.bottom - box.top,
       },
       device: { x, y: rect.top - box.top },
     });
@@ -1755,7 +1881,8 @@ const useWires = (
   return layout;
 };
 
-// Wide enough for the server's list beside its basin.
+// Wide enough for the server's list beside its basin. Below it (a phone, and
+// a tablet too) the list is a disclosure under the basin.
 const WIDE = "(min-width: 64rem)";
 
 const subscribeWide = (onChange: () => void) => {
@@ -1787,7 +1914,6 @@ export function Stage({
   const strip = useRef<HTMLDivElement>(null);
   const layout = useWires(stage, strip);
   const wide = useWide();
-  const serverName = useId();
   const { server } = view;
   const serverList = (
     <GroceryList groups={server.list.groups} rejected={[]} headingLevel={4} />
@@ -1795,32 +1921,30 @@ export function Stage({
 
   return (
     <div ref={stage} className={styles.stage}>
-      <section className={styles.server} aria-labelledby={serverName}>
-        <header className={styles.header}>
-          <h3 id={serverName} className={styles.name}>
-            Server
-          </h3>
-          <span className={styles.line}>{server.line}</span>
-        </header>
-        <div className={styles.serverBody}>
-          <div data-anchor="server">
-            <Basin
-              items={server.items}
-              labels={server.labels}
-              label="The server's list"
-              settle={settle}
-            />
+      {/* The server is a pane like a device's, its list beside or under its
+          basin. Its foot is where the wires start. */}
+      <div className={styles.server} data-anchor="server">
+        <Pane level={3} title="Server" status={server.line}>
+          <div className={styles.serverBody}>
+            <div data-anchor="server-basin">
+              <Basin
+                items={server.items}
+                labels={server.labels}
+                label="The server's list"
+                settle={settle}
+              />
+            </div>
+            {wide ? (
+              <div className={styles.serverList}>{serverList}</div>
+            ) : (
+              <details className={styles.serverList}>
+                <summary className={styles.summary}>The server's list</summary>
+                {serverList}
+              </details>
+            )}
           </div>
-          {wide ? (
-            <div className={styles.serverList}>{serverList}</div>
-          ) : (
-            <details className={styles.serverList}>
-              <summary className={styles.summary}>The server's list</summary>
-              {serverList}
-            </details>
-          )}
-        </div>
-      </section>
+        </Pane>
+      </div>
 
       <div ref={strip} className={styles.devices}>
         {view.devices.map((device) => (
@@ -1893,31 +2017,13 @@ Create `src/ui/figure/stage.module.css`:
   min-width: 0;
 }
 
+/* The server's pane, measured for where the wires start. Its header is
+   Pane's own. */
 .server {
-  display: grid;
-  gap: var(--space-3);
   min-width: 0;
 }
 
-/* As a pane's header: the device's name in Label Large, its line in mono. */
-.header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-
-.name {
-  margin-right: auto;
-  font: 500 var(--text-sm) / 1.2 var(--font-text);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-}
-
-.line {
-  color: var(--text-2);
-  font: 400 var(--text-xs) / 1.2 var(--font-mono);
-}
-
+/* The basin, then its list: beside it on a wide screen, under it below. */
 .serverBody {
   display: grid;
   gap: var(--space-4);
@@ -2010,7 +2116,7 @@ What a reader does to a world (add, check, remove, retry, break), as actions the
   - `breakLabel(b, offline)`, `breakAction(b, offline)` and `offlineToggles(clients)`.
   - `whereIs(view): string`.
   - `PlayerControls({ view, onPlay, onPause, onPrevious, onNext, onRestart, onScrub, onSpeed, onYourTurn })`. `onScrub` takes an absolute instant.
-  - `BreakingControls({ breaks, offline, disabled, onBreak })`.
+  - `BreakingControls({ breaks, offline, disabled, onBreak })`: a `<fieldset>` named by a visually hidden legend, "Break the network".
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2173,7 +2279,7 @@ describe("PlayerControls", () => {
     const on = handlers();
     const { rerender } = render(<PlayerControls view={viewOf()} {...on} />);
     const [first] = screen.getAllByRole("button");
-    expect(first).toHaveTextContent("Play");
+    expect(first?.textContent).toContain("Play");
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(on.onPlay).toHaveBeenCalled();
     rerender(<PlayerControls view={viewOf({ playing: true })} {...on} />);
@@ -2186,8 +2292,8 @@ describe("PlayerControls", () => {
     render(<PlayerControls view={viewOf({ skipping: 29 })} {...on} />);
     fireEvent.change(screen.getByRole("slider"), { target: { value: "500" } });
     expect(on.onScrub).toHaveBeenCalledWith(1500);
-    expect(screen.getByText("beat 2 of 2 · 1.25 s")).toBeInTheDocument();
-    expect(screen.getByText("+29 s")).toBeInTheDocument();
+    expect(screen.getByText("beat 2 of 2 · 1.25 s")).toBeTruthy();
+    expect(screen.getByText("+29 s")).toBeTruthy();
     expect(whereIs(viewOf({ mode: "free", beat: null }))).toBe(
       "your turn · 1.25 s",
     );
@@ -2208,8 +2314,13 @@ describe("PlayerControls", () => {
 
   it("waits while a fork is built", () => {
     render(<PlayerControls view={viewOf({ busy: true })} {...handlers()} />);
-    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
-    expect(screen.getByRole("slider")).toBeDisabled();
+    expect(
+      (screen.getByRole("button", { name: "Play" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect((screen.getByRole("slider") as HTMLInputElement).disabled).toBe(
+      true,
+    );
   });
 });
 
@@ -2225,8 +2336,10 @@ describe("BreakingControls", () => {
         onBreak={onBreak}
       />,
     );
-    expect(screen.getByRole("group", { name: "Break the network" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bring B online" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Break the network" }).tagName,
+    ).toBe("FIELDSET");
+    expect(screen.getByRole("button", { name: "Bring B online" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Drop A's next ack" }));
     expect(onBreak).toHaveBeenCalledWith(drop);
   });
@@ -2556,6 +2669,7 @@ const keyOf = (b: Break) =>
   b.kind === "drop" ? `drop:${b.client}:${b.message}` : `offline:${b.client}`;
 
 // The controls that break the network: dashed, and set apart from playback.
+// A fieldset, so they are one group named by its legend.
 export function BreakingControls({
   breaks,
   offline,
@@ -2564,7 +2678,8 @@ export function BreakingControls({
 }: BreakingControlsProps) {
   if (breaks.length === 0) return null;
   return (
-    <div className={styles.breaking} role="group" aria-label="Break the network">
+    <fieldset className={styles.breaking}>
+      <legend className="visually-hidden">Break the network</legend>
       {breaks.map((b) => (
         <Button
           key={keyOf(b)}
@@ -2575,18 +2690,25 @@ export function BreakingControls({
           {breakLabel(b, offline.has(b.client))}
         </Button>
       ))}
-    </div>
+    </fieldset>
   );
 }
 ```
 
+(`visually-hidden` is the global class in `src/styles.css`, as `Mark` and `ItemRow` use it.)
+
 Create `src/ui/figure/breaking-controls.module.css`:
 
 ```css
+/* A fieldset for its name only: none of its own box. */
 .breaking {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 ```
 
@@ -2612,28 +2734,85 @@ The browser behind a figure, behind an interface so tests can drive it. On a pho
 
 **Files:**
 - Create: `src/ui/figure/figure-host.ts`, `src/ui/figure/use-player.ts`
+- Create: `src/tests/figure-helpers.tsx` (the fake browser, which Task 9's tests use too)
 - Test: `src/tests/figure-host.test.ts`, `src/tests/figure-use-player.test.tsx`
 
 **Interfaces:**
 - Consumes: `makePlayer`, `Player`, `PlayerView` (`#/lib/sandbox/player`); `Scene` (`#/lib/sandbox/scene`).
 - Produces:
   - `interface FigureHost`:
-    - `observe(element, onChange: (seen: { ratio: number; near: boolean }) => void): () => void`.
+    - `observe(element, onChange: (seen: { ratio: number; near: boolean }) => void): () => void`. `ratio` is how much of the figure is in view: the share of it that shows, or of the screen it fills, whichever is more.
     - `pageVisible(): boolean` and `onPageVisibility(listener): () => void`.
     - `reducedMotion(): boolean`.
     - `narrow(): boolean` and `onNarrow(listener): () => void`.
     - `requestFrame(callback: (time: number) => void): number` and `cancelFrame(handle)`.
-  - `browserFigureHost`.
+  - `browserFigureHost`. Its `reducedMotion()` and `narrow()` are false where there is no `window` (a server render).
   - `createRunningOne()`, returning `{ report(id: symbol, ratio: number): void; remove(id: symbol): void; leads(id: symbol): boolean; subscribe(listener): () => void }`, and the page's shared `runningOne`.
-  - `usePlayer(element: RefObject<HTMLElement | null>, scene: Scene, options?: { free?: boolean; check?: boolean; host?: FigureHost; one?: RunningOne; build?: typeof makePlayer }): { player: Player | null; view: PlayerView | null; error: string | null }`.
+  - `usePlayer(element: RefObject<HTMLElement | null>, scene: Scene, options?: { free?: boolean; check?: boolean; host?: FigureHost; one?: RunningOne; build?: typeof makePlayer }): { player: Player | null; view: PlayerView | null; error: string | null }`. It observes `element.current` once, so a figure keeps one element for its life.
+  - `fakeHost(options?: { reduced?: boolean; narrow?: boolean })` in `src/tests/figure-helpers.tsx`, returning `{ host: FigureHost; observed(): ReadonlyArray<Element>; show(index, ratio); frames(count, millis?): Promise<void> }`, for this task's and Task 9's tests. `observed()` lists every element the host was asked to observe, in order.
 
 - [ ] **Step 1: Write the failing tests**
+
+Create `src/tests/figure-helpers.tsx`, the browser the tests drive by hand:
+
+```tsx
+import { act } from "@testing-library/react";
+import type { FigureHost } from "#/ui/figure/figure-host";
+
+// A browser the test drives by hand: what shows, and when frames run. The
+// hook's tests and the figure's share it.
+export const fakeHost = (
+  options: { reduced?: boolean; narrow?: boolean } = {},
+) => {
+  const seen: Array<(seen: { ratio: number; near: boolean }) => void> = [];
+  // Every element observed, in order: a figure keeps one for its life.
+  const observed: Array<Element> = [];
+  let frames = new Map<number, (time: number) => void>();
+  let handle = 1;
+  let time = 0;
+  const host: FigureHost = {
+    observe: (element, onChange) => {
+      observed.push(element);
+      seen.push(onChange);
+      return () => {};
+    },
+    pageVisible: () => true,
+    onPageVisibility: () => () => {},
+    reducedMotion: () => options.reduced ?? false,
+    narrow: () => options.narrow ?? false,
+    onNarrow: () => () => {},
+    requestFrame: (callback) => {
+      frames.set(handle, callback);
+      return handle++;
+    },
+    cancelFrame: (h) => {
+      frames.delete(h);
+    },
+  };
+  return {
+    host,
+    observed: (): ReadonlyArray<Element> => observed,
+    show: (index: number, ratio: number) =>
+      act(() => seen[index]?.({ ratio, near: true })),
+    frames: async (count: number, millis = 100) => {
+      for (let i = 0; i < count; i++) {
+        await act(async () => {
+          time += millis;
+          const due = frames;
+          frames = new Map();
+          for (const callback of due.values()) callback(time);
+        });
+      }
+    },
+  };
+};
+```
 
 Create `src/tests/figure-host.test.ts`:
 
 ```ts
-import { describe, expect, it, vi } from "vitest";
-import { createRunningOne } from "#/ui/figure/figure-host";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { browserFigureHost, createRunningOne } from "#/ui/figure/figure-host";
 
 describe("createRunningOne", () => {
   it("lets the figure most in view run, once at least half of it shows", () => {
@@ -2654,12 +2833,60 @@ describe("createRunningOne", () => {
     expect(listener).toHaveBeenCalled();
   });
 });
+
+describe("browserFigureHost", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reports a figure that fills half the screen as half in view, however tall it is", () => {
+    const observers: Array<{
+      readonly callback: IntersectionObserverCallback;
+      readonly options: IntersectionObserverInit | undefined;
+    }> = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(
+          callback: IntersectionObserverCallback,
+          options?: IntersectionObserverInit,
+        ) {
+          observers.push({ callback, options });
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const onChange = vi.fn();
+    const stop = browserFigureHost.observe(document.body, onChange);
+    const showing = observers.find((o) => Array.isArray(o.options?.threshold));
+    // Fine steps: a figure three screens tall fills half the screen when a
+    // sixth of it shows.
+    expect(showing?.options?.threshold).toContain(0.05);
+    // Three screens tall, 400 px of it in an 800 px screen.
+    const entry = {
+      isIntersecting: true,
+      intersectionRatio: 400 / 2400,
+      intersectionRect: { height: 400 },
+      rootBounds: { height: 800 },
+    } as unknown as IntersectionObserverEntry;
+    showing?.callback([entry], {} as IntersectionObserver);
+    expect(onChange).toHaveBeenLastCalledWith({ ratio: 0.5, near: false });
+    stop();
+  });
+
+  it("says no to reduced motion and to a phone where there is no window, as on a server", () => {
+    vi.stubGlobal("window", undefined);
+    expect(browserFigureHost.reducedMotion()).toBe(false);
+    expect(browserFigureHost.narrow()).toBe(false);
+  });
+});
 ```
 
 Create `src/tests/figure-use-player.test.tsx`:
 
 ```tsx
-import { act, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { Effect } from "effect";
 import { useRef } from "react";
 import { describe, expect, it } from "vitest";
@@ -2671,6 +2898,7 @@ import {
   type RunningOne,
 } from "#/ui/figure/figure-host";
 import { usePlayer } from "#/ui/figure/use-player";
+import { fakeHost } from "./figure-helpers";
 
 const scene: Scene = {
   id: "test-hook",
@@ -2689,47 +2917,6 @@ const scene: Scene = {
         since.some((e) => e._tag === "Sent" && e.message.kind === "pull"),
     },
   ],
-};
-
-// A browser the test drives by hand: what shows, and when frames run.
-const fakeHost = (options: { reduced?: boolean; narrow?: boolean } = {}) => {
-  const seen: Array<(seen: { ratio: number; near: boolean }) => void> = [];
-  let frames = new Map<number, (time: number) => void>();
-  let handle = 1;
-  let time = 0;
-  const host: FigureHost = {
-    observe: (_, onChange) => {
-      seen.push(onChange);
-      return () => {};
-    },
-    pageVisible: () => true,
-    onPageVisibility: () => () => {},
-    reducedMotion: () => options.reduced ?? false,
-    narrow: () => options.narrow ?? false,
-    onNarrow: () => () => {},
-    requestFrame: (callback) => {
-      frames.set(handle, callback);
-      return handle++;
-    },
-    cancelFrame: (h) => {
-      frames.delete(h);
-    },
-  };
-  return {
-    host,
-    show: (index: number, ratio: number) =>
-      act(() => seen[index]?.({ ratio, near: true })),
-    frames: async (count: number, millis = 100) => {
-      for (let i = 0; i < count; i++) {
-        await act(async () => {
-          time += millis;
-          const due = frames;
-          frames = new Map();
-          for (const callback of due.values()) callback(time);
-        });
-      }
-    },
-  };
 };
 
 type Seen = ReturnType<typeof usePlayer>;
@@ -2865,7 +3052,8 @@ Create `src/ui/figure/figure-host.ts`:
 // reader's motion setting, the phone's width, and animation frames. Behind an
 // interface so tests drive it by hand.
 export interface FigureHost {
-  // Reports how much of the element shows (0 to 1), and once it has come
+  // Reports how much of the element is in view (0 to 1): the share of it that
+  // shows, or of the screen it fills, whichever is more. And once it has come
   // within a screen of the view, `near` (it stays true).
   readonly observe: (
     element: Element,
@@ -2884,6 +3072,19 @@ export interface FigureHost {
 // Below the app's own switch to a phone layout.
 const NARROW = "(max-width: 44.99rem)";
 
+// How much of a figure is in view: the share of it that shows, or of the
+// screen it fills, whichever is more. A figure taller than two screens never
+// shows half of itself, but it can fill half the screen.
+const inView = (entry: IntersectionObserverEntry): number => {
+  const viewport = entry.rootBounds?.height ?? 0;
+  const filled = viewport > 0 ? entry.intersectionRect.height / viewport : 0;
+  return Math.min(1, Math.max(entry.intersectionRatio, filled));
+};
+
+// Every 5% of the figure: fine enough to see a figure several screens tall
+// come to fill half the screen.
+const THRESHOLDS = Array.from({ length: 21 }, (_, step) => step / 20);
+
 export const browserFigureHost: FigureHost = {
   observe: (element, onChange) => {
     // No observer (a very old browser, a server render): never near, so
@@ -2901,10 +3102,10 @@ export const browserFigureHost: FigureHost = {
     );
     const showing = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) ratio = entry.intersectionRatio;
+        for (const entry of entries) ratio = inView(entry);
         report();
       },
-      { threshold: [0, 0.25, 0.5, 0.75, 1] },
+      { threshold: THRESHOLDS },
     );
     nearing.observe(element);
     showing.observe(element);
@@ -2919,9 +3120,14 @@ export const browserFigureHost: FigureHost = {
     document.addEventListener("visibilitychange", listener);
     return () => document.removeEventListener("visibilitychange", listener);
   },
+  // Both are read while rendering. No window (a server render): no
+  // preference, and no phone.
   reducedMotion: () =>
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
-  narrow: () => window.matchMedia?.(NARROW).matches ?? false,
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false),
+  narrow: () =>
+    typeof window !== "undefined" &&
+    (window.matchMedia?.(NARROW).matches ?? false),
   onNarrow: (listener) => {
     const query = window.matchMedia?.(NARROW);
     query?.addEventListener("change", listener);
@@ -2939,8 +3145,8 @@ export interface RunningOne {
   readonly subscribe: (listener: () => void) => () => void;
 }
 
-// On a phone one world runs at a time: the figure most in view, once at
-// least half of it shows. A tie goes to the figure that reported first.
+// On a phone one world runs at a time: the figure most in view, once it is
+// at least half in view. A tie goes to the figure that reported first.
 export const createRunningOne = (): RunningOne => {
   const ratios = new Map<symbol, number>();
   const listeners = new Set<() => void>();
@@ -3032,10 +3238,13 @@ const describeFailure = (cause: Cause.Cause<BeatTimedOut>): string => {
 };
 
 // A figure's player. It is built once the figure nears the view, which is
-// when its scene runs headless, not at page load. It may run while half the
-// figure shows and the tab does (on a phone, only the figure most in view),
-// and it is driven by animation frames while it plays. Unmounting interrupts
-// a build and closes a player.
+// when its scene runs headless, not at page load. It may run while the figure
+// is half in view and the tab shows (on a phone, only the figure most in
+// view), and it is driven by animation frames while it plays. Unmounting
+// interrupts a build and closes a player. It observes `element` once: the
+// figure keeps one element for its life. A new `scene` (or other build
+// input) closes the player and builds another, so a scene is a module-level
+// constant.
 export const usePlayer = (
   element: RefObject<HTMLElement | null>,
   scene: Scene,
@@ -3106,8 +3315,8 @@ export const usePlayer = (
     () => null,
   );
 
-  // Whether this figure may run: half of it in view, the tab shown, and on a
-  // phone, the figure most in view.
+  // Whether this figure may run: half in view, the tab shown, and on a phone,
+  // the figure most in view.
   const id = useMemo(() => Symbol("figure"), []);
   const [pageVisible, setPageVisible] = useState(() => host.pageVisible());
   const [narrow, setNarrow] = useState(() => host.narrow());
@@ -3132,8 +3341,7 @@ export const usePlayer = (
 
   // The clock: a frame's time is handed to the player while it plays.
   const running =
-    view !== null &&
-    view.playing &&
+    view?.playing === true &&
     view.visible &&
     !view.busy &&
     view.failure === null;
@@ -3162,7 +3370,7 @@ Run: `npx vitest run --project unit`, `npx tsc --noEmit`, `npx biome check .`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/ui/figure/figure-host.ts src/ui/figure/use-player.ts src/tests/figure-host.test.ts src/tests/figure-use-player.test.tsx
+git add src/ui/figure/figure-host.ts src/ui/figure/use-player.ts src/tests/figure-helpers.tsx src/tests/figure-host.test.ts src/tests/figure-use-player.test.tsx
 git commit -m "feat(figure): a figure's player, built near the view and run while it shows
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -3182,24 +3390,24 @@ A desktop puts the first, second and last in the left third and the stage in the
 
 **Files:**
 - Create: `src/ui/figure/figure.tsx`, `src/ui/figure/figure.module.css`
-- Test: `src/tests/figure.test.tsx`
+- Test: `src/tests/figure.test.tsx`, which imports `fakeHost` from `src/tests/figure-helpers.tsx` (Task 8; not changed here)
 
 **Interfaces:**
-- Consumes: everything above. `frameAt` and `lostAt` (`#/lib/sandbox/frame`); `Caption` with `live` and `Band`.
-- Produces: `Figure({ scene, title, free?, breaks?, host? })`.
+- Consumes: everything above. `frameAt` and `lostAt` (`#/lib/sandbox/frame`); `Caption` with `live` and `Band`; `fakeHost` with `observed()` (`src/tests/figure-helpers.tsx`, Task 8) in the tests.
+- Produces: `Figure({ scene, title, free?, breaks?, host? })`. `scene` must be a module-level constant: a new scene object builds a new player.
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `src/tests/figure.test.tsx`. Use the hook test's `fakeHost` (move it to `src/tests/figure-helpers.tsx` and import it in both files) and this scene:
+Create `src/tests/figure.test.tsx`. It uses Task 8's `fakeHost` and this scene:
 
 ```tsx
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Scene } from "#/lib/sandbox/scene";
 import { Figure } from "#/ui/figure/figure";
-import { add } from "./sandbox-helpers";
 import { fakeHost } from "./figure-helpers";
+import { add } from "./sandbox-helpers";
 
 const scene: Scene = {
   id: "test-figure",
@@ -3233,19 +3441,19 @@ const shown = async (host: ReturnType<typeof fakeHost>) => {
 };
 
 describe("Figure", () => {
-  beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
   it("opens on its title, its caption and play first", async () => {
     const host = fakeHost({ reduced: true });
     render(<Figure scene={scene} title="A change is a drop" host={host.host} />);
-    expect(screen.getByRole("heading", { level: 2, name: "A change is a drop" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "A change is a drop" }),
+    ).toBeTruthy();
     await shown(host);
     const figure = screen.getByRole("figure", { name: "A change is a drop" });
     const [first] = within(figure).getAllByRole("button");
-    expect(first).toHaveTextContent("Play");
-    expect(within(figure).getByText("A adds milk; it waits in A's outbox.")).toBeInTheDocument();
+    expect(first?.textContent).toContain("Play");
+    expect(
+      within(figure).getByText("A adds milk; it waits in A's outbox."),
+    ).toBeTruthy();
   });
 
   it("plays with space and steps with the arrows on the stage", async () => {
@@ -3268,8 +3476,10 @@ describe("Figure", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: "Step" }), { key: " " });
     fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowRight" });
     await act(async () => {});
-    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
-    expect(screen.getByText("A adds milk; it waits in A's outbox.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(
+      screen.getByText("A adds milk; it waits in A's outbox."),
+    ).toBeTruthy();
   });
 
   it("hands the world over, and a reader adds to a device's list", async () => {
@@ -3284,6 +3494,8 @@ describe("Figure", () => {
   });
 
   it("says the figure stopped when its scene breaks, and restarts it", async () => {
+    // React logs the error its boundary caught.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const host = fakeHost({ reduced: true });
     const broken: Scene = {
       ...scene,
@@ -3299,13 +3511,37 @@ describe("Figure", () => {
     render(<Figure scene={broken} title="Broken" host={host.host} />);
     host.show(0, 1);
     await screen.findByText("This figure stopped.");
-    expect(screen.getByText(/the scene broke/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Restart" })).toBeInTheDocument();
+    expect(screen.getByText(/the scene broke/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Restart" })).toBeTruthy();
+    error.mockRestore();
+  });
+
+  it("stops in place on a defect in its world, and Restart runs the figure the host observes", async () => {
+    const host = fakeHost({ reduced: true });
+    render(
+      <Figure
+        scene={scene}
+        title="Defect"
+        host={host.host}
+        // This world has no Z: the break dies inside it.
+        breaks={[{ kind: "offline", client: "Z" }]}
+      />,
+    );
+    await shown(host);
+    const figure = screen.getByRole("figure", { name: "Defect" });
+    fireEvent.click(screen.getByRole("button", { name: "Take Z offline" }));
+    await screen.findByText("This figure stopped.");
+    expect(screen.getByText(/no client named Z/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    await screen.findByRole("button", { name: "Play" });
+    // One element all along, still the one the host observes: a restarted
+    // world runs while it shows.
+    expect(screen.getByRole("figure", { name: "Defect" })).toBe(figure);
+    expect(host.observed()).toHaveLength(1);
+    expect(host.observed()[0]).toBe(figure);
   });
 });
 ```
-
-`figure-helpers.tsx` exports the `fakeHost` from Task 8's test unchanged. Update `figure-use-player.test.tsx` to import it from there.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -3349,6 +3585,9 @@ import { makeStageView } from "./stage-view";
 import { usePlayer } from "./use-player";
 
 export interface FigureProps {
+  // A module-level constant. A new scene object is a new scene: the figure
+  // closes its player and builds another, so a scene written inline would
+  // rebuild on every render.
   readonly scene: Scene;
   readonly title: string;
   // Opens in free play at the scene's end, as chapter 0 does.
@@ -3413,19 +3652,22 @@ function FigureBody({
   // A scene that cannot be played stops the figure through its boundary,
   // whose Restart builds it afresh.
   if (error !== null) throw new Error(error);
-  if (view !== null && view.failure !== null && player !== null) {
-    return (
-      <Stopped
-        title={title}
-        message={view.failure}
-        onRestart={() => Effect.runFork(player.restart)}
-      />
-    );
-  }
 
   const run = (effect: Effect.Effect<void> | undefined) => {
     if (effect !== undefined) Effect.runFork(effect);
   };
+
+  // A defect in a playing world stops the figure in place. This is the same
+  // `<figure>` as the one below, so React keeps its element and the host goes
+  // on observing it: after Restart the world runs again.
+  if (view !== null && view.failure !== null && player !== null) {
+    return (
+      <figure ref={element} className={styles.stopped} aria-label={title}>
+        <Stopped message={view.failure} onRestart={() => run(player.restart)} />
+      </figure>
+    );
+  }
+
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (player === null || view === null) return;
     if (event.target instanceof Element && event.target.closest(CONTROLS)) {
@@ -3460,11 +3702,11 @@ function FigureBody({
         <h2 id={titleId} className={styles.title}>
           {title}
         </h2>
-        {caption !== null && (
-          <Caption live={view?.mode === "free" ? "off" : "polite"}>
-            {caption}
-          </Caption>
-        )}
+        {/* Always there, empty until the world is: a live region announces
+            what changes in it, not what it mounts with. */}
+        <Caption live={view?.mode === "free" ? "off" : "polite"}>
+          {caption}
+        </Caption>
       </div>
 
       <div className={styles.playback}>
@@ -3483,11 +3725,12 @@ function FigureBody({
         )}
       </div>
 
-      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the stage takes the figure's keys */}
+      {/* biome-ignore lint/a11y/useSemanticElements: the stage is not a form group; the role names the world whose keys it takes */}
       <div
         className={styles.stage}
         role="group"
         aria-label={`${title}: the world`}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the stage takes the figure's keys
         tabIndex={0}
       >
         {stage === null || frame === null || view === null || player === null ? (
@@ -3524,27 +3767,25 @@ function FigureBody({
   );
 }
 
+// What a stopped figure shows in its place: the defect and Restart, on a
+// quiet solid band. Not the seal: a stopped figure is not a stopped sync.
 function Stopped({
-  title,
   message,
   onRestart,
 }: {
-  readonly title: string;
   readonly message: string;
-  readonly onRestart?: () => void;
+  readonly onRestart: () => void;
 }) {
   return (
-    <figure className={styles.stopped} aria-label={title}>
-      <Band
-        pattern="solid"
-        label={
-          <>
-            <b>This figure stopped.</b> {message}
-          </>
-        }
-        action={onRestart && <Button onClick={onRestart}>Restart</Button>}
-      />
-    </figure>
+    <Band
+      pattern="solid"
+      label={
+        <>
+          <b>This figure stopped.</b> {message}
+        </>
+      }
+      action={<Button onClick={onRestart}>Restart</Button>}
+    />
   );
 }
 
@@ -3567,17 +3808,17 @@ class FigureBoundary extends Component<BoundaryProps, { defect: string | null }>
     return defect === null ? (
       this.props.children
     ) : (
-      <Stopped
-        title={this.props.title}
-        message={defect}
-        onRestart={this.props.onRestart}
-      />
+      <figure className={styles.stopped} aria-label={this.props.title}>
+        <Stopped message={defect} onRestart={this.props.onRestart} />
+      </figure>
     );
   }
 }
 ```
 
-A scene that cannot be played reaches the figure as `usePlayer`'s `error`, whichever way it failed (Task 8's `describeFailure`). `FigureBody` throws it to `FigureBoundary`, so a broken scene and a render defect take one path: "This figure stopped." with the message, and a Restart that mounts the figure afresh. A defect inside a world that is playing arrives as `view.failure`; its Restart is the player's own `restart`.
+A scene that cannot be played reaches the figure as `usePlayer`'s `error`, whichever way it failed (Task 8's `describeFailure`). `FigureBody` throws it to `FigureBoundary`, so a broken scene and a render defect take one path: "This figure stopped." with the message, and a Restart that mounts the figure afresh. A defect inside a world that is playing arrives as `view.failure`; its Restart is the player's own `restart`. It stops the figure in place: `FigureBody` renders the stopped band inside the same `<figure ref={element}>`, so React keeps the element `usePlayer` observes and the restarted world runs while it shows. (Returning a different root, as a `<figure>` of `Stopped`'s own would be, leaves the host observing a detached node, and the restarted world never runs.) `Stopped` renders only the band; the boundary wraps it in a `<figure>` of its own, since the body it replaces is gone.
+
+The stage keeps `role="group"` with a name, and `tabIndex={0}`, so a reader can land on it and use the keys; it is not a form group, so it is not a `<fieldset>`. Biome takes the `useSemanticElements` suppression only as a JSX comment above the element, and the `noNoninteractiveTabindex` one only on the `tabIndex` attribute, as written above. The caption is always rendered, empty until there is a view, so its live region exists before its first text and that text is announced.
 
 Create `src/ui/figure/figure.module.css`:
 
@@ -3658,14 +3899,14 @@ Create `src/ui/figure/figure.module.css`:
 
 - [ ] **Step 4: Run the tests, the suite, types and lint**
 
-Run: `npx vitest run --project unit src/tests/figure.test.tsx src/tests/figure-use-player.test.tsx`
-Expected: PASS. A test with a seeded world is deterministic, so a failure repeats exactly.
+Run: `npx vitest run --project unit src/tests/figure.test.tsx`
+Expected: PASS. A test with a seeded world is deterministic, so a failure repeats exactly. The defect test logs "A figure stopped on a defect." through Effect's logger; that is the player saying so, not a failure.
 Run: `npx vitest run --project unit`, `npx tsc --noEmit`, `npx biome check .`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/ui/figure/figure.tsx src/ui/figure/figure.module.css src/ui/figure/use-player.ts src/tests/figure.test.tsx src/tests/figure-helpers.tsx src/tests/figure-use-player.test.tsx
+git add src/ui/figure/figure.tsx src/ui/figure/figure.module.css src/tests/figure.test.tsx
 git commit -m "feat(figure): the figure — its words, playback, the stage and the controls that break it
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -3694,7 +3935,7 @@ Create `src/tests/lab.test.tsx`:
 import { it as effect } from "@effect/vitest";
 import { render, screen } from "@testing-library/react";
 import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DROP_SCENE, FREE_SCENE, Lab } from "#/app/lab";
 import { runHeadless } from "#/lib/sandbox/scene";
 import { isConverged } from "#/lib/sandbox/trace";
@@ -3711,7 +3952,6 @@ describe("the lab", () => {
   );
 
   it("shows its two figures", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     render(<Lab />);
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(2);
   });
@@ -3922,7 +4162,8 @@ Open every file once and confirm it shows what its name claims:
 - figures drawn, with basins inked and no preparing state left;
 - a message with its label on a wire in at least one capture (recapture with another `--wait` if none is in flight);
 - the second figure in free play with its add fields;
-- the reduced capture paused on its opening.
+- the reduced capture paused on its opening;
+- on the phone captures, the first figure past its opening: a figure taller than two screens still runs once it fills half the screen.
 
 Recapture any that fail.
 
@@ -3987,7 +4228,7 @@ Dispatch a fresh general-purpose subagent, not a fork. Its prompt:
   - components: Figure, Stage, Wire band, Player controls, Breaking controls, Quick add, the basin's version labels;
   - the Figure title type role (300, 2.75rem);
   - the figure's layout (left third and stage; the phone stack and strip);
-  - the wire band's rules (lanes, the push in fresh ink, held, lost).
+  - the wire band's rules (lanes, the queue of messages that would meet, the push in fresh ink, held, lost).
 
 - [ ] **Step 2: Verify**
 
