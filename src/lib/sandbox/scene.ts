@@ -35,6 +35,9 @@ export interface BeatResult {
 }
 
 export interface SceneResult {
+  // The options its world was built with: with `inputs`, the scene's
+  // recording, enough to fork its world at any instant.
+  readonly options: WorldOptions;
   readonly timeline: Timeline;
   readonly beats: ReadonlyArray<BeatResult>;
   readonly inputs: ReadonlyArray<RecordedInput>;
@@ -49,6 +52,14 @@ export class BeatTimedOut extends Data.TaggedError("BeatTimedOut")<{
 const nextSeq = (timeline: Timeline) =>
   (timeline.entries.at(-1)?.event.seq ?? -1) + 1;
 
+// The options a scene's world is built from, run headless or forked for a
+// reader: a scene keeps every event unless it sets a limit, as free play
+// does not.
+export const sceneWorld = (scene: Scene): WorldOptions => ({
+  ...scene.world,
+  limit: scene.world.limit ?? Number.POSITIVE_INFINITY,
+});
+
 // Runs a scene with no one watching: each beat's `run`, then virtual time in
 // quanta until its `until` holds. Tests use it to check what a scene claims;
 // prerendering uses it for each scene's first frame. Only free play bounds its
@@ -56,8 +67,9 @@ const nextSeq = (timeline: Timeline) =>
 export const runHeadless = (
   scene: Scene,
   options?: { readonly beatLimit?: Duration.Input },
-): Effect.Effect<SceneResult, BeatTimedOut> =>
-  Effect.gen(function* () {
+): Effect.Effect<SceneResult, BeatTimedOut> => {
+  const worldOptions = sceneWorld(scene);
+  return Effect.gen(function* () {
     const world = yield* World;
     const limit = Duration.toMillis(options?.beatLimit ?? "120 seconds");
     const beats: Array<BeatResult> = [];
@@ -93,15 +105,10 @@ export const runHeadless = (
     }
 
     return {
+      options: worldOptions,
       timeline: yield* world.currentTimeline,
       beats,
       inputs: yield* world.inputs,
     };
-  }).pipe(
-    Effect.provide(
-      World.layer({
-        ...scene.world,
-        limit: scene.world.limit ?? Number.POSITIVE_INFINITY,
-      }),
-    ),
-  );
+  }).pipe(Effect.provide(World.layer(worldOptions)));
+};

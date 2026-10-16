@@ -1,7 +1,8 @@
 import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
-import { replay } from "#/lib/sandbox/inputs";
+import { fork, replay } from "#/lib/sandbox/inputs";
+import { type Message, snapshotDifference } from "#/lib/sandbox/trace";
 import {
   World,
   type WorldHandle,
@@ -132,6 +133,86 @@ describe("replay", () => {
         true,
       );
       expect(events(rebuilt)).toEqual(events(recorded.timeline));
+    }),
+  );
+
+  it.effect(
+    "a fork starts on the quantum at or before its instant, as recorded there",
+    () =>
+      Effect.gen(function* () {
+        const recorded = yield* original;
+        const instant = recorded.start + 8000;
+        const expected = [...recorded.timeline.entries]
+          .reverse()
+          .find((entry) => entry.event.at <= instant)?.snapshot;
+
+        const world = yield* fork(
+          { options, inputs: recorded.inputs },
+          instant + 30,
+        );
+
+        expect(yield* world.clock.now).toBe(instant);
+        expect(expected).toBeDefined();
+        if (expected !== undefined) {
+          expect(
+            snapshotDifference(expected, yield* world.snapshot),
+          ).toBeNull();
+        }
+      }).pipe(Effect.scoped),
+  );
+
+  it.effect("names where two snapshots of one world differ", () =>
+    Effect.gen(function* () {
+      const recorded = yield* original;
+      const snapshot = recorded.timeline.entries.at(-1)?.snapshot;
+      const a = snapshot?.clients.get("A");
+      if (snapshot === undefined || a === undefined) {
+        throw new Error("the script recorded nothing for A");
+      }
+      const stray: Message = {
+        id: 999,
+        client: "A",
+        kind: "poke",
+        label: "poke v9",
+        sentAt: 0,
+        departedAt: 0,
+        arriveAt: 150,
+        fate: "inFlight",
+      };
+
+      expect(
+        snapshotDifference(snapshot, { ...snapshot, at: snapshot.at + 1 }),
+      ).toBeNull();
+      expect(
+        snapshotDifference(snapshot, {
+          ...snapshot,
+          clients: new Map(snapshot.clients).set("A", {
+            ...a,
+            nextId: a.nextId + 1,
+          }),
+        }),
+      ).toBe("client A");
+      expect(
+        snapshotDifference(snapshot, {
+          ...snapshot,
+          offline: new Set(["A"]),
+        }),
+      ).toBe("offline clients");
+      expect(
+        snapshotDifference(snapshot, {
+          ...snapshot,
+          server: {
+            ...snapshot.server,
+            serverVersion: snapshot.server.serverVersion + 1,
+          },
+        }),
+      ).toBe("server");
+      expect(
+        snapshotDifference(snapshot, {
+          ...snapshot,
+          messages: [...snapshot.messages, stray],
+        }),
+      ).toBe("messages on the wire");
     }),
   );
 });

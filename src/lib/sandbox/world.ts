@@ -46,6 +46,9 @@ export interface WorldOptions {
 // The world's clock only ever moves in steps of this size.
 export const QUANTUM_MILLIS = 50;
 
+// Free play keeps this many timeline entries; older ones are trimmed.
+export const FREE_PLAY_LIMIT = 2000;
+
 const DEFAULT_START = Date.parse("2026-09-29T09:00:00Z");
 
 export interface ClientHandle {
@@ -82,7 +85,8 @@ export interface WorldHandle {
   readonly clock: {
     // Moves virtual time forward in whole quanta; a remainder carries over to
     // the next call, so frame-sized advances add up exactly. Interrupted, it
-    // stops on a quantum and the rest of the call is dropped.
+    // stops on a quantum and the rest of the call is dropped. An endless,
+    // NaN or negative duration dies: it would stop the clock for good.
     readonly advance: (duration: Duration.Input) => Effect.Effect<void>;
     readonly now: Effect.Effect<number>;
   };
@@ -178,7 +182,7 @@ const make = (options: WorldOptions) =>
       clients: names,
       readServer,
       now: testClock.currentTimeMillis,
-      limit: options.limit ?? 2000,
+      limit: options.limit ?? FREE_PLAY_LIMIT,
     });
 
     const feed = yield* ChangeFeed.make;
@@ -353,7 +357,17 @@ const make = (options: WorldOptions) =>
     let carried = 0;
     const advance = (duration: Duration.Input) =>
       Effect.gen(function* () {
-        const total = carried + Duration.toMillis(duration);
+        const millis = Duration.toMillis(duration);
+        // An endless remainder would be NaN from here on, and the clock would
+        // never move again without a word.
+        if (!Number.isFinite(millis) || millis < 0) {
+          return yield* Effect.die(
+            new Error(
+              `a world advances by a finite duration, not ${millis} ms`,
+            ),
+          );
+        }
+        const total = carried + millis;
         const quanta = Math.max(0, Math.floor(total / QUANTUM_MILLIS));
         carried = total - quanta * QUANTUM_MILLIS;
         for (let i = 0; i < quanta; i++) yield* quantum;

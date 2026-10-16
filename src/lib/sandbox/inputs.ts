@@ -1,8 +1,9 @@
-import { Duration, Effect } from "effect";
+import { Context, Duration, Effect, Layer, type Scope } from "effect";
 import type { MutationIntent } from "#/domain/mutation";
+import { snapToQuantum } from "./frame";
 import type { MessageRule } from "./network";
 import type { ClientName } from "./trace";
-import { World, type WorldHandle } from "./world";
+import { World, type WorldHandle, type WorldOptions } from "./world";
 
 // Everything from outside that can change a world. Recorded with its virtual
 // time, these are all a replay needs: the rest follows from the seed.
@@ -82,4 +83,27 @@ export const replay = (inputs: ReadonlyArray<RecordedInput>, until: number) =>
     const remaining = until - (yield* world.clock.now);
     yield* world.clock.advance(Duration.millis(Math.max(0, remaining)));
     return world;
+  });
+
+// Everything needed to rebuild a world's past: the options it was built with
+// and every input it took. A replay assumes a fresh world from those options.
+export interface Recording {
+  readonly options: WorldOptions;
+  readonly inputs: ReadonlyArray<RecordedInput>;
+}
+
+// A fresh world from the recording's options, replayed to `until` rounded
+// down to a quantum: a world's clock only stops where a quantum ends. It lives
+// as long as the scope it is built in.
+export const fork = (
+  recording: Recording,
+  until: number,
+): Effect.Effect<WorldHandle, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    const context = yield* Layer.build(World.layer(recording.options));
+    const world = Context.get(context, World);
+    const start = yield* world.clock.now;
+    return yield* replay(recording.inputs, snapToQuantum(start, until)).pipe(
+      Effect.provideContext(context),
+    );
   });

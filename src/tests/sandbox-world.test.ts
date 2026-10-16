@@ -3,6 +3,7 @@ import {
   Cause,
   Context,
   Deferred,
+  Duration,
   Effect,
   Exit,
   Fiber,
@@ -705,5 +706,19 @@ describe("World", () => {
         expect(yield* world.inputs).toEqual([]);
       }),
     ),
+  );
+
+  it.effect("refuses to advance by an endless duration, and runs on", () =>
+    Effect.gen(function* () {
+      const world = yield* World;
+      const endless = yield* Effect.exit(
+        world.clock.advance(Duration.infinity),
+      );
+      expect(Exit.isFailure(endless)).toBe(true);
+
+      const before = yield* world.clock.now;
+      yield* world.clock.advance("100 millis");
+      expect(yield* world.clock.now).toBe(before + 100);
+    }).pipe(Effect.provide(World.layer({ clients: ["A"], seed: "endless" }))),
   );
 });

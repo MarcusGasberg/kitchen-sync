@@ -302,3 +302,41 @@ export const diffClientState = (
   }
   return events;
 };
+
+// A value as plain text, with maps and sets as lists, to compare two worlds
+// that should agree. Built by the same code in the same order, equal states
+// give equal text.
+const textOf = (value: unknown): string =>
+  JSON.stringify(value, (_key, inner: unknown) =>
+    inner instanceof Map
+      ? [...inner.entries()]
+      : inner instanceof Set
+        ? [...inner].sort()
+        : inner,
+  );
+
+// Where two snapshots of one world disagree, or null when they agree: the
+// check a development build runs on every fork. Their times are left out: a
+// fork's snapshot is taken at the fork, the recording's at the last event
+// before it.
+export const snapshotDifference = (
+  expected: WorldSnapshot,
+  actual: WorldSnapshot,
+): string | null => {
+  const names = new Set([...expected.clients.keys(), ...actual.clients.keys()]);
+  for (const name of names) {
+    if (
+      textOf(expected.clients.get(name)) !== textOf(actual.clients.get(name))
+    ) {
+      return `client ${name}`;
+    }
+  }
+  if (textOf(expected.offline) !== textOf(actual.offline)) {
+    return "offline clients";
+  }
+  if (textOf(expected.server) !== textOf(actual.server)) return "server";
+  if (textOf(expected.messages) !== textOf(actual.messages)) {
+    return "messages on the wire";
+  }
+  return null;
+};

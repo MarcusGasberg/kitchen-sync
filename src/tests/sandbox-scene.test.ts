@@ -1,7 +1,7 @@
 import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
-import { runHeadless, type Scene } from "#/lib/sandbox/scene";
+import { runHeadless, type Scene, sceneWorld } from "#/lib/sandbox/scene";
 import { isConverged } from "#/lib/sandbox/trace";
 import { add, events } from "./sandbox-helpers";
 
@@ -111,6 +111,17 @@ describe("runHeadless", () => {
         0,
         "Waiting for a poke that never comes.",
       ]);
+    }),
+  );
+
+  it.effect("returns the options its world was built with", () =>
+    Effect.gen(function* () {
+      const result = yield* runHeadless(scene);
+      expect(result.options).toEqual({
+        ...scene.world,
+        limit: Number.POSITIVE_INFINITY,
+      });
+      expect(sceneWorld(scene)).toEqual(result.options);
     }),
   );
 });
