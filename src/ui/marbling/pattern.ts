@@ -5,6 +5,7 @@ import {
   type Operation,
   type Point,
   type Tone,
+  toneAt,
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "./operations";
@@ -63,20 +64,36 @@ const RINGS = [
   { part: "core", share: 0.42 },
 ] as const;
 
+// The largest radius an item takes at scale 1 (0.08 + 0.07), and how far out
+// its inner ring reaches as a share of it: the last three drops, each pushing
+// the one before.
+const LARGEST = 0.15;
+const INNER_RING = Math.sqrt(
+  RINGS.slice(2).reduce((sum, { share }) => sum + share * share, 0),
+);
+
 // One item's operations: five drops that land as rings of ink and clear water
 // around a core and, once checked, a stroke across the basin. Every number is
 // drawn from the item's id in a fixed order, so checking an item moves nothing
-// else.
+// else. `scale` sizes the rings and the stroke alike; where they land does
+// not change with it.
 const itemOperations = (
   item: GroceryItem,
   fresh: boolean,
+  scale: number,
 ): Array<Operation> => {
   const next = numbersFor(item.id);
-  const x = 0.2 + next() * (WORLD_WIDTH - 0.4);
-  // Far enough in that the outer ring stays on the water: the later drops
-  // push it out to about 1.045 × radius, under 0.16 for the largest (0.15).
-  const y = 0.16 + next() * (WORLD_HEIGHT - 0.32);
-  const radius = 0.08 + next() * 0.07;
+  // At scale 1, far enough in that the outer ring stays on the water: the
+  // later drops push it out to about 1.045 × radius, under 0.16 for the
+  // largest (0.15). At a figure's larger scale, far enough in that the core
+  // and its inner ring do: the water's edge cuts only outer rings, as a
+  // tray's edge cuts a marbled sheet.
+  const reach = LARGEST * INNER_RING * scale;
+  const insetX = Math.max(0.2, reach);
+  const insetY = Math.max(0.16, reach);
+  const x = insetX + next() * (WORLD_WIDTH - 2 * insetX);
+  const y = insetY + next() * (WORLD_HEIGHT - 2 * insetY);
+  const radius = (0.08 + next() * 0.07) * scale;
   const tones = {
     ink: pick(OUTER, next()),
     clear: 0,
@@ -106,12 +123,40 @@ const itemOperations = (
       y,
       ux: cx,
       uy: cy,
-      shift: sign * 0.22,
-      falloff: 0.035,
+      shift: sign * 0.22 * scale,
+      falloff: 0.035 * scale,
     });
   }
   return ops;
 };
+
+// The share of the water a figure's items should cover, and the most a
+// figure scales them.
+const FILL = 0.55;
+export const MAX_SCALE = 3;
+
+// An item's ink and clear water at scale 1, on average: five drops whose
+// radii are shares of one radius drawn evenly from 0.08 to 0.15. Marbling
+// keeps every drop's area, however later drops push it.
+const MEAN_AREA =
+  Math.PI *
+  (0.08 ** 2 + 0.08 * 0.07 + 0.07 ** 2 / 3) *
+  RINGS.reduce((sum, { share }) => sum + share * share, 0);
+
+// The scale at which `rows` items, laid down, cover about FILL of the water,
+// so that each new drop presses into the rings before it. A figure takes one
+// from the most rows its scene holds and keeps it, however many items come
+// and go. Never below the app's 1 nor above MAX_SCALE.
+export const scaleFor = (rows: number): number =>
+  rows <= 0
+    ? 1
+    : Math.min(
+        MAX_SCALE,
+        Math.max(
+          1,
+          Math.sqrt((FILL * WORLD_WIDTH * WORLD_HEIGHT) / (rows * MEAN_AREA)),
+        ),
+      );
 
 const byId = (a: GroceryItem, b: GroceryItem) =>
   a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
@@ -121,15 +166,19 @@ export interface PatternInput {
   // The newest client mutation id waiting for each item (`waitingOf`). Items
   // not in it are as the server last confirmed them.
   readonly waiting?: ReadonlyMap<string, number>;
+  // How large every item lands: 1, the app's badge, unless a figure sets one
+  // scale for all its basins (`scaleFor`).
+  readonly scale?: number;
 }
 
 // A list's pattern: each confirmed item in the order the server last changed
 // it (its version, ties by id), then each item still waiting, in the order
-// this device changed it, in fresh ink. Two devices with the same rows get
-// the same operations, whatever order they hold them in.
+// this device changed it, in fresh ink. Two devices with the same rows (and
+// the same scale) get the same operations, whatever order they hold them in.
 export const patternOf = ({
   items,
   waiting = new Map(),
+  scale = 1,
 }: PatternInput): ReadonlyArray<Operation> => {
   const confirmed: Array<GroceryItem> = [];
   const fresh: Array<GroceryItem> = [];
@@ -141,7 +190,7 @@ export const patternOf = ({
   fresh.sort((a, b) => (waiting.get(a.id) ?? 0) - (waiting.get(b.id) ?? 0));
   return [...confirmed, ...fresh]
     .slice(-MAX_ITEMS)
-    .flatMap((item) => itemOperations(item, waiting.has(item.id)));
+    .flatMap((item) => itemOperations(item, waiting.has(item.id), scale));
 };
 
 // The newest client mutation id waiting for each item. The outbox is in id
@@ -158,8 +207,8 @@ export const waitingOf = (
 };
 
 // Where each item sits once every later operation has pushed it: its core
-// drop's centre, carried forward. A basin labels an item there. Keyed by item
-// id; an item that is not in the pattern has no landmark.
+// drop's centre, carried forward. A basin labels an item beside it. Keyed by
+// item id; an item that is not in the pattern has no landmark.
 export const landmarksOf = (
   ops: ReadonlyArray<Operation>,
   ids: ReadonlySet<string>,
@@ -178,4 +227,188 @@ export const landmarksOf = (
     }
   }
   return marks;
+};
+
+// Which way from its item a label sits, and so which way it hangs off its
+// spot: a side or a corner.
+export type LabelSide =
+  | "east"
+  | "west"
+  | "south"
+  | "north"
+  | "southeast"
+  | "northeast"
+  | "southwest"
+  | "northwest";
+
+// Where a label sits: just outside its item's outer ring, the label hanging
+// off it toward `side`.
+export interface LabelSpot extends Point {
+  readonly side: LabelSide;
+}
+
+// A label's box and the gap before it, in world units.
+export interface LabelBox {
+  readonly width: number;
+  readonly height: number;
+  readonly gap: number;
+}
+
+// A label on screen, in CSS px: a version of up to three characters ("v12")
+// in the 12 px mono with its halo, and the gap before it (--space-1).
+const LABEL_PX = { width: 26, height: 14, gap: 4 } as const;
+
+// A phone's server basin, about the narrowest that labels: where a basin's
+// width is not known yet, its labels are placed as if it were this wide.
+const NARROW_BASIN_PX = 350;
+
+// A label's box in world units in a basin `basinPx` CSS px across.
+export const labelBoxFor = (basinPx: number): LabelBox => {
+  const perPx = WORLD_WIDTH / (basinPx > 0 ? basinPx : NARROW_BASIN_PX);
+  return {
+    width: LABEL_PX.width * perPx,
+    height: LABEL_PX.height * perPx,
+    gap: LABEL_PX.gap * perPx,
+  };
+};
+
+// In this order a tie goes to the earlier way: the sides, then the corners.
+const DIAGONAL = Math.SQRT1_2;
+const SIDES: ReadonlyArray<readonly [LabelSide, number, number]> = [
+  ["east", 1, 0],
+  ["west", -1, 0],
+  ["south", 0, 1],
+  ["north", 0, -1],
+  ["southeast", DIAGONAL, DIAGONAL],
+  ["northeast", DIAGONAL, -DIAGONAL],
+  ["southwest", -DIAGONAL, DIAGONAL],
+  ["northwest", -DIAGONAL, -DIAGONAL],
+];
+
+// Where rings press into one another the water just outside one is the next
+// one's ink: a label may step out this far, twice, to find clear water.
+const STEP_OUT = 0.04;
+
+// How far out each item's outer ring lands: marbling keeps each drop's area,
+// so its five drops end at the root of their squared radii.
+const outerRings = (ops: ReadonlyArray<Operation>) => {
+  const squares = new Map<string, number>();
+  for (const op of ops) {
+    if (op.kind !== "drop") continue;
+    const id = op.key.slice(0, op.key.lastIndexOf(":"));
+    squares.set(id, (squares.get(id) ?? 0) + op.radius * op.radius);
+  }
+  return squares;
+};
+
+type Box = readonly [left: number, top: number, right: number, bottom: number];
+
+// One axis of a label's box, hanging off `at` the way `hang` points: past the
+// gap after it, before it, or centred on it.
+const span = (at: number, hang: number, size: number, gap: number) =>
+  hang > 0
+    ? ([at + gap, at + gap + size] as const)
+    : hang < 0
+      ? ([at - gap - size, at - gap] as const)
+      : ([at - size / 2, at + size / 2] as const);
+
+const boxOf = (
+  { width, height, gap }: LabelBox,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+): Box => {
+  const [left, right] = span(x, Math.sign(dx), width, gap);
+  const [top, bottom] = span(y, Math.sign(dy), height, gap);
+  return [left, top, right, bottom];
+};
+
+const onWater = ([left, top, right, bottom]: Box) =>
+  left >= 0 && top >= 0 && right <= WORLD_WIDTH && bottom <= WORLD_HEIGHT;
+
+// How clear the water under a label is: each of 5 × 3 points across its box
+// counts two, and each of 8 points round it, a margin out, one; 38 is all.
+// The margin keeps a label off the thin clear water between one item's
+// rings, which is clear only in name.
+const CLEAR = 38;
+const clearIn = (
+  ops: ReadonlyArray<Operation>,
+  [left, top, right, bottom]: Box,
+  margin: number,
+) => {
+  const clearAt = (x: number, y: number) => (toneAt(ops, x, y) === 0 ? 1 : 0);
+  let clear = 0;
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 5; col++) {
+      clear +=
+        2 *
+        clearAt(
+          left + ((col + 0.5) / 5) * (right - left),
+          top + ((row + 0.5) / 3) * (bottom - top),
+        );
+    }
+  }
+  const [outLeft, outTop] = [left - margin, top - margin];
+  const [outRight, outBottom] = [right + margin, bottom + margin];
+  const [midX, midY] = [(left + right) / 2, (top + bottom) / 2];
+  for (const [x, y] of [
+    [outLeft, outTop],
+    [midX, outTop],
+    [outRight, outTop],
+    [outRight, midY],
+    [outRight, outBottom],
+    [midX, outBottom],
+    [outLeft, outBottom],
+    [outLeft, midY],
+  ] as const) {
+    clear += clearAt(x, y);
+  }
+  return clear;
+};
+
+// Where each item's label sits: just outside its outer ring, never on its
+// core, on the side or corner where the most of a label (`label`, its box at
+// the basin's size) is clear water, and all of it on the water. Measured from
+// the item's landmark and its outer ring at the pattern's own scale; where
+// rings press together it steps out a little further, the nearest spot
+// winning a tie. An item whose label fits nowhere keeps it east, moved onto
+// the water; one pushed off the water has none.
+export const labelSpotsOf = (
+  ops: ReadonlyArray<Operation>,
+  ids: ReadonlySet<string>,
+  label: LabelBox = labelBoxFor(0),
+): ReadonlyMap<string, LabelSpot> => {
+  const rings = outerRings(ops);
+  const spots = new Map<string, LabelSpot>();
+  for (const [id, mark] of landmarksOf(ops, ids)) {
+    if (!onWater([mark.x, mark.y, mark.x, mark.y])) continue;
+    const ring = Math.sqrt(rings.get(id) ?? 0);
+    let best: { spot: LabelSpot; clear: number } | null = null;
+    for (let step = 0; step < 3 && (best?.clear ?? 0) < CLEAR; step++) {
+      const reach = ring + step * STEP_OUT;
+      for (const [side, dx, dy] of SIDES) {
+        const x = mark.x + dx * reach;
+        const y = mark.y + dy * reach;
+        const box = boxOf(label, x, y, dx, dy);
+        if (!onWater(box)) continue;
+        // A margin short of the gap: the item's own ring stays out of it.
+        const clear = clearIn(ops, box, label.gap * 0.75);
+        if (best === null || clear > best.clear) {
+          best = { spot: { x, y, side }, clear };
+        }
+      }
+    }
+    if (best !== null) {
+      spots.set(id, best.spot);
+      continue;
+    }
+    const { width, height, gap } = label;
+    spots.set(id, {
+      x: Math.min(Math.max(mark.x + ring, 0), WORLD_WIDTH - gap - width),
+      y: Math.min(Math.max(mark.y, height / 2), WORLD_HEIGHT - height / 2),
+      side: "east",
+    });
+  }
+  return spots;
 };

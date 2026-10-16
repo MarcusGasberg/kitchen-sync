@@ -13,9 +13,13 @@ import {
   WORLD_WIDTH,
 } from "#/ui/marbling/operations";
 import {
+  labelBoxFor,
+  labelSpotsOf,
   landmarksOf,
   MAX_ITEMS,
+  MAX_SCALE,
   patternOf,
+  scaleFor,
   waitingOf,
 } from "#/ui/marbling/pattern";
 import { add, check } from "./sandbox-helpers";
@@ -336,5 +340,216 @@ describe("landmarksOf", () => {
   it("marks only the items asked for", () => {
     const ops = patternOf({ items: [milk, eggs] });
     expect([...landmarksOf(ops, new Set([eggs.id])).keys()]).toEqual([eggs.id]);
+  });
+
+  it("finds an item at a figure's scale too", () => {
+    const ops = patternOf({ items: [milk, eggs], scale: 2.5 });
+    const core = ops.find((op) => op.key === `${milk.id}:core`);
+    if (core?.kind !== "drop") throw new Error("no core drop");
+    const later = ops.slice(ops.indexOf(core) + 1);
+    expect(landmarksOf(ops, new Set([milk.id])).get(milk.id)).toEqual(
+      later.reduce((point, op) => forward(op, point), {
+        x: core.x,
+        y: core.y,
+      }),
+    );
+  });
+});
+
+// Each item's drops by part, keyed by item id.
+const dropsOf = (ops: ReadonlyArray<Operation>) => {
+  const items = new Map<string, Array<Operation & { kind: "drop" }>>();
+  for (const op of ops) {
+    if (op.kind !== "drop") continue;
+    const owner = op.key.slice(0, op.key.lastIndexOf(":"));
+    items.set(owner, [...(items.get(owner) ?? []), op]);
+  }
+  return items;
+};
+
+describe("a figure's scale", () => {
+  const rows = Array.from({ length: 12 }, (_, i) =>
+    item(i + 1, i + 1, i % 4 === 0),
+  );
+
+  it("leaves the app's pattern as it was unless a scale is given", () => {
+    expect(patternOf({ items: rows, scale: 1 })).toEqual(
+      patternOf({ items: rows }),
+    );
+  });
+
+  it("grows every ring and check stroke alike, and keeps each item's inks and order", () => {
+    const plain = patternOf({ items: rows });
+    const grown = patternOf({ items: rows, scale: 2 });
+    expect(keys(grown)).toEqual(keys(plain));
+    for (const [index, op] of grown.entries()) {
+      const before = plain[index];
+      if (op.kind === "drop" && before?.kind === "drop") {
+        expect(op.radius).toBeCloseTo(before.radius * 2, 12);
+        expect(op.tone).toBe(before.tone);
+      } else if (op.kind === "tine" && before?.kind === "tine") {
+        expect(op.shift).toBeCloseTo(before.shift * 2, 12);
+        expect(op.falloff).toBeCloseTo(before.falloff * 2, 12);
+      } else {
+        throw new Error(`${op.key} changed kind`);
+      }
+    }
+  });
+
+  // The water's edge may cut an item's outer rings at a figure's scale, as a
+  // tray's edge cuts a marbled sheet, but never its core and inner ring.
+  it("keeps every item's core and inner ring on the water as it lands", () => {
+    const many = Array.from({ length: MAX_ITEMS }, (_, i) =>
+      item(i + 1, i + 1),
+    );
+    for (const scale of [1, 2, MAX_SCALE]) {
+      for (const drops of dropsOf(patternOf({ items: many, scale })).values()) {
+        const [x, y] = [drops[0]?.x ?? -1, drops[0]?.y ?? -1];
+        const inner = Math.sqrt(
+          drops.slice(2).reduce((area, op) => area + op.radius ** 2, 0),
+        );
+        expect(x - inner).toBeGreaterThanOrEqual(0);
+        expect(x + inner).toBeLessThanOrEqual(WORLD_WIDTH);
+        expect(y - inner).toBeGreaterThanOrEqual(0);
+        expect(y + inner).toBeLessThanOrEqual(WORLD_HEIGHT);
+      }
+    }
+  });
+
+  it("is the same pattern for the same rows on every device at one scale", () => {
+    const shuffled = [...rows].reverse();
+    expect(patternOf({ items: shuffled, scale: 2.2 })).toEqual(
+      patternOf({ items: rows, scale: 2.2 }),
+    );
+  });
+});
+
+describe("scaleFor", () => {
+  // Marbling keeps every drop's area, so the water the drops cover is the sum
+  // of their disks.
+  const covered = (count: number) => {
+    const rows = Array.from({ length: count }, (_, i) => item(i + 1, i + 1));
+    const ops = patternOf({ items: rows, scale: scaleFor(count) });
+    const area = ops.reduce(
+      (sum, op) => (op.kind === "drop" ? sum + Math.PI * op.radius ** 2 : sum),
+      0,
+    );
+    return area / (WORLD_WIDTH * WORLD_HEIGHT);
+  };
+
+  it("lets a few items cover about half the water", () => {
+    for (const count of [4, 5, 6, 7]) {
+      expect(covered(count), `${count} items`).toBeGreaterThan(0.35);
+      expect(covered(count), `${count} items`).toBeLessThan(0.8);
+    }
+  });
+
+  it("grows fewer items more, never past MAX_SCALE nor below the app's 1", () => {
+    expect(scaleFor(3)).toBeGreaterThan(scaleFor(6));
+    expect(scaleFor(6)).toBeGreaterThan(scaleFor(12));
+    expect(scaleFor(0)).toBe(1);
+    expect(scaleFor(1)).toBe(MAX_SCALE);
+    expect(scaleFor(MAX_ITEMS)).toBe(1);
+  });
+});
+
+describe("labelSpotsOf", () => {
+  const outerRing = (ops: ReadonlyArray<Operation>, id: string) =>
+    Math.sqrt(
+      (dropsOf(ops).get(id) ?? []).reduce(
+        (area, op) => area + op.radius ** 2,
+        0,
+      ),
+    );
+
+  // The label's box, hanging off its spot the way its side points.
+  const boxOn = (
+    spot: { x: number; y: number; side: string },
+    { width, height, gap } = labelBoxFor(0),
+  ) => {
+    const left = spot.side.includes("east")
+      ? spot.x + gap
+      : spot.side.includes("west")
+        ? spot.x - gap - width
+        : spot.x - width / 2;
+    const top = spot.side.includes("south")
+      ? spot.y + gap
+      : spot.side.includes("north")
+        ? spot.y - gap - height
+        : spot.y - height / 2;
+    return { left, top, right: left + width, bottom: top + height };
+  };
+
+  it("sets a label on the edge of its item's outer ring, off its core, at any scale", () => {
+    const milk = item(1, 1);
+    for (const scale of [1, 2.2]) {
+      const ops = patternOf({ items: [milk], scale });
+      const mark = landmarksOf(ops, new Set([milk.id])).get(milk.id);
+      const spot = labelSpotsOf(ops, new Set([milk.id])).get(milk.id);
+      if (mark === undefined || spot === undefined) throw new Error("no spot");
+      expect(
+        Math.hypot(spot.x - mark.x, spot.y - mark.y),
+        `at scale ${scale}`,
+      ).toBeCloseTo(outerRing(ops, milk.id), 12);
+      // On its own, every side is clear water: it takes the first, east.
+      expect(spot.side).toBe("east");
+    }
+  });
+
+  it("keeps every label on the water, taking another side where one runs off it", () => {
+    const rows = Array.from({ length: 40 }, (_, i) => item(i + 1, i + 1));
+    const sides = new Set<string>();
+    for (const row of rows) {
+      const ops = patternOf({ items: [row], scale: MAX_SCALE });
+      const spot = labelSpotsOf(ops, new Set([row.id])).get(row.id);
+      if (spot === undefined) throw new Error("no spot");
+      sides.add(spot.side);
+      const box = boxOn(spot);
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.top).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(WORLD_WIDTH);
+      expect(box.bottom).toBeLessThanOrEqual(WORLD_HEIGHT);
+    }
+    // Large rings near the east edge put their labels to the west.
+    expect(sides).toContain("west");
+  });
+
+  // Rings that press together leave no water just outside one: the label
+  // steps out to the clearest spot near its item, never onto its own rings.
+  it("sets a crowded item's label on clear water, further out where it must", () => {
+    const rows = Array.from({ length: 6 }, (_, i) => item(i + 1, i + 1));
+    const ops = patternOf({ items: rows, scale: scaleFor(rows.length) });
+    const ids = new Set(rows.map((row) => row.id));
+    const marks = landmarksOf(ops, ids);
+    // A phone's server basin and a desktop's.
+    for (const basinPx of [350, 548]) {
+      const label = labelBoxFor(basinPx);
+      for (const [owner, spot] of labelSpotsOf(ops, ids, label)) {
+        const mark = marks.get(owner);
+        if (mark === undefined) throw new Error("no landmark");
+        const distance = Math.hypot(spot.x - mark.x, spot.y - mark.y);
+        const ring = outerRing(ops, owner);
+        expect(distance).toBeGreaterThanOrEqual(ring - 1e-9);
+        expect(distance).toBeLessThanOrEqual(ring + 0.08 + 1e-9);
+        // Its middle is on clear water.
+        const box = boxOn(spot, label);
+        expect(
+          toneAt(ops, (box.left + box.right) / 2, (box.top + box.bottom) / 2),
+          `${owner} at ${basinPx} px`,
+        ).toBe(0);
+      }
+    }
+  });
+
+  it("sizes a label for the basin it sits in, a phone's until it knows", () => {
+    expect(labelBoxFor(0)).toEqual(labelBoxFor(350));
+    expect(labelBoxFor(700).width).toBeCloseTo(labelBoxFor(350).width / 2);
+    expect(labelBoxFor(700).gap).toBeCloseTo(labelBoxFor(350).gap / 2);
+  });
+
+  it("labels only the items asked for", () => {
+    const rows = [item(1, 1), item(2, 2)];
+    const ops = patternOf({ items: rows });
+    expect([...labelSpotsOf(ops, new Set([id(2)])).keys()]).toEqual([id(2)]);
   });
 });

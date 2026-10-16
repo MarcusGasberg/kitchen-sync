@@ -3,6 +3,8 @@ import { DateTime, Option } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { GroceryItem } from "#/domain/grocery-item";
 import { Basin, basinCounts, describeBasin } from "#/ui/basin";
+import { WORLD_HEIGHT, WORLD_WIDTH } from "#/ui/marbling/operations";
+import { patternOf } from "#/ui/marbling/pattern";
 
 const at = DateTime.makeUnsafe(0);
 
@@ -39,7 +41,7 @@ describe("Basin", () => {
     error.mockRestore();
   });
 
-  it("labels an item where its drops sit, hidden from the accessibility tree with the rest of the picture", () => {
+  it("labels an item beside its drops, inside the picture", () => {
     render(
       <Basin
         items={[milk, eggs]}
@@ -53,6 +55,44 @@ describe("Basin", () => {
     expect(
       screen.getByRole("img", { name: /The server's list/ }).contains(label),
     ).toBe(true);
+  });
+
+  // The label hangs off a spot on the outer ring's edge, never the core,
+  // measured at the basin's own scale.
+  it("sets a label just outside its item's outer ring, at the basin's scale", () => {
+    const at = (scale: number) => {
+      const { unmount } = render(
+        <Basin
+          items={[milk]}
+          label="The server's list"
+          labels={new Map([[milk.id, "v1"]])}
+          scale={scale}
+        />,
+      );
+      const label = screen.getByText("v1");
+      const spot = {
+        x: (Number.parseFloat(label.style.left) / 100) * WORLD_WIDTH,
+        y: (Number.parseFloat(label.style.top) / 100) * WORLD_HEIGHT,
+        side: label.dataset.side,
+      };
+      unmount();
+      return spot;
+    };
+    const ops = (scale: number) => patternOf({ items: [milk], scale });
+    for (const scale of [1, 2.2]) {
+      const core = ops(scale).find((op) => op.key === `${milk.id}:core`);
+      if (core?.kind !== "drop") throw new Error("no core drop");
+      const ring = Math.sqrt(
+        ops(scale).reduce(
+          (area, op) => (op.kind === "drop" ? area + op.radius ** 2 : area),
+          0,
+        ),
+      );
+      const spot = at(scale);
+      expect(spot.side).toBe("east");
+      expect(Math.hypot(spot.x - core.x, spot.y - core.y)).toBeCloseTo(ring, 6);
+      expect(ring).toBeGreaterThan(core.radius);
+    }
   });
 });
 

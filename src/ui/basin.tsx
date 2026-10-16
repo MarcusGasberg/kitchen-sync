@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GroceryItem } from "#/domain/grocery-item";
 import styles from "./basin.module.css";
 import { browserHost, type MountedBasin, mountBasin } from "./marbling/mount";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "./marbling/operations";
-import { landmarksOf, patternOf } from "./marbling/pattern";
+import { labelBoxFor, labelSpotsOf, patternOf } from "./marbling/pattern";
 
 // A basin's counts in words, as "10 items, 1 in fresh ink": items, not the
 // outbox's changes, which the status line counts as waiting.
@@ -34,10 +34,14 @@ interface BasinProps {
   readonly className?: string;
   // False while a figure scrubs or steps: the basin shows its instant at once.
   readonly settle?: boolean;
-  // Text to set where an item's drops sit, by item id: the server's basin
-  // labels its newest items with their versions. The list beside the basin
-  // says the same, so the labels are part of the picture.
+  // Text to set beside an item's rings, by item id: the server's basin labels
+  // its newest items with their versions. The list beside the basin says the
+  // same, so the labels are part of the picture.
   readonly labels?: ReadonlyMap<string, string>;
+  // How large every item lands (`patternOf`): 1, the app's badge, unless a
+  // figure sets one scale for all its basins. Keep it for the basin's life:
+  // a new scale redraws every drop.
+  readonly scale?: number;
 }
 
 // A device's basin: its list's pattern on water, the same on every device
@@ -49,10 +53,14 @@ export function Basin({
   className,
   settle = true,
   labels,
+  scale = 1,
 }: BasinProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const mounted = useRef<MountedBasin | null>(null);
-  const ops = useMemo(() => patternOf({ items, waiting }), [items, waiting]);
+  const ops = useMemo(
+    () => patternOf({ items, waiting, scale }),
+    [items, waiting, scale],
+  );
 
   useEffect(() => {
     if (canvas.current === null) return;
@@ -68,24 +76,41 @@ export function Basin({
     mounted.current?.show(ops, { settle });
   }, [ops, settle]);
 
+  // A labelled basin knows its width, so it places each label where a label
+  // of that size finds clear water.
+  const box = useRef<HTMLDivElement>(null);
+  const labelled = labels !== undefined && labels.size > 0;
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const element = box.current;
+    if (!labelled || element === null) return;
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setWidth(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [labelled]);
+
   // The basin is 5:2, the world's own shape, so a world point is a share of
   // the box.
-  const marks = useMemo(
+  const spots = useMemo(
     () =>
       labels === undefined || labels.size === 0
         ? []
-        : [...landmarksOf(ops, new Set(labels.keys()))].filter(
-            ([, point]) =>
-              point.x >= 0 &&
-              point.x <= WORLD_WIDTH &&
-              point.y >= 0 &&
-              point.y <= WORLD_HEIGHT,
-          ),
-    [ops, labels],
+        : [
+            ...labelSpotsOf(
+              ops,
+              new Set(labels.keys()),
+              labelBoxFor(Math.round(width)),
+            ),
+          ],
+    [ops, labels, width],
   );
 
   return (
     <div
+      ref={box}
       className={
         className === undefined ? styles.basin : `${styles.basin} ${className}`
       }
@@ -93,13 +118,14 @@ export function Basin({
       aria-label={describeBasin(label, items, waiting)}
     >
       <canvas ref={canvas} className={styles.canvas} />
-      {marks.map(([id, point]) => (
+      {spots.map(([id, spot]) => (
         <span
           key={id}
           className={styles.label}
+          data-side={spot.side}
           style={{
-            left: `${(point.x / WORLD_WIDTH) * 100}%`,
-            top: `${(point.y / WORLD_HEIGHT) * 100}%`,
+            left: `${(spot.x / WORLD_WIDTH) * 100}%`,
+            top: `${(spot.y / WORLD_HEIGHT) * 100}%`,
           }}
         >
           {labels?.get(id)}

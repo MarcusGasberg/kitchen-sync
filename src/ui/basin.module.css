@@ -34,18 +34,47 @@
   }
 }
 
-/* A version set where its item's drops sit. A halo of water keeps it legible
-   over the ink without boxing it. */
+/* A version set just outside its item's outer ring, on clear water: its spot
+   is on the ring's edge, and the label hangs off it to its side. A halo of
+   water keeps it legible where a ring runs close, without boxing it. */
 .label {
   position: absolute;
   z-index: 1;
-  translate: -50% -50%;
+  translate: var(--space-1) -50%;
   color: var(--text-2);
   font: 400 var(--text-xs) / 1 var(--font-mono);
   text-shadow:
     0 0 3px var(--water),
     0 0 3px var(--water);
   pointer-events: none;
+}
+
+.label[data-side="west"] {
+  translate: calc(-100% - var(--space-1)) -50%;
+}
+
+.label[data-side="south"] {
+  translate: -50% var(--space-1);
+}
+
+.label[data-side="north"] {
+  translate: -50% calc(-100% - var(--space-1));
+}
+
+.label[data-side="southeast"] {
+  translate: var(--space-1) var(--space-1);
+}
+
+.label[data-side="northeast"] {
+  translate: var(--space-1) calc(-100% - var(--space-1));
+}
+
+.label[data-side="southwest"] {
+  translate: calc(-100% - var(--space-1)) var(--space-1);
+}
+
+.label[data-side="northwest"] {
+  translate: calc(-100% - var(--space-1)) calc(-100% - var(--space-1));
 }
 
 @media (forced-colors: active) {
