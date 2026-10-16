@@ -61,8 +61,10 @@ vec3 shadeAt(vec2 q) {
       float m2 = dot(d, d);
       if (m2 <= r2) {
         float m = sqrt(m2);
-        float rate = m > 0.0 ? length(transpose(J) * d) / m : 0.0;
-        float depth = rate > 0.0 ? (b.x - m) / (rate * feather) : 1.0;
+        vec2 g = transpose(J) * d;
+        float rate = m > 0.0 ? sqrt(g.x * g.x + g.y * g.y) / m : 0.0;
+        float fade = rate * feather;
+        float depth = fade > 0.0 ? max(0.0, (b.x - m) / fade) : 1.0;
         float cover = depth < 1.0 ? depth * depth * (3.0 - 2.0 * depth) : 1.0;
         shade += through * cover * tones[int(a.w + 0.5)];
         through *= 1.0 - cover;

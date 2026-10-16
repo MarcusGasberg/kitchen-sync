@@ -1,5 +1,13 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { type Operation, toneAt } from "#/ui/marbling/operations";
+import {
+  type Drop,
+  forward,
+  inverse,
+  type Operation,
+  toneAt,
+} from "#/ui/marbling/operations";
 import { FEATHER_CSS_PX, paint, shadeAt } from "#/ui/marbling/renderer";
 import {
   parseAlpha,
@@ -173,6 +181,73 @@ describe("shadeAt", () => {
     expect(shade(stacked, 1.125)).toEqual([150, 160, 170]);
   });
 
+  it("carries the fade's rate through operations in the order the walk meets them", () => {
+    // An angled tine and a drop the sample misses lie over the hit: two
+    // steps whose derivatives do not commute, so D·J and J·D differ.
+    const target: Drop = {
+      kind: "drop",
+      key: "a",
+      x: 1,
+      y: 0.5,
+      radius: 0.2,
+      tone: 1,
+    };
+    const tine: Operation = {
+      kind: "tine",
+      key: "b",
+      x: 1.1,
+      y: 0.45,
+      ux: Math.sqrt(3) / 2,
+      uy: 0.5,
+      shift: 0.15,
+      falloff: 0.1,
+    };
+    const missed: Operation = {
+      kind: "drop",
+      key: "c",
+      x: 0.75,
+      y: 0.4,
+      radius: 0.12,
+      tone: 2,
+    };
+    const ops = [target, tine, missed];
+    // A point 0.012 in from the target's edge, carried out through the two.
+    const inside = { x: 1 + 0.188 * 0.6, y: 0.5 + 0.188 * 0.8 };
+    const p = forward(missed, forward(tine, inside));
+    // The distance to the target's centre, walked back from the screen, and
+    // its rate per canvas pixel by central differences.
+    const distance = (x: number, y: number) => {
+      const q = inverse(tine, inverse(missed, { x, y }) ?? { x, y }) ?? {
+        x,
+        y,
+      };
+      return Math.sqrt((q.x - target.x) ** 2 + (q.y - target.y) ** 2);
+    };
+    const h = 1e-7;
+    const rate =
+      Math.sqrt(
+        ((distance(p.x + h, p.y) - distance(p.x - h, p.y)) / (2 * h)) ** 2 +
+          ((distance(p.x, p.y + h) - distance(p.x, p.y - h)) / (2 * h)) ** 2,
+      ) * SCALE;
+    const fade = 3;
+    const t = Math.min(1, (target.radius - distance(p.x, p.y)) / rate / fade);
+    const cover = t * t * (3 - 2 * t);
+    expect(cover).toBeGreaterThan(0.1);
+    expect(cover).toBeLessThan(0.9);
+    const expected: Rgb = [0, 1, 2].map(
+      (i) => SHADES[0][i] + cover * (SHADES[1][i] - SHADES[0][i]),
+    ) as unknown as Rgb;
+    within(shadeAt(ops, p.x, p.y, SHADES, SCALE, fade), expected, 0.01);
+  });
+
+  it("covers fully where the fade has no width", () => {
+    // A basin with no width draws a canvas a pixel wide, with no fade.
+    expect(shadeAt(lone, 1.25 - 0.5 * SCALE, 0.5, SHADES, SCALE, 0)).toEqual([
+      150, 160, 170,
+    ]);
+    expect(shadeAt(lone, 1.25, 0.5, SHADES, SCALE, 0)).toEqual([150, 160, 170]);
+  });
+
   it("walks a tine as toneAt does, away from any drop's edge", () => {
     const ops: ReadonlyArray<Operation> = [
       { kind: "drop", key: "a", x: 1.25, y: 0.5, radius: 0.2, tone: 3 },
@@ -313,5 +388,21 @@ describe("toneSources", () => {
       "CanvasText",
       "Highlight",
     ]);
+  });
+});
+
+describe("the basin's arithmetic", () => {
+  // Every device draws the same pattern only if every engine rounds its
+  // numbers the same: + − × ÷ and Math.sqrt are exact to the last bit
+  // everywhere, these are not.
+  it("never calls a function engines round differently", () => {
+    const folder = join(process.cwd(), "src/ui/marbling");
+    for (const name of readdirSync(folder)) {
+      const source = readFileSync(join(folder, name), "utf8");
+      expect(
+        source.match(/Math\.(sin|cos|tan|atan2?|hypot|exp|log|pow)\b/g),
+        name,
+      ).toBeNull();
+    }
   });
 });

@@ -32,8 +32,10 @@ export const FULL_FADE_WIDTH = 320;
 
 // The fade, in canvas pixels, for a basin `cssWidth` CSS pixels wide drawn at
 // `pixelRatio` canvas pixels to a CSS pixel.
-export const basinFeather = (cssWidth: number, pixelRatio: number): number =>
-  FEATHER_CSS_PX * Math.min(1, cssWidth / FULL_FADE_WIDTH) ** 2 * pixelRatio;
+export const basinFeather = (cssWidth: number, pixelRatio: number): number => {
+  const share = Math.min(1, cssWidth / FULL_FADE_WIDTH);
+  return FEATHER_CSS_PX * share * share * pixelRatio;
+};
 
 // The colour the water shows at (x, y): `toneAt`'s walk, with each drop's
 // outer edge faded into what lay just outside it over `featherPx` canvas
@@ -77,12 +79,15 @@ export const shadeAt = (
       if (r2 === 0) continue;
       if (m2 <= r2) {
         // How fast the distance to the centre grows per canvas pixel,
-        // |Jᵀ(d / m)|. At the centre, or below an edge collapsed to a point,
-        // the sample is deep inside: fully covered.
+        // |Jᵀ(d / m)|, with g = Jᵀd. At the centre, below an edge collapsed
+        // to a point, or with no fade at all, the sample is fully covered.
+        // The depth is clamped at 0, so the cover is smoothstep(0, 1, …).
         const m = Math.sqrt(m2);
-        const rate =
-          m > 0 ? Math.hypot(ja * dx + jc * dy, jb * dx + jd * dy) / m : 0;
-        const depth = rate > 0 ? (op.radius - m) / (rate * featherPx) : 1;
+        const gx = ja * dx + jc * dy;
+        const gy = jb * dx + jd * dy;
+        const rate = m > 0 ? Math.sqrt(gx * gx + gy * gy) / m : 0;
+        const fade = rate * featherPx;
+        const depth = fade > 0 ? Math.max(0, (op.radius - m) / fade) : 1;
         const cover = depth < 1 ? depth * depth * (3 - 2 * depth) : 1;
         const [r, g, b] = tones[op.tone] ?? [0, 0, 0];
         red += through * cover * r;
