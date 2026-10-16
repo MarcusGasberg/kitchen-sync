@@ -141,22 +141,16 @@ describe("Stage", () => {
         onRetry={noop}
       />,
     );
-    const density = (region: HTMLElement) =>
-      within(region)
+    const density = (name: string) =>
+      within(screen.getByRole("region", { name }))
         .getAllByRole("listitem")
         .map((row) => row.dataset.density);
-    expect(density(screen.getByRole("region", { name: "Server" }))).toEqual([
-      "compact",
-    ]);
-    expect(density(screen.getByRole("region", { name: "A" }))).toEqual([
-      "regular",
-    ]);
-    expect(density(screen.getByRole("region", { name: "B" }))).toEqual([
-      "regular",
-    ]);
+    expect(density("Server")).toEqual(["compact"]);
+    expect(density("A")).toEqual(["regular"]);
+    expect(density("B")).toEqual(["regular"]);
   });
 
-  it("starts each wire at the server basin's foot, spread evenly in device order, and bends at the pane's foot", async () => {
+  it("runs each wire straight from the server basin's foot, set along it as its device sits along the row", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     const rect = (left: number, top: number, right: number, bottom: number) =>
       ({
@@ -170,12 +164,11 @@ describe("Stage", () => {
         y: top,
         toJSON: () => ({}),
       }) as DOMRect;
-    // A wide screen: the list beside the basin runs 40 px past its foot.
     const boxes = new Map<string, DOMRect>([
       ["server-basin", rect(0, 60, 600, 300)],
-      ["server", rect(0, 20, 900, 340)],
-      ["A", rect(0, 420, 280, 700)],
-      ["B", rect(320, 420, 600, 700)],
+      ["devices", rect(0, 380, 900, 700)],
+      ["A", rect(0, 380, 280, 700)],
+      ["B", rect(320, 380, 600, 700)],
     ]);
     const measured = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
@@ -204,16 +197,22 @@ describe("Stage", () => {
         onRetry={noop}
       />,
     );
-    const paths = [...container.querySelectorAll("polyline")].map((line) =>
-      line.getAttribute("points"),
+    const lines = [...container.querySelectorAll("line")].map((line) =>
+      ["x1", "y1", "x2", "y2"].map((name) => Number(line.getAttribute(name))),
     );
     measured.mockRestore();
-    // From the basin's foot, its 600 px less 24 px at each corner shared
-    // evenly (24 + 552 / 4 and 24 + 552 × 3 / 4), straight down to the
-    // pane's foot, then to the top of each device's pane above its middle.
-    expect(paths).toEqual([
-      "162,300 162,340 140,420",
-      "438,300 438,340 460,420",
-    ]);
+    expect(container.querySelector("polyline, path")).toBeNull();
+    // The basin's foot less 24 px at each corner (552 px), each end where
+    // its device's middle sits along the 900 px row (140 and 460).
+    const expected = [
+      [24 + (552 * 140) / 900, 300, 140, 380],
+      [24 + (552 * 460) / 900, 300, 460, 380],
+    ];
+    expect(lines).toHaveLength(2);
+    for (const [index, line] of lines.entries()) {
+      for (const [at, value] of line.entries()) {
+        expect(value).toBeCloseTo(expected[index]?.[at] ?? Number.NaN);
+      }
+    }
   });
 });

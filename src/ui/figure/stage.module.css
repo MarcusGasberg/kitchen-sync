@@ -7,7 +7,7 @@
   min-width: 0;
 }
 
-/* The server's pane, measured for the band's top. Its header is Pane's own. */
+/* The server's pane. Its header is Pane's own. */
 .server {
   min-width: 0;
 }
@@ -20,12 +20,15 @@
   min-width: 0;
 }
 
-/* Wide enough for the list beside the basin, both from the row's top. Where
-   the list runs longer, the wires drop straight down from under the basin to
-   the pane's foot before they turn, so they never cross it. */
+/* Wide enough for the list beside the basin, both from the row's top. The
+   list takes room for its two compact columns (two 10rem ones and their
+   gap) and the basin the rest, so the list runs no taller than the basin and
+   the band starts at the basin's foot: the straight wires never cross it.
+   Where a narrow desktop leaves the basin shorter than the list, the band
+   starts at the list's foot instead. */
 @media (min-width: 64rem) {
   .serverBody {
-    grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+    grid-template-columns: minmax(0, 1fr) 22rem;
     grid-template-areas: "basin list";
     align-items: start;
     gap: var(--space-6);

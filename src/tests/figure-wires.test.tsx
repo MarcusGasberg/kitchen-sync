@@ -6,7 +6,6 @@ import {
   CORNER_PX,
   LANE_PX,
   layWires,
-  lengthOf,
   type Placed,
   placeFlights,
   placeLost,
@@ -15,21 +14,10 @@ import {
   type Wire,
 } from "#/ui/figure/wires";
 
-// A straight wire: its first segment has no length, as on a phone.
 const wire: Wire = {
   client: "A",
   server: { x: 100, y: 0 },
-  bend: { x: 100, y: 0 },
   device: { x: 100, y: 80 },
-};
-
-// A bent wire, as on a desktop: 40 px straight down from the basin's foot to
-// the band's top, then 50 px to the device (30 across, 40 down). 90 in all.
-const bent: Wire = {
-  client: "A",
-  server: { x: 100, y: 0 },
-  bend: { x: 100, y: 40 },
-  device: { x: 130, y: 80 },
 };
 
 const message = (overrides: Partial<Message> = {}): Message => ({
@@ -45,7 +33,9 @@ const message = (overrides: Partial<Message> = {}): Message => ({
 });
 
 describe("layWires", () => {
-  const basin = { left: 40, top: 20, right: 640, bottom: 260 };
+  // A wide screen: the basin over the left part of a 900 px device row.
+  const basin = { left: 0, top: 20, right: 600, bottom: 260 };
+  const row = { left: 0, width: 900 };
   const device = (left: number) => ({
     left,
     top: 340,
@@ -53,104 +43,60 @@ describe("layWires", () => {
     bottom: 700,
   });
 
-  it("leaves the server basin's foot evenly spread in device order, inset from its corners", () => {
-    const wires = layWires(basin, 260, [
+  it("runs each wire straight from the basin's foot to the top of its device's pane", () => {
+    const [wire] = layWires(basin, row, [{ client: "A", box: device(310) }]);
+    expect(wire?.device).toEqual({ x: 450, y: 340 });
+    expect(wire?.server.y).toBe(260);
+    expect(Object.keys(wire ?? {}).sort()).toEqual([
+      "client",
+      "device",
+      "server",
+    ]);
+  });
+
+  it("sets each server end along the basin's foot as its device sits along the row", () => {
+    const wires = layWires(basin, row, [
       { client: "A", box: device(0) },
-      { client: "B", box: device(300) },
-      { client: "C", box: device(600) },
+      { client: "B", box: device(310) },
+      { client: "C", box: device(620) },
     ]);
     expect(wires.map((wire) => wire.client)).toEqual(["A", "B", "C"]);
-    const share = (640 - CORNER_PX - (40 + CORNER_PX)) / 3;
-    expect(wires.map((wire) => wire.server)).toEqual([
-      { x: 40 + CORNER_PX + share / 2, y: 260 },
-      { x: 40 + CORNER_PX + share * 1.5, y: 260 },
-      { x: 40 + CORNER_PX + share * 2.5, y: 260 },
+    const span = 600 - 2 * CORNER_PX;
+    expect(wires.map((wire) => wire.server.x)).toEqual([
+      CORNER_PX + span * (140 / 900),
+      CORNER_PX + span * (450 / 900),
+      CORNER_PX + span * (760 / 900),
     ]);
-    // Even steps between the server ends: the wires fan out together.
-    const [a, b, c] = wires.map((wire) => wire.server.x);
-    expect((b ?? 0) - (a ?? 0)).toBeCloseTo((c ?? 0) - (b ?? 0));
   });
 
-  it("reaches the top of each device's pane, above its middle", () => {
-    const [wire] = layWires(basin, 260, [{ client: "A", box: device(600) }]);
-    expect(wire?.device).toEqual({ x: 740, y: 340 });
-    // A lone device's wire leaves the middle of the basin's foot.
-    expect(wire?.server).toEqual({ x: 340, y: 260 });
-  });
-
-  // A list beside the basin runs longer than it: each wire drops straight
-  // down under the basin to the pane's foot before it turns to its device.
-  it("drops straight down to the band's top, then turns to the device", () => {
-    const wires = layWires(basin, 300, [
+  // The basin spans the row: the ends sit right above their devices, so the
+  // wires drop plumb.
+  it("drops plumb where the basin spans the device row", () => {
+    const wide = {
+      left: -CORNER_PX,
+      top: 20,
+      right: 900 + CORNER_PX,
+      bottom: 260,
+    };
+    for (const wire of layWires(wide, row, [
       { client: "A", box: device(0) },
-      { client: "B", box: device(300) },
-    ]);
-    for (const wire of wires) {
-      expect(wire.bend).toEqual({ x: wire.server.x, y: 300 });
+      { client: "B", box: device(310) },
+    ])) {
+      expect(wire.server.x).toBeCloseTo(wire.device.x);
     }
-    // Where the basin's foot is the pane's foot, the drop has no length.
-    const [flat] = layWires(basin, 260, [{ client: "A", box: device(0) }]);
-    expect(flat?.bend).toEqual(flat?.server);
-  });
-});
-
-describe("a bent wire", () => {
-  it("measures its whole path", () => {
-    expect(lengthOf(bent)).toBe(90);
-    expect(lengthOf(wire)).toBe(80);
   });
 
-  it("carries a message down the drop first, then along the turn", () => {
-    const ack = message({ kind: "ack", label: "ack #5" });
-    // 30 of 90 from the server: on the drop, to its own side.
-    expect(placeMessage(bent, ack, 1 / 3)).toMatchObject({
-      x: 100 + LANE_PX,
-      y: 30,
-    });
-    // 65 of 90: 25 along the 50 px turn, half way, to its own side of it.
-    const turn = placeMessage(bent, ack, 65 / 90);
-    const across = { x: 40 / 50, y: -30 / 50 };
-    expect(turn.x).toBeCloseTo(115 + LANE_PX * across.x);
-    expect(turn.y).toBeCloseTo(60 + LANE_PX * across.y);
-    // A push rises from the device: 25 of 90 from it is on the turn.
-    const push = placeMessage(bent, message(), 25 / 90);
-    expect(push.x).toBeCloseTo(115 - LANE_PX * across.x);
-    expect(push.y).toBeCloseTo(60 - LANE_PX * across.y);
-  });
-
-  it("queues messages by their distance along the whole path, across the bend", () => {
-    // The front reply is just past the bend; the one behind it would sit on
-    // it, and queues back up the drop.
-    const ack = message({ id: 10, kind: "ack", label: "ack #5" });
-    const poke = message({ id: 11, kind: "poke", label: "poke v7" });
-    const [first, second] = placeFlights(
-      [bent],
-      [
-        { message: ack, progress: 45 / 90 },
-        { message: poke, progress: 45 / 90 },
-      ],
-    );
-    // 45 from the server: 5 along the turn, to its side of it.
-    expect(first?.x).toBeCloseTo(103 + LANE_PX * (40 / 50));
-    expect(first?.y).toBeCloseTo(44 - LANE_PX * (30 / 50));
-    // 16 px behind along the path: 45 − 16 = 29 down the drop.
-    expect(second).toMatchObject({ x: 100 + LANE_PX });
-    expect(second?.y).toBeCloseTo(29);
-  });
-
-  it("draws one path per wire, through its bend", () => {
-    const { container } = render(
-      <WireBand
-        width={200}
-        height={120}
-        wires={[bent]}
-        flights={[]}
-        lost={[]}
-      />,
-    );
-    const lines = container.querySelectorAll("polyline");
-    expect(lines).toHaveLength(1);
-    expect(lines[0]?.getAttribute("points")).toBe("100,0 100,40 130,80");
+  // A phone's strip, scrolled: devices past the screen keep their order along
+  // the basin's foot, measured along the whole strip.
+  it("keeps device order along a scrolled strip", () => {
+    const strip = { left: -400, width: 1000 };
+    const [a, b, c] = layWires(basin, strip, [
+      { client: "A", box: device(-400) },
+      { client: "B", box: device(-60) },
+      { client: "C", box: device(280) },
+    ]).map((wire) => wire.server.x);
+    expect(a).toBeLessThan(b ?? 0);
+    expect(b).toBeLessThan(c ?? 0);
   });
 });
 
@@ -279,7 +225,7 @@ describe("WireBand", () => {
     );
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("aria-hidden")).toBe("true");
-    expect(container.querySelectorAll("polyline")).toHaveLength(1);
+    expect(container.querySelectorAll("line")).toHaveLength(1);
     expect(svg?.textContent).toContain("#3–#5");
     expect(svg?.textContent).toContain("ack #2 · lost");
   });

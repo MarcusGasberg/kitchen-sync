@@ -7,10 +7,8 @@
 }
 
 .wire {
-  fill: none;
   stroke: var(--line);
   stroke-width: 1;
-  stroke-linejoin: round;
 }
 
 .message circle {

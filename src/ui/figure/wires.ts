@@ -6,18 +6,13 @@ import type { Point } from "#/ui/marbling/operations";
 // instant sit on them. Pure: the stage measures its panes; this lays the wires
 // and places the messages.
 
-// One device's wire, in the stage's pixels, a path of two straight segments:
-// from `server`, its spread point on the foot of the server's basin, straight
-// down to `bend`, the top of the band (the foot of the server's pane), then
-// straight to `device`, the top of the device's pane above its middle. Where
-// the basin's foot is the pane's foot (a phone, the list above the basin),
-// the first segment has no length. The server's list sits above the basin or
-// beside it, and the first segment runs down under the basin, so however long
-// the list, no wire crosses it.
+// One device's wire, in the stage's pixels: a straight line, as a message
+// travels, from the foot of the server's basin to the top of the device's
+// pane, above its middle. The server's list sits above the basin (narrow) or
+// beside it, no taller than it (wide), so no wire crosses it.
 export interface Wire {
   readonly client: ClientName;
   readonly server: Point;
-  readonly bend: Point;
   readonly device: Point;
 }
 
@@ -32,72 +27,42 @@ export interface Box {
 // How far in from the server basin's 18 px corners the outermost wires leave.
 export const CORNER_PX = 24;
 
-// Each device's wire, in device order. Their server ends share the basin's
-// foot evenly, inset from its corners, each at the middle of its share, so
-// the wires fan out together however wide the basin and wherever a phone's
-// strip has scrolled its devices. `bandTop` is the foot of the server's pane.
+// The device row's extent across, in the stage's pixels: on a phone, the
+// whole strip, scrolled or not.
+export interface Row {
+  readonly left: number;
+  readonly width: number;
+}
+
+// Each device's wire, in device order. Its server end sits along the basin's
+// foot (inset from its corners) where its device's middle sits along the
+// device row, so each wire leans as little as the layout allows and their
+// order never crosses, wherever a phone's strip has scrolled. Where the basin
+// sits left of its list (a wide screen), the fan still leans right: the cost
+// of the list beside its basin ("lists always render as real text on the
+// still margin beside their basin").
 export const layWires = (
   basin: Box,
-  bandTop: number,
+  row: Row,
   devices: ReadonlyArray<{ readonly client: ClientName; readonly box: Box }>,
 ): ReadonlyArray<Wire> => {
   const left = basin.left + CORNER_PX;
   const span = Math.max(0, basin.right - CORNER_PX - left);
-  return devices.map(({ client, box }, index) => {
-    const x =
-      span === 0
-        ? (basin.left + basin.right) / 2
-        : left + (span * (index + 0.5)) / devices.length;
+  return devices.map(({ client, box }) => {
+    const middle = (box.left + box.right) / 2;
+    const along =
+      row.width > 0
+        ? Math.min(1, Math.max(0, (middle - row.left) / row.width))
+        : 0.5;
     return {
       client,
-      server: { x, y: basin.bottom },
-      bend: { x, y: Math.max(basin.bottom, bandTop) },
-      device: { x: (box.left + box.right) / 2, y: box.top },
+      server: {
+        x: span === 0 ? (basin.left + basin.right) / 2 : left + span * along,
+        y: basin.bottom,
+      },
+      device: { x: middle, y: box.top },
     };
   });
-};
-
-// The wire's segments with any length, from the server.
-const segmentsOf = (wire: Wire) =>
-  (
-    [
-      [wire.server, wire.bend],
-      [wire.bend, wire.device],
-    ] as const
-  ).flatMap(([from, to]) => {
-    const length = Math.hypot(to.x - from.x, to.y - from.y);
-    return length > 0 ? [{ from, to, length }] : [];
-  });
-
-// The whole path's length, both segments.
-export const lengthOf = (wire: Wire): number =>
-  segmentsOf(wire).reduce((sum, { length }) => sum + length, 0);
-
-// The point `distance` along the path from the server, and a unit vector
-// across the segment it is on, to the right as seen from the server.
-export const pointAlong = (
-  wire: Wire,
-  distance: number,
-): { readonly point: Point; readonly across: Point } => {
-  const segments = segmentsOf(wire);
-  let left = Math.max(0, distance);
-  for (const [index, { from, to, length }] of segments.entries()) {
-    if (left <= length || index === segments.length - 1) {
-      const t = Math.min(1, left / length);
-      const dx = (to.x - from.x) / length;
-      const dy = (to.y - from.y) / length;
-      return {
-        point: {
-          x: from.x + (to.x - from.x) * t,
-          y: from.y + (to.y - from.y) * t,
-        },
-        // `|| 0`: a vertical segment gives no negative zero.
-        across: { x: dy || 0, y: -dx || 0 },
-      };
-    }
-    left -= length;
-  }
-  return { point: wire.server, across: { x: 0, y: 0 } };
 };
 
 // Requests rise this far to one side of a wire and replies fall as far to the
@@ -123,8 +88,15 @@ export interface Placed {
   readonly age: number | null;
 }
 
-// A message `progress` of the way along the whole path from its sender, to
-// its side of the segment it is on.
+// A unit vector across the wire, to the right as seen from the server.
+const across = (wire: Wire): Point => {
+  const dx = wire.device.x - wire.server.x;
+  const dy = wire.device.y - wire.server.y;
+  const length = Math.sqrt(dx * dx + dy * dy) || 1;
+  // `|| 0`: a vertical wire gives no negative zero.
+  return { x: dy / length || 0, y: -dx / length || 0 };
+};
+
 export const placeMessage = (
   wire: Wire,
   message: Message,
@@ -132,17 +104,16 @@ export const placeMessage = (
   age: number | null = null,
 ): Placed => {
   const fromDevice = senderOf(message.kind) === "client";
-  const length = lengthOf(wire);
-  const { point, across } = pointAlong(
-    wire,
-    (fromDevice ? 1 - progress : progress) * length,
-  );
+  const [start, end] = fromDevice
+    ? [wire.device, wire.server]
+    : [wire.server, wire.device];
   const side = fromDevice ? -1 : 1;
+  const normal = across(wire);
   return {
     key: String(message.id),
     message,
-    x: point.x + side * LANE_PX * across.x,
-    y: point.y + side * LANE_PX * across.y,
+    x: start.x + (end.x - start.x) * progress + side * LANE_PX * normal.x,
+    y: start.y + (end.y - start.y) * progress + side * LANE_PX * normal.y,
     side: fromDevice ? "start" : "end",
     held: message.departedAt === null,
     age,
@@ -151,6 +122,9 @@ export const placeMessage = (
 
 const byClient = (wires: ReadonlyArray<Wire>) =>
   new Map(wires.map((wire) => [wire.client, wire] as const));
+
+const lengthOf = (wire: Wire) =>
+  Math.hypot(wire.device.x - wire.server.x, wire.device.y - wire.server.y);
 
 // The distance of each flight from its sender, in pixels, once those on one
 // wire and side are kept STACK_PX apart. Two passes: from the front (nearest

@@ -42,10 +42,11 @@ interface Layout {
 
 const EMPTY: Layout = { width: 0, height: 0, wires: [] };
 
-// The wires as the stage lays out its panes, in the stage's pixels: from the
-// foot of the server's basin (`data-anchor='server-basin'`), down to the foot
-// of the server's pane (`data-anchor='server'`), the band's top, then to each
-// device's pane (`data-anchor='device'`).
+// The wires as the stage lays out its panes, in the stage's pixels: straight
+// from the foot of the server's basin (`data-anchor='server-basin'`) to each
+// device's pane (`data-anchor='device'`), placed along the basin's foot as
+// the device sits along its row (`data-anchor='devices'`, the whole strip
+// however a phone has scrolled it).
 const measure = (stage: HTMLElement): Layout => {
   const box = stage.getBoundingClientRect();
   const within = (rect: DOMRect): Box => ({
@@ -54,11 +55,16 @@ const measure = (stage: HTMLElement): Layout => {
     right: rect.right - box.left,
     bottom: rect.bottom - box.top,
   });
-  const pane = stage.querySelector("[data-anchor='server']");
   const basin = stage.querySelector("[data-anchor='server-basin']");
-  if (pane === null || basin === null) {
+  const strip = stage.querySelector<HTMLElement>("[data-anchor='devices']");
+  if (basin === null || strip === null) {
     return { ...EMPTY, width: box.width, height: box.height };
   }
+  const shown = strip.getBoundingClientRect();
+  const row = {
+    left: shown.left - box.left - strip.scrollLeft,
+    width: strip.scrollWidth || shown.width,
+  };
   const devices = [
     ...stage.querySelectorAll<HTMLElement>("[data-anchor='device']"),
   ].flatMap((device) => {
@@ -70,11 +76,7 @@ const measure = (stage: HTMLElement): Layout => {
   return {
     width: box.width,
     height: box.height,
-    wires: layWires(
-      within(basin.getBoundingClientRect()),
-      within(pane.getBoundingClientRect()).bottom,
-      devices,
-    ),
+    wires: layWires(within(basin.getBoundingClientRect()), row, devices),
   };
 };
 
@@ -90,7 +92,6 @@ const sameLayout = (a: Layout, b: Layout) =>
       other !== undefined &&
       wire.client === other.client &&
       samePoint(wire.server, other.server) &&
-      samePoint(wire.bend, other.bend) &&
       samePoint(wire.device, other.device)
     );
   });
@@ -155,9 +156,10 @@ export function Stage({
     <div ref={stage} className={styles.stage}>
       {/* The server is a pane like a device's: its list, always open as
           text and compact, since nothing on it is a target, then its basin.
-          On a wide screen the list sits beside the basin instead. The wires
-          leave from the basin's foot and drop to the pane's foot. */}
-      <div className={styles.server} data-anchor="server">
+          On a wide screen the list sits beside the basin instead, in two
+          columns no taller than it, so the wires leave straight from the
+          basin's foot and never cross it. */}
+      <div className={styles.server}>
         <Pane level={3} title="Server" status={server.line}>
           <div className={styles.serverBody}>
             {/* biome-ignore lint/a11y/useSemanticElements: a group of the list's sections, not a form's fields */}
@@ -186,7 +188,7 @@ export function Stage({
         </Pane>
       </div>
 
-      <div ref={strip} className={styles.devices}>
+      <div ref={strip} className={styles.devices} data-anchor="devices">
         {view.devices.map((device) => (
           <div
             key={device.name}
