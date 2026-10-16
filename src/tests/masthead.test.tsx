@@ -19,6 +19,22 @@ const outboxItems = () =>
     "listitem",
   );
 
+// What a screen reader hears from a change: its text without what is hidden
+// from it.
+const spoken = (element: HTMLElement) => {
+  const copy = element.cloneNode(true) as HTMLElement;
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) {
+    hidden.remove();
+  }
+  return copy.textContent;
+};
+
+// What only the eye gets beside a change's ring: its run's word.
+const shownWords = (element: HTMLElement) =>
+  [...element.querySelectorAll('[aria-hidden="true"]')]
+    .map((part) => part.textContent)
+    .join("");
+
 const theBand = () => {
   const band = document.body.querySelector<HTMLElement>("[data-pattern]");
   if (band === null) throw new Error("no band rendered");
@@ -28,13 +44,16 @@ const theBand = () => {
 describe("WaitingStrip", () => {
   it("lists each change the outbox holds, in words, acked or pending", () => {
     render(<WaitingStrip changes={changes(3, 1)} />);
-    expect(
-      outboxItems().map((li) => [li.dataset.acked, li.textContent]),
-    ).toEqual([
+    expect(outboxItems().map((li) => [li.dataset.acked, spoken(li)])).toEqual([
       ["true", "Remove #1, acked"],
       ["false", "Add #2, pending"],
       ["false", "Add #3, pending"],
     ]);
+  });
+
+  it("heads each run of acked or pending changes with its word, once", () => {
+    render(<WaitingStrip changes={changes(3, 1)} />);
+    expect(outboxItems().map(shownWords)).toEqual(["acked", "pending", ""]);
   });
 
   it("counts what does not fit, without growing", () => {

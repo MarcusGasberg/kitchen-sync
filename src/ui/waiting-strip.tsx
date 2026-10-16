@@ -11,8 +11,9 @@ interface WaitingStripProps {
 }
 
 // The outbox in words: every change this tab still holds for the server, in
-// id order, with the rows' rings. A removal stays here after its row has
-// gone, so no change is out of sight.
+// id order, with the rows' rings. Acked changes come first, since an ack
+// covers every id up to it, so each run is headed once by its word. A removal
+// stays here after its row has gone, so no change is out of sight.
 export function WaitingStrip({
   changes,
   max = WAITING_MAX,
@@ -21,12 +22,17 @@ export function WaitingStrip({
   const hidden = changes.length - shown.length;
   return (
     <ol className={styles.strip} aria-label="Outbox">
-      {shown.map((change) => (
+      {shown.map((change, i) => (
         <li
           key={change.clientMutationId}
           className={styles.change}
           data-acked={change.acked}
         >
+          {(i === 0 || shown[i - 1].acked !== change.acked) && (
+            <span className={styles.word} aria-hidden="true">
+              {change.acked ? "acked" : "pending"}
+            </span>
+          )}
           <span className={styles.ring} aria-hidden="true" />
           {VERB[change.intent]} #{change.clientMutationId}
           <span className="visually-hidden">
