@@ -56,6 +56,26 @@ const json = (payload: unknown, status = 200) =>
 
 const status = (code: number) => new Response(null, { status: code });
 
+// A 200 whose body never arrives whole: fetch rejects the read with a
+// `TypeError` when the socket drops mid-response.
+const cutOff = () =>
+  new Response(
+    new ReadableStream<Uint8Array>({
+      start: (controller) => controller.error(new TypeError("terminated")),
+    }),
+    { headers: { "content-type": "application/json" } },
+  );
+
+// What nitro answers today when a route fails outside its handler, as
+// without `DATABASE_URL`: a 200 carrying the error's text.
+const configError = () =>
+  new Response(
+    'ConfigError(SchemaError(Expected string\n  at ["DATABASE_URL"]))',
+    {
+      headers: { "content-type": "text/plain;charset=UTF-8" },
+    },
+  );
+
 /**
  * Builds `pull` and `push` wired to a client that answers differently per
  * attempt, so a test can assert both the result and how many round trips it
@@ -188,6 +208,11 @@ describe("SyncTransportService.pull", () => {
     ),
   );
 
+  it.effect(
+    "classifies a connection that breaks mid-response as retryable",
+    () => retryable(() => Effect.succeed(cutOff())),
+  );
+
   it.effect("times out a hung request as retryable", () =>
     // A socket that never answers has to become a failure before the sync
     // loop's retry can see it -- that is what the timeout is for.
@@ -218,6 +243,22 @@ describe("SyncTransportService.pull", () => {
       const error = yield* Effect.flip(pull);
 
       // A server speaking the wrong shape will keep speaking it.
+      expect(error).toBeInstanceOf(TransportFailure);
+      expect(error.retryable).toBe(false);
+      expect(yield* Ref.get(attempts)).toBe(1);
+    }),
+  );
+
+  it.effect("does not retry a 200 whose body is not JSON", () =>
+    Effect.gen(function* () {
+      const { attempts, pull } = yield* scripted(() =>
+        Effect.succeed(configError()),
+      );
+
+      const error = yield* Effect.flip(pull);
+
+      // Only a body cut off on the way is weather. One that arrived whole and
+      // is not JSON is the server's bug, and asking again repeats it.
       expect(error).toBeInstanceOf(TransportFailure);
       expect(error.retryable).toBe(false);
       expect(yield* Ref.get(attempts)).toBe(1);
@@ -321,6 +362,38 @@ describe("SyncTransportService.push", () => {
       expect(result.rejected).toEqual([
         { clientMutationId: 1, reason: "stale" },
       ]);
+      expect(yield* Ref.get(attempts)).toBe(1);
+    }),
+  );
+
+  // The server may have applied the batch before its reply was lost. A
+  // resend lands in its duplicate branch and is acked, not applied again.
+  it.effect(
+    "classifies a connection that breaks mid-response as retryable",
+    () =>
+      Effect.gen(function* () {
+        const { attempts, push } = yield* scripted(() =>
+          Effect.succeed(cutOff()),
+        );
+
+        const error = yield* Effect.flip(push);
+
+        expect(error).toBeInstanceOf(TransportFailure);
+        expect(error.retryable).toBe(true);
+        expect(yield* Ref.get(attempts)).toBe(1);
+      }),
+  );
+
+  it.effect("does not retry a 200 whose body is not JSON", () =>
+    Effect.gen(function* () {
+      const { attempts, push } = yield* scripted(() =>
+        Effect.succeed(configError()),
+      );
+
+      const error = yield* Effect.flip(push);
+
+      expect(error).toBeInstanceOf(TransportFailure);
+      expect(error.retryable).toBe(false);
       expect(yield* Ref.get(attempts)).toBe(1);
     }),
   );
@@ -429,7 +502,7 @@ describe("SyncTransportService.pokes", () => {
   );
 
   // The commonest disconnect: fetch reports a socket dropped mid-stream as a
-  // `DecodeError`, which outside a stream's body means a broken contract.
+  // `DecodeError`, as it does a pull or push cut off mid-response.
   it.effect("fails retryably when the connection breaks mid-stream", () =>
     Effect.gen(function* () {
       const { body, fiber } = yield* subscribed;
