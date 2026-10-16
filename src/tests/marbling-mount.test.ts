@@ -41,12 +41,15 @@ const fakeHost = (
   options: { reduced?: boolean; renderer?: boolean; settles?: boolean } = {},
 ) => {
   const draws: Array<ReadonlyArray<Operation>> = [];
-  // Whether each draw was asked for fine, as a still frame is.
+  // Whether each draw was asked for fine, as a still frame is, and how many
+  // canvas pixels it asked each edge to fade over.
   const fine: Array<boolean | undefined> = [];
+  const feathers: Array<number | undefined> = [];
   const renderer: Renderer = {
     draw: (ops, _, frame) => {
       draws.push(ops);
       fine.push(frame?.fine);
+      feathers.push(frame?.feather);
     },
     dispose: vi.fn(),
   };
@@ -98,6 +101,7 @@ const fakeHost = (
     resize: () => resize(),
     draws,
     fine,
+    feathers,
     renderer,
     toneReads: () => toneReads,
     advance: (ms: number) => {
@@ -250,6 +254,51 @@ describe("mountBasin", () => {
     expect(fake.waiting()).toBe(0);
   });
 
+  it("fades a wide basin over the full CSS pixels, and a narrow one by the square of its width", () => {
+    // The fake host draws at 2 canvas pixels to a CSS pixel.
+    const wide = fakeHost();
+    mountBasin(canvasOf(400, 160), wide.host).show([drop("a")]);
+    wide.frame();
+    expect(wide.feathers.at(-1)).toBe(FEATHER_CSS_PX * 2);
+    const badge = fakeHost();
+    mountBasin(canvasOf(92, 37), badge.host).show([drop("a")]);
+    badge.frame();
+    expect(badge.feathers.at(-1)).toBeCloseTo(
+      FEATHER_CSS_PX * (92 / FULL_FADE_WIDTH) ** 2 * 2,
+      12,
+    );
+  });
+
+  it("measures the basin's width when its box changes, not on every frame", () => {
+    const fake = fakeHost();
+    let clientWidth = 400;
+    let widthReads = 0;
+    const canvas = document.createElement("canvas");
+    Object.defineProperty(canvas, "clientWidth", {
+      get: () => {
+        widthReads += 1;
+        return clientWidth;
+      },
+    });
+    Object.defineProperty(canvas, "clientHeight", { value: 160 });
+    const basin = mountBasin(canvas, fake.host);
+    const reads = widthReads;
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    fake.advance(SETTLE_MS / 4);
+    fake.frame();
+    expect(widthReads).toBe(reads);
+
+    clientWidth = 160;
+    fake.resize();
+    expect(fake.feathers.at(-1)).toBeCloseTo(
+      FEATHER_CSS_PX * (160 / FULL_FADE_WIDTH) ** 2 * 2,
+      12,
+    );
+  });
+
   it("skips a redraw when the pattern has not changed", () => {
     const fake = fakeHost();
     const basin = mountBasin(canvasOf(400, 160), fake.host);
@@ -394,13 +443,7 @@ describe("basinRenderer", () => {
     };
     return { draws, frames, renderer };
   };
-  // A basin wide enough for the full fade unless told otherwise.
-  const setup = (
-    gpuAvailable: boolean,
-    width: number,
-    height: number,
-    clientWidth = 400,
-  ) => {
+  const setup = (gpuAvailable: boolean, width: number, height: number) => {
     const cpu = recorder();
     const gpu = recorder();
     const context = { drawImage: vi.fn() };
@@ -411,7 +454,6 @@ describe("basinRenderer", () => {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    Object.defineProperty(canvas, "clientWidth", { value: clientWidth });
     const made = basinRenderer(canvas, {
       context,
       cpu: cpu.renderer,
@@ -442,22 +484,13 @@ describe("basinRenderer", () => {
     expect(gpu.frames.map((frame) => frame?.fine)).toEqual([false, true]);
   });
 
-  it("fades a wide basin's edges over the full CSS pixels, in the canvas's own pixels", () => {
-    const onGpu = setup(true, 40, 16, FULL_FADE_WIDTH);
-    onGpu.made.renderer.draw([drop("a")], TONES);
-    expect(onGpu.gpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 1.5);
-    const onCpu = setup(false, 40, 16, 2 * FULL_FADE_WIDTH);
-    onCpu.made.renderer.draw([drop("a")], TONES);
-    expect(onCpu.cpu.frames[0]?.feather).toBe(FEATHER_CSS_PX * 0.5);
-  });
-
-  it("shrinks the fade with the square of a narrower basin's width, so a badge keeps its ink", () => {
-    const badge = setup(true, 138, 56, 92);
-    badge.made.renderer.draw([drop("a")], TONES);
-    expect(badge.gpu.frames[0]?.feather).toBeCloseTo(
-      FEATHER_CSS_PX * (92 / FULL_FADE_WIDTH) ** 2 * 1.5,
-      12,
-    );
+  it("passes each frame, its fade included, to whichever draws", () => {
+    const onGpu = setup(true, 40, 16);
+    onGpu.made.renderer.draw([drop("a")], TONES, { fine: true, feather: 2 });
+    expect(onGpu.gpu.frames).toEqual([{ fine: true, feather: 2 }]);
+    const onCpu = setup(false, 40, 16);
+    onCpu.made.renderer.draw([drop("a")], TONES, { feather: 0.5 });
+    expect(onCpu.cpu.frames).toEqual([{ feather: 0.5 }]);
   });
 
   it("draws on the CPU at half the box when there is no GPU", () => {

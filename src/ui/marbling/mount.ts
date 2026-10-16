@@ -108,23 +108,22 @@ export const basinRenderer = (
   // The GPU draws sixteen samples a pixel when still, four while settling,
   // at up to 1.5 device pixels; the CPU four at half the box, which the
   // browser smooths up.
+  // The canvas is sized at this ratio whichever draws it, so each frame's
+  // fade, which `mountBasin` measures with the box, suits either.
   const pixelRatio = hasGpu ? Math.min(parts.devicePixelRatio, 1.5) : 0.5;
   return {
     pixelRatio,
     settles: hasGpu,
     renderer: {
-      draw: (ops, tones, frame = {}) => {
+      draw: (ops, tones, frame) => {
         const { width, height } = canvas;
         if (width === 0 || height === 0) return;
-        // The canvas is sized at this ratio whichever draws it, so its edges
-        // fade over the same CSS pixels, scaled to the basin's own width.
-        const feather = basinFeather(canvas.clientWidth, pixelRatio);
         const shared = gpu.at(width, height);
         if (shared === null) {
-          cpu.draw(ops, tones, { ...frame, feather });
+          cpu.draw(ops, tones, frame);
           return;
         }
-        shared.renderer.draw(ops, tones, { ...frame, feather });
+        shared.renderer.draw(ops, tones, frame);
         context.drawImage(shared.canvas, 0, 0);
       },
       dispose: () => {},
@@ -203,13 +202,16 @@ export const mountBasin = (
   let ops: ReadonlyArray<Operation> = [];
   let frame: number | null = null;
   let shown = false;
+  // How many canvas pixels each edge fades over, measured with the box so no
+  // frame of a settle reads the layout.
+  let feather = 0;
 
   const draw = () => {
     frame = null;
     if (made === null) return;
     const now = settler.at(host.now());
     // A still frame is drawn fine: a settle's last, a resize, a re-ink.
-    made.renderer.draw(now.ops, tones, { fine: !now.moving });
+    made.renderer.draw(now.ops, tones, { fine: !now.moving, feather });
     if (now.moving) frame = host.requestFrame(draw);
   };
   const redraw = () => {
@@ -217,7 +219,9 @@ export const mountBasin = (
   };
   const resize = () => {
     if (made === null) return;
-    const width = Math.max(1, Math.round(canvas.clientWidth * made.pixelRatio));
+    const cssWidth = canvas.clientWidth;
+    feather = basinFeather(cssWidth, made.pixelRatio);
+    const width = Math.max(1, Math.round(cssWidth * made.pixelRatio));
     const height = Math.max(
       1,
       Math.round(canvas.clientHeight * made.pixelRatio),
