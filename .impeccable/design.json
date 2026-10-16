@@ -1,0 +1,588 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-16T09:30:26Z",
+  "title": "Design System: Kitchen Sync",
+  "extensions": {
+    "colorMeta": {
+      "text": {
+        "role": "primary",
+        "displayName": "Indigo Text",
+        "canonical": "light-dark(#0a1a33, #e6ebf2)",
+        "day": "#0a1a33",
+        "night": "#e6ebf2",
+        "oklch": {
+          "day": "oklch(21.9% 0.054 259)",
+          "night": "oklch(93.8% 0.011 257)"
+        },
+        "tonalRamp": [
+          "#010a21",
+          "#14253f",
+          "#30425f",
+          "#4f6280",
+          "#6f83a3",
+          "#91a6c7",
+          "#b5cbed",
+          "#e5efff"
+        ]
+      },
+      "ink-fresh": {
+        "role": "secondary",
+        "displayName": "Fresh Ink",
+        "canonical": "light-dark(#23468f, #8ea6ff)",
+        "day": "#23468f",
+        "night": "#8ea6ff",
+        "oklch": {
+          "day": "oklch(41.1% 0.128 263)",
+          "night": "oklch(74.3% 0.132 271)"
+        },
+        "tonalRamp": [
+          "#040033",
+          "#131663",
+          "#2b3887",
+          "#4759ab",
+          "#667cd1",
+          "#879ff7",
+          "#b6c7fe",
+          "#e9eefe"
+        ]
+      },
+      "seal": {
+        "role": "tertiary",
+        "displayName": "Vermilion Seal",
+        "canonical": "light-dark(#a63d2a, #e8836c)",
+        "day": "#a63d2a",
+        "night": "#e8836c",
+        "oklch": {
+          "day": "oklch(50.4% 0.143 32)",
+          "night": "oklch(71.5% 0.129 34)"
+        },
+        "tonalRamp": [
+          "#1e0100",
+          "#4a0700",
+          "#7c1401",
+          "#a23a27",
+          "#c95d48",
+          "#f1806a",
+          "#feb4a4",
+          "#ffe9e4"
+        ]
+      },
+      "page": {
+        "role": "neutral",
+        "displayName": "Still Margin",
+        "canonical": "light-dark(#f1f3f6, #0b1426)",
+        "day": "#f1f3f6",
+        "night": "#0b1426",
+        "oklch": {
+          "day": "oklch(96.3% 0.005 258)",
+          "night": "oklch(19.3% 0.039 263)"
+        },
+        "tonalRamp": [
+          "#040a1b",
+          "#1b2538",
+          "#374257",
+          "#566178",
+          "#76839a",
+          "#98a5be",
+          "#bccae3",
+          "#e6efff"
+        ]
+      },
+      "water": {
+        "role": "neutral",
+        "displayName": "Basin Water",
+        "canonical": "light-dark(#fbfbfc, #0f1d34)",
+        "day": "#fbfbfc",
+        "night": "#0f1d34",
+        "oklch": {
+          "day": "oklch(98.8% 0.001 286)",
+          "night": "oklch(23.2% 0.049 260)"
+        },
+        "tonalRamp": [
+          "#020a1f",
+          "#17253d",
+          "#33425c",
+          "#51627d",
+          "#7183a0",
+          "#93a6c4",
+          "#b7caea",
+          "#e6effe"
+        ]
+      },
+      "text-2": {
+        "role": "neutral",
+        "displayName": "Dilute Text",
+        "canonical": "light-dark(#4f5c73, #aeb6c2)",
+        "day": "#4f5c73",
+        "night": "#aeb6c2",
+        "oklch": {
+          "day": "oklch(47.3% 0.041 262)",
+          "night": "oklch(77.4% 0.019 258)"
+        },
+        "tonalRamp": [
+          "#030a1c",
+          "#1a2539",
+          "#364258",
+          "#556279",
+          "#75839b",
+          "#97a6bf",
+          "#bbcae4",
+          "#e6effe"
+        ]
+      },
+      "text-3": {
+        "role": "neutral",
+        "displayName": "Quiet Text",
+        "canonical": "light-dark(#5e6a7e, #8693a8)",
+        "day": "#5e6a7e",
+        "night": "#8693a8",
+        "oklch": {
+          "day": "oklch(52.2% 0.035 261)",
+          "night": "oklch(66.0% 0.035 260)"
+        },
+        "tonalRamp": [
+          "#040b1a",
+          "#1b2536",
+          "#374255",
+          "#566276",
+          "#778398",
+          "#99a6bc",
+          "#bccae1",
+          "#e6effe"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "light-dark(#d3d9e2, #24324d)",
+        "day": "#d3d9e2",
+        "night": "#24324d",
+        "oklch": {
+          "day": "oklch(88.3% 0.014 258)",
+          "night": "oklch(31.8% 0.052 263)"
+        },
+        "tonalRamp": [
+          "#020921",
+          "#17243e",
+          "#33425e",
+          "#51617f",
+          "#7283a2",
+          "#94a6c7",
+          "#b7caec",
+          "#e7effe"
+        ]
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "light-dark(#768296, #66738a)",
+        "day": "#768296",
+        "night": "#66738a",
+        "oklch": {
+          "day": "oklch(60.4% 0.034 261)",
+          "night": "oklch(55.3% 0.039 262)"
+        },
+        "tonalRamp": [
+          "#030a1b",
+          "#1a2538",
+          "#374257",
+          "#556278",
+          "#76839a",
+          "#98a6be",
+          "#bbcae3",
+          "#e6efff"
+        ]
+      },
+      "ink-1": {
+        "role": "neutral",
+        "displayName": "Indigo Depth (Mist at night)",
+        "canonical": "light-dark(#0a1a33, #dde2e8)",
+        "day": "#0a1a33",
+        "night": "#dde2e8",
+        "oklch": {
+          "day": "oklch(21.9% 0.054 259)",
+          "night": "oklch(91.1% 0.010 253)"
+        },
+        "tonalRamp": [
+          "#010a21",
+          "#14253f",
+          "#30425f",
+          "#4f6280",
+          "#6f83a3",
+          "#91a6c7",
+          "#b5cbed",
+          "#e5efff"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink Current",
+        "canonical": "light-dark(#1e2d4a, #aeb6c2)",
+        "day": "#1e2d4a",
+        "night": "#aeb6c2",
+        "oklch": {
+          "day": "oklch(29.9% 0.057 263)",
+          "night": "oklch(77.4% 0.019 258)"
+        },
+        "tonalRamp": [
+          "#010923",
+          "#162440",
+          "#324260",
+          "#506182",
+          "#7083a5",
+          "#92a6c9",
+          "#b6caef",
+          "#e6effe"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Dilute Ink",
+        "canonical": "light-dark(#606d80, #7a8597)",
+        "day": "#606d80",
+        "night": "#7a8597",
+        "oklch": {
+          "day": "oklch(53.1% 0.034 258)",
+          "night": "oklch(61.4% 0.030 260)"
+        },
+        "tonalRamp": [
+          "#030b19",
+          "#1b2636",
+          "#374354",
+          "#556275",
+          "#768397",
+          "#98a6bb",
+          "#bccae0",
+          "#e5efff"
+        ]
+      },
+      "ink-4": {
+        "role": "neutral",
+        "displayName": "Feathered Gray",
+        "canonical": "light-dark(#aeb6c2, #47546a)",
+        "day": "#aeb6c2",
+        "night": "#47546a",
+        "oklch": {
+          "day": "oklch(77.4% 0.019 258)",
+          "night": "oklch(44.4% 0.040 261)"
+        },
+        "tonalRamp": [
+          "#030a1c",
+          "#1a2539",
+          "#364258",
+          "#546278",
+          "#75839b",
+          "#97a6bf",
+          "#bbcae4",
+          "#e6effe"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Title",
+        "purpose": "Light titles: the basin dialog's title."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "A figure's live caption and the list's empty state; 38ch, text-wrap pretty, in --text-2."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Row names and field text; the base set on body."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Emphasis inside a line: a row's amount, a band's state word, a rejected item's name."
+      },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "Status line, band sentence, rejection reason, dialog note, part tabs, figure captions."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "The row's Remove word."
+      },
+      "name": {
+        "displayName": "Name",
+        "purpose": "The app's name in the masthead only; uppercase, tracked 0.32em."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Button labels and category heads; uppercase, tracked 0.18em."
+      },
+      "label-lg": {
+        "displayName": "Label Large",
+        "purpose": "A device's name over its pane in a figure; uppercase, tracked 0.18em."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Ids, versions, counts and the short state lines built on them: #15, v9 · synced, Add #15, 2 left."
+      },
+      "mono-mark": {
+        "displayName": "Mono Mark",
+        "purpose": "The device mark: the first four characters of the client id."
+      }
+    },
+    "shadows": [
+      {
+        "name": "basin-inset",
+        "value": "inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)), inset 0 0 0 var(--rule) var(--line)",
+        "purpose": "Recessed water: every basin, on an ::after overlay because the canvas would paint over an inset shadow on the box. Dropped under forced colours for a 1px CanvasText edge."
+      },
+      {
+        "name": "dock",
+        "value": "0 -8px 20px -14px light-dark(rgb(10 26 51 / 0.3), rgb(0 0 0 / 0.7))",
+        "purpose": "The add form while docked at the foot of a phone; none from 45rem."
+      },
+      {
+        "name": "dialog",
+        "value": "0 1.5rem 3rem -1.5rem light-dark(rgb(10 26 51 / 0.35), rgb(0 0 0 / 0.8))",
+        "purpose": "The full-size basin dialog."
+      },
+      {
+        "name": "scrim",
+        "value": "light-dark(rgb(10 26 51 / 0.4), rgb(2 6 14 / 0.72))",
+        "purpose": "The dialog's ::backdrop background (a colour, not a box-shadow)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "motion-state",
+        "value": "200ms",
+        "purpose": "Colour and edge changes on buttons, fields, the check, tabs, the remove control and the badge's frame."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The easing for every CSS state transition."
+      },
+      {
+        "name": "settle",
+        "value": "900ms",
+        "purpose": "A basin change settling into the water: SETTLE_MS in src/ui/marbling/mount.ts, --settle in tokens.css."
+      },
+      {
+        "name": "settle-ease",
+        "value": "1 - 2^(-10t)",
+        "purpose": "The basin's exponential ease-out (easeOut in src/ui/marbling/operations.ts): quick to land, slow to still."
+      },
+      {
+        "name": "strip-fade",
+        "value": "2rem, scroll-timeline",
+        "purpose": "The outbox strip's trailing fade where changes run past the edge, driven by animation-timeline: scroll(self inline)."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "prefers-reduced-motion collapses every CSS animation and transition; basins show changes at once, as the CPU path always does."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "form-inline",
+        "value": "45rem",
+        "purpose": "Viewport min-width: the add form leaves the foot dock and becomes the first row under the masthead."
+      },
+      {
+        "name": "list-wide",
+        "value": "30rem",
+        "purpose": "Container min-width on the list: the remove control becomes word and cross (6rem)."
+      }
+    ],
+    "basin": {
+      "aspectRatio": "5 / 2",
+      "world": "2.5 x 1, covered and centred",
+      "settleMs": 900,
+      "featherCssPx": 1.75,
+      "fullFadeWidthCssPx": 320,
+      "featherScaling": "FEATHER_CSS_PX * min(1, width / 320)^2, so a 92px badge keeps its ink",
+      "maxItems": 64,
+      "dropsPerItem": "five drops (ink, clear, ring, clear, core) and a laying stroke; a checked item adds a stroke across",
+      "order": "confirmed items by server version (ties by id), then outbox items in fresh ink in this device's order",
+      "forcedColors": {
+        "water": "Canvas",
+        "inks": "CanvasText",
+        "fresh": "Highlight",
+        "edge": "1px CanvasText"
+      },
+      "renderers": "one shared WebGL2 context (16 samples still, 4 while settling, up to 1.5 device px); CPU fallback at half the box, never settles"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled with the text ink, label in tracked small capitals: Add, Retry.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Add</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); background: var(--text); color: var(--page); } .ds-btn-primary:hover:not(:disabled) { border-color: var(--text-2); background: var(--text-2); } .ds-btn-primary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-btn-primary:disabled { border-color: var(--line); background: transparent; color: var(--text-3); cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Outlined in the control edge: Dismiss, Close.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Dismiss</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); border-color: var(--edge); background: transparent; color: var(--text); } .ds-btn-secondary:hover:not(:disabled) { border-color: var(--text); color: var(--text); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }"
+    },
+    {
+      "name": "Breaking Button",
+      "kind": "button",
+      "refersTo": "button-breaking",
+      "description": "A dashed edge for a control that breaks the world (drop the ack, stop the server); sits apart from playback.",
+      "html": "<button class=\"ds-btn-breaking\" type=\"button\">Drop the ack</button>",
+      "css": ".ds-btn-breaking { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); border-style: dashed; border-color: var(--edge); background: transparent; color: var(--text-2); } .ds-btn-breaking:hover:not(:disabled) { border-color: var(--text); color: var(--text); } .ds-btn-breaking:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "The add form's fields: water ground, control edge, 6px corners; focus turns the edge to the text ink.",
+      "html": "<div class=\"ds-fields\"><input class=\"ds-field\" type=\"text\" placeholder=\"Add an item\" aria-label=\"Item\"><select class=\"ds-field ds-field-select\" aria-label=\"Category\"><option>No category</option><option>Produce</option></select></div>",
+      "css": ".ds-fields { display: grid; grid-template-columns: 1fr 10rem; gap: var(--space-2); } .ds-field { min-width: 0; min-height: var(--target); padding: 0 var(--space-3); border: var(--rule) solid var(--edge); border-radius: var(--radius-control); background-color: var(--water); color: var(--text); font: 400 var(--text-md) / 1.5 var(--font-text); transition: border-color var(--motion-state) var(--ease-out); } .ds-field::placeholder { color: var(--text-3); opacity: 1; } .ds-field:focus-visible { border-color: var(--text); outline: 2px solid var(--text); outline-offset: 0; } .ds-field-select { padding-right: var(--space-6); background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%); background-position: calc(100% - 1.125rem) 50%, calc(100% - 0.8125rem) 50%; background-size: 0.3125rem 0.3125rem; background-repeat: no-repeat; appearance: none; }"
+    },
+    {
+      "name": "Category and Item Rows",
+      "kind": "custom",
+      "refersTo": "item-row",
+      "description": "A category head in small capitals with its count in mono, over 46px rows: check ring, bold amount and name, a fixed state slot (ring, #id, word), and the remove cross.",
+      "html": "<section class=\"ds-group\"><header class=\"ds-group-head\"><h2 class=\"ds-group-title\">Dairy</h2><span class=\"ds-group-left\">2 left</span></header><ul class=\"ds-rows\"><li class=\"ds-row\" data-sync=\"pending\"><label class=\"ds-row-label\"><input type=\"checkbox\" class=\"ds-row-check\"><span class=\"ds-row-what\"><span class=\"ds-row-amount\">2 l</span> Oat milk</span></label><span class=\"ds-row-state\"><span class=\"ds-row-ring\"></span><span>#15</span><span class=\"ds-row-word\">pending</span></span><button type=\"button\" class=\"ds-row-remove\" aria-label=\"Remove Oat milk\"><svg class=\"ds-row-cross\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M2.5 2.5l7 7M9.5 2.5l-7 7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg></button></li><li class=\"ds-row\" data-sync=\"acked\" data-checked=\"true\"><label class=\"ds-row-label\"><input type=\"checkbox\" class=\"ds-row-check\" checked><span class=\"ds-row-what\"><span class=\"ds-row-amount\">1 bag</span> Spinach</span></label><span class=\"ds-row-state\"><span class=\"ds-row-ring\"></span><span>#14</span><span class=\"ds-row-word\">acked</span></span><button type=\"button\" class=\"ds-row-remove\" aria-label=\"Remove Spinach\"><svg class=\"ds-row-cross\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M2.5 2.5l7 7M9.5 2.5l-7 7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg></button></li><li class=\"ds-row\" data-sync=\"synced\"><label class=\"ds-row-label\"><input type=\"checkbox\" class=\"ds-row-check\"><span class=\"ds-row-what\"><span class=\"ds-row-amount\">500 g</span> Greek yogurt</span></label><span class=\"ds-row-state\"></span><button type=\"button\" class=\"ds-row-remove\" aria-label=\"Remove Greek yogurt\"><svg class=\"ds-row-cross\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M2.5 2.5l7 7M9.5 2.5l-7 7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg></button></li></ul></section>",
+      "css": ".ds-group-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: var(--space-2); } .ds-group-title { margin: 0; color: var(--text-3); font: 500 var(--text-xs) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-group-left { color: var(--text-3); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-rows { margin: 0; padding: 0; list-style: none; } .ds-row { display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem var(--target); align-items: center; column-gap: var(--space-2); min-height: var(--row-height); border-top: var(--rule) solid var(--line); color: var(--text); font: 400 var(--text-md) / 1.5 var(--font-text); } .ds-row-label { display: flex; align-items: center; gap: var(--space-3); min-width: 0; min-height: var(--target); cursor: pointer; } .ds-row-check { flex: none; width: 1.25rem; height: 1.25rem; margin: 0; border: var(--rule) solid var(--edge); border-radius: 50%; background: transparent; appearance: none; cursor: inherit; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out); } .ds-row-check:checked { border-color: var(--text); background: var(--text); } .ds-row-check:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-row-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-amount { font-weight: 600; } .ds-row[data-checked=\"true\"] .ds-row-what { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: var(--rule); } .ds-row-state { display: grid; grid-template-columns: 0.625rem auto; column-gap: 0.375rem; align-items: center; color: var(--text-2); font: 400 var(--text-xs) / 1.25 var(--font-mono); } .ds-row-ring { grid-row: 1 / 3; width: 0.625rem; height: 0.625rem; border: var(--rule) solid currentColor; border-radius: 50%; } .ds-row[data-sync=\"acked\"] .ds-row-ring { background: linear-gradient(90deg, currentColor 50%, transparent 50%); } .ds-row-word { font-family: var(--font-text); } .ds-row-remove { display: flex; align-items: center; justify-content: center; width: var(--target); height: var(--target); padding: 0; border: 0; background: none; color: var(--text-3); cursor: pointer; transition: color var(--motion-state) var(--ease-out); } .ds-row-remove:hover { color: var(--text); } .ds-row-remove:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-row-cross { width: 0.75rem; height: 0.75rem; }"
+    },
+    {
+      "name": "Rejected Row",
+      "kind": "card",
+      "refersTo": "rejected-row",
+      "description": "A rejection above every category: dashed seal edge and ring, the item's name, the server's reason in the seal, and Dismiss.",
+      "html": "<div class=\"ds-rejected\"><span class=\"ds-rejected-ring\" aria-hidden=\"true\"></span><p class=\"ds-rejected-text\"><span class=\"ds-rejected-name\">Coffee beans</span><span class=\"ds-rejected-reason\">Check rejected: item not found</span></p><button class=\"ds-rejected-dismiss\" type=\"button\">Dismiss</button></div>",
+      "css": ".ds-rejected { display: grid; grid-template-columns: 0.75rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: var(--rule) dashed var(--seal); border-radius: var(--radius-control); background: var(--water); color: var(--text); font: 400 var(--text-md) / 1.5 var(--font-text); } .ds-rejected-ring { width: 0.75rem; height: 0.75rem; border: var(--rule) dashed var(--seal); border-radius: 50%; } .ds-rejected-text { min-width: 0; margin: 0; } .ds-rejected-name { display: block; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; } .ds-rejected-reason { display: block; color: var(--seal); font-size: var(--text-sm); } .ds-rejected-dismiss { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); border-color: var(--edge); background: transparent; color: var(--text); } .ds-rejected-dismiss:hover { border-color: var(--text); } .ds-rejected-dismiss:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Band (stopped)",
+      "kind": "custom",
+      "refersTo": "band",
+      "description": "A full-width band: solid for offline and stopped, dashed for retrying. Stopped puts its word in the seal and adds Retry.",
+      "html": "<div class=\"ds-band\"><p class=\"ds-band-label\"><b>Sync stopped.</b> The push failed: HTTP 400. Closing or reloading this tab loses the change waiting in it.</p><button class=\"ds-band-retry\" type=\"button\">Retry</button></div><div class=\"ds-band ds-band-dashed\"><p class=\"ds-band-label ds-band-quiet\"><b>Retrying.</b> The last try failed: HTTP 503.</p></div>",
+      "css": ".ds-band { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-block: var(--rule) solid var(--edge); background: var(--water); } .ds-band + .ds-band { margin-top: var(--space-4); } .ds-band-dashed { border-block-style: dashed; } .ds-band-label { max-width: 60ch; margin: 0; color: var(--text-2); font: 400 var(--text-sm) / 1.5 var(--font-text); } .ds-band-label b { color: var(--seal); font-weight: 600; } .ds-band-quiet b { color: var(--text); } .ds-band-retry { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); background: var(--text); color: var(--page); } .ds-band-retry:hover { border-color: var(--text-2); background: var(--text-2); } .ds-band-retry:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }"
+    },
+    {
+      "name": "Basin",
+      "kind": "custom",
+      "refersTo": "basin",
+      "description": "Recessed water, 5:2, 18px corners, inset shade. The pattern is drawn by the marbling renderer from a device's rows and cannot be faked here; an empty list is still water, as shown.",
+      "html": "<div class=\"ds-basin\" role=\"img\" aria-label=\"Empty: 0 items\"></div>",
+      "css": ".ds-basin { position: relative; aspect-ratio: 5 / 2; overflow: hidden; border-radius: var(--radius-basin); background: var(--water); } .ds-basin::after { content: \"\"; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)), inset 0 0 0 var(--rule) var(--line); pointer-events: none; } @media (forced-colors: active) { .ds-basin { border: var(--rule) solid CanvasText; } }"
+    },
+    {
+      "name": "Outbox Strip",
+      "kind": "custom",
+      "refersTo": "waiting-strip",
+      "description": "The outbox as one mono line under the masthead: each run headed by its word, each change its ring, verb and #id.",
+      "html": "<ol class=\"ds-strip\" aria-label=\"Outbox\"><li class=\"ds-strip-change\" data-acked=\"true\"><span class=\"ds-strip-word\">acked</span><span class=\"ds-strip-ring\"></span>Add #13</li><li class=\"ds-strip-change\" data-acked=\"false\"><span class=\"ds-strip-word\">pending</span><span class=\"ds-strip-ring\"></span>Check #14</li><li class=\"ds-strip-change\" data-acked=\"false\"><span class=\"ds-strip-ring\"></span>Remove #15</li></ol>",
+      "css": ".ds-strip { display: flex; align-items: center; gap: var(--space-4); min-width: 0; margin: 0; padding: 0; list-style: none; overflow-x: auto; scrollbar-width: none; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-strip-change { display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap; } .ds-strip-word { color: var(--text-3); font-family: var(--font-text); } .ds-strip-ring { flex: none; width: 0.5rem; height: 0.5rem; border: var(--rule) solid currentColor; border-radius: 50%; } .ds-strip-change[data-acked=\"true\"] .ds-strip-ring { background: linear-gradient(90deg, currentColor 50%, transparent 50%); } .ds-strip:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }"
+    },
+    {
+      "name": "Part Tabs",
+      "kind": "nav",
+      "refersTo": "part-tab",
+      "description": "The series' parts as plain links in reading order; the current part is text-coloured with a 1px underline.",
+      "html": "<nav aria-label=\"Parts\"><ol class=\"ds-tabs\"><li><a class=\"ds-tab\" href=\"#\" aria-current=\"page\">The optimistic client</a></li><li><a class=\"ds-tab\" href=\"#\">The server decides</a></li><li><a class=\"ds-tab\" href=\"#\">Realtime and failure</a></li></ol></nav>",
+      "css": ".ds-tabs { display: flex; flex-wrap: wrap; column-gap: var(--space-5); margin: 0; padding: 0; list-style: none; } .ds-tab { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--target); border-bottom: var(--rule) solid transparent; color: var(--text-2); font: 400 var(--text-sm) / 1.5 var(--font-text); text-decoration: none; transition: color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out); } .ds-tab[aria-current=\"page\"] { border-bottom-color: var(--text); color: var(--text); } .ds-tab:hover { color: var(--text); } .ds-tab:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Ink Basin",
+    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure it heads each device's pane. Every change settles into the water over 900 ms; otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
+    "keyCharacteristics": [
+      "One indigo ink family in `light-dark()` pairs; a vermilion seal for a rejection or a stopped sync, and nothing else.",
+      "Recessed water (18 px corners, an inset shade) against a still margin of 1 px hairlines; no cards.",
+      "Commissioner by weight (300 titles, 400 body, 500 labels and controls, 600 emphasis); Spline Sans Mono for ids, versions and counts.",
+      "Labels in small capitals tracked 0.18em; the app's name alone at 0.32em.",
+      "Every state has a form and a word: rings, solid and dashed edges, and the state's own name.",
+      "Motion is 200 ms colour and edge changes plus the basin's 900 ms settle; reduced motion cuts both."
+    ],
+    "rules": [
+      {
+        "name": "The One Ink Rule",
+        "body": "Every colour but the seal is a value of one indigo ink diluted toward water. A new colour joins that family or does not join; there is no second accent hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Seal Rule",
+        "body": "Vermilion marks a rejection and a stopped sync and nothing else. Offline, retrying, remove, hover, breaking controls and errors of form never take it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Paired Value Rule",
+        "body": "Every colour is a `light-dark()` pair declared in `tokens.css` and mirrored in `palette.ts`, and `tokens.test.ts` holds it: text at 4.5:1 and control edges at 3:1, on page and on water, day and night. The exceptions are shadow and scrim colours, which are literal `light-dark()` rgb pairs written where they are used (see Elevation & Depth), and the system colours of forced-colours mode.",
+        "section": "colors"
+      },
+      {
+        "name": "The Weight Ladder Rule",
+        "body": "Hierarchy is weight before size: 300 titles, 400 body, 500 labels and controls, 600 emphasis. Nothing is heavier than 600.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Is Data Rule",
+        "body": "Spline Sans Mono sets ids, versions and counts and the short state lines built on them, and nothing else. The state's word beside an id goes back to Commissioner (a row's \"pending\", the outbox's \"acked\"), as does every sentence. Commissioner has no tabular figures, so anything that must align is mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Small Capitals Rule",
+        "body": "A label that names a control, a category or a device is uppercase small text tracked 0.18em; the app's name alone takes 0.32em. Small capitals never sit as a kicker or eyebrow above a title or a section, and never set a sentence.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed Box Rule",
+        "body": "A row's sync state changes form inside a fixed 4.5rem slot. No state adds or removes height or width, so the list never reflows when a change lands.",
+        "section": "layout"
+      },
+      {
+        "name": "The List Leads Rule",
+        "body": "The list is real text on the still margin and comes first; a basin vouches for it and never replaces it or pushes it below the fold. In the app the basin is a 92 px badge beside the name.",
+        "section": "layout"
+      },
+      {
+        "name": "The Thumb Reach Rule",
+        "body": "Below 45rem the add form docks at the foot with the item field and Add on its first line; the DOM keeps keyboard order (item, quantity, unit, category, Add) whatever the grid shows.",
+        "section": "layout"
+      },
+      {
+        "name": "The Recessed Water Rule",
+        "body": "Water sits below the margin, never above it: a basin takes the inset shade and a hairline ring, never a drop shadow. Under forced colours the shade goes and a 1 px CanvasText edge keeps the water's shape.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two Risers Rule",
+        "body": "Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes and badges are flat.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ring Rule",
+        "body": "A change's state is a ring beside its id: hollow while pending, left half filled once acked, dashed in the seal when rejected, gone when synced. The row and the outbox strip draw the same ring.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do take every ground, text, edge and ink colour from the thirteen custom properties in `src/styles/tokens.css`, and add any new one as a `light-dark()` pair mirrored in `src/ui/palette.ts` and checked in `tokens.test.ts` (4.5:1 text, 3:1 control edges, on page and water, day and night).",
+      "Do take spacing, corners and sizes from the tokens (`--space-1` to `--space-7`, `--radius-control`, `--radius-badge`, `--radius-basin`, `--target`, `--row-height`, `--rule`, `--column`).",
+      "Do give every state its form and its word: pending a hollow ring with its `#id`; acked a half-filled ring; synced no marker; rejected a dashed seal ring with the server's reason; offline a solid band; retrying a dashed band; stopped the solid band with its word in the seal, its reason and Retry.",
+      "Do keep every target at 2.75rem or more, extending a hit area with a pseudo-element where the visible shape is smaller (the badge).",
+      "Do keep state changes to colour and edge over 200 ms with `--ease-out`, and every basin change to the 900 ms settle; let reduced motion and the CPU path show changes at once.",
+      "Do give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, and the rings and the checked circle keep their fills with `forced-color-adjust: none` in CanvasText.",
+      "Do set ids, versions, counts and the short state lines built on them in Spline Sans Mono, and everything else in Commissioner."
+    ],
+    "donts": [
+      "Don't use the vermilion seal for anything but a rejection or a stopped sync: not offline, not retrying, not remove, not a breaking control, not hover.",
+      "Don't let colour or an edge pattern carry a state alone; the state's word is always there.",
+      "Don't simulate or randomise a basin, or put marbling anywhere but inside one; every pattern on the page is computed from a device's rows, and controls and grounds stay plain.",
+      "Don't box list content in cards or put fills behind rows; rows sit on the still margin between hairlines.",
+      "Don't cast a shadow from anything but the docked form and the dialog, or write a shadow colour that is not a `light-dark()` pair.",
+      "Don't change a row's box when its state changes.",
+      "Don't set prose, controls or a state's word in mono, or a figure that must align in Commissioner.",
+      "Don't set any text heavier than 600, or use small capitals as a kicker or eyebrow above a title or a section.",
+      "Don't ship a value for one theme only; day and night are both designed."
+    ]
+  }
+}
