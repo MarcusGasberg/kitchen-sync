@@ -53,18 +53,28 @@ function Probe(props: {
 describe("usePlayer", () => {
   it("builds the player only once the figure nears the view", async () => {
     const fake = fakeHost();
+    // Counted, not just seen: the player builds asynchronously, so its view
+    // is null at first even when the build starts at mount.
+    let builds = 0;
+    const build: typeof makePlayer = (s, o) => {
+      builds++;
+      return makePlayer(s, o);
+    };
     let state: Seen | undefined;
     render(
       <Probe
         host={fake.host}
+        build={build}
         onState={(s) => {
           state = s;
         }}
       />,
     );
+    expect(builds).toBe(0);
     expect(state?.view).toBeNull();
     fake.show(0, 0);
     await waitFor(() => expect(state?.view).not.toBeNull());
+    expect(builds).toBe(1);
   });
 
   it("runs while at least half the figure shows, and stops when it does not", async () => {
