@@ -75,3 +75,15 @@
   color: var(--text-3);
   white-space: nowrap;
 }
+
+/* High Contrast drops backgrounds, which would empty the acked ring. */
+@media (forced-colors: active) {
+  .ring {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+
+  .change[data-acked="true"] .ring {
+    background: linear-gradient(90deg, CanvasText 50%, transparent 50%);
+  }
+}

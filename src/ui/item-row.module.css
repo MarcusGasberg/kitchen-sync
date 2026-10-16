@@ -137,3 +137,27 @@ label.label {
     margin-inline: 0;
   }
 }
+
+/* High Contrast drops backgrounds, which would empty the acked ring and the
+   checked circle: both keep their fill in the system's text colour. */
+@media (forced-colors: active) {
+  .check,
+  .ring {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+
+  .check:checked,
+  .row[data-checked="true"] .check {
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+
+  .check:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .row[data-sync="acked"] .ring {
+    background: linear-gradient(90deg, CanvasText 50%, transparent 50%);
+  }
+}
