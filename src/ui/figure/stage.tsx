@@ -3,6 +3,7 @@ import type { Flight, Lost } from "#/lib/sandbox/frame";
 import type { ClientName } from "#/lib/sandbox/trace";
 import { Basin } from "#/ui/basin";
 import { GroceryList, type ListIntent } from "#/ui/grocery-list";
+import type { Point } from "#/ui/marbling/operations";
 import { Pane } from "#/ui/pane";
 import { QuickAdd } from "#/ui/quick-add";
 import { StatusBand } from "#/ui/status-band";
@@ -41,9 +42,10 @@ interface Layout {
 
 const EMPTY: Layout = { width: 0, height: 0, wires: [] };
 
-// The wires as the stage lays out its panes: from the server's basin
-// (`data-anchor='server'`), whose foot is the band's top, to each device's
-// pane (`data-anchor='device'`), in the stage's pixels.
+// The wires as the stage lays out its panes, in the stage's pixels: from the
+// foot of the server's basin (`data-anchor='server-basin'`), down to the foot
+// of the server's pane (`data-anchor='server'`), the band's top, then to each
+// device's pane (`data-anchor='device'`).
 const measure = (stage: HTMLElement): Layout => {
   const box = stage.getBoundingClientRect();
   const within = (rect: DOMRect): Box => ({
@@ -52,8 +54,9 @@ const measure = (stage: HTMLElement): Layout => {
     right: rect.right - box.left,
     bottom: rect.bottom - box.top,
   });
-  const basin = stage.querySelector("[data-anchor='server']");
-  if (basin === null) {
+  const pane = stage.querySelector("[data-anchor='server']");
+  const basin = stage.querySelector("[data-anchor='server-basin']");
+  if (pane === null || basin === null) {
     return { ...EMPTY, width: box.width, height: box.height };
   }
   const devices = [
@@ -67,9 +70,15 @@ const measure = (stage: HTMLElement): Layout => {
   return {
     width: box.width,
     height: box.height,
-    wires: layWires(within(basin.getBoundingClientRect()), devices),
+    wires: layWires(
+      within(basin.getBoundingClientRect()),
+      within(pane.getBoundingClientRect()).bottom,
+      devices,
+    ),
   };
 };
+
+const samePoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 
 const sameLayout = (a: Layout, b: Layout) =>
   a.width === b.width &&
@@ -80,10 +89,9 @@ const sameLayout = (a: Layout, b: Layout) =>
     return (
       other !== undefined &&
       wire.client === other.client &&
-      wire.server.x === other.server.x &&
-      wire.server.y === other.server.y &&
-      wire.device.x === other.device.x &&
-      wire.device.y === other.device.y
+      samePoint(wire.server, other.server) &&
+      samePoint(wire.bend, other.bend) &&
+      samePoint(wire.device, other.device)
     );
   });
 
@@ -146,10 +154,10 @@ export function Stage({
   return (
     <div ref={stage} className={styles.stage}>
       {/* The server is a pane like a device's: its list, always open as
-          text, then its basin, whose foot is where the wires leave. On a
-          wide screen the list sits beside the basin instead, and the basin
-          keeps to the row's foot. */}
-      <div className={styles.server}>
+          text and compact, since nothing on it is a target, then its basin.
+          On a wide screen the list sits beside the basin instead. The wires
+          leave from the basin's foot and drop to the pane's foot. */}
+      <div className={styles.server} data-anchor="server">
         <Pane level={3} title="Server" status={server.line}>
           <div className={styles.serverBody}>
             {/* biome-ignore lint/a11y/useSemanticElements: a group of the list's sections, not a form's fields */}
@@ -162,9 +170,10 @@ export function Stage({
                 groups={server.list.groups}
                 rejected={[]}
                 headingLevel={4}
+                density="compact"
               />
             </div>
-            <div className={styles.serverBasin} data-anchor="server">
+            <div className={styles.serverBasin} data-anchor="server-basin">
               <Basin
                 items={server.items}
                 labels={server.labels}

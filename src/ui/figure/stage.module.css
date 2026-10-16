@@ -7,7 +7,7 @@
   min-width: 0;
 }
 
-/* The server's pane. Its header is Pane's own. */
+/* The server's pane, measured for the band's top. Its header is Pane's own. */
 .server {
   min-width: 0;
 }
@@ -20,9 +20,9 @@
   min-width: 0;
 }
 
-/* Wide enough for the list beside the basin. The basin keeps to the row's
-   foot, so however long the list runs, the wires leave from under the
-   basin and never cross it. */
+/* Wide enough for the list beside the basin, both from the row's top. Where
+   the list runs longer, the wires drop straight down from under the basin to
+   the pane's foot before they turn, so they never cross it. */
 @media (min-width: 64rem) {
   .serverBody {
     grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
@@ -37,7 +37,6 @@
 
   .serverBasin {
     grid-area: basin;
-    align-self: end;
   }
 }
 

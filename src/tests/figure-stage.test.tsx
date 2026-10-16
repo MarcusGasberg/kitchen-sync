@@ -120,11 +120,43 @@ describe("Stage", () => {
     expect(container.querySelector("details, summary")).toBeNull();
     // The basin is where the wires leave.
     expect(
-      container.querySelector("[data-anchor='server']")?.contains(basin),
+      container.querySelector("[data-anchor='server-basin']")?.contains(basin),
     ).toBe(true);
   });
 
-  it("starts each wire at the server basin's foot, spread evenly in device order", async () => {
+  // Nothing on the server's list is a target, so it is set compact; every
+  // device's list keeps the app's own rows.
+  it("sets the server's list compact and every device's as the app's", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    const density = (region: HTMLElement) =>
+      within(region)
+        .getAllByRole("listitem")
+        .map((row) => row.dataset.density);
+    expect(density(screen.getByRole("region", { name: "Server" }))).toEqual([
+      "compact",
+    ]);
+    expect(density(screen.getByRole("region", { name: "A" }))).toEqual([
+      "regular",
+    ]);
+    expect(density(screen.getByRole("region", { name: "B" }))).toEqual([
+      "regular",
+    ]);
+  });
+
+  it("starts each wire at the server basin's foot, spread evenly in device order, and bends at the pane's foot", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     const rect = (left: number, top: number, right: number, bottom: number) =>
       ({
@@ -138,10 +170,12 @@ describe("Stage", () => {
         y: top,
         toJSON: () => ({}),
       }) as DOMRect;
+    // A wide screen: the list beside the basin runs 40 px past its foot.
     const boxes = new Map<string, DOMRect>([
-      ["server", rect(0, 60, 600, 300)],
-      ["A", rect(0, 380, 280, 700)],
-      ["B", rect(320, 380, 600, 700)],
+      ["server-basin", rect(0, 60, 600, 300)],
+      ["server", rect(0, 20, 900, 340)],
+      ["A", rect(0, 420, 280, 700)],
+      ["B", rect(320, 420, 600, 700)],
     ]);
     const measured = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
@@ -170,15 +204,16 @@ describe("Stage", () => {
         onRetry={noop}
       />,
     );
-    const lines = [...container.querySelectorAll("line")].map((line) =>
-      ["x1", "y1", "x2", "y2"].map((name) => Number(line.getAttribute(name))),
+    const paths = [...container.querySelectorAll("polyline")].map((line) =>
+      line.getAttribute("points"),
     );
     measured.mockRestore();
     // From the basin's foot, its 600 px less 24 px at each corner shared
-    // evenly: 24 + 552 / 4 and 24 + 552 × 3 / 4.
-    expect(lines).toEqual([
-      [162, 300, 140, 380],
-      [438, 300, 460, 380],
+    // evenly (24 + 552 / 4 and 24 + 552 × 3 / 4), straight down to the
+    // pane's foot, then to the top of each device's pane above its middle.
+    expect(paths).toEqual([
+      "162,300 162,340 140,420",
+      "438,300 438,340 460,420",
     ]);
   });
 });

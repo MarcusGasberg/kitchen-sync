@@ -53,13 +53,12 @@ export function WireBand({
       aria-hidden="true"
     >
       {wires.map((wire) => (
-        <line
+        <polyline
           key={wire.client}
           className={styles.wire}
-          x1={wire.server.x}
-          y1={wire.server.y}
-          x2={wire.device.x}
-          y2={wire.device.y}
+          points={[wire.server, wire.bend, wire.device]
+            .map(({ x, y }) => `${x},${y}`)
+            .join(" ")}
         />
       ))}
       {flights.map((placed) => (
