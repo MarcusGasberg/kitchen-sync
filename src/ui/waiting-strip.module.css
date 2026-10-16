@@ -18,8 +18,11 @@
 }
 
 /* Shrinks to the line and scrolls, but never grows past its changes, so an
-   empty list takes no room from the words beside it. */
+   empty list takes no room from the words beside it. Positioned, so the
+   words only a screen reader hears, which are absolutely placed, scroll with
+   their changes instead of widening the page past its edge. */
 .strip {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-4);
