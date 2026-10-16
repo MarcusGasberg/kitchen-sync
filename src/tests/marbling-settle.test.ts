@@ -263,12 +263,12 @@ describe("a change to a list", () => {
     settler.see(from, 0, true);
     settler.see(to, 0, true);
     const midway = settler.at(DURATION / 2).ops;
-    // Its six old operations leave, and its seven new ones land.
-    expect(midway).toHaveLength(from.length + 7);
-    expect(keys(midway.slice(0, 6)).every((key) => key.startsWith(id(1)))).toBe(
+    // Its five old operations leave, and its six new ones land.
+    expect(midway).toHaveLength(from.length + 6);
+    expect(keys(midway.slice(0, 5)).every((key) => key.startsWith(id(1)))).toBe(
       true,
     );
-    expect(keys(midway.slice(-7)).every((key) => key.startsWith(id(1)))).toBe(
+    expect(keys(midway.slice(-6)).every((key) => key.startsWith(id(1)))).toBe(
       true,
     );
   });

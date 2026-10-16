@@ -105,8 +105,7 @@ in short:
   operations (Jaffer and Lu, "Mathematical Marbling", 2012). Each item, in the
   order the server last changed it (its version, ties by id), drops five
   times, alternately ink and clear water, so it lands as a core inside thin
-  rings; a stroke beside its centre lays it into the water as a feather; once
-  checked, a stroke crosses the basin. Items still in the
+  rings; once checked, a stroke crosses the basin. Items still in the
   outbox come last, in fresh ink. Every number comes from the item's id, so
   devices that hold the same rows draw the same pattern, and a device behind,
   ahead or rebased draws another. A removed item leaves the pattern. The

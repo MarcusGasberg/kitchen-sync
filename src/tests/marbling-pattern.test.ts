@@ -71,15 +71,43 @@ describe("patternOf", () => {
     expect(order).toEqual([`${id(1)}:ink`, `${id(3)}:ink`, `${id(2)}:ink`]);
   });
 
-  it("drops each item as rings of ink and clear water around a core, then lays it in", () => {
+  it("drops each item as rings of ink and clear water around a core", () => {
     expect(keys(patternOf({ items: [item(1, 1)] }))).toEqual([
       `${id(1)}:ink`,
       `${id(1)}:clear`,
       `${id(1)}:ring`,
       `${id(1)}:gap`,
       `${id(1)}:core`,
-      `${id(1)}:lay`,
     ]);
+  });
+
+  // Every direction from the centre crosses the same rings at the same
+  // distances.
+  it("lands an item on its own as round rings", () => {
+    const ops = patternOf({ items: [item(1, 1)] });
+    const [outer] = ops;
+    expect(outer?.kind).toBe("drop");
+    if (outer?.kind !== "drop") return;
+    const edge = Math.sqrt(
+      ops.reduce(
+        (area, op) => (op.kind === "drop" ? area + op.radius ** 2 : area),
+        0,
+      ),
+    );
+    const across = (angle: number) =>
+      Array.from({ length: 13 }, (_, step) => {
+        const distance = (step + 0.5) * 0.1 * edge;
+        return toneAt(
+          ops,
+          outer.x + Math.cos(angle) * distance,
+          outer.y + Math.sin(angle) * distance,
+        );
+      });
+    const east = across(0);
+    expect(new Set(east).size).toBeGreaterThan(2);
+    for (let k = 1; k < 16; k++) {
+      expect(across((k * Math.PI) / 8), `at ${k}/16 of a turn`).toEqual(east);
+    }
   });
 
   it("lands the rings as alternating ink and clear water", () => {
@@ -175,13 +203,13 @@ describe("patternOf", () => {
     }
   });
 
-  it("gives an item seven operations at most", () => {
+  it("gives an item six operations at most", () => {
     const counts = new Map<string, number>();
     for (const op of patternOf({ items: [item(1, 1, true), item(2, 2)] })) {
       const owner = op.key.slice(0, op.key.lastIndexOf(":"));
       counts.set(owner, (counts.get(owner) ?? 0) + 1);
     }
-    expect([...counts.values()]).toEqual([7, 6]);
+    expect([...counts.values()]).toEqual([6, 5]);
   });
 
   it("draws one picture for devices that agree, another for one behind or rebased", () => {

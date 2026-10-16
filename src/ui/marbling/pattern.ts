@@ -7,7 +7,7 @@ import {
   WORLD_WIDTH,
 } from "./operations";
 
-// The newest items a pattern keeps. Seven operations each at most stays within
+// The newest items a pattern keeps. Six operations each at most stays within
 // what the renderers draw at speed; older items leave the pattern on every
 // device alike.
 export const MAX_ITEMS = 64;
@@ -52,7 +52,7 @@ const pick = (tones: ReadonlyArray<Tone>, n: number): Tone =>
 
 // Each drop after the first pushes the ones before it outward, so these five
 // land as a core inside four thin rings, alternately clear and ink, about as
-// wide as each other: the fine lines later drops and strokes feather.
+// wide as each other: the fine lines later drops and checks feather.
 const RINGS = [
   { part: "ink", share: 0.55 },
   { part: "clear", share: 0.45 },
@@ -62,9 +62,9 @@ const RINGS = [
 ] as const;
 
 // One item's operations: five drops that land as rings of ink and clear water
-// around a core; a stroke beside the centre that lays them into the water; and,
-// once checked, a stroke across the basin. Every number is drawn from the
-// item's id in a fixed order, so checking an item moves nothing else.
+// around a core and, once checked, a stroke across the basin. Every number is
+// drawn from the item's id in a fixed order, so checking an item moves nothing
+// else.
 const itemOperations = (
   item: GroceryItem,
   fresh: boolean,
@@ -82,36 +82,20 @@ const itemOperations = (
     gap: 0,
     core: pick(CORE, next()),
   } as const satisfies Record<(typeof RINGS)[number]["part"], Tone>;
-  const [lx, ly] = unit(next() * 2 - 1, next() * 2 - 1);
-  const lean = next() - 0.5;
-  const [cx, cy] = unit(-ly + lean * lx, lx + lean * ly);
+  const [cx, cy] = unit(next() * 2 - 1, next() * 2 - 1);
   const sign = next() < 0.5 ? -1 : 1;
   const id = item.id;
 
-  const ops: Array<Operation> = [
-    ...RINGS.map(
-      ({ part, share }): Operation => ({
-        kind: "drop",
-        key: `${id}:${part}`,
-        x,
-        y,
-        radius: radius * share,
-        tone: fresh && tones[part] !== 0 ? 5 : tones[part],
-      }),
-    ),
-    // Beside the drop's centre, not through it: through the centre a stroke
-    // pulls a drop into a heart; beside it, into a feather.
-    {
-      kind: "tine",
-      key: `${id}:lay`,
-      x: x - ly * radius * 0.55,
-      y: y + lx * radius * 0.55,
-      ux: lx,
-      uy: ly,
-      shift: radius * 3,
-      falloff: 0.18,
-    },
-  ];
+  const ops: Array<Operation> = RINGS.map(
+    ({ part, share }): Operation => ({
+      kind: "drop",
+      key: `${id}:${part}`,
+      x,
+      y,
+      radius: radius * share,
+      tone: fresh && tones[part] !== 0 ? 5 : tones[part],
+    }),
+  );
   if (item.checked) {
     ops.push({
       kind: "tine",
