@@ -31,6 +31,8 @@ void main() {
 // square 1.5 pixels across, as renderer.ts's `paint` does with four, so an
 // edge is smooth. A frame of a settle (`fine` 0) takes four on a rotated
 // grid inside the pixel, cheap enough to draw every frame.
+// Numbers from TypeScript reach the shader as uniforms, never spliced into
+// its source, where a whole number would read as an int and not compile.
 const FRAGMENT = `#version 300 es
 precision highp float;
 precision highp int;

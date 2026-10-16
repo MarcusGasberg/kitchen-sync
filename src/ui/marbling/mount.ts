@@ -132,8 +132,9 @@ export const basinRenderer = (
   };
 };
 
+// Undefined where there is no window (a server render) or no media queries.
 const matchMedia = (query: string) =>
-  typeof window.matchMedia === "function"
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
     ? window.matchMedia(query)
     : undefined;
 

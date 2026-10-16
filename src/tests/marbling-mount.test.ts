@@ -484,4 +484,13 @@ describe("forcedColors", () => {
     expect(window.matchMedia).toBeUndefined();
     expect(forcedColors()).toBe(false);
   });
+
+  it("is false where there is no window at all, as on a server", () => {
+    vi.stubGlobal("window", undefined);
+    try {
+      expect(forcedColors()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
