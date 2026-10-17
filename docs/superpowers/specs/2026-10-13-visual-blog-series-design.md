@@ -463,6 +463,11 @@ review and DESIGN.md).
   and the code panel (two fifths) sit side by side, the code held in view
   while the stage scrolls; speed, "Your turn" and the breaking controls sit
   under the stage. Narrower, the code follows the figure's controls.
+  **Superseded for chapters on 2026-10-17** by the director
+  (`docs/superpowers/specs/2026-10-17-the-director-design.md`): a chapter is
+  scroll-driven, its prose in a left rail of steps beside a pinned screen with
+  the stage over the code, and one camera over one world plane replaces the
+  phone strip.
 - **Pane stage:** panes are HTML, each rendering `GroceryList` from its
   client's snapshot at *t*. One SVG overlay draws the wires and travelling
   messages; a message sits at `(t − departed) / (arrive − departed)` along its
@@ -516,6 +521,11 @@ Four plans, each on its own branch off `visual-blog-series`:
 4. **The blog routes:** MDX, `/blog` and `/blog/part-1` with the page rhythm,
    prerendering with each scene's first frame, the standalone tests, and
    Impeccable's finish with DESIGN.md.
+
+Before the blog routes (2026-10-17): the director, a guided and cinematic
+figure, in four plans of its own
+(`docs/superpowers/specs/2026-10-17-the-director-design.md`). The blog routes
+then build their chapters from its steps.
 
 ### How the player plays (2026-10-16)
 
