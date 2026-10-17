@@ -115,7 +115,8 @@ function FigureBody({
   // (Your turn) or disables it while the fork builds (a breaking control),
   // and a browser can drop focus to the page with it. Once the world is in
   // free play, focus that left the figure goes to the stage, which names the
-  // world, not to the top of the document.
+  // world, not to the top of the document. The page stays where the reader
+  // had it: the stage is beside or under the control they pressed.
   const handingOver = useRef(false);
   useEffect(() => {
     if (!handingOver.current || view === null) return;
@@ -133,7 +134,7 @@ function FigureBody({
         active === figure.ownerDocument.body ||
         !figure.contains(active))
     ) {
-      world.current?.focus();
+      world.current?.focus({ preventScroll: true });
     }
   }, [view]);
 
