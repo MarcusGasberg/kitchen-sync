@@ -59,8 +59,11 @@ const movingAt = (timeline: Timeline, at: number): boolean =>
 
 // A wait from `from` to `to` that plays short: long, and with nothing in
 // flight as it starts, so nothing moves on screen through it.
-const isQuiet = (timeline: Timeline, from: number, to: number): boolean =>
-  to - from > SKIP_OVER_MILLIS && !movingAt(timeline, from);
+export const isQuiet = (
+  timeline: Timeline,
+  from: number,
+  to: number,
+): boolean => to - from > SKIP_OVER_MILLIS && !movingAt(timeline, from);
 
 // The wait between two events that `at` falls in, if it plays short. Free
 // play's history is known, as a scene is, so it is paced as a scene is.

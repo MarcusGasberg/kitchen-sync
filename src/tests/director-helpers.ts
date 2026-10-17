@@ -62,3 +62,32 @@ export const entryWhere = (
   if (entry === undefined) throw new Error("no entry answers the lookup");
   return { entry, index };
 };
+// Three phones on a slow network, as the lab's drop scene: A adds oat milk,
+// its push reaches the server, which pokes every phone, and B and C pull it.
+export const OAT_SCENE: Scene = {
+  id: "test-director-oat",
+  world: {
+    clients: ["A", "B", "C"],
+    seed: "director-oat",
+    latency: "800 millis",
+  },
+  beats: [
+    {
+      caption: "Three phones share a short list.",
+      run: adds("A", "Bananas", "Rye bread"),
+      until: converged,
+    },
+    {
+      caption: "A adds oat milk.",
+      run: adds("A", "Oat milk"),
+      until: ({ since }) =>
+        since.some((e) => e._tag === "Sent" && e.message.kind === "push"),
+    },
+    {
+      caption: "A's push reaches the server, which pokes every phone.",
+      run: () => Effect.void,
+      until: ({ since }) => since.some((e) => e._tag === "Poked"),
+    },
+    { caption: "B and C pull it.", run: () => Effect.void, until: converged },
+  ],
+};
