@@ -26,6 +26,9 @@ import type {
 } from "#/lib/sandbox/trace";
 import {
   adds,
+  DROP_RETRY_SCENE,
+  lastEntryWhere,
+  MILK_SCENE,
   OAT_SCENE,
   REMOVE_FIRST_SCENE,
   TWO_WRITERS_SCENE,
@@ -327,6 +330,156 @@ describe("compile", () => {
           "B pulls v4: Bananas leaves.",
         ]);
         expect(pull?.subjects.filter((s) => s.kind === "row")).toHaveLength(1);
+      }),
+  );
+
+  it.effect(
+    "keeps its frame through a wait with nothing moving, to the step's end and into the next",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(DROP_RETRY_SCENE);
+        // The retry's backoff is jittered, so the step ends a moment after
+        // its last event, with nothing in flight.
+        const retry = result.beats[2];
+        const lastAt = result.timeline.entries
+          .filter((e) => e.event.seq < (retry?.endSeq ?? 0))
+          .at(-1)?.event.at;
+        expect(retry?.endedAt).toBeGreaterThan(
+          lastAt ?? Number.POSITIVE_INFINITY,
+        );
+        const cut = compile(result, DROP_RETRY_SCENE);
+        expect(storyOf(cut, 2)).toEqual([
+          // On the lost push, through the timeout's quiet wait.
+          "open close",
+          "skip",
+          "move→close",
+          // A backs off, and the camera waits on A for its retry.
+          "hold close",
+          "close ×1",
+          "move→follow",
+          `follow ×${FOLLOW_RATE}`,
+          `follow ×${SLOW_RATE}`,
+          "move→close",
+          "hold close",
+          "move→wide",
+          "hold wide",
+          "wide ×1",
+          "move→close",
+          "hold close",
+          "move→wide",
+          "wide ×1",
+          "wide ×1",
+          "move→close",
+          "hold close",
+          "move→table",
+          // The payoff, held to the step's end with no move away.
+          "hold table",
+          "table ×1",
+        ]);
+        const [opening, skip] = shotsOf(cut, 2);
+        expect(skip?.subjects).toEqual(opening?.subjects);
+
+        // With the light table folded, the step ends on B's pull, and the
+        // next opens there: B's tap needs no move.
+        const kept = compile(
+          result,
+          directed(DROP_RETRY_SCENE, {
+            2: { fold: (e) => e._tag === "Converged" },
+          }),
+        );
+        expect(storyOf(kept, 2).slice(-3)).toEqual([
+          "move→close",
+          "hold close",
+          "close ×1",
+        ]);
+        expect(storyOf(kept, 3)).toEqual([
+          "open close",
+          "enact tap",
+          "hold close",
+        ]);
+        expect(shotsOf(kept, 3)[0]?.subjects).toEqual(
+          shotsOf(kept, 2).at(-1)?.subjects,
+        );
+      }),
+  );
+
+  it.effect(
+    "plays a followed flight too short to slow into its decision slow all the way",
+    () =>
+      Effect.gen(function* () {
+        const cut = compile(yield* runHeadless(MILK_SCENE), MILK_SCENE);
+        const story = storyOf(cut, 1);
+        const into = story.indexOf("move→follow");
+        expect(story.slice(into, into + 3)).toEqual([
+          "move→follow",
+          `follow ×${SLOW_RATE}`,
+          "move→close",
+        ]);
+        const flight = shotsOf(cut, 1)[into + 1];
+        const span = (flight?.to ?? 0) - (flight?.from ?? 0);
+        // The world's default latency is under SLOW_INTO_MILLIS.
+        expect(span).toBeGreaterThan(0);
+        expect(span).toBeLessThan(SLOW_INTO_MILLIS);
+        expect(flight?.screen).toBe(span / SLOW_RATE);
+      }),
+  );
+
+  it.effect(
+    "lands a folded change after its enactment, on a bare hold of its own",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(OAT_SCENE);
+        const cut = compile(
+          result,
+          directed(OAT_SCENE, { 1: { fold: isAppliedOnA } }),
+        );
+        expect(storyOf(cut, 1)).toEqual([
+          "open wide",
+          "move→close",
+          "enact type",
+          "hold close",
+        ]);
+        const { index } = lastEntryWhere(result.timeline, isAppliedOnA);
+        const lastOwned = result.timeline.entries
+          .map((e) => e.event.seq < (result.beats[1]?.endSeq ?? 0))
+          .lastIndexOf(true);
+        const [, , typing, landing] = shotsOf(cut, 1);
+        expect(typing?.through).toBe(index - 1);
+        expect(landing).toMatchObject({
+          enact: null,
+          notes: [],
+          rate: 0,
+          screen: BARE_HOLD_MILLIS,
+          through: lastOwned,
+        });
+      }),
+  );
+
+  it.effect(
+    "opens every step, the setup and a quiet one too, before its own events",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(OAT_SCENE);
+        const { entries } = result.timeline;
+        const firstOf = (beat: number) =>
+          entries.findIndex(
+            (e) => e.event.seq >= (result.beats[beat]?.firstSeq ?? 0),
+          );
+        const cut = compile(result, OAT_SCENE);
+        // The setup opens on the phones' first pulls, before its adds.
+        expect(shotsOf(cut, 0)[0]?.through).toBe(firstOf(0) - 1);
+        expect(entries[firstOf(0)]?.event._tag).toBe("Applied");
+
+        // A quiet step's change is not shown before it plays.
+        const quiet = compile(
+          result,
+          directed(OAT_SCENE, { 1: { quiet: true } }),
+        );
+        const { index } = lastEntryWhere(result.timeline, isAppliedOnA);
+        expect(storyOf(quiet, 1)).toEqual(["open wide", "hold wide"]);
+        const [opening, shown] = shotsOf(quiet, 1);
+        expect(opening?.through).toBe(index - 1);
+        expect(shown?.through).toBeGreaterThanOrEqual(index);
       }),
   );
 

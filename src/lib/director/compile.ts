@@ -313,15 +313,27 @@ const lastBefore = (timeline: Timeline, at: number): number => {
   return index;
 };
 
-// The world between two moments. A quiet wait skips; one wire's messages
-// are followed (slowing into a decision or a drop at its end); anything
-// else plays wide.
+// How the camera frames which subjects: what a shot keeps of the one before
+// when nothing calls for a new frame.
+type Frame = Pick<Shot, "framing" | "subjects">;
+
+const WIDE_FRAME: Frame = { framing: "wide", subjects: [] };
+
+// The world between two moments. A wait with nothing moving keeps the frame
+// before it (`still`), skipped when quiet: the camera moves only when the
+// frame must change. One wire's messages are followed (slowing into a
+// decision or a drop at its end); several play wide. A setup plays it all
+// wide.
 const flights = (
   timeline: Timeline,
   from: number,
   to: number,
   step: number,
-  how: { readonly quiet: boolean; readonly slowInto: boolean },
+  how: {
+    readonly quiet: boolean;
+    readonly still: Frame;
+    readonly slowInto: boolean;
+  },
 ): Array<Shot> => {
   const base = {
     through: lastBefore(timeline, to),
@@ -335,8 +347,8 @@ const flights = (
     return [
       {
         ...base,
-        framing: "wide",
-        subjects: [],
+        framing: how.still.framing,
+        subjects: how.still.subjects,
         from,
         to,
         rate: (to - from) / SKIP_SCREEN_MILLIS,
@@ -349,11 +361,12 @@ const flights = (
   ).filter((m) => m.fate === "inFlight");
   const wires = new Set(moving.map((m) => m.client));
   if (how.quiet || moving.length === 0 || wires.size !== 1) {
+    const { framing, subjects } = moving.length === 0 ? how.still : WIDE_FRAME;
     return [
       {
         ...base,
-        framing: "wide",
-        subjects: [],
+        framing,
+        subjects,
         from,
         to,
         rate: 1,
@@ -374,10 +387,12 @@ const flights = (
     rate,
     screen: (b - a) / rate,
   });
+  if (!how.slowInto) return [follow(from, to, FOLLOW_RATE)];
+  // A flight shorter than the slow stretch is slow all the way.
   const slowFrom = to - SLOW_INTO_MILLIS;
-  return how.slowInto && slowFrom > from
+  return slowFrom > from
     ? [follow(from, slowFrom, FOLLOW_RATE), follow(slowFrom, to, SLOW_RATE)]
-    : [follow(from, to, FOLLOW_RATE)];
+    : [follow(from, to, SLOW_RATE)];
 };
 
 // A shot being built from one moment's events.
@@ -622,13 +637,15 @@ const quietShots = (
   return sorted.slice(1).flatMap((to, i) =>
     flights(timeline, sorted[i] ?? to, to, step, {
       quiet: true,
+      still: WIDE_FRAME,
       slowInto: false,
     }),
   );
 };
 
 // A directed beat's shots: its moments in order, with the world between
-// them.
+// them. A wait with nothing moving keeps the frame before it: the step's
+// opening's, before its first shot.
 const directedShots = (
   timeline: Timeline,
   beat: BeatResult,
@@ -637,6 +654,7 @@ const directedShots = (
   ceiling: number,
   inputs: ReadonlyArray<RecordedInput>,
   direct: Direction | undefined,
+  opening: Frame,
 ): Array<Shot> => {
   const { entries } = timeline;
   const acts = actsOf(inputs, owned, entries);
@@ -661,7 +679,11 @@ const directedShots = (
         );
       });
       shots.push(
-        ...flights(timeline, t, moment, step, { quiet: false, slowInto }),
+        ...flights(timeline, t, moment, step, {
+          quiet: false,
+          still: shots.at(-1) ?? opening,
+          slowInto,
+        }),
       );
     }
     shots.push(
@@ -682,6 +704,7 @@ const directedShots = (
     shots.push(
       ...flights(timeline, t, beat.endedAt, step, {
         quiet: false,
+        still: shots.at(-1) ?? opening,
         slowInto: false,
       }),
     );
@@ -753,6 +776,28 @@ export const compile = (
     const after = entries.findIndex((e) => e.event.seq >= beat.firstSeq);
     const firstOwned = owned[0] ?? (after < 0 ? entries.length : after);
     const lastOwned = owned.at(-1) ?? firstOwned - 1;
+    // A step opens on the frame the one before ended on, with the world
+    // before its own events, the setup's and a quiet step's too. The light
+    // table reopens as wide.
+    const ended = shots.at(-1);
+    const opening: Shot = {
+      ...(ended === undefined || ended.framing === "table"
+        ? WIDE_FRAME
+        : { framing: ended.framing, subjects: ended.subjects }),
+      from: beat.startedAt,
+      to: beat.startedAt,
+      rate: 0,
+      screen:
+        options.opening === undefined || options.opening === "caption"
+          ? dwellFor(beat.caption)
+          : options.opening,
+      through: firstOwned - 1,
+      enact: null,
+      notes: [],
+      move: false,
+      opening: true,
+      step,
+    };
     const content = quiet
       ? quietShots(timeline, beat, step)
       : directedShots(
@@ -763,38 +808,27 @@ export const compile = (
           lastOwned,
           result.inputs.slice(beat.firstInput, beat.endInput),
           direct,
+          opening,
         );
-    // Events folded at the beat's last instant show with its last shot.
+    // Events folded at the beat's last instant show with its last shot. An
+    // enactment shows the world before its own event, so they show on a bare
+    // hold of its frame after it: a change lands only once it is acted out.
     const last = content.at(-1);
     if (last !== undefined && last.through < lastOwned) {
-      content[content.length - 1] = { ...last, through: lastOwned };
+      if (last.enact === null) {
+        content[content.length - 1] = { ...last, through: lastOwned };
+      } else {
+        content.push({
+          ...last,
+          from: last.to,
+          rate: 0,
+          screen: BARE_HOLD_MILLIS,
+          through: lastOwned,
+          enact: null,
+          notes: [],
+        });
+      }
     }
-    // A step opens on the frame the one before ended on, with the world
-    // before its own events. The light table reopens as wide.
-    const ended = shots.at(-1);
-    const opening: Shot = {
-      framing:
-        ended === undefined || ended.framing === "table"
-          ? "wide"
-          : ended.framing,
-      subjects:
-        ended === undefined || ended.framing === "table" ? [] : ended.subjects,
-      from: beat.startedAt,
-      to: beat.startedAt,
-      rate: 0,
-      screen:
-        options.opening === undefined || options.opening === "caption"
-          ? dwellFor(beat.caption)
-          : options.opening,
-      through: quiet
-        ? Math.min(entryIndexAt(timeline, beat.startedAt), lastOwned)
-        : firstOwned - 1,
-      enact: null,
-      notes: [],
-      move: false,
-      opening: true,
-      step,
-    };
     // A beat whose events are all folded and that acted nothing out still
     // ends showing them: a bare hold on the opening's frame, after it.
     if (content.length === 0 && lastOwned > opening.through) {
