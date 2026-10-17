@@ -4,7 +4,7 @@ import { describe, expect, it as plain } from "vitest";
 import { payloadOf } from "#/lib/director/payload";
 import { runHeadless } from "#/lib/sandbox/scene";
 import { EMPTY_TIMELINE, type Message } from "#/lib/sandbox/trace";
-import { entryWhere, MILK_SCENE } from "./director-helpers";
+import { entryWhere, MILK_SCENE, REMOVE_FIRST_SCENE } from "./director-helpers";
 
 describe("payloadOf", () => {
   it.effect("reads what a message carries from the world as it left", () =>
@@ -67,6 +67,28 @@ describe("payloadOf", () => {
         ),
       ).toEqual(["response v2", "Milk · changed"]);
     }),
+  );
+
+  it.effect(
+    "lists the rows a pull's response takes away, and not the rows renumbered after them",
+    () =>
+      Effect.gen(function* () {
+        const { timeline, beats } = yield* runHeadless(REMOVE_FIRST_SCENE);
+        const removal = beats[1];
+        const { entry } = entryWhere(
+          timeline,
+          (e) =>
+            e._tag === "Sent" &&
+            e.message.kind === "pullResponse" &&
+            e.message.client === "B" &&
+            e.seq >= (removal?.firstSeq ?? 0),
+        );
+        if (entry.event._tag !== "Sent") throw new Error("not a send");
+        expect(payloadOf(entry.event.message, timeline)).toEqual([
+          "response v4",
+          "Bananas · gone",
+        ]);
+      }),
   );
 
   plain("says only its label for a message the timeline never sent", () => {

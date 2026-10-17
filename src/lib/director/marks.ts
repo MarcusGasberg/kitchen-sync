@@ -1,6 +1,11 @@
 import { Equal } from "effect";
 import type { GroceryItem } from "#/domain/grocery-item";
-import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
+import type {
+  ClientName,
+  Entry,
+  Timeline,
+  WorldSnapshot,
+} from "#/lib/sandbox/trace";
 import { type Place, SERVER } from "./shots";
 
 // What changed where: marks a stage draws from the trace itself, whatever
@@ -18,7 +23,8 @@ export type ChangeKind =
 type Items = ReadonlyMap<string, GroceryItem>;
 
 // How one item changed, as a reader sees it. A new version alone (a pull
-// confirming a device's own change) is no change.
+// confirming a device's own change) is no change. Alone, any new `order` is
+// a move; within a whole list, `diffItems` decides which rows moved.
 export const itemChange = (
   before: GroceryItem | undefined,
   after: GroceryItem | undefined,
@@ -45,6 +51,46 @@ export interface ItemDiff {
   readonly kind: ChangeKind;
 }
 
+// The positions in `ranks` of one longest rising run through it.
+const longestRise = (ranks: ReadonlyArray<number>): ReadonlySet<number> => {
+  // For each position, the longest run ending there and the position
+  // before it in that run.
+  const lengths: Array<number> = [];
+  const links: Array<number> = [];
+  let best = -1;
+  for (const [i, rank] of ranks.entries()) {
+    let length = 1;
+    let link = -1;
+    for (let j = 0; j < i; j++) {
+      const through = (lengths[j] ?? 0) + 1;
+      if ((ranks[j] ?? rank) < rank && through > length) {
+        length = through;
+        link = j;
+      }
+    }
+    lengths.push(length);
+    links.push(link);
+    if (best < 0 || length > (lengths[best] ?? 0)) best = i;
+  }
+  const run = new Set<number>();
+  for (let i = best; i >= 0; i = links[i] ?? -1) run.add(i);
+  return run;
+};
+
+// The rows that kept their place. Removing a row renumbers every row after
+// it, and moving one renumbers those it passes, so a new `order` alone says
+// little: the rows that stay in the same order as each other, as many as
+// can, kept their place, and the rest moved.
+const keptPlace = (before: Items, after: Items): ReadonlySet<string> => {
+  const both = [...before.values()]
+    .filter((item) => after.has(item.id))
+    .sort((a, b) => a.order - b.order);
+  const run = longestRise(
+    both.map((item) => after.get(item.id)?.order ?? item.order),
+  );
+  return new Set(both.flatMap((item, i) => (run.has(i) ? [item.id] : [])));
+};
+
 // Each item that changed between two of a place's lists, in the later
 // list's order, then the removed.
 export const diffItems = (
@@ -52,9 +98,12 @@ export const diffItems = (
   after: Items,
 ): ReadonlyArray<ItemDiff> => {
   const diffs: Array<ItemDiff> = [];
+  const kept =
+    before === undefined ? new Set<string>() : keptPlace(before, after);
   for (const [itemId, item] of after) {
     const kind = itemChange(before?.get(itemId), item);
-    if (kind !== null) diffs.push({ itemId, name: item.name, kind });
+    if (kind === null || (kind === "moved" && kept.has(itemId))) continue;
+    diffs.push({ itemId, name: item.name, kind });
   }
   for (const [itemId, item] of before ?? new Map<string, GroceryItem>()) {
     if (!after.has(itemId)) {
@@ -72,8 +121,29 @@ export interface Change {
   readonly kind: ChangeKind;
 }
 
-const byId = (items: ReadonlyArray<GroceryItem>): Items =>
+export const byId = (items: ReadonlyArray<GroceryItem>): Items =>
   new Map(items.map((item) => [item.id, item]));
+
+// The last entry before the store update that `index`'s entry belongs to, as
+// `client` saw it. The recorder appends every event of one update (a pull's
+// Confirmed, Acked and Reconciled) with the state after it, one state object
+// shared by all of them, so the entry just before a pull's Reconciled can
+// already show its rows. Undefined when the timeline holds nothing before.
+export const entryBeforeUpdate = (
+  timeline: Timeline,
+  index: number,
+  client: ClientName,
+): Entry | undefined => {
+  const { entries } = timeline;
+  const state = entries[index]?.snapshot.clients.get(client);
+  for (let i = index - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry !== undefined && entry.snapshot.clients.get(client) !== state) {
+      return entry;
+    }
+  }
+  return undefined;
+};
 
 const known = new WeakMap<Timeline, ReadonlyArray<Change>>();
 

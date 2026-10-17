@@ -1,10 +1,17 @@
 import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect, it as plain } from "vitest";
+import { entryBeforeUpdate } from "#/lib/director/marks";
 import { decisionNote, idsOf, noteFor } from "#/lib/director/notes";
-import { runHeadless } from "#/lib/sandbox/scene";
+import { runHeadless, type Scene } from "#/lib/sandbox/scene";
 import type { Entry, TraceEvent } from "#/lib/sandbox/trace";
-import { entryWhere, MILK_SCENE } from "./director-helpers";
+import {
+  adds,
+  BACK_ONLINE_SCENE,
+  entryWhere,
+  lastEntryWhere,
+  MILK_SCENE,
+} from "./director-helpers";
 
 describe("noteFor", () => {
   it.effect("says what each moment means, in a dozen words or so", () =>
@@ -74,6 +81,133 @@ describe("noteFor", () => {
       expect(note((e) => e._tag === "Delivered")).toBeNull();
     }),
   );
+
+  it.effect(
+    "says what a returning device's pull brings, read from before its update",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(BACK_ONLINE_SCENE);
+        const { entry, index } = lastEntryWhere(
+          timeline,
+          (e) => e._tag === "Reconciled" && e.client === "A",
+        );
+        // The pull confirms A's eggs in the same update: the entry just
+        // before it already shows the bread.
+        expect(noteFor(entry, timeline.entries[index - 1])).toBeNull();
+        expect(noteFor(entry, entryBeforeUpdate(timeline, index, "A"))).toBe(
+          "A pulls v3: Bread arrives.",
+        );
+      }),
+  );
+
+  it.effect("says a device's changes wait only when it has some", () =>
+    Effect.gen(function* () {
+      const wentOffline = ({ since }: { since: ReadonlyArray<TraceEvent> }) =>
+        since.some((e) => e._tag === "WentOffline");
+      const away: Scene = {
+        id: "test-director-away",
+        world: { clients: ["A", "B"], seed: "director-away" },
+        beats: [
+          {
+            caption: "A goes offline with nothing to send.",
+            run: (world) => world.net.offline("A", true),
+            until: wentOffline,
+          },
+          {
+            caption: "A comes back.",
+            run: (world) => world.net.offline("A", false),
+            until: ({ since }) => since.some((e) => e._tag === "CameOnline"),
+          },
+          {
+            caption: "B adds eggs and goes offline at once.",
+            run: (world) =>
+              Effect.andThen(
+                adds("B", "Eggs")(world),
+                world.net.offline("B", true),
+              ),
+            until: wentOffline,
+          },
+        ],
+      };
+      const { timeline } = yield* runHeadless(away);
+      const note = (client: string) => {
+        const { entry, index } = entryWhere(
+          timeline,
+          (e) => e._tag === "WentOffline" && e.client === client,
+        );
+        return noteFor(entry, timeline.entries[index - 1]);
+      };
+      expect(note("A")).toBe("A goes offline.");
+      expect(note("B")).toBe("B goes offline. Its changes wait.");
+    }),
+  );
+
+  it.effect(
+    "says only what is true of agreement while a device is offline",
+    () =>
+      Effect.gen(function* () {
+        const converged = ({ since }: { since: ReadonlyArray<TraceEvent> }) =>
+          since.some((e) => e._tag === "Converged");
+        const offline: Scene = {
+          id: "test-director-converged-offline",
+          world: {
+            clients: ["A", "B", "C"],
+            seed: "director-converged-offline",
+          },
+          beats: [
+            {
+              caption: "Every phone shows bananas.",
+              run: adds("A", "Bananas"),
+              until: converged,
+            },
+            {
+              caption: "C goes offline.",
+              run: (world) => world.net.offline("C", true),
+              until: ({ since }) => since.some((e) => e._tag === "WentOffline"),
+            },
+            {
+              caption: "A adds eggs.",
+              run: adds("A", "Eggs"),
+              until: converged,
+            },
+          ],
+        };
+        const { timeline } = yield* runHeadless(offline);
+        const last = timeline.entries.at(-1);
+        expect(last?.event._tag).toBe("Converged");
+        // C still shows bananas alone; the server has the eggs too.
+        expect(
+          [...(last?.snapshot.clients.get("C")?.items.values() ?? [])].map(
+            (item) => item.name,
+          ),
+        ).toEqual(["Bananas"]);
+        expect(last === undefined ? null : noteFor(last, undefined)).toBe(
+          "Every online phone shows the server's list; C is offline.",
+        );
+      }),
+  );
+
+  plain("names every offline device when several are", () => {
+    const entry: Entry = {
+      event: { _tag: "Converged", at: 0, seq: 0 },
+      snapshot: {
+        at: 0,
+        clients: new Map(),
+        offline: new Set(["C", "B"]),
+        server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
+        messages: [],
+      },
+    };
+    expect(noteFor(entry, undefined)).toBe(
+      "Every online phone shows the server's list; B and C are offline.",
+    );
+    expect(
+      noteFor(
+        { ...entry, snapshot: { ...entry.snapshot, offline: new Set() } },
+        undefined,
+      ),
+    ).toBe("Every outbox is empty. Every basin shows one pattern.");
+  });
 
   plain("says why a device refuses a change itself", () => {
     const entry: Entry = {

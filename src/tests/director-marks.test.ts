@@ -1,16 +1,25 @@
 import { it } from "@effect/vitest";
-import { Effect } from "effect";
+import { DateTime, Effect, Option } from "effect";
 import { describe, expect } from "vitest";
+import type { GroceryItem } from "#/domain/grocery-item";
 import {
   type Change,
   changesOf,
+  diffItems,
+  entryBeforeUpdate,
   ghostsOf,
   WET_MILLIS,
   wetAt,
   wetKey,
 } from "#/lib/director/marks";
 import { runHeadless } from "#/lib/sandbox/scene";
-import { entryWhere, MILK_SCENE } from "./director-helpers";
+import {
+  entryWhere,
+  lastEntryWhere,
+  MILK_SCENE,
+  REMOVE_FIRST_SCENE,
+  TWO_WRITERS_SCENE,
+} from "./director-helpers";
 
 describe("changesOf", () => {
   it.effect(
@@ -33,6 +42,80 @@ describe("changesOf", () => {
         // A timeline never changes, so it is read once.
         expect(changesOf(timeline)).toBe(changes);
       }),
+  );
+});
+
+describe("entryBeforeUpdate", () => {
+  it.effect(
+    "passes the events of one store update to the entry before it",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(TWO_WRITERS_SCENE);
+        const { entry, index } = lastEntryWhere(
+          timeline,
+          (e) => e._tag === "Reconciled" && e.client === "A",
+        );
+        const state = entry.snapshot.clients.get("A");
+        // The pull's Confirmed is the same update, and shares its state.
+        const confirmed = timeline.entries[index - 1];
+        expect(confirmed?.event._tag).toBe("Confirmed");
+        expect(confirmed?.snapshot.clients.get("A")).toBe(state);
+        const before = entryBeforeUpdate(timeline, index, "A");
+        expect(before).toBe(timeline.entries[index - 2]);
+        expect(before?.snapshot.clients.get("A")).not.toBe(state);
+        // Nothing before the first entry.
+        expect(entryBeforeUpdate(timeline, 0, "A")).toBeUndefined();
+      }),
+  );
+});
+
+describe("diffItems", () => {
+  const row = (name: string, order: number): GroceryItem => ({
+    id: name,
+    name,
+    quantity: 1,
+    unit: Option.none(),
+    category: Option.none(),
+    createdAt: DateTime.makeUnsafe(0),
+    checked: false,
+    order,
+    version: 1,
+  });
+  const list = (...names: ReadonlyArray<string>) =>
+    new Map(names.map((name, order) => [name, row(name, order)]));
+
+  it("moves nothing when a removal renumbers the rows after it", () => {
+    expect(
+      diffItems(list("Bananas", "Eggs", "Milk"), list("Eggs", "Milk")),
+    ).toEqual([{ itemId: "Bananas", name: "Bananas", kind: "removed" }]);
+  });
+
+  it("moves only the row that was reordered", () => {
+    expect(
+      diffItems(
+        list("Bananas", "Eggs", "Milk"),
+        list("Milk", "Bananas", "Eggs"),
+      ),
+    ).toEqual([{ itemId: "Milk", name: "Milk", kind: "moved" }]);
+    expect(
+      diffItems(
+        list("Bananas", "Eggs", "Milk"),
+        list("Eggs", "Milk", "Bananas"),
+      ),
+    ).toEqual([{ itemId: "Bananas", name: "Bananas", kind: "moved" }]);
+  });
+
+  it("moves nothing when a row arrives between others", () => {
+    expect(
+      diffItems(list("Bananas", "Milk"), list("Bananas", "Eggs", "Milk")),
+    ).toEqual([{ itemId: "Eggs", name: "Eggs", kind: "added" }]);
+  });
+
+  it.effect("agrees with the marks a removal leaves", () =>
+    Effect.gen(function* () {
+      const { timeline } = yield* runHeadless(REMOVE_FIRST_SCENE);
+      expect(changesOf(timeline).filter((c) => c.kind === "moved")).toEqual([]);
+    }),
   );
 });
 

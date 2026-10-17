@@ -103,7 +103,8 @@ export const pulled = (
 };
 
 // A moment's note, or null for one with nothing to say. `before` is the
-// entry before it, for what a pull changed.
+// entry before the pull's store update, for what a pull changed: the entry
+// just before it may already show its rows (`entryBeforeUpdate`).
 export const noteFor = (
   entry: Entry,
   before: Entry | undefined,
@@ -174,10 +175,18 @@ export const noteFor = (
     case "Reloaded":
       return `${event.client} reloads: the same client, an empty outbox.`;
     case "WentOffline":
-      return `${event.client} goes offline. Its changes wait.`;
+      return (snapshot.clients.get(event.client)?.outbox.length ?? 0) === 0
+        ? `${event.client} goes offline.`
+        : `${event.client} goes offline. Its changes wait.`;
     case "CameOnline":
       return `${event.client} is back online.`;
-    case "Converged":
-      return "Every outbox is empty. Every basin shows one pattern.";
+    case "Converged": {
+      // An offline device's rows are not compared: it may still show an old
+      // list, so only the online phones are said to agree.
+      const away = [...snapshot.offline].sort();
+      return away.length === 0
+        ? "Every outbox is empty. Every basin shows one pattern."
+        : `Every online phone shows the server's list; ${listed(away)} ${away.length === 1 ? "is" : "are"} offline.`;
+    }
   }
 };

@@ -24,7 +24,12 @@ import type {
   TraceEvent,
   TraceEventBody,
 } from "#/lib/sandbox/trace";
-import { adds, OAT_SCENE } from "./director-helpers";
+import {
+  adds,
+  OAT_SCENE,
+  REMOVE_FIRST_SCENE,
+  TWO_WRITERS_SCENE,
+} from "./director-helpers";
 
 // A shot as a word, so a step's story reads as a list.
 const label = (shot: Shot): string => {
@@ -283,6 +288,46 @@ describe("compile", () => {
         result.timeline.entries.length - 1,
       );
     }),
+  );
+
+  it.effect(
+    "shoots a pull that brings another's change while it confirms its own",
+    () =>
+      Effect.gen(function* () {
+        const cut = compile(
+          yield* runHeadless(TWO_WRITERS_SCENE),
+          TWO_WRITERS_SCENE,
+        );
+        const pulls = shotsOf(cut, 3).find(
+          (s) => s.framing === "split" && !s.move,
+        );
+        expect(pulls?.subjects.filter((s) => s.kind === "device")).toEqual([
+          { kind: "device", client: "A" },
+          { kind: "device", client: "B" },
+        ]);
+        expect(pulls?.notes.map((n) => n.text)).toEqual([
+          "A pulls v3: Bananas is checked.",
+          "B pulls v3: Eggs arrives.",
+        ]);
+      }),
+  );
+
+  it.effect(
+    "shoots a removal as one row leaving, not the rows after it moving",
+    () =>
+      Effect.gen(function* () {
+        const cut = compile(
+          yield* runHeadless(REMOVE_FIRST_SCENE),
+          REMOVE_FIRST_SCENE,
+        );
+        const pull = shotsOf(cut, 1).find((s) =>
+          s.notes.some((n) => n.text.startsWith("B pulls")),
+        );
+        expect(pull?.notes.map((n) => n.text)).toEqual([
+          "B pulls v4: Bananas leaves.",
+        ]);
+        expect(pull?.subjects.filter((s) => s.kind === "row")).toHaveLength(1);
+      }),
   );
 
   it.effect("says a run of decisions in one note", () =>

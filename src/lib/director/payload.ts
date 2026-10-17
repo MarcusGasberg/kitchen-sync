@@ -2,11 +2,13 @@ import type { ItemMutation } from "#/domain/mutation";
 import { nameIn, said } from "#/lib/sandbox/captions";
 import type { Message, Timeline } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
+import { byId, diffItems } from "./marks";
 
 // What a message carries, line by line, for the card it opens into when the
 // camera follows it. The trace keeps a message's label, not its body, so the
 // body is read from the world as the message left: the sender's outbox for a
-// push, the server's rows for a pull's response.
+// push, the server's rows against the client's last pull for a pull's
+// response.
 
 // Mutations or rows a card lists before "and N more".
 const SHOWN = 3;
@@ -82,17 +84,18 @@ export const payloadOf = (
     case "pull":
       return [head, "asks for what came after"];
     case "pullResponse": {
-      const rows = snapshot.server.items.filter(
-        (item) => item.version > state.appliedVersion,
-      );
+      // The server's rows against the client's last pull: what the response
+      // brings, changes and takes away. A row renumbered only because
+      // another left or moved is not a change.
+      const rows = diffItems(state.base, byId(snapshot.server.items));
       return rows.length === 0
         ? [head, "nothing new"]
         : [
             head,
             ...more(
               rows.map(
-                (item) =>
-                  `${item.name} · ${state.base.has(item.id) ? "changed" : "new"}`,
+                ({ name, kind }) =>
+                  `${name} · ${kind === "added" ? "new" : kind === "removed" ? "gone" : "changed"}`,
               ),
             ),
           ];

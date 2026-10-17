@@ -13,7 +13,7 @@ import type {
   Timeline,
   TraceEvent,
 } from "#/lib/sandbox/trace";
-import { diffItems } from "./marks";
+import { diffItems, entryBeforeUpdate } from "./marks";
 import { decisionNote, noteFor } from "./notes";
 import {
   type Cut,
@@ -115,7 +115,9 @@ const rowAndRing = (
       ];
 
 // What an entry is about if the rules give it a shot; null folds it into the
-// shot already running, where it is drawn but not shot.
+// shot already running, where it is drawn but not shot. `before` is the
+// entry before its store update (`entryBeforeUpdate`), for what a pull
+// changed.
 const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
   const { event } = entry;
   switch (event._tag) {
@@ -469,8 +471,8 @@ type Write = (
   before: Entry | undefined,
 ) => { readonly text: string | null; readonly overridden: boolean };
 
-// A beat's notes: its direction's, each for the first event it matches,
-// else the director's own.
+// A beat's notes: its direction's, each for the first event it matches that
+// gets a shot (only those are written), else the director's own.
 const writerOf = (direct: Direction | undefined): Write => {
   const overrides = direct?.notes ?? [];
   const used = new Set<number>();
@@ -522,7 +524,13 @@ const momentShots = (
       shots.push(actShot(act, index - 1, step));
     }
     const { event } = entry;
-    const previous = entries[index - 1];
+    // What a pull changed is read from before its store update, whose other
+    // events (a Confirmed, an Acked) already show the new rows. The rules and
+    // the note read the same list.
+    const previous =
+      event._tag === "Reconciled"
+        ? entryBeforeUpdate(timeline, index, event.client)
+        : entries[index - 1];
     const found =
       direct?.fold?.(event) === true
         ? null
