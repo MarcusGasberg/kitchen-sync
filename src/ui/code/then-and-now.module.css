@@ -17,15 +17,6 @@ label.version .commit {
   font-family: var(--font-mono);
 }
 
-/* Then's date and commit go on a second line under "Then", start-aligned, so
-   Then and Now share one row on a phone. Now stays one line, centred. */
-label.then {
-  grid-auto-flow: row;
-  justify-items: start;
-  align-content: center;
-  gap: var(--space-1);
-}
-
 /* The panel is an inline-size container: its code is drawn by its own width,
    not the page's. */
 .panel {
@@ -53,8 +44,19 @@ pre.snippet {
   }
 }
 
+/* Only on a narrow panel, where Then and Now must share one row: Then's date
+   and commit go on a second line under "Then", start-aligned. Now stays one
+   line, centred. From 40rem the Then option stays on one line, as the speed
+   control's options are. */
 @container (max-width: 39.99rem) {
   pre.snippet {
     display: none;
+  }
+
+  label.then {
+    grid-auto-flow: row;
+    justify-items: start;
+    align-content: center;
+    gap: var(--space-1);
   }
 }
