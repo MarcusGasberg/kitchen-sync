@@ -2,17 +2,29 @@ import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
 import {
+  BARE_HOLD_MILLIS,
   compile,
   FOLLOW_RATE,
   MOVE_MILLIS,
   SLOW_INTO_MILLIS,
   SLOW_RATE,
 } from "#/lib/director/compile";
+import { decisionNote } from "#/lib/director/notes";
 import type { Cut, Shot } from "#/lib/director/shots";
 import { dwellFor } from "#/lib/sandbox/pacing";
-import { runHeadless, type Scene } from "#/lib/sandbox/scene";
-import type { TraceEvent } from "#/lib/sandbox/trace";
-import { OAT_SCENE } from "./director-helpers";
+import {
+  type Direction,
+  runHeadless,
+  type Scene,
+  type SceneResult,
+} from "#/lib/sandbox/scene";
+import type {
+  Entry,
+  Message,
+  TraceEvent,
+  TraceEventBody,
+} from "#/lib/sandbox/trace";
+import { adds, OAT_SCENE } from "./director-helpers";
 
 // A shot as a word, so a step's story reads as a list.
 const label = (shot: Shot): string => {
@@ -272,4 +284,140 @@ describe("compile", () => {
       );
     }),
   );
+
+  it.effect("says a run of decisions in one note", () =>
+    Effect.gen(function* () {
+      const two: Scene = {
+        ...OAT_SCENE,
+        beats: OAT_SCENE.beats.map((beat, i) =>
+          i === 1
+            ? {
+                ...beat,
+                // Offline while adding, so one push carries both.
+                run: (world) =>
+                  Effect.gen(function* () {
+                    yield* world.net.offline("A", true);
+                    yield* adds("A", "Oat milk", "Eggs")(world);
+                    yield* world.net.offline("A", false);
+                  }),
+              }
+            : beat,
+        ),
+      };
+      const cut = compile(yield* runHeadless(two), two);
+      const server = shotsOf(cut, 2).find((s) => s.notes.length > 0);
+      expect(server?.subjects[0]).toEqual({ kind: "server" });
+      expect(server?.notes.map((n) => n.text)).toEqual([
+        "The server applies A's #3–#4.",
+      ]);
+    }),
+  );
+});
+
+// A hand-built recording: compile is pure, so a world is not needed.
+const entryAt = (seq: number, body: TraceEventBody): Entry => ({
+  event: { ...body, at: 0, seq },
+  snapshot: {
+    at: 0,
+    clients: new Map(),
+    offline: new Set(),
+    server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
+    messages: [],
+  },
+});
+
+const sent: Message = {
+  id: 1,
+  client: "A",
+  kind: "pull",
+  label: "",
+  sentAt: 0,
+  departedAt: 0,
+  arriveAt: 0,
+  fate: "delivered",
+};
+
+// Entry 0 is the setup's; the beat under test owns the rest, all at 0 ms.
+const handBuilt = (bodies: ReadonlyArray<TraceEventBody>): SceneResult => {
+  const beat = (caption: string, first: number, end: number) => ({
+    caption,
+    startedAt: 0,
+    endedAt: 0,
+    firstSeq: first,
+    endSeq: end,
+    firstInput: 0,
+    endInput: 0,
+  });
+  const all: ReadonlyArray<TraceEventBody> = [
+    { _tag: "Sent", message: sent },
+    ...bodies,
+  ];
+  return {
+    options: { clients: ["A"], seed: "hand" },
+    clientIds: new Map(),
+    timeline: {
+      entries: all.map((body, i) => entryAt(i, body)),
+      trimmed: false,
+    },
+    beats: [beat("Setup.", 0, 1), beat("Folded.", 1, all.length)],
+    inputs: [],
+  };
+};
+
+const handScene = (direct?: Direction): Scene => ({
+  id: "hand",
+  world: { clients: ["A"], seed: "hand" },
+  beats: [
+    { caption: "Setup.", run: () => Effect.void, until: () => true },
+    {
+      caption: "Folded.",
+      run: () => Effect.void,
+      until: () => true,
+      ...(direct === undefined ? {} : { direct }),
+    },
+  ],
+});
+
+describe("compile, hand-built", () => {
+  const folded: ReadonlyArray<TraceEventBody> = [
+    { _tag: "Delivered", message: sent },
+    { _tag: "Sent", message: { ...sent, id: 2 } },
+  ];
+
+  it("ends a step of folded events on a hold that shows them", () => {
+    const cut = compile(handBuilt(folded), handScene());
+    expect(storyOf(cut, 1)).toEqual(["open wide", "hold wide"]);
+    const [opening, hold] = shotsOf(cut, 1);
+    expect(opening?.through).toBe(0);
+    expect(hold?.through).toBe(2);
+    expect(hold?.screen).toBe(BARE_HOLD_MILLIS);
+    expect(hold?.opening).toBe(false);
+  });
+
+  it("copies that hold when the beat holds on", () => {
+    const cut = compile(handBuilt(folded), handScene({ hold: 900 }));
+    expect(storyOf(cut, 1)).toEqual(["open wide", "hold wide", "hold wide"]);
+    const held = shotsOf(cut, 1).at(-1);
+    expect(held?.through).toBe(2);
+    expect(held?.screen).toBe(900);
+  });
+
+  it("keeps decisions of different reasons in their own notes", () => {
+    const rejected = (id: number, reason: string): TraceEventBody => ({
+      _tag: "Decided",
+      client: "A",
+      clientMutationId: id,
+      classification: "rejected",
+      reason,
+    });
+    const cut = compile(
+      handBuilt([rejected(1, "no such item"), rejected(2, "too long")]),
+      handScene(),
+    );
+    const server = shotsOf(cut, 1).find((s) => s.notes.length > 0);
+    expect(server?.notes.map((n) => n.text)).toEqual([
+      decisionNote("A", [1], "rejected", "no such item"),
+      decisionNote("A", [2], "rejected", "too long"),
+    ]);
+  });
 });

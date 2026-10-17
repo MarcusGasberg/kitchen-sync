@@ -568,7 +568,8 @@ const momentShots = (
       if (
         run !== null &&
         run.client === event.client &&
-        run.classification === event.classification
+        run.classification === event.classification &&
+        run.reason === event.reason
       ) {
         run.ids.push(event.clientMutationId);
         group.notes[run.note] = {
@@ -786,6 +787,16 @@ export const compile = (
       opening: true,
       step,
     };
+    // A beat whose events are all folded and that acted nothing out still
+    // ends showing them: a bare hold on the opening's frame, after it.
+    if (content.length === 0 && lastOwned > opening.through) {
+      content.push({
+        ...opening,
+        screen: BARE_HOLD_MILLIS,
+        through: lastOwned,
+        opening: false,
+      });
+    }
     const tail = content.at(-1) ?? opening;
     const held =
       direct?.hold === undefined || direct.hold <= 0
