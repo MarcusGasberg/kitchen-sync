@@ -29,3 +29,10 @@
   color: var(--text-2);
   font: 400 var(--text-sm) / 1.5 var(--font-text);
 }
+
+/* Code set apart from the figures, in a post's prose column. */
+.aside {
+  display: grid;
+  gap: var(--space-7);
+  max-inline-size: var(--column);
+}

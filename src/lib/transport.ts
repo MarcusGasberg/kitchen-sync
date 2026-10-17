@@ -151,6 +151,7 @@ export class SyncTransportService extends Context.Service<
               )(body);
             }),
           ),
+        // #region http-push
         push: (req) =>
           asTransportFailure(
             Effect.gen(function* () {
@@ -166,6 +167,7 @@ export class SyncTransportService extends Context.Service<
               )(body);
             }),
           ),
+        // #endregion
         pokes: Stream.unwrap(
           Effect.gen(function* () {
             const response = yield* httpClient
