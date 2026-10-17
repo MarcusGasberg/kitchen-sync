@@ -60,12 +60,16 @@ export const progressOf = (
   return raw < 0.5 ? 0 : 1;
 };
 
+// `through` caps the entry shown: a director's shot within one instant shows
+// that instant's events only up to its own.
 export const frameAt = (
   timeline: Timeline,
   at: number,
-  options: { readonly reduced?: boolean } = {},
+  options: { readonly reduced?: boolean; readonly through?: number } = {},
 ): Frame | null => {
-  const index = entryIndexAt(timeline, at);
+  const latest = entryIndexAt(timeline, at);
+  const index =
+    options.through === undefined ? latest : Math.min(latest, options.through);
   const entry = timeline.entries[index];
   if (entry === undefined) return null;
   return {

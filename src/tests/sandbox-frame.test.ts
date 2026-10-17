@@ -140,6 +140,13 @@ describe("frameAt", () => {
         Effect.provide(World.layer({ clients: ["A", "B"], seed: "frames" })),
       ),
   );
+
+  it("shows no entry past `through`, so one instant can be shown event by event", () => {
+    const t = timeline(0, 100, 100, 100);
+    expect(frameAt(t, 100)?.index).toBe(3);
+    expect(frameAt(t, 100, { through: 1 })?.index).toBe(1);
+    expect(frameAt(t, 50, { through: 3 })?.index).toBe(0);
+  });
 });
 
 describe("lostAt", () => {

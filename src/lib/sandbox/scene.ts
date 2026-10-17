@@ -14,12 +14,33 @@ export interface BeatView {
   readonly timeline: Timeline;
 }
 
+// How the director shoots a beat where its rules are not enough. A beat
+// without one is shot by the rules (`src/lib/director/compile.ts`).
+export interface Direction {
+  // A setup: shown wide, played and skipped, with no close-ups, enactments
+  // or notes. A scene's first beat is always shot this way.
+  readonly quiet?: boolean;
+  // A note in place of the director's own, for the first event each
+  // matches.
+  readonly notes?: ReadonlyArray<{
+    readonly when: (event: TraceEvent) => boolean;
+    readonly text: string;
+  }>;
+  // Events to draw without a shot of their own, and events the rules would
+  // fold that get one.
+  readonly fold?: (event: TraceEvent) => boolean;
+  readonly feature?: (event: TraceEvent) => boolean;
+  // Screen milliseconds to hold on the beat's last shot.
+  readonly hold?: number;
+}
+
 // One step of a scripted scene: what to do, what the caption says, and what
 // has to have happened before the next beat may start.
 export interface Beat {
   readonly caption: string;
   readonly run: (world: WorldHandle) => Effect.Effect<void>;
   readonly until: (view: BeatView) => boolean;
+  readonly direct?: Direction;
 }
 
 export interface Scene {
@@ -32,6 +53,13 @@ export interface BeatResult {
   readonly caption: string;
   readonly startedAt: number;
   readonly endedAt: number;
+  // What the beat made, as `[first, end)` ranges: trace events by `seq`, and
+  // recorded inputs by their place in `inputs`. Beats that share an instant
+  // still own their own.
+  readonly firstSeq: number;
+  readonly endSeq: number;
+  readonly firstInput: number;
+  readonly endInput: number;
 }
 
 export interface SceneResult {
@@ -80,6 +108,7 @@ export const runHeadless = (
     for (const [index, beat] of scene.beats.entries()) {
       const startedAt = yield* world.clock.now;
       const firstSeq = nextSeq(yield* world.currentTimeline);
+      const firstInput = (yield* world.inputs).length;
       yield* beat.run(world);
 
       const done = Effect.map(world.currentTimeline, (timeline) =>
@@ -104,6 +133,10 @@ export const runHeadless = (
         caption: beat.caption,
         startedAt,
         endedAt: yield* world.clock.now,
+        firstSeq,
+        endSeq: nextSeq(yield* world.currentTimeline),
+        firstInput,
+        endInput: (yield* world.inputs).length,
       });
     }
 

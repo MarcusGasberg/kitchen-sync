@@ -2,7 +2,8 @@ import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
 import { runHeadless, type Scene, sceneWorld } from "#/lib/sandbox/scene";
-import { isConverged } from "#/lib/sandbox/trace";
+import { isConverged, type TraceEvent } from "#/lib/sandbox/trace";
+import type { WorldHandle } from "#/lib/sandbox/world";
 import { add, events } from "./sandbox-helpers";
 
 const scene: Scene = {
@@ -134,6 +135,81 @@ describe("runHeadless", () => {
         limit: Number.POSITIVE_INFINITY,
       });
       expect(sceneWorld(scene)).toEqual(result.options);
+    }),
+  );
+
+  it.effect(
+    "records the events and inputs each beat made as its own ranges",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(scene);
+        const all = events(result.timeline);
+        for (const [i, beat] of result.beats.entries()) {
+          const next = result.beats[i + 1];
+          if (next === undefined) continue;
+          expect(next.firstSeq).toBe(beat.endSeq);
+          expect(next.firstInput).toBe(beat.endInput);
+        }
+        // A world starts with one pull per client, before any beat runs, so
+        // the first beat starts after those.
+        expect(result.beats[0]?.firstSeq).toBe(2);
+        expect(result.beats[0]?.firstInput).toBe(0);
+        expect(result.beats.at(-1)?.endSeq).toBe((all.at(-1)?.seq ?? -1) + 1);
+        expect(result.beats.at(-1)?.endInput).toBe(result.inputs.length);
+
+        // The beat that adds milk owns the add and the input that made it.
+        const adding = result.beats[1];
+        const owned = all.filter(
+          (e) =>
+            adding !== undefined &&
+            e.seq >= adding.firstSeq &&
+            e.seq < adding.endSeq,
+        );
+        expect(owned.filter((e) => e._tag === "Applied")).toHaveLength(1);
+        const made = result.inputs
+          .slice(adding?.firstInput, adding?.endInput)
+          .map((recorded) => recorded.input._tag);
+        expect(made).toContain("Apply");
+      }),
+  );
+
+  it.effect("gives beats that share an instant their own events", () =>
+    Effect.gen(function* () {
+      const offline = (client: string) => ({
+        caption: `${client} goes offline.`,
+        run: (world: WorldHandle) => world.net.offline(client, true),
+        until: ({ since }: { since: ReadonlyArray<TraceEvent> }) =>
+          since.some((e) => e._tag === "WentOffline"),
+      });
+      const stacked: Scene = {
+        id: "test-stacked-ranges",
+        world: { clients: ["A", "B"], seed: "stacked-ranges" },
+        beats: [
+          {
+            caption: "Both phones pull the empty list.",
+            run: () => Effect.void,
+            until: ({ since }) =>
+              since.filter((e) => e._tag === "Reconciled").length >= 2,
+          },
+          offline("A"),
+          offline("B"),
+        ],
+      };
+      const result = yield* runHeadless(stacked);
+      const [, first, second] = result.beats;
+      expect(first?.startedAt).toBe(second?.startedAt);
+      const ownedBy = (beat: typeof first) =>
+        events(result.timeline)
+          .filter(
+            (e) =>
+              beat !== undefined &&
+              e.seq >= beat.firstSeq &&
+              e.seq < beat.endSeq &&
+              e._tag === "WentOffline",
+          )
+          .map((e) => (e._tag === "WentOffline" ? e.client : ""));
+      expect(ownedBy(first)).toEqual(["A"]);
+      expect(ownedBy(second)).toEqual(["B"]);
     }),
   );
 });

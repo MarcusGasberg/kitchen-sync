@@ -59,7 +59,15 @@ const beat = (
   caption: string,
   startedAt: number,
   endedAt: number,
-): BeatResult => ({ caption, startedAt, endedAt });
+): BeatResult => ({
+  caption,
+  startedAt,
+  endedAt,
+  firstSeq: 0,
+  endSeq: 0,
+  firstInput: 0,
+  endInput: 0,
+});
 
 const EIGHT_WORDS = "One two three four five six seven eight.";
 
