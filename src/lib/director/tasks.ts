@@ -32,8 +32,12 @@ export interface TaskProgress {
   readonly next: number | null;
 }
 
-// Progress from `fromSeq`, the first event after the hand-over. Seqs, not
-// indexes, so free play's trimmed timeline reads the same.
+// Progress from `fromSeq`, the first event after the hand-over, recomputed
+// from scratch from whatever timeline it is given. Free play trims its
+// timeline, and once the trimmed window passes `fromSeq` the events that
+// finished earlier tasks are gone, so those tasks no longer read as done: a
+// caller calls it when the timeline changes (not every frame) and keeps the
+// ticks it has already seen.
 export const taskProgress = (
   tasks: ReadonlyArray<Task>,
   timeline: Timeline,

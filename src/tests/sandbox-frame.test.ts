@@ -172,5 +172,11 @@ describe("lostAt", () => {
     ]);
     expect(lostAt(t, 1000 + LOST_MARK_MILLIS)).toEqual([]);
     expect(lostAt(t, 999)).toEqual([]);
+    // A frame shown only up to the entry before the drop still has the
+    // message on its wire, so it is not marked lost.
+    expect(lostAt(t, 1100, { through: 0 })).toEqual([]);
+    expect(lostAt(t, 1100, { through: 1 })).toEqual([
+      { message: dropped, progress: 0.5, age: 100 },
+    ]);
   });
 });

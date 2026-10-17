@@ -112,13 +112,17 @@ export const advance = (
   }
 };
 
-// The cursor at world instant `at`, for a scrub. At a step's start it waits
-// at that step's opening, so the step is seen from before its change;
-// otherwise it is in the shot that plays through `at`, in proportion. An
-// instant only holds stand on lands at the end of its last one.
+// The cursor at world instant `at`, for a scrub. The scene's end is the
+// cut's end, even when the last step takes no time and starts there too. At
+// a step's start it waits at that step's opening, so the step is seen from
+// before its change; otherwise it is in the shot that plays through `at`, in
+// proportion. An instant only holds stand on lands at the end of its last
+// one.
 export const cursorAt = (cut: Cut, at: number): CutCursor => {
   const first = cut.shots[0];
   if (first === undefined || at <= first.from) return { shot: 0, offset: 0 };
+  const lastStep = cut.steps.at(-1);
+  if (lastStep !== undefined && at >= lastStep.endedAt) return endCursor(cut);
   const step = cut.steps.find((s) => s.startedAt === at);
   if (step !== undefined) return { shot: step.first, offset: 0 };
   let last = -1;

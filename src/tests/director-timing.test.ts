@@ -138,6 +138,33 @@ describe("steps", () => {
     expect(cursorAt(CUT, 9999)).toEqual(endCursor(CUT));
   });
 
+  it("finds the end of a cut whose last step takes no time at its end", () => {
+    // A last step that starts and ends at 5100, as a 0 ms beat does.
+    const cut: Cut = {
+      shots: [
+        ...CUT.shots,
+        shot({
+          step: 2,
+          opening: true,
+          from: 5100,
+          to: 5100,
+          screen: 700,
+          through: 3,
+        }),
+        shot({ step: 2, from: 5100, to: 5100, screen: 1200, through: 3 }),
+      ],
+      steps: [
+        ...CUT.steps,
+        { label: "Third.", first: 5, end: 7, startedAt: 5100, endedAt: 5100 },
+      ],
+    };
+    expect(cursorAt(cut, 5100)).toEqual(endCursor(cut));
+    expect(atEnd(cut, cursorAt(cut, 5100))).toBe(true);
+    expect(cursorAt(cut, 9999)).toEqual(endCursor(cut));
+    // Its opening is still a step away.
+    expect(stepStart(cut, 2)).toEqual({ shot: 5, offset: 0 });
+  });
+
   it("goes by step, and Play steps past an opening only", () => {
     expect(stepAt(CUT, { shot: 2, offset: 0 })).toBe(0);
     expect(stepAt(CUT, endCursor(CUT))).toBe(1);

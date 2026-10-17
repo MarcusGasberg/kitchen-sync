@@ -21,7 +21,9 @@ export interface Direction {
   // or notes. A scene's first beat is always shot this way.
   readonly quiet?: boolean;
   // A note in place of the director's own, for the first event each
-  // matches.
+  // matches. It applies only to an event that gets a shot, and a folded
+  // event does not use it up: to note an event the rules fold, `feature` it
+  // too.
   readonly notes?: ReadonlyArray<{
     readonly when: (event: TraceEvent) => boolean;
     readonly text: string;

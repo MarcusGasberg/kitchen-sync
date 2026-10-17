@@ -279,7 +279,7 @@ function FigureBody({
           <Stage
             view={stage}
             flights={frame.flights}
-            lost={lostAt(view.timeline, view.at)}
+            lost={lostAt(view.timeline, view.at, { through: view.index })}
             settle={!view.jumped}
             live={view.mode === "free"}
             scale={scale ?? 1}

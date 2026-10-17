@@ -118,10 +118,18 @@ export interface Lost {
 
 // The messages lost on the wire in the LOST_MARK_MILLIS before `at`. A dropped
 // message leaves the snapshot the instant it is lost, so without this mark it
-// would simply vanish.
-export const lostAt = (timeline: Timeline, at: number): ReadonlyArray<Lost> => {
+// would simply vanish. `through` caps the entries read, as `frameAt`'s does:
+// a frame that still shows the message in flight does not mark it lost.
+export const lostAt = (
+  timeline: Timeline,
+  at: number,
+  options: { readonly through?: number } = {},
+): ReadonlyArray<Lost> => {
+  const latest = entryIndexAt(timeline, at);
+  const shown =
+    options.through === undefined ? latest : Math.min(latest, options.through);
   const lost: Array<Lost> = [];
-  for (let index = entryIndexAt(timeline, at); index >= 0; index--) {
+  for (let index = shown; index >= 0; index--) {
     const entry = timeline.entries[index];
     if (entry === undefined || at - entry.event.at >= LOST_MARK_MILLIS) break;
     if (entry.event._tag === "Dropped") {
