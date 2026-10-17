@@ -51,13 +51,16 @@ export class SyncEngineService extends Context.Service<
             ),
           );
 
+      // #region push-loop
       const pushLoop = (clientId: string) =>
         untilFatal("push")(
           Effect.gen(function* () {
+            // #region wake
             yield* Effect.race(
               store.awaitOutboxActivity,
               Effect.sleep("300 millis"),
             );
+            // #endregion
 
             const { outbox, appliedVersion, seeded, ackedThrough } =
               yield* store.getSnapShot();
@@ -65,6 +68,7 @@ export class SyncEngineService extends Context.Service<
             // renumbers them on the assumption that none was ever sent.
             if (!seeded) return;
 
+            // #region send
             // Acked entries wait in the outbox for a pull to confirm them;
             // sending them again would only be deduped.
             const pending = outbox.filter(
@@ -79,7 +83,10 @@ export class SyncEngineService extends Context.Service<
             });
 
             const response = yield* transport.push(request);
+            // #endregion
+            // #region settle
             yield* store.settle(response);
+            // #endregion
           }).pipe(
             // Any iteration that completes is the push loop working, one with
             // nothing left to send included: a pull may have emptied the
@@ -87,6 +94,7 @@ export class SyncEngineService extends Context.Service<
             Effect.andThen(store.setRetrying("push", null)),
           ),
         );
+      // #endregion
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
           // A poke stream that ends ends the iteration with it, and

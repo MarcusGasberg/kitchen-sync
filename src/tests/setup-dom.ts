@@ -10,7 +10,11 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 // jsdom has no modal dialogs: open and close them by their attribute, as a
 // browser's `showModal` and `close` do.
-if (!("showModal" in HTMLDialogElement.prototype)) {
+// A test file that opts into the node environment has no DOM to patch.
+if (
+  typeof HTMLDialogElement !== "undefined" &&
+  !("showModal" in HTMLDialogElement.prototype)
+) {
   Object.assign(HTMLDialogElement.prototype, {
     showModal(this: HTMLDialogElement) {
       this.setAttribute("open", "");
