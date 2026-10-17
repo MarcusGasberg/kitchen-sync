@@ -6,7 +6,7 @@ import type { Classification, Entry, Message, Timeline } from "./trace";
 // Free play's captions: each event in a sentence, in the series' vocabulary
 // (CONTEXT.md). A scene's captions are written per beat instead.
 
-const NOUN: Record<MutationIntent["_tag"], string> = {
+export const NOUN: Record<MutationIntent["_tag"], string> = {
   AddItem: "add",
   SetItemChecked: "check",
   EditItem: "edit",
@@ -19,7 +19,7 @@ const ids = (list: ReadonlyArray<number>) =>
 
 // A message as its wire label says it, with its kind where the label leaves
 // it out.
-const said = (message: Message): string => {
+export const said = (message: Message): string => {
   switch (message.kind) {
     case "push":
       return `push ${message.label}`;
@@ -34,7 +34,7 @@ const said = (message: Message): string => {
 
 // A refusal's reason without the item's id, which no reader can place. The
 // reasons come from `describeRefusal`.
-const why = (reason: string): string => {
+export const why = (reason: string): string => {
   if (reason.endsWith("not found")) return "its item is gone";
   if (reason.startsWith("stale mutation")) {
     return "it was made against an older version of its item";
@@ -57,7 +57,7 @@ const addedAs = (
 
 // An item by the name the client last showed it. One added and removed
 // before any pull shows nowhere, but its add is still in the outbox.
-const nameIn = (state: StoreState | undefined, itemId: string): string =>
+export const nameIn = (state: StoreState | undefined, itemId: string): string =>
   state?.items.get(itemId)?.name ??
   state?.base.get(itemId)?.name ??
   addedAs(state, itemId) ??
