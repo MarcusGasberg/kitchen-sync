@@ -393,7 +393,7 @@
       {
         "name": "message-travel",
         "value": "the world's one time scale",
-        "purpose": "A message travels its straight wire as the world's clock runs (distance is time). Reduced motion: it sits at its sender for the first half of its flight and at its receiver for the second."
+        "purpose": "A message travels its lane, beside its straight wire and stopping 12 px above the device's pane, as the world's clock runs (distance is time). Reduced motion, read once and followed as it changes: it sits at its sender's end of the lane for the first half of its flight and at its receiver's for the second."
       },
       {
         "name": "lost-fade",
@@ -420,7 +420,12 @@
       {
         "name": "figure-wide",
         "value": "64rem",
-        "purpose": "Viewport min-width: words and controls in the left third, the stage in the right two thirds; the server's compact list beside its basin; speed and Your turn under playback instead of under the stage."
+        "purpose": "Viewport min-width: words and controls in the left third, the stage in the right two thirds; speed and Your turn under playback instead of under the stage."
+      },
+      {
+        "name": "stage-wide",
+        "value": "47rem",
+        "purpose": "Container min-width on the stage (`container: stage / inline-size`): the server's compact list beside its basin, the basin at least 23rem. On a narrower stage, whatever the viewport, the list sits above a full-width basin."
       }
     ],
     "basin": {
@@ -461,18 +466,19 @@
       },
       "stage": {
         "order": "server row, wire band, device row",
-        "serverRowWide": "basin minmax(0, 1fr), list 22rem (two compact 10rem columns), gap 2rem, top-aligned",
-        "serverRowNarrow": "list above basin",
+        "serverRowWide": "from a 47rem stage (container query): basin minmax(0, 1fr), at least 23rem, list 22rem (two compact 10rem columns), gap 2rem, top-aligned",
+        "serverRowNarrow": "below a 47rem stage, whatever the viewport: list above a full-width basin",
         "deviceRow": "grid-auto-flow column, minmax(14rem, 1fr), gap 2rem, overflow-x auto, scroll-snap x mandatory",
         "deviceRowPhone": "min(85%, 22rem), gap 1.5rem",
         "focus": "2px --text outline, offset 0.5rem, 6px corners"
       },
       "wireBand": {
         "height": "5rem (--space-7 + --space-6)",
-        "wire": "1px --line, straight, basin foot to the device pane's top above its middle",
+        "wire": "1px --line, straight, from the band's top (the lower of the server basin's foot and its list's) across the basin's span to the device pane's top above its middle; each message's lane stops deviceInsetPx above the pane (label half-height 7 + halo 3 + gap 2), lane offset included, so no message, held message or lost mark sits on the pane's header",
         "cornerInsetPx": 24,
         "lanePx": 6,
         "stackPx": 16,
+        "deviceInsetPx": 12,
         "dotRadiusPx": 4,
         "labelGapPx": 9,
         "labelHalo": "3px --page stroke, paint-order stroke",
@@ -490,9 +496,9 @@
       },
       "density": {
         "compactRow": "--row-height-compact (2rem)",
-        "compactList": "columns: 10rem 2, column gap 1.5rem, groups 1rem apart, heads 0.25rem over rows, a group never split",
+        "compactList": "groups 1rem apart, heads 0.25rem over rows; with columns={2} (the server's list only) columns: 10rem 2, column gap 1.5rem, a group never split",
         "serverList": "always compact",
-        "deviceList": "compact while a scene plays, regular in free play"
+        "deviceList": "compact while a scene plays, regular in free play; one column at any width"
       },
       "speeds": [
         "0.5×",
@@ -588,7 +594,7 @@
       "refersTo": "speed-option",
       "description": "A figure's playback (Play or Pause first, then Back, Step, Restart), the scrub bar with a tick per beat, its position in mono, and the pace: Speed as 44px mono options, the chosen one framed, then Your turn.",
       "html": "<div class=\"ds-player\"><div class=\"ds-player-buttons\"><button class=\"ds-player-btn\" type=\"button\">Pause</button><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Back</button><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Step</button><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Restart</button></div><div class=\"ds-scrub\"><input class=\"ds-scrub-range\" type=\"range\" min=\"0\" max=\"100\" value=\"62\" aria-label=\"Time in this figure\"><ol class=\"ds-scrub-ticks\" aria-hidden=\"true\"><li class=\"ds-scrub-tick\" style=\"left: 0%\"></li><li class=\"ds-scrub-tick\" style=\"left: 38%\"></li><li class=\"ds-scrub-tick\" style=\"left: 62%\"></li></ol></div><p class=\"ds-player-where\"><span>beat 2 of 4 · 5.00 s</span></p><fieldset class=\"ds-speed\"><legend class=\"ds-speed-legend\">Speed</legend><label class=\"ds-speed-option\"><input type=\"radio\" name=\"ds-speed\"><span>0.5×</span></label><label class=\"ds-speed-option\"><input type=\"radio\" name=\"ds-speed\" checked><span>1×</span></label><label class=\"ds-speed-option\"><input type=\"radio\" name=\"ds-speed\"><span>4×</span></label></fieldset><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Your turn</button></div>",
-      "css": ".ds-player { display: grid; justify-items: start; gap: var(--space-4); } .ds-player-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); } .ds-player-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); background: var(--text); color: var(--page); } .ds-player-btn:hover:not(:disabled) { border-color: var(--text-2); background: var(--text-2); } .ds-player-btn-secondary { border-color: var(--edge); background: transparent; color: var(--text); } .ds-player-btn-secondary:hover:not(:disabled) { border-color: var(--text); background: transparent; color: var(--text); } .ds-player-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-scrub { position: relative; justify-self: stretch; } .ds-scrub-range { position: relative; z-index: 1; display: block; width: 100%; height: var(--target); margin: 0; background: transparent; cursor: pointer; appearance: none; } .ds-scrub-range::-webkit-slider-runnable-track { height: var(--rule); background: var(--edge); } .ds-scrub-range::-moz-range-track { height: var(--rule); background: var(--edge); } .ds-scrub-range::-webkit-slider-thumb { width: 0.875rem; height: 0.875rem; margin-top: calc(var(--rule) / 2 - 0.4375rem); border: 0; border-radius: 50%; background: var(--text); appearance: none; } .ds-scrub-range::-moz-range-thumb { width: 0.875rem; height: 0.875rem; border: 0; border-radius: 50%; background: var(--text); } .ds-scrub-range:focus-visible { outline: 2px solid var(--text); outline-offset: 0; } .ds-scrub-ticks { position: absolute; inset: 50% 0.4375rem auto; height: 0.5rem; margin: 0; padding: 0; list-style: none; translate: 0 -50%; pointer-events: none; } .ds-scrub-tick { position: absolute; width: var(--rule); height: 100%; background: var(--text-3); } .ds-player-where { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-speed { display: flex; align-items: center; gap: var(--space-1); margin: 0; padding: 0; border: 0; } .ds-speed-legend { float: left; margin-right: var(--space-3); padding: 0; color: var(--text-3); font: 500 var(--text-xs) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-speed-option { position: relative; display: inline-grid; place-items: center; min-width: var(--target); min-height: var(--target); padding: 0 var(--space-2); border: var(--rule) solid transparent; border-radius: var(--radius-control); color: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); cursor: pointer; transition: border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); } .ds-speed-option input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; } .ds-speed-option:has(input:checked) { border-color: var(--edge); color: var(--text); } .ds-speed-option:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; } .ds-speed-option:hover { color: var(--text); } @media (forced-colors: active) { .ds-speed-option:has(input:checked) { border-color: Highlight; } }"
+      "css": ".ds-player { display: grid; justify-items: start; gap: var(--space-4); } .ds-player-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); } .ds-player-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); background: var(--text); color: var(--page); } .ds-player-btn:hover:not(:disabled) { border-color: var(--text-2); background: var(--text-2); } .ds-player-btn-secondary { border-color: var(--edge); background: transparent; color: var(--text); } .ds-player-btn-secondary:hover:not(:disabled) { border-color: var(--text); background: transparent; color: var(--text); } .ds-player-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-scrub { position: relative; justify-self: stretch; } .ds-scrub-range { position: relative; z-index: 1; display: block; width: 100%; height: var(--target); margin: 0; background: transparent; cursor: pointer; appearance: none; } .ds-scrub-range::-webkit-slider-runnable-track { height: var(--rule); background: var(--edge); } .ds-scrub-range::-moz-range-track { height: var(--rule); background: var(--edge); } .ds-scrub-range::-webkit-slider-thumb { width: 0.875rem; height: 0.875rem; margin-top: calc(var(--rule) / 2 - 0.4375rem); border: 0; border-radius: 50%; background: var(--text); appearance: none; } .ds-scrub-range::-moz-range-thumb { width: 0.875rem; height: 0.875rem; border: 0; border-radius: 50%; background: var(--text); } .ds-scrub-range:focus-visible { outline: 2px solid var(--text); outline-offset: 0; } .ds-scrub-ticks { position: absolute; inset: 50% 0.4375rem auto; height: 0.5rem; margin: 0; padding: 0; list-style: none; translate: 0 -50%; pointer-events: none; } .ds-scrub-tick { position: absolute; width: var(--rule); height: 100%; background: var(--text-3); } .ds-player-where { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-speed { display: flex; align-items: center; gap: var(--space-1); margin: 0; padding: 0; border: 0; } .ds-speed-legend { float: left; margin-right: var(--space-3); padding: 0; color: var(--text-3); font: 500 var(--text-xs) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-speed-option { position: relative; display: inline-grid; place-items: center; min-width: var(--target); min-height: var(--target); padding: 0 var(--space-2); border: var(--rule) solid transparent; border-radius: var(--radius-control); color: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); cursor: pointer; transition: border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); } .ds-speed-option input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; } .ds-speed-option:has(input:checked) { border-color: var(--edge); color: var(--text); } .ds-speed-option:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; } .ds-speed-option:hover { color: var(--text); } .ds-scrub-range:disabled { cursor: not-allowed; } .ds-scrub-range:disabled::-webkit-slider-runnable-track { background: var(--line); } .ds-scrub-range:disabled::-moz-range-track { background: var(--line); } .ds-scrub-range:disabled::-webkit-slider-thumb { background: var(--text-3); } .ds-scrub-range:disabled::-moz-range-thumb { background: var(--text-3); } .ds-scrub-range:disabled + .ds-scrub-ticks .ds-scrub-tick { background: var(--line); } @media (forced-colors: active) { .ds-speed-option:has(input:checked) { border-color: Highlight; } .ds-scrub-range, .ds-scrub-ticks { forced-color-adjust: none; } .ds-scrub-range::-webkit-slider-runnable-track { background: CanvasText; } .ds-scrub-range::-moz-range-track { background: CanvasText; } .ds-scrub-range::-webkit-slider-thumb { background: CanvasText; } .ds-scrub-range::-moz-range-thumb { background: CanvasText; } .ds-scrub-range:focus-visible { outline-color: CanvasText; } .ds-scrub-tick { background: CanvasText; } .ds-scrub-range:disabled::-webkit-slider-runnable-track { background: GrayText; } .ds-scrub-range:disabled::-moz-range-track { background: GrayText; } .ds-scrub-range:disabled::-webkit-slider-thumb { background: GrayText; } .ds-scrub-range:disabled::-moz-range-thumb { background: GrayText; } .ds-scrub-range:disabled + .ds-scrub-ticks .ds-scrub-tick { background: GrayText; } }"
     },
     {
       "name": "Wire Band",
@@ -601,7 +607,7 @@
   ],
   "narrative": {
     "northStar": "The Ink Basin",
-    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads the stage, a straight hairline wire runs from its foot to every device, and each device's basin heads its pane. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
+    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads the stage, a straight hairline wire runs from under it to every device, and each device's basin heads its pane. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
     "keyCharacteristics": [
       "One indigo ink family in `light-dark()` pairs; a vermilion seal for a rejection or a stopped sync, and nothing else.",
       "Recessed water (18 px corners, an inset shade) against a still margin of 1 px hairlines; no cards.",
@@ -664,7 +670,7 @@
       },
       {
         "name": "The Compact Read Rule",
-        "body": "A list nothing on which is a target sets its rows at 2rem (`--row-height-compact`), its groups closer and, given room for two 10rem columns, in two; a list that takes a check or a remove keeps 2.875rem rows and its 44 px targets. In a figure the server's list is always compact, and a device's list is compact while a scene plays and regular in free play.",
+        "body": "A list nothing on which is a target sets its rows at 2rem (`--row-height-compact`) and its groups closer; the server's list in a figure, given room for two 10rem columns, also flows its groups in two, and a device's list keeps one. A list that takes a check or a remove keeps 2.875rem rows and its 44 px targets. In a figure the server's list is always compact, and a device's list is compact while a scene plays and regular in free play.",
         "section": "layout"
       },
       {
@@ -684,7 +690,7 @@
       },
       {
         "name": "The Straight Wire Rule",
-        "body": "Each device has one straight hairline wire, from the foot of the server's basin to the top of its pane. Requests ride one side of it and replies the other, every message with its label; the band is drawn over the stage, hidden from assistive technology and never a target, so it shows nothing the lists and the caption do not also say.",
+        "body": "Each device has one straight hairline wire, from under the server's basin (its foot, or its list's where that runs lower) to the top of its pane. Requests ride one side of it and replies the other, every message with its label, and no message comes within 12 px of the pane, so no label sits on its header; the band is drawn over the stage, hidden from assistive technology and never a target, so it shows nothing the lists and the caption do not also say.",
         "section": "shapes"
       }
     ],
@@ -697,7 +703,7 @@
       "Do keep Play or Pause the first focusable control of every figure, and its breaking controls set apart from playback by space.",
       "Do set a list nothing on which is a target at the compact density, and any list that takes a check or a remove at the regular one.",
       "Do give every message on a wire its label, requests and replies on opposite sides of it, and a push's dot in fresh ink.",
-      "Do give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, a wire band in CanvasText with a push in Highlight, and the rings and the checked circle keep their fills with `forced-color-adjust: none` in CanvasText.",
+      "Do give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, a wire band in CanvasText with a push in Highlight, and the rings, the checked circle and the scrub bar's track, dot and ticks keep their fills with `forced-color-adjust: none` in CanvasText (the scrub bar GrayText while it waits).",
       "Do set ids, versions, counts and the short state lines built on them in Spline Sans Mono, and everything else in Commissioner."
     ],
     "donts": [
