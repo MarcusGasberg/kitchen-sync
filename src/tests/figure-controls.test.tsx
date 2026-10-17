@@ -47,6 +47,11 @@ const viewOf = (overrides: Partial<PlayerView> = {}): PlayerView => ({
   failure: null,
   jumped: false,
   clientIds: new Map(),
+  cut: null,
+  shot: null,
+  offset: 0,
+  screen: null,
+  index: -1,
   ...overrides,
 });
 

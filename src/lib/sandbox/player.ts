@@ -1,5 +1,21 @@
 import { Cause, Effect, Semaphore } from "effect";
 import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
+import { type CompileOptions, compile } from "#/lib/director/compile";
+import type { Cut } from "#/lib/director/shots";
+import {
+  advance,
+  atEnd,
+  type CutCursor,
+  cursorAt,
+  cursorAtScreen,
+  indexAt,
+  pastOpening,
+  screenOf,
+  skippingAt,
+  stepAt,
+  stepStart,
+  virtualAt,
+} from "#/lib/director/timing";
 import { captionAt } from "./captions";
 import {
   entryIndexAt,
@@ -9,21 +25,7 @@ import {
 } from "./frame";
 import type { Recording } from "./inputs";
 import { type Live, startLive } from "./live";
-import {
-  advanceCursor,
-  atEnd,
-  beatAt,
-  type Cursor,
-  cursorAt,
-  dwellOf,
-  freeRate,
-  pastDwell,
-  quietGap,
-  SKIP_SCREEN_MILLIS,
-  sceneSegments,
-  skippingAt,
-  virtualAt,
-} from "./pacing";
+import { freeRate, quietGap, SKIP_SCREEN_MILLIS } from "./pacing";
 import {
   type BeatResult,
   type BeatTimedOut,
@@ -80,6 +82,16 @@ export interface PlayerView {
   readonly jumped: boolean;
   // Each device's client id, for its mark. A fork keeps the scene's.
   readonly clientIds: ReadonlyMap<ClientName, string>;
+  // The scene's cut, and where the playhead is in it: its shot, the screen
+  // milliseconds spent in that shot and from the cut's start. Null in free
+  // play, which is not shot.
+  readonly cut: Cut | null;
+  readonly shot: number | null;
+  readonly offset: number;
+  readonly screen: number | null;
+  // The timeline entry a frame shows: within one instant, a shot shows its
+  // events only up to its own.
+  readonly index: number;
 }
 
 export interface PlayerOptions {
@@ -92,6 +104,9 @@ export interface PlayerOptions {
   // it and go back to the opening. A free figure's opening is itself a fork,
   // so there the figure stops with the difference as its failure instead.
   readonly check?: boolean;
+  // How long each step opens on a hold: its caption's reading time (the
+  // default, for a standalone figure), or a set time in a chapter.
+  readonly opening?: CompileOptions["opening"];
 }
 
 // One player per mounted figure: it owns the live world it forks, and
@@ -106,6 +121,9 @@ export interface Player {
   readonly next: Effect.Effect<void>;
   readonly previous: Effect.Effect<void>;
   readonly scrub: (at: number) => Effect.Effect<void>;
+  // Moves the playhead `screen` milliseconds into the scene's cut. In free
+  // play, which has no cut, it does nothing.
+  readonly seek: (screen: number) => Effect.Effect<void>;
   readonly setSpeed: (speed: Speed) => Effect.Effect<void>;
   // Whether the figure may run: half in view, its tab shown, and on a phone
   // the one figure running.
@@ -139,7 +157,11 @@ export const makePlayer = (
 ): Effect.Effect<Player, BeatTimedOut> =>
   Effect.gen(function* () {
     const result = yield* runHeadless(scene);
-    const segments = sceneSegments(result.timeline, result.beats);
+    const cut = compile(
+      result,
+      scene,
+      options.opening === undefined ? {} : { opening: options.opening },
+    );
     const sceneStart = result.beats[0]?.startedAt ?? 0;
     const sceneEnd = result.beats.at(-1)?.endedAt ?? sceneStart;
     // Beat 0 sets the scene up, so it opens where that beat ends; a figure
@@ -157,7 +179,7 @@ export const makePlayer = (
     const listeners = new Set<() => void>();
 
     // Everything below changes only while `lock` is held.
-    let cursor: Cursor = cursorAt(segments, opening);
+    let cursor: CutCursor = cursorAt(cut, opening);
     let live: Live | null = null;
     // Free play's timeline, playhead and world clock.
     let timeline: Timeline = result.timeline;
@@ -194,7 +216,7 @@ export const makePlayer = (
         clientIds: result.clientIds,
       };
       if (live === null) {
-        const beat = beatAt(segments, cursor, result.beats);
+        const step = stepAt(cut, cursor);
         return {
           ...shared,
           mode: "scene",
@@ -202,11 +224,16 @@ export const makePlayer = (
           beats: result.beats,
           start: sceneStart,
           end: sceneEnd,
-          at: virtualAt(segments, cursor),
-          beat,
-          caption: result.beats[beat]?.caption ?? null,
-          skipping: skippingAt(segments, cursor),
-          ended: atEnd(segments, cursor),
+          at: virtualAt(cut, cursor),
+          beat: step,
+          caption: result.beats[step]?.caption ?? null,
+          skipping: skippingAt(cut, cursor),
+          ended: atEnd(cut, cursor),
+          cut,
+          shot: cursor.shot,
+          offset: cursor.offset,
+          screen: screenOf(cut, cursor),
+          index: indexAt(cut, result.timeline, cursor),
         };
       }
       return {
@@ -221,6 +248,11 @@ export const makePlayer = (
         caption: captionAt(timeline, at),
         skipping: freeSkipping(),
         ended: false,
+        cut: null,
+        shot: null,
+        offset: 0,
+        screen: null,
+        index: entryIndexAt(timeline, at),
       };
     };
     let current = compute();
@@ -254,7 +286,7 @@ export const makePlayer = (
       lock.withPermits(1)(guard(effect));
 
     const toOpening = () => {
-      cursor = cursorAt(segments, opening);
+      cursor = cursorAt(cut, opening);
       jumped = true;
       handedBeats = result.beats;
       fastSince = null;
@@ -327,7 +359,7 @@ export const makePlayer = (
       const next = yield* goLive(
         recording,
         result.timeline,
-        virtualAt(segments, cursor),
+        virtualAt(cut, cursor),
       );
       if (next !== null) playing = true;
       return next;
@@ -350,15 +382,15 @@ export const makePlayer = (
         Effect.sync(() => {
           if (failure !== null) return;
           if (live === null) {
-            // From the end the opening's caption is new to the reader, so
-            // it keeps its dwell, and the playhead jumps there: the figure
-            // shows the opening at once instead of settling backwards into
-            // it. Otherwise they had this caption in front of them.
-            if (atEnd(segments, cursor)) {
-              cursor = cursorAt(segments, opening);
+            // From the end the opening is new to the reader, so it is held,
+            // and the playhead jumps there: the figure shows the opening at
+            // once instead of settling backwards into it. Otherwise they had
+            // this step's opening in front of them.
+            if (atEnd(cut, cursor)) {
+              cursor = cursorAt(cut, opening);
               jumped = true;
             } else {
-              cursor = pastDwell(segments, cursor);
+              cursor = pastOpening(cut, cursor);
             }
           }
           playing = true;
@@ -389,12 +421,9 @@ export const makePlayer = (
       next: locked(
         Effect.gen(function* () {
           if (live === null) {
-            // By beat, not by instant: beats that start at one instant each
-            // have their caption read. After the last beat, the end.
-            cursor = dwellOf(
-              segments,
-              beatAt(segments, cursor, result.beats) + 1,
-            );
+            // By step, not by instant: steps that start at one instant each
+            // open in turn. After the last step, the end.
+            cursor = stepStart(cut, stepAt(cut, cursor) + 1);
           } else {
             const instant = nextInstant(timeline, at);
             if (instant !== null) {
@@ -414,15 +443,14 @@ export const makePlayer = (
       previous: locked(
         Effect.sync(() => {
           if (live === null) {
-            // Back to the start of the beat on screen once it has begun to
-            // play; from its caption, back to the beat before. While the
-            // caption is read, time stands still, so that is its start.
-            const shown = beatAt(segments, cursor, result.beats);
-            const start = dwellOf(segments, shown);
+            // Back to the start of the step on screen once it has moved on
+            // from its opening; from its opening, back to the step before.
+            const shown = stepAt(cut, cursor);
+            const start = stepStart(cut, shown);
             cursor =
-              cursor.segment > start.segment
+              cursor.shot > start.shot
                 ? start
-                : dwellOf(segments, Math.max(0, shown - 1));
+                : stepStart(cut, Math.max(0, shown - 1));
           } else {
             at = previousInstant(timeline, at) ?? current.start;
             fastSince = null;
@@ -443,11 +471,20 @@ export const makePlayer = (
             // Quanta count from the world's start, which every fork shares.
             const instant = Math.max(start, snapToQuantum(sceneStart, clamped));
             if (live === null) {
-              cursor = cursorAt(segments, instant);
+              cursor = cursorAt(cut, instant);
             } else {
               at = instant;
               fastSince = null;
             }
+            jumped = true;
+            publish();
+          }),
+        ),
+      seek: (screen) =>
+        locked(
+          Effect.sync(() => {
+            if (live !== null) return;
+            cursor = cursorAtScreen(cut, screen);
             jumped = true;
             publish();
           }),
@@ -510,9 +547,9 @@ export const makePlayer = (
                   : 0;
                 const budget = frame * speed;
                 if (live === null) {
-                  const step = advanceCursor(segments, cursor, budget);
-                  cursor = step.cursor;
-                  if (step.ended) playing = false;
+                  const moved = advance(cut, cursor, budget);
+                  cursor = moved.cursor;
+                  if (moved.ended) playing = false;
                 } else if (at < now) {
                   // Behind the live edge, history plays back and nothing
                   // runs. A long quiet wait plays in SKIP_SCREEN_MILLIS, as a

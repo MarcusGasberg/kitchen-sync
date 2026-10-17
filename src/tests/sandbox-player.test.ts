@@ -2,7 +2,7 @@ import { it } from "@effect/vitest";
 import { Effect, Fiber } from "effect";
 import { TestConsole } from "effect/testing";
 import { describe, expect, vi } from "vitest";
-import { frameAt, previousInstant } from "#/lib/sandbox/frame";
+import { entryIndexAt, frameAt, previousInstant } from "#/lib/sandbox/frame";
 import type { Live } from "#/lib/sandbox/live";
 import {
   dwellFor,
@@ -128,8 +128,16 @@ const tickUntil = (player: Player, done: () => boolean, limit = 1000) =>
 
 const namesOn = (player: Player, client: string) => {
   const view = player.view();
-  const state = frameAt(view.timeline, view.at)?.snapshot.clients.get(client);
+  const state = frameAt(view.timeline, view.at, {
+    through: view.index,
+  })?.snapshot.clients.get(client);
   return [...(state?.items.values() ?? [])].map((item) => item.name);
+};
+
+// The shot the playhead is in, during a scene.
+const shotOf = (player: Player) => {
+  const view = player.view();
+  return view.cut?.shots[view.shot ?? -1];
 };
 
 // A reader's action: `client` adds `name`.
@@ -250,14 +258,15 @@ describe("makePlayer", () => {
       }),
   );
 
-  it.effect("a reader's play skips the caption already on screen", () =>
+  it.effect("a reader's play skips the opening already on screen", () =>
     Effect.gen(function* () {
       const player = yield* makePlayer(scene, { autoplay: false });
-      const opening = player.view().at;
+      expect(shotOf(player)?.opening).toBe(true);
       yield* player.setVisible(true);
       yield* player.play;
       yield* player.tick(MAX_FRAME_MILLIS);
-      expect(player.view().at).toBeGreaterThan(opening);
+      expect(shotOf(player)?.opening).toBe(false);
+      expect(player.view().beat).toBe(1);
       yield* player.close;
     }),
   );
@@ -374,49 +383,52 @@ describe("makePlayer", () => {
   );
 
   it.effect(
-    "play from a paused beat skips only its caption, not those stacked after it",
+    "play from a paused step skips only its opening, not those after it",
     () =>
       Effect.gen(function* () {
         const player = yield* makePlayer(stacked, { autoplay: false });
-        const { opening } = player.view();
         yield* player.setVisible(true);
         expect(player.view().beat).toBe(1);
         yield* player.play;
-        expect(player.view().beat).toBe(2);
+        expect(player.view().beat).toBe(1);
+        expect(shotOf(player)?.opening).toBe(false);
 
-        for (const beat of [2, 3]) {
-          const dwell = dwellFor(stacked.beats[beat]?.caption ?? "");
-          for (let spent = 0; spent < dwell; spent += MAX_FRAME_MILLIS) {
-            expect(player.view().beat).toBe(beat);
-            expect(player.view().at).toBe(opening);
-            yield* player.tick(MAX_FRAME_MILLIS);
-          }
+        yield* tickUntil(player, () => player.view().beat === 2);
+        expect(shotOf(player)?.opening).toBe(true);
+        const dwell = dwellFor(stacked.beats[2]?.caption ?? "");
+        for (
+          let spent = player.view().offset + MAX_FRAME_MILLIS;
+          spent < dwell;
+          spent += MAX_FRAME_MILLIS
+        ) {
+          yield* player.tick(MAX_FRAME_MILLIS);
+          expect(player.view().beat).toBe(2);
+          expect(shotOf(player)?.opening).toBe(true);
         }
-        expect(player.view().at).toBeGreaterThan(opening);
-        expect(player.view().beat).toBe(3);
         yield* player.close;
       }),
   );
 
-  it.effect("at 4×, a caption is held for a quarter of its reading time", () =>
-    Effect.gen(function* () {
-      const player = yield* makePlayer(scene, { autoplay: true });
-      const opening = player.view().at;
-      yield* player.setSpeed(4);
-      yield* player.setVisible(true);
-      const dwell = dwellFor(scene.beats[1]?.caption ?? "");
-      for (
-        let spent = MAX_FRAME_MILLIS;
-        spent * 4 < dwell;
-        spent += MAX_FRAME_MILLIS
-      ) {
+  it.effect(
+    "at 4×, a step's opening is held for a quarter of its reading time",
+    () =>
+      Effect.gen(function* () {
+        const player = yield* makePlayer(scene, { autoplay: true });
+        yield* player.setSpeed(4);
+        yield* player.setVisible(true);
+        const dwell = dwellFor(scene.beats[1]?.caption ?? "");
+        for (
+          let spent = MAX_FRAME_MILLIS;
+          spent * 4 < dwell;
+          spent += MAX_FRAME_MILLIS
+        ) {
+          yield* player.tick(MAX_FRAME_MILLIS);
+          expect(shotOf(player)?.opening).toBe(true);
+        }
         yield* player.tick(MAX_FRAME_MILLIS);
-        expect(player.view().at).toBe(opening);
-      }
-      yield* player.tick(MAX_FRAME_MILLIS);
-      expect(player.view().at).toBeGreaterThan(opening);
-      yield* player.close;
-    }),
+        expect(shotOf(player)?.opening).toBe(false);
+        yield* player.close;
+      }),
   );
 
   it.effect("keeps one view until something changes, and tells listeners", () =>
@@ -697,12 +709,13 @@ describe("makePlayer", () => {
         yield* Effect.promise(() => busy);
         yield* Fiber.interrupt(handing);
 
+        const playhead = () => player.view().screen ?? player.view().at;
         const moves = Effect.gen(function* () {
           expect(player.view().busy).toBe(false);
           yield* player.play;
-          const from = player.view().at;
+          const from = playhead();
           for (let i = 0; i < 40; i++) yield* player.tick(MAX_FRAME_MILLIS);
-          return player.view().at > from;
+          return playhead() > from;
         });
         // The fork was still being built, so the scene stays.
         expect(player.view().mode).toBe("scene");
@@ -801,5 +814,69 @@ describe("makePlayer", () => {
         expect(markers).toEqual(markers.map(() => Math.round(gap / 1000)));
         yield* player.close;
       }),
+  );
+
+  it.effect(
+    "opens a step on the world before its change, and plays the change in",
+    () =>
+      Effect.gen(function* () {
+        const player = yield* makePlayer(scene, { autoplay: false });
+        expect(namesOn(player, "A")).not.toContain("Milk");
+        yield* player.setVisible(true);
+        yield* player.play;
+        yield* tickUntil(player, () => namesOn(player, "A").includes("Milk"));
+        const view = player.view();
+        // The world held while A typed: milk lands at the beat's own instant.
+        expect(view.at).toBe(view.beats[1]?.startedAt);
+        expect(shotOf(player)?.notes[0]?.text).toBe(
+          "Milk shows on A at once. It waits in A's outbox as #1.",
+        );
+        yield* player.close;
+      }),
+  );
+
+  it.effect("shows every event at the scene's end", () =>
+    Effect.gen(function* () {
+      const player = yield* makePlayer(scene, { autoplay: false });
+      yield* player.scrub(player.view().end);
+      const view = player.view();
+      expect(view.ended).toBe(true);
+      expect(view.index).toBe(view.timeline.entries.length - 1);
+      yield* player.close;
+    }),
+  );
+
+  it.effect("seeks by screen time, within the scene only", () =>
+    Effect.gen(function* () {
+      const player = yield* makePlayer(scene, {
+        autoplay: false,
+        opening: 700,
+      });
+      const cut = player.view().cut;
+      expect(shotOf(player)?.screen).toBe(700);
+      const second = cut?.steps[2];
+      const at =
+        second === undefined
+          ? 0
+          : (cut?.shots ?? [])
+              .slice(0, second.first)
+              .reduce((total, shot) => total + shot.screen, 0);
+      yield* player.seek(at);
+      expect(player.view().beat).toBe(2);
+      expect(player.view().screen).toBe(at);
+      expect(player.view().jumped).toBe(true);
+      yield* player.seek(-1);
+      expect(player.view().screen).toBe(0);
+      yield* player.seek(Number.POSITIVE_INFINITY);
+      expect(player.view().ended).toBe(true);
+
+      yield* player.yourTurn;
+      const free = player.view();
+      expect(free.cut).toBeNull();
+      expect(free.index).toBe(entryIndexAt(free.timeline, free.at));
+      yield* player.seek(0);
+      expect(player.view().at).toBe(free.at);
+      yield* player.close;
+    }),
   );
 });

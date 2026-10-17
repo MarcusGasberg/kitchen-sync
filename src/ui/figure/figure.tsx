@@ -116,7 +116,9 @@ function FigureBody({
     return host.onReducedMotion(() => setReduced(host.reducedMotion()));
   }, [host]);
   const frame =
-    view === null ? null : frameAt(view.timeline, view.at, { reduced });
+    view === null
+      ? null
+      : frameAt(view.timeline, view.at, { reduced, through: view.index });
   const snapshot = frame?.snapshot ?? null;
   const clientIds = view?.clientIds;
   const stage = useMemo(
