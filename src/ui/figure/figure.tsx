@@ -14,6 +14,9 @@ import type { Scene } from "#/lib/sandbox/scene";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
+import { CodePanel } from "#/ui/code/code-panel";
+import { type Light, litAt } from "#/ui/code/lit";
+import type { Snippet } from "#/ui/code/snippet";
 import { scaleFor } from "#/ui/marbling/pattern";
 import {
   addItem,
@@ -31,6 +34,15 @@ import { Stage } from "./stage";
 import { makeStageView, mostRows } from "./stage-view";
 import { usePlayer } from "./use-player";
 
+// The code beside a figure's world: a snippet, and the lights that say which
+// of its spans each trace event lights.
+export interface FigureCode {
+  readonly title: string;
+  readonly snippet: Snippet;
+  // In order: the first light an event answers lights its span.
+  readonly lights: ReadonlyArray<Light>;
+}
+
 export interface FigureProps {
   // A module-level constant. A new scene object is a new scene: the figure
   // closes its player and builds another, so a scene written inline would
@@ -42,14 +54,18 @@ export interface FigureProps {
   // The controls that break the network; one offline toggle per device if
   // left out.
   readonly breaks?: ReadonlyArray<Break>;
+  // The engine's code beside the world, lit as the world runs. A module-level
+  // constant, as `scene` is.
+  readonly code?: FigureCode;
   readonly host?: FigureHost;
 }
 
 const FREE_PLAY = "Your turn: change a list, or break the network.";
 
-// Keys a control handles itself: the figure's own keys leave them alone.
+// Keys a control handles itself, and code a keyboard scrolls: the figure's
+// own keys leave them alone.
 const CONTROLS =
-  "button, input, select, textarea, a, summary, [role='radio'], [role='slider']";
+  "button, input, select, textarea, a, summary, pre, [role='radio'], [role='slider']";
 
 // One sandbox: the real engine, played as a scripted scene and then handed to
 // the reader. A defect in rendering or in the world stops the figure, not the
@@ -72,6 +88,7 @@ function FigureBody({
   title,
   free,
   breaks,
+  code,
   host = browserFigureHost,
 }: FigureProps) {
   const element = useRef<HTMLElement>(null);
@@ -108,6 +125,16 @@ function FigureBody({
         ? null
         : stageOf(snapshot, clientIds),
     [stageOf, snapshot, clientIds],
+  );
+  // The code's lit span follows the frame's entry, not every instant.
+  const timeline = view?.timeline;
+  const index = frame?.index ?? -1;
+  const lit = useMemo(
+    () =>
+      code === undefined || timeline === undefined
+        ? null
+        : litAt(timeline, index, code.lights),
+    [code, timeline, index],
   );
   const offered = breaks ?? offlineToggles(scene.world.clients);
 
@@ -199,7 +226,11 @@ function FigureBody({
   return (
     <figure
       ref={element}
-      className={styles.figure}
+      className={
+        code === undefined
+          ? styles.figure
+          : `${styles.figure} ${styles.withCode}`
+      }
       aria-labelledby={titleId}
       onKeyDown={onKeyDown}
     >
@@ -284,6 +315,17 @@ function FigureBody({
           />
         )}
       </div>
+
+      {code !== undefined && (
+        <div className={styles.code}>
+          <CodePanel
+            title={code.title}
+            snippet={code.snippet}
+            lit={lit}
+            motion={!reduced && view !== null && !view.jumped}
+          />
+        </div>
+      )}
     </figure>
   );
 }

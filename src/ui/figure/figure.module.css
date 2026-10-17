@@ -97,3 +97,66 @@
 .stopped {
   margin: 0;
 }
+
+.code {
+  grid-area: code;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* A figure with code: on a phone and a tablet its code follows everything
+   else. */
+.figure.withCode {
+  grid-template-areas:
+    "copy"
+    "playback"
+    "stage"
+    "pace"
+    "breaking"
+    "code";
+}
+
+@media (min-width: 64rem) {
+  .figure.withCode {
+    grid-template-rows: auto auto auto 1fr auto;
+    grid-template-areas:
+      "copy stage"
+      "playback stage"
+      "pace stage"
+      "breaking stage"
+      "code code";
+  }
+}
+
+/* Stage | code (the user's choice, 2026-10-17): from 80rem the title,
+   caption and playback take a band across the top. Under it the stage and
+   its code sit side by side, the code held in view while the stage scrolls
+   past and never taller than the screen; speed, the hand-over and the
+   breaking controls go under the stage. */
+@media (min-width: 80rem) {
+  .figure.withCode {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "copy playback"
+      "stage code"
+      "pace code"
+      "breaking code";
+  }
+
+  .withCode .playback {
+    align-self: end;
+  }
+
+  .withCode .pace {
+    margin-top: 0;
+  }
+
+  .withCode .code {
+    position: sticky;
+    top: var(--space-5);
+    align-self: start;
+    max-block-size: calc(100dvh - 2 * var(--space-5));
+  }
+}

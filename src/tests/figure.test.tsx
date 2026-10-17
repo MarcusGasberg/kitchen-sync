@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { frameAt, senderOf } from "#/lib/sandbox/frame";
 import { makePlayer } from "#/lib/sandbox/player";
 import type { Scene } from "#/lib/sandbox/scene";
-import { Figure } from "#/ui/figure/figure";
+import { Figure, type FigureCode } from "#/ui/figure/figure";
 import { DEVICE_INSET_PX } from "#/ui/figure/wires";
 import { fakeHost, rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
@@ -103,6 +103,31 @@ const scrubTo = (offset: number) =>
   fireEvent.change(screen.getByRole("slider"), {
     target: { value: String(offset) },
   });
+
+// A small engine beside the test scene: both phones' pulls light `pull`, and
+// the server's decision lights `decide`.
+const line = (text: string) => [{ text }];
+const ENGINE: FigureCode = {
+  title: "The engine",
+  snippet: {
+    path: "src/lib/engine.ts",
+    region: "engine",
+    lines: [
+      line("const engine = () => {"),
+      line("  pull(version);"),
+      line("  decide(batch);"),
+      line("};"),
+    ],
+    spans: { pull: { from: 1, to: 2 }, decide: { from: 2, to: 3 } },
+  },
+  lights: [
+    { span: "decide", when: (event) => event._tag === "Decided" },
+    { span: "pull", when: (event) => event._tag === "Reconciled" },
+  ],
+};
+
+const markedIn = (figure: HTMLElement) =>
+  figure.querySelector("mark")?.textContent ?? null;
 
 describe("Figure", () => {
   it("opens on its title, its caption and play first", async () => {
@@ -387,5 +412,66 @@ describe("Figure", () => {
     expect(host.observed()).toHaveLength(1);
     expect(host.observed()[0]).toBe(figure);
     log.mockRestore();
+  });
+
+  it("shows its code, lit by the event at the playhead", async () => {
+    const host = fakeHost({ reduced: true });
+    render(
+      <Figure scene={scene} title="Coded" host={host.host} code={ENGINE} />,
+    );
+    await shown(host);
+    const figure = screen.getByRole("figure", { name: "Coded" });
+    expect(
+      within(figure).getByRole("heading", { level: 3, name: "The engine" }),
+    ).toBeTruthy();
+    await waitFor(() => expect(markedIn(figure)).toContain("pull(version);"));
+    fireEvent.keyDown(screen.getByRole("group", { name: "Coded: the world" }), {
+      key: "ArrowRight",
+    });
+    await screen.findByText("B pulls the milk.");
+    expect(markedIn(figure)).toContain("decide(batch);");
+    expect(within(figure).getByText("A · #1 applied")).toBeTruthy();
+  });
+
+  it("lights nothing at an instant before any of its events", async () => {
+    const host = fakeHost({ reduced: true });
+    render(
+      <Figure scene={scene} title="Early" host={host.host} code={ENGINE} />,
+    );
+    await shown(host);
+    const figure = screen.getByRole("figure", { name: "Early" });
+    scrubTo(0);
+    await waitFor(() => expect(figure.querySelector("mark")).toBeNull());
+  });
+
+  it("leaves keys in its code to the code", async () => {
+    const host = fakeHost({ reduced: true });
+    render(
+      <Figure scene={scene} title="Reading" host={host.host} code={ENGINE} />,
+    );
+    await shown(host);
+    const before = screen.getByText(/A adds milk|Both phones pull/).textContent;
+    const code = screen
+      .getByRole("figure", { name: "Reading" })
+      .querySelector("pre");
+    if (code === null) throw new Error("no code");
+    fireEvent.keyDown(code, { key: "ArrowRight" });
+    fireEvent.keyDown(code, { key: " " });
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByText(before ?? "")).toBeTruthy();
+  });
+
+  it("reads its code after the breaking controls", async () => {
+    const host = fakeHost({ reduced: true });
+    render(
+      <Figure scene={scene} title="Last" host={host.host} code={ENGINE} />,
+    );
+    await shown(host);
+    const breaking = screen.getByRole("button", { name: /Take A offline/ });
+    const code = screen.getByRole("heading", { level: 3, name: "The engine" });
+    expect(
+      breaking.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
