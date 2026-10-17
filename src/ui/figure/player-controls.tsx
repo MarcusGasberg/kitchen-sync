@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { type PlayerView, SPEEDS, type Speed } from "#/lib/sandbox/player";
 import { Button } from "#/ui/button";
+import choice from "#/ui/choice.module.css";
 import { ScrubBar } from "#/ui/scrub-bar";
 import styles from "./player-controls.module.css";
 
@@ -93,10 +94,10 @@ export function PaceControls({ view, onSpeed, onYourTurn }: PaceControlsProps) {
   const waiting = waitingOf(view);
   return (
     <div className={styles.controls}>
-      <fieldset className={styles.speed}>
-        <legend className={styles.legend}>Speed</legend>
+      <fieldset className={choice.choices}>
+        <legend className={choice.legend}>Speed</legend>
         {SPEEDS.map((speed) => (
-          <label key={speed} className={styles.option}>
+          <label key={speed} className={choice.option}>
             <input
               type="radio"
               name={speedName}

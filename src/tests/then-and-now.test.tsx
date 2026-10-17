@@ -1,0 +1,86 @@
+import { syncTokenKeys, toKeyedTokens } from "@shikijs/magic-move/core";
+import { MagicMoveRenderer } from "@shikijs/magic-move/renderer";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Morph } from "#/ui/code/snippet";
+import { htmlOf, ThenAndNow } from "#/ui/code/then-and-now";
+import { fakeHost } from "./figure-helpers";
+
+// Steps as the plugin makes them, one token a line, so the test needs no
+// highlighter.
+const keyed = (code: string) => {
+  let offset = 0;
+  const lines: Parameters<typeof toKeyedTokens>[1] = code
+    .split("\n")
+    .map((line) => {
+      const token = { content: line, offset, color: "var(--code-foreground)" };
+      offset += line.length + 1;
+      return line === "" ? [] : [token];
+    });
+  return toKeyedTokens(code, lines);
+};
+
+const THEN = "if (outbox.length === 0) return;\nsend(outbox);";
+const NOW =
+  "const pending = unacked(outbox);\nif (pending.length === 0) return;\nsend(pending);";
+const steps = syncTokenKeys(keyed(THEN), keyed(NOW));
+const MORPH: Morph = {
+  path: "src/lib/sync.ts",
+  region: "push-loop",
+  // biome-ignore lint/suspicious/noThenProperty: Morph's own field, not a thenable
+  then: {
+    commit: "7622158",
+    date: "2026-09-28",
+    lines: "47–72",
+    tokens: steps.from,
+  },
+  now: { tokens: steps.to },
+};
+
+const spies = () => ({
+  render: vi
+    .spyOn(MagicMoveRenderer.prototype, "render")
+    .mockResolvedValue(undefined),
+  replace: vi.spyOn(MagicMoveRenderer.prototype, "replace"),
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("ThenAndNow", () => {
+  it("opens on the old version, named by its date and commit", () => {
+    render(<ThenAndNow title="The push loop" morph={MORPH} />);
+    const then = screen.getByRole("radio", { name: /^Then/ });
+    expect((then as HTMLInputElement).checked).toBe(true);
+    expect(then.closest("label")?.textContent).toContain("28 Sep 2026");
+    expect(then.closest("label")?.textContent).toContain("7622158");
+    expect(document.querySelector("pre")?.textContent).toContain(
+      "send(outbox);",
+    );
+  });
+
+  it("morphs to today's version when the reader chooses Now", () => {
+    const renderer = spies();
+    render(<ThenAndNow title="The push loop" morph={MORPH} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Now" }));
+    expect(renderer.render).toHaveBeenLastCalledWith(MORPH.now.tokens);
+    expect(renderer.replace).not.toHaveBeenCalled();
+  });
+
+  it("cuts between versions under reduced motion", () => {
+    const renderer = spies();
+    const host = fakeHost({ reduced: true });
+    render(<ThenAndNow title="The push loop" morph={MORPH} host={host.host} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Now" }));
+    expect(renderer.replace).toHaveBeenLastCalledWith(MORPH.now.tokens);
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+  });
+
+  it("paints the old version as HTML before the renderer mounts", () => {
+    const html = htmlOf(keyed("a < b\nc"));
+    expect(html).toContain("a &lt; b");
+    expect(html).toContain("<br>");
+    expect(html).toContain('style="color:var(--code-foreground)"');
+  });
+});
