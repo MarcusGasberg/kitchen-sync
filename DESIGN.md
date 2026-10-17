@@ -53,6 +53,11 @@ typography:
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
+  note:
+    fontFamily: "Commissioner Variable, system-ui, sans-serif"
+    fontSize: "0.75rem"
+    fontWeight: 400
+    lineHeight: 1.2
   control:
     fontFamily: "Commissioner Variable, system-ui, sans-serif"
     fontSize: "0.875rem"
@@ -87,6 +92,11 @@ typography:
     fontWeight: 500
     lineHeight: 1.2
     letterSpacing: "0.04em"
+  code:
+    fontFamily: "Spline Sans Mono Variable, ui-monospace, monospace"
+    fontSize: "0.8125rem"
+    fontWeight: 400
+    lineHeight: 1.6
 rounded:
   control: "6px"
   badge: "10px"
@@ -256,20 +266,49 @@ components:
   player-where:
     textColor: "{colors.text-2}"
     typography: "{typography.mono}"
-  speed-legend:
+  choice-legend:
     textColor: "{colors.text-3}"
     typography: "{typography.label}"
-  speed-option:
+  choice-option:
     backgroundColor: "transparent"
     textColor: "{colors.text-2}"
     typography: "{typography.mono}"
     rounded: "{rounded.control}"
     size: "2.75rem"
-  speed-option-checked:
+  choice-option-checked:
     textColor: "{colors.text}"
+  choice-option-words:
+    typography: "{typography.note}"
   quick-add-hint:
     textColor: "{colors.text-2}"
     typography: "{typography.body-sm}"
+  code-title:
+    textColor: "{colors.text}"
+    typography: "{typography.label-lg}"
+  code-path:
+    textColor: "{colors.text-3}"
+    typography: "{typography.mono}"
+  code-note:
+    textColor: "{colors.text-2}"
+    typography: "{typography.mono}"
+  code-reference-note:
+    textColor: "{colors.text-2}"
+    typography: "{typography.note}"
+  code-block:
+    textColor: "{colors.text}"
+    typography: "{typography.code}"
+    padding: "0.75rem"
+  code-lit:
+    backgroundColor: "{colors.water}"
+  code-syntax-name:
+    textColor: "{colors.text}"
+  code-syntax-structure:
+    textColor: "{colors.text-2}"
+  code-syntax-quiet:
+    textColor: "{colors.text-3}"
+  then-date:
+    textColor: "{colors.text-3}"
+    typography: "{typography.note}"
 ---
 
 # Design System: Kitchen Sync
@@ -280,7 +319,7 @@ components:
 
 One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme="day"` or `"night"`).
 
-The list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop.
+The list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop. Code is the engine's own source on the same margin, under a hairline and never in a card: one ink in tonal steps, wrapping at its measure, with the branch a figure's world last ran washed in water.
 
 The signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads the stage, a straight hairline wire runs from under it to every device, and each device's basin heads its pane. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.
 
@@ -290,15 +329,16 @@ The signature is the basin: recessed water in which each device marbles its own 
 - Commissioner by weight (300 titles, 400 body, 500 labels and controls, 600 emphasis); Spline Sans Mono for ids, versions and counts.
 - Labels in small capitals tracked 0.18em; the app's name alone at 0.32em.
 - Every state has a form and a word: rings, solid and dashed edges, and the state's own name.
-- Motion is 200 ms colour and edge changes plus the basin's 900 ms settle; reduced motion cuts both.
-- A figure keeps its words and controls in its left third and gives the stage the rest: the server's basin and list, a 5rem band of straight hairline wires, then the devices in a row.
+- Motion is 200 ms colour and edge changes plus 900 ms settles (a basin's change, newly lit code, a then-and-now morph); reduced motion cuts them all.
+- A figure keeps its words and controls in its left third and gives the stage the rest: the server's basin and list, a 5rem band of straight hairline wires, then the devices in a row. Given code, from 80rem it sets its words and playback in a band across the top and its code in a sticky column beside the stage.
+- Code in Spline Sans Mono at 0.8125rem, one ink in three tonal steps, wrapping at its measure on one shared edge; the branch that last ran washed in water behind a 1 px ink rule.
 
 ## Colors
 
 One cool indigo ink (OKLCH hue 253 to 271 across every token but the seal) diluted toward water, plus one warm seal. Every value is a `light-dark()` pair in `src/styles/tokens.css`, mirrored for code in `src/ui/palette.ts`; `src/tests/tokens.test.ts` keeps the two in step and checks each text pairing.
 
 ### Primary
-- **Indigo Text** (#0a1a33 by day, #e6ebf2 at night; `--text`): body text, a figure's title, and the system's acting colour. It fills the primary button (label in `--page`), the checked circle, the scrub bar's dot and the current part tab's underline; it draws the 2 px focus outline, the caret, and the selection (text-coloured ground, page-coloured letters). A focused field's edge turns to it.
+- **Indigo Text** (#0a1a33 by day, #e6ebf2 at night; `--text`): body text, a figure's title, the names in code and code's own foreground, and the system's acting colour. It fills the primary button (label in `--page`), the checked circle, the scrub bar's dot and the current part tab's underline; it draws the 2 px focus outline, the caret, and the selection (text-coloured ground, page-coloured letters). A focused field's edge turns to it.
 
 ### Secondary
 - **Fresh Ink** (#23468f by day, #8ea6ff at night; `--ink-fresh`): exists only for changes still in an outbox: inside a basin, for an item still in that device's outbox, and on a figure's wire as the dot of a push, which carries those changes. It is the one ink with real chroma, so a waiting change stands out of the pattern until a pull confirms it.
@@ -308,12 +348,12 @@ One cool indigo ink (OKLCH hue 253 to 271 across every token but the seal) dilut
 
 ### Neutral
 - **Still Margin** (#f1f3f6 / #0b1426; `--page`): the page ground, the masthead, the docked form, the dialog, the primary button's label, and the 3 px halo that keeps a wire's label legible where it crosses a wire. The browser chrome takes it through `theme-color` (`src/ui/theme-color.tsx`).
-- **Basin Water** (#fbfbfc / #0f1d34; `--water`): a basin's clear water, the halo behind a basin's version label, and the ground of fields, bands and rejected rows, a step lighter than the margin in both themes.
-- **Dilute Text** (#4f5c73 / #aeb6c2; `--text-2`): secondary text: the status line, a band's sentence, captions, notes, the outbox strip, a row's state slot, part tabs at rest, a message's dot and label on a wire, a basin's version labels, a figure's position line, speed options at rest, and the primary button's hover fill.
-- **Quiet Text** (#5e6a7e / #8693a8; `--text-3`): category heads and their "n left", a checked item's struck name, placeholders, the remove control at rest, a disabled label, scrub ticks and a waiting scrub bar's dot, the outbox's run words, the Speed legend, a lost message's label. Still 4.5:1 on page and water.
-- **Hairline** (#d3d9e2 / #24324d; `--line`): dividers and the quiet edges of things nobody operates: the masthead's foot, row tops, the dock's top edge, the dialog's edge, the basin's inner ring, a disabled button's edge, a waiting scrub bar's track and ticks, and a figure's wires.
-- **Control Edge** (#768296 / #66738a; `--edge`): the edge of anything you operate (fields, secondary and breaking buttons, the check circle, the device mark, bands, the scrub track, the badge's hover frame, the chosen speed's frame, the scrollbar). Holds 3:1 on page and water.
-- **Indigo Depth** (#0a1a33 / Mist #dde2e8; `--ink-1`), **Ink Current** (#1e2d4a / #aeb6c2; `--ink-2`), **Dilute Ink** (#606d80 / #7a8597; `--ink-3`), **Feathered Gray** (#aeb6c2 / #47546a; `--ink-4`): the basin's four inks, strongest to faintest. Strength is contrast against the water, so the ramp inverts at night. Used only by the basin renderers, through `src/ui/marbling/tones.ts`.
+- **Basin Water** (#fbfbfc / #0f1d34; `--water`): a basin's clear water, the halo behind a basin's version label, the ground of fields, bands and rejected rows, and the wash behind lit code, a step lighter than the margin in both themes.
+- **Dilute Text** (#4f5c73 / #aeb6c2; `--text-2`): secondary text: the status line, a band's sentence, captions, notes, the outbox strip, a row's state slot, part tabs at rest, a message's dot and label on a wire, a basin's version labels, a figure's position line, a choice's options at rest, code's keywords and strings, a code block's note and the reference panel's "Not running in this figure", and the primary button's hover fill.
+- **Quiet Text** (#5e6a7e / #8693a8; `--text-3`): category heads and their "n left", a checked item's struck name, placeholders, the remove control at rest, a disabled label, scrub ticks and a waiting scrub bar's dot, the outbox's run words, a choice's legend, a lost message's label, code's comments and punctuation, a code block's path, Then's date. Still 4.5:1 on page and water.
+- **Hairline** (#d3d9e2 / #24324d; `--line`): dividers and the quiet edges of things nobody operates: the masthead's foot, row tops, the dock's top edge, the dialog's edge, the basin's inner ring, a disabled button's edge, a waiting scrub bar's track and ticks, a figure's wires, and the rule under a code block's head.
+- **Control Edge** (#768296 / #66738a; `--edge`): the edge of anything you operate (fields, secondary and breaking buttons, the check circle, the device mark, bands, the scrub track, the badge's hover frame, the frame of a choice's chosen option, the scrollbar). Holds 3:1 on page and water.
+- **Indigo Depth** (#0a1a33 / Mist #dde2e8; `--ink-1`), **Ink Current** (#1e2d4a / #aeb6c2; `--ink-2`), **Dilute Ink** (#606d80 / #7a8597; `--ink-3`), **Feathered Gray** (#aeb6c2 / #47546a; `--ink-4`): the basin's four inks, strongest to faintest. Strength is contrast against the water, so the ramp inverts at night. The basin renderers use all four, through `src/ui/marbling/tones.ts`; outside a basin, Ink Current draws only the 1 px rule at the start of lit code.
 
 ### Named Rules
 **The One Ink Rule.** Every colour but the seal is a value of one indigo ink diluted toward water. A new colour joins that family or does not join; there is no second accent hue.
@@ -322,33 +362,37 @@ One cool indigo ink (OKLCH hue 253 to 271 across every token but the seal) dilut
 
 **The Paired Value Rule.** Every colour is a `light-dark()` pair declared in `tokens.css` and mirrored in `palette.ts`, and `tokens.test.ts` holds it: text at 4.5:1 and control edges at 3:1, on page and on water, day and night. The exceptions are shadow and scrim colours, which are literal `light-dark()` rgb pairs written where they are used (see Elevation & Depth), and the system colours of forced-colours mode.
 
+**The Tonal Syntax Rule.** Code takes no hue of its own. Shiki's CSS-variables theme names the `--code-*` aliases in `tokens.css`, and they point at three text tones, not new colours: names, constants, parameters and code's own foreground in `--text`; keywords, strings and links in `--text-2`; comments and punctuation, receding furthest, in `--text-3`. Inserted, deleted and changed text stay `--text`; fresh ink and the seal never colour code.
+
 ## Typography
 
 **Display Font:** none; titles are Commissioner set light.
 **Body Font:** Commissioner Variable (with system-ui, sans-serif), `--font-text`, for all text and every control.
-**Label/Mono Font:** Spline Sans Mono Variable (with ui-monospace, monospace), `--font-mono`, for ids, versions and counts.
+**Label/Mono Font:** Spline Sans Mono Variable (with ui-monospace, monospace), `--font-mono`, for ids, versions, counts, file paths and code.
 
-**Character:** A quiet, open humanist sans whose weight axis does the ranking, beside a soft-cornered mono that only ever counts or names. Both are self-hosted through the `@fontsource-variable` imports at the top of `src/styles.css`.
+**Character:** A quiet, open humanist sans whose weight axis does the ranking, beside a soft-cornered mono that only ever counts, names or quotes the engine's code. Both are self-hosted through the `@fontsource-variable` imports at the top of `src/styles.css`.
 
 ### Hierarchy
-A fixed rem ramp (0.75, 0.875, 1, 1.125, 1.5, 2.75rem; `--text-xs` to `--text-2xl`, and `--text-2xl-phone` at 2rem for a phone), with weight, tracking and case doing more of the ranking than size. Body is set on `body` at 1rem / 1.5.
+A fixed rem ramp (0.75, 0.875, 1, 1.125, 1.5, 2.75rem; `--text-xs` to `--text-2xl`, `--text-2xl-phone` at 2rem for a phone, and `--text-code` at 0.8125rem for code alone), with weight, tracking and case doing more of the ranking than size. Body is set on `body` at 1rem / 1.5.
 - **Figure Title** (300, 2.75rem `--text-2xl`, 1.1, −0.01em, `text-wrap: balance`): a figure's title, which is its chapter's own. Below 45rem it is 2rem (`--text-2xl-phone`), where 2.75rem would hold the server's basin off a phone's first screen.
 - **Title** (300, 1.5rem, 1.2): the dialog's title ("This device's basin"). Titles are light.
 - **Caption** (400, 1.125rem, 1.55, `--text-2`, `text-wrap: pretty`, 38ch): a figure's live caption, and the list's empty state (34ch).
 - **Body** (400, 1rem, 1.5): row names and field text.
 - **Body Strong** (600): emphasis inside a line: a row's amount ("2 l"), a band's state word, a rejected item's name.
 - **Body Small** (400, 0.875rem): the status line, a band's sentence, a rejection's reason, the dialog's note (44ch), part tabs, a quick add's hint, a figure's "Preparing the world…".
+- **Note** (400, 0.75rem, 1.2): a few words beside a code block's path: the reference panel's "Not running in this figure". The words of a choice (Then, Now) and Then's date take the same face and size, set solid, at 1.
 - **Control** (500, 0.875rem, 1): the row's Remove word.
 - **Name** (400, 0.875rem, 1.2, 0.32em, uppercase): the app's name in the masthead, and nothing else.
-- **Label** (500, 0.75rem, 1.2, 0.18em `--tracking-label`, uppercase): button labels (line height 1 inside the 44 px box), category heads and a figure's Speed legend (both in `--text-3`).
-- **Label Large** (500, 0.875rem, 1.2, 0.18em, uppercase): a device's name over its pane in a figure ("Server", "A").
-- **Mono** (400, 0.75rem, 1.2): ids, versions, counts and the short state lines built on them: "#15", "v9 · synced", "Add #15", "2 left", "10 items", a figure's position ("beat 2 of 4 · 5.00 s"). The row's state slot sets its `#id` at 1.25; a speed option ("0.5×"), a message's label on a wire ("#6", "ack #5", "poke v7", "#6 · held") and a basin's version label ("v5") are set solid, at 1.
+- **Label** (500, 0.75rem, 1.2, 0.18em `--tracking-label`, uppercase): button labels (line height 1 inside the 44 px box), category heads and a choice's legend ("Speed", "Version"; both in `--text-3`).
+- **Label Large** (500, 0.875rem, 1.2, 0.18em, uppercase): a device's name over its pane in a figure ("Server", "A"), and a code block's title ("The push loop").
+- **Mono** (400, 0.75rem, 1.2): ids, versions, counts and the short state lines built on them: "#15", "v9 · synced", "Add #15", "2 left", "10 items", a figure's position ("beat 2 of 4 · 5.00 s"), a code block's path ("src/lib/sync.ts", in `--text-3`) and its note ("A · #6"), Then's commit ("7622158"). The row's state slot sets its `#id` at 1.25; a speed option ("0.5×"), a message's label on a wire ("#6", "ack #5", "poke v7", "#6 · held") and a basin's version label ("v5") are set solid, at 1.
 - **Mono Mark** (500, 0.75rem, 1.2, 0.04em): the device mark, the first four characters of the client id ("BDF0").
+- **Code** (400, 0.8125rem `--text-code`, 1.6, tab size 2): every line of code, at a size whose longest engine lines fit a figure's code column. No line numbers and no gutter: the code's own indentation is its only structure. Its colours are the `--code-*` aliases (see Colors).
 
 ### Named Rules
 **The Weight Ladder Rule.** Hierarchy is weight before size: 300 titles, 400 body, 500 labels and controls, 600 emphasis. Nothing is heavier than 600.
 
-**The Mono Is Data Rule.** Spline Sans Mono sets ids, versions and counts and the short state lines built on them, and nothing else. The state's word beside an id goes back to Commissioner (a row's "pending", the outbox's "acked"), as does every sentence. Commissioner has no tabular figures, so anything that must align is mono.
+**The Mono Is Data Rule.** Spline Sans Mono sets ids, versions, counts and file paths, the short state lines built on them, and code, and nothing else. The state's word beside an id goes back to Commissioner (a row's "pending", the outbox's "acked"), as do the words of a choice (Then, Now), a date ("28 Sep 2026") and every sentence. Commissioner has no tabular figures, so anything that must align is mono.
 
 **The Small Capitals Rule.** A label that names a control, a category or a device is uppercase small text tracked 0.18em; the app's name alone takes 0.32em. Small capitals never sit as a kicker or eyebrow above a title or a section, and never set a sentence.
 
@@ -364,6 +408,10 @@ A figure takes the width its page gives it, and is a grid with two compositions.
 
 The stage stacks the server's row, the 5rem wire band (`--space-7` plus `--space-6`), and the device row. The stage is an inline-size container (`stage`), so the server's row follows the stage's own width, not the viewport's: from a 47rem stage it puts its basin first (`minmax(0, 1fr)`, at least 23rem) and its compact list in a 22rem column beside it, two 10rem columns from the row's top, 2rem apart; on a narrower stage, whatever the viewport, the list sits above a full-width basin. The band starts at the lower of the basin's foot and the list's: at 1440 px the scene's list runs no taller than the basin and the band starts at its foot, while a list that runs lower (a 1280 px desktop by a few pixels, or a reader's adds in free play) moves the band's top down to its own foot, so no wire crosses it. The device row is one row however many devices there are: on a wide screen each takes at least 14rem (`minmax(14rem, 1fr)`), 2rem apart, scrolling sideways past the width; below 45rem it is a strip to swipe, each device `min(85%, 22rem)` wide and 1.5rem apart, snapping to its start with the next device's edge in view. A device's pane stacks its header line (name, state, mark), its basin, any band, and its list, inset 0.25rem from the basin's rounded corners. The basin's aspect is fixed at 5:2.
 
+A figure with code adds a code row, and from 80rem a third composition: Stage | code, the user's choice of 2026-10-17. Below 64rem the code follows the breaking controls. From 64rem to 80rem it takes a full-width row under the two columns above. From 80rem a band across the top holds the title and caption on the left and playback on the right, set to the band's foot; under it the stage takes `minmax(47rem, 3fr)` and the code `minmax(0, 2fr)`, 3rem apart, and speed and "Your turn", then the breaking controls, go under the stage. The stage's 47rem floor is the server row's own threshold: narrower, the server would stack its list above its basin and A, B and C would fall below the first view. The code column is sticky 1.5rem from the top, held to the screen's height (`100dvh` less 1.5rem above and below), and scrolls inside itself while the stage scrolls past. In that band playback's cell is an inline-size container (`playback`): below 27rem its four buttons keep one row, equal where the row allows and none narrower than its label, as on a phone, rather than dropping Restart alone onto a second.
+
+Code wraps at its block's measure and never scrolls sideways. Each line hangs from its own indentation: a per-line `--indent` (the spaces it starts with) sets a hanging indent, so a continuation sits two characters in from where its line began, and the text itself is untouched, so it copies as written. Every code block, the figure's, the reference panel's and Then and Now's, shares one edge: its text starts `--space-3` (0.75rem) in from its head and its rule, lit or not, and stops 0.75rem short of the far side. A block scrolls up and down inside itself, never the page. Set apart from a figure, a code block takes a post's prose column (`--column`).
+
 ### Named Rules
 **The Fixed Box Rule.** A row's sync state changes form inside a fixed 4.5rem slot. No state adds or removes height or width, so the list never reflows when a change lands.
 
@@ -375,9 +423,13 @@ The stage stacks the server's row, the 5rem wire band (`--space-7` plus `--space
 
 **The Compact Read Rule.** A list nothing on which is a target sets its rows at 2rem (`--row-height-compact`) and its groups closer; the server's list in a figure, given room for two 10rem columns, also flows its groups in two, and a device's list keeps one. A list that takes a check or a remove keeps 2.875rem rows and its 44 px targets. In a figure the server's list is always compact, and a device's list is compact while a scene plays and regular in free play.
 
+**The Measure Rule.** Code wraps at its block's measure and never scrolls sideways, every line hanging from its own indentation. The one drawing that cannot hang, Then and Now's morph (one flat run of tokens), shows only from a 40rem panel; a narrower panel cuts between per-line versions instead.
+
+**The One Code Edge Rule.** Every code block sets its text `--space-3` in from its head and its rule. Lit code's 1 px rule takes its pixel out of the line's inset (`--lit-rule`), so lighting a span never moves a character.
+
 ## Elevation & Depth
 
-Mostly flat, with depth in one direction: down. Hairlines and the step between margin and water do the layering. Water is recessed below the margin by an inset shade; only two things rise above it, the docked form on a phone and the basin dialog. Shadow colours are literal `light-dark()` rgb pairs written inside each box-shadow, indigo-tinted by day and black at night, not palette tokens.
+Mostly flat, with depth in one direction: down. Hairlines and the step between margin and water do the layering. Water is recessed below the margin by an inset shade; only two things rise above it, the docked form on a phone and the basin dialog. Code is flat too: a hairline under its head, no box, and lit code a flat wash of water with no shade; the figure's sticky code column stays in view by position, not by casting anything. Shadow colours are literal `light-dark()` rgb pairs written inside each box-shadow, indigo-tinted by day and black at night, not palette tokens.
 
 ### Shadow Vocabulary
 - **Basin inset** (`box-shadow: inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)), inset 0 0 0 1px var(--line)`): every basin, drawn on an `::after` overlay because the canvas would paint over an inset shadow on the box itself.
@@ -387,13 +439,13 @@ Mostly flat, with depth in one direction: down. Hairlines and the step between m
 ### Named Rules
 **The Recessed Water Rule.** Water sits below the margin, never above it: a basin takes the inset shade and a hairline ring, never a drop shadow. Under forced colours the shade goes and a 1 px CanvasText edge keeps the water's shape.
 
-**The Two Risers Rule.** Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes, badges and a figure's stage and wires are flat.
+**The Two Risers Rule.** Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes, badges, code blocks and a figure's stage and wires are flat.
 
 ## Shapes
 
 Soft corners in three steps: 6 px for controls, fields and a rejected row (`--radius-control`), 10 px for the basin badge (`--radius-badge`), 18 px for basins and the dialog (`--radius-basin`). Everything that carries state is a circle: the 1.25rem check, the rings (0.625rem in a row, 0.5rem in the outbox strip, 0.75rem on a rejection), the 0.875rem scrub dot, a message's 8 px dot on a wire.
 
-Every line is 1 px (`--rule`): hairline for dividers, control edge for anything operable. Solid and dashed carry meaning. A solid edge is a fact (offline, stopped); a dashed edge is a loop still trying (the retrying band), a control that breaks something (the breaking button), a message held at its sender (its dashed ring on the wire), or a change washed out (a rejection's row and ring, in the seal). A wire is a straight 1 px hairline with no curve and no arrowhead: which side of it a message rides says which way it goes. The remove mark is a drawn cross (12-unit box, 1.5 stroke, round caps) in `currentColor`; the category select's chevron is two hard-stop gradients in `--text-2`. Shapes stay plain: marbling lives only inside a basin.
+Every line is 1 px (`--rule`): hairline for dividers, control edge for anything operable. Solid and dashed carry meaning. A solid edge is a fact (offline, stopped); a dashed edge is a loop still trying (the retrying band), a control that breaks something (the breaking button), a message held at its sender (its dashed ring on the wire), or a change washed out (a rejection's row and ring, in the seal). A wire is a straight 1 px hairline with no curve and no arrowhead: which side of it a message rides says which way it goes. The remove mark is a drawn cross (12-unit box, 1.5 stroke, round caps) in `currentColor`; the category select's chevron is two hard-stop gradients in `--text-2`. Code has no corners and no box: a hairline under its head, and down the start of lit code a solid 1 px rule in `--ink-2`, drawn as a border so forced colours keep it. A choice's chosen option takes a control's 6 px frame. Shapes stay plain: marbling lives only inside a basin.
 
 ### Named Rules
 **The Ring Rule.** A change's state is a ring beside its id: hollow while pending, left half filled once acked, dashed in the seal when rejected, gone when synced. The row and the outbox strip draw the same ring.
@@ -402,7 +454,7 @@ Every line is 1 px (`--rule`): hairline for dividers, control edge for anything 
 
 ## Components
 
-All components live in `src/ui/` with a CSS Module each. The specimen at `/specimen` (`src/app/specimen.tsx`, development only) shows every one in every state, day and night side by side. The figure's parts live in `src/ui/figure/`; the lab at `/lab` (`src/app/lab.tsx`, development only, synthetic scenes) plays two figures, one opening in free play.
+All components live in `src/ui/` with a CSS Module each. The specimen at `/specimen` (`src/app/specimen.tsx`, development only) shows the app's components, and the pane, scrub bar and caption a figure builds on, in every state, day and night side by side. The figure's parts live in `src/ui/figure/` and the code blocks in `src/ui/code/`, with the shared Choice in `src/ui/choice.module.css`; the specimen does not show them. The lab at `/lab` (`src/app/lab.tsx`, development only, synthetic scenes) does: it plays two figures, the first with the push loop beside its stage and the second opening in free play, then, set apart in a prose column, a then-and-now panel and a reference panel.
 
 ### Buttons
 Quiet labels beside the content they act on: small tracked capitals in a 44 px box.
@@ -461,7 +513,7 @@ One device in a figure: its name in Label Large (an h3 under the figure's h2), i
 - **Caption:** Caption type, 38ch, under a figure's title: a polite live region, read whole, while a scene plays; turned off in free play, whose events would flood a screen reader. With no event to tell, free play says "Your turn: change a list, or break the network."
 
 ### Figure
-One sandbox: the real engine played as a scripted scene, then handed to the reader as the same live world. A `<figure>` named by its title (Figure Title), with its caption, playback, the stage, the pace controls and the breaking controls laid out as Layout sets out. Its keys work anywhere in it outside a control: Space plays or pauses, ← goes Back, → Steps. A key with Alt, Ctrl, Meta or Shift stays the browser's (Alt+← is Back), and a held key acts once, not once per repeat. A world runs only while its figure is at least half in view and its tab shows (on a phone, only the figure most in view); under reduced motion nothing starts on its own. The figure reads the reader's motion setting once and follows it as it changes. Until the world is built the stage says "Preparing the world…" (Body Small, `--text-2`, centred in 24rem). A defect stops the figure, not the page: in its place a solid band reads "This figure stopped." with the defect and a primary Restart, never in the seal, since a stopped figure is not a stopped sync.
+One sandbox: the real engine played as a scripted scene, then handed to the reader as the same live world. A `<figure>` named by its title (Figure Title), with its caption, playback, the stage, the pace controls, the breaking controls and, given code, its code panel, laid out as Layout sets out. Its keys work anywhere in it outside a control or its code, which a keyboard scrolls: Space plays or pauses, ← goes Back, → Steps. A key with Alt, Ctrl, Meta or Shift stays the browser's (Alt+← is Back), and a held key acts once, not once per repeat. A world runs only while its figure is at least half in view and its tab shows (on a phone, only the figure most in view); under reduced motion nothing starts on its own. The figure reads the reader's motion setting once and follows it as it changes. Until the world is built the stage says "Preparing the world…" (Body Small, `--text-2`, centred in 24rem). A defect stops the figure, not the page: in its place a solid band reads "This figure stopped." with the defect and a primary Restart, never in the seal, since a stopped figure is not a stopped sync.
 
 ### Stage
 The world at one instant: the server's row, the wire band, then the devices. It is a group named "[title]: the world" that takes focus (the 2 px outline 0.5rem out, at 6 px corners) and with it the figure's keys. When a hand-over the reader asked for (Your turn, which then goes, or a breaking control, disabled while the fork builds) leaves focus outside the figure, the stage takes it once the world is in free play, without scrolling the page. While a scene plays every list on it is read-only and compact. In free play each device's list takes checks and removals at the regular density, its status band offers Retry, and a Quick Add sits under it.
@@ -477,8 +529,8 @@ The network between the server and its devices, drawn as an SVG over the whole s
 - **Forced colours:** wires, dots and labels in CanvasText on a Canvas halo; a push's dot in Highlight.
 
 ### Player Controls
-- **Playback:** Play or Pause (primary, its word swapping, always first), then Back, Step and Restart (secondary), 0.5rem apart; on a phone the four share one row, equal where the row allows and none narrower than its label. Under them the ScrubBar, stretched, a tick where each beat starts; under that the position in Mono `--text-2` ("beat 2 of 4 · 5.00 s", "your turn · 9.98 s") and, while a long quiet wait runs short, the seconds skipped ("+3 s") in `--text`. The blocks sit 1rem apart (0.75rem on a phone).
-- **Pace:** a Speed fieldset, its legend in Label type and `--text-3` on the options' line, then 0.5×, 1× and 4×, each a 44 px target in Mono `--text-2` with its radio laid invisibly over it. The chosen speed takes a 1 px control-edge frame at 6 px corners and `--text` (a Highlight frame under forced colours); hover turns a speed to `--text`, and focus draws the 2 px outline round it. During a scene "Your turn" follows: secondary while the scene plays, primary once it has ended. Under the stage below 64rem, under playback from 64rem.
+- **Playback:** Play or Pause (primary, its word swapping, always first), then Back, Step and Restart (secondary), 0.5rem apart; on a phone the four share one row, equal where the row allows and none narrower than its label. Under them the ScrubBar, stretched, a tick where each beat starts; under that the position in Mono `--text-2` ("beat 2 of 4 · 5.00 s", "your turn · 9.98 s") and, while a long quiet wait runs short, the seconds skipped ("+3 s") in `--text`. The blocks sit 1rem apart (0.75rem on a phone). Beside the code from 80rem, a playback cell narrower than 27rem keeps the four buttons on one row, as a phone does.
+- **Pace:** a Speed choice (see Choice): 0.5×, 1× and 4× in Mono. During a scene "Your turn" follows: secondary while the scene plays, primary once it has ended. Under the stage below 64rem, under playback from 64rem, and under the stage again from 80rem in a figure with code.
 - **Waiting:** while a fork is built, or on a stopped figure, Play, Back, Step, the scrub bar and "Your turn" are disabled; Restart waits only for a fork.
 
 ### Breaking Controls
@@ -487,19 +539,48 @@ The controls that break the network: one fieldset named "Break the network" by a
 ### Quick Add
 A one-field add for each device in free play, 0.75rem under its list: the field, as the add form's (water, control edge, 6 px corners, 44 px, body type, "Add an item" in `--text-3`), named for its device ("Add to A's list"), then a secondary Add, 0.5rem apart on one line. A name the wire would refuse is never sent: the cursor goes to the field, which takes `aria-invalid` and is described by one hint on its own line ("Name the item first.", "Keep the name to 50 characters."), Body Small `--text-2`, never the seal. Typing clears it.
 
+### Choice
+A few options of which one is chosen: a fieldset of radios, each laid invisibly over its option. A figure's speed and Then and Now's version share it.
+- **Legend:** Label type in `--text-3` ("Speed", "Version"), floated onto the options' line 0.75rem before them.
+- **Option:** a 44 px target (at least 2.75rem each way), 0.5rem side padding, a transparent 1 px edge at 6 px corners, in `--text-2`; options sit 0.25rem apart and wrap. Numbers are Mono ("0.5×"); words are Commissioner (Then, Now), both 0.75rem and set solid.
+- **Chosen:** a 1 px control-edge frame and `--text`; a Highlight frame under forced colours.
+- **Hover / Focus:** hover turns an option to `--text` (only under `(hover: hover)`); focus draws the 2 px `--text` outline round the option at 2 px offset; colour and edge change over 200 ms.
+
+### Code Panel
+A piece of the engine's real source, read and highlighted at build time (no highlighter runs in the page), with the branch that last ran lit. A section named by its title.
+- **Head:** the title in Label Large (an h3, as a pane's name is), the file's path in Mono `--text-3`, and at the head's far end the note in Mono `--text-2`: whose code last ran, and on what ("A · #6", "A · ack #5", "poke v7"). The head wraps, 0.75rem between its parts and 0.25rem between its lines.
+- **Code:** 0.75rem under the head, below a 1 px hairline, in Code type on the still margin, padded 0.75rem above and below; it wraps and keeps its edge as Layout sets out, and scrolls up and down inside itself. It takes focus, so a keyboard can scroll it (the 2 px `--text` outline at 2 px offset).
+- **Lit:** a figure's lights each name a span of the snippet and the trace events they answer. The span of the latest event at or before the playhead that a light answers stays lit until another event lights another; before any, nothing is lit, and where two lights answer one event the first wins. Lit lines sit in a `<mark>` washed in `--water`, with a 1 px (`--rule`) `--ink-2` rule at their start; the note names the event that lit them.
+- **Settle:** a new event's lines settle in over `--settle` (900 ms, `--ease-out`), rule and wash rising from nothing; a jump (a scrub, Back, Step, Restart, a fork, Play from the end) and reduced motion show them at once.
+- **Scroll:** lit lines outside the code's view scroll into it, a third of the way down, snapped to the start of a whole line so none is sliced under the head's hairline; smoothly when the change settles, at once otherwise. Only the code scrolls, never the page.
+- **Forced colours:** the lit lines take the system's mark colours and keep their rule, a border.
+
+### Reference Panel
+The code panel with `running={false}`: code no world beside it runs, such as the HTTP push a sandbox swaps out. After the path its head says "Not running in this figure" in Note type `--text-2`; it is never lit and carries no note. Otherwise it is the code panel: the same head, edge, wrap and scroll.
+
+### Then and Now
+A region's history: the file's lines at an old commit beside the region today. It opens on Then.
+- **Head and choice:** the code panel's head (title and path), then a Version choice: Then, with its date and commit ("28 Sep 2026 · 7622158": the date in Commissioner `--text-3`, the commit in Mono), and Now.
+- **From a 40rem panel** (the panel is an inline-size container): choosing a version morphs the code token by token (magic-move) over 900 ms on the `--ease-out` curve, matching tokens moving to their new places and the rest fading out or in; reduced motion cuts. The morph is one flat run of tokens, so it wraps at its measure on the shared edge without a hanging indent. Then's date and commit sit on one line beside "Then".
+- **Below a 40rem panel:** the panel draws the same version as per-line code, each line hanging from its indentation, and the choice cuts between the two. Then's date and commit drop under "Then", start-aligned, so Then and Now share one row; Now stays one line, centred. Only one drawing shows: the hidden one is `display: none`, so the code is never read twice.
+- **First paint:** Then is drawn from build-time HTML, so a prerendered page shows its code before any script runs.
+
 ## Do's and Don'ts
 
 ### Do:
 - **Do** take every ground, text, edge and ink colour from the thirteen custom properties in `src/styles/tokens.css`, and add any new one as a `light-dark()` pair mirrored in `src/ui/palette.ts` and checked in `tokens.test.ts` (4.5:1 text, 3:1 control edges, on page and water, day and night).
-- **Do** take spacing, corners and sizes from the tokens (`--space-1` to `--space-7`, `--radius-control`, `--radius-badge`, `--radius-basin`, `--target`, `--row-height`, `--row-height-compact`, `--rule`, `--column`), and type sizes from `--text-xs` to `--text-2xl` and `--text-2xl-phone`.
+- **Do** take spacing, corners and sizes from the tokens (`--space-1` to `--space-7`, `--radius-control`, `--radius-badge`, `--radius-basin`, `--target`, `--row-height`, `--row-height-compact`, `--rule`, `--column`), and type sizes from `--text-xs` to `--text-2xl`, `--text-2xl-phone` and, for code alone, `--text-code`.
 - **Do** give every state its form and its word: pending a hollow ring with its `#id`; acked a half-filled ring; synced no marker; rejected a dashed seal ring with the server's reason; offline a solid band; retrying a dashed band; stopped the solid band with its word in the seal, its reason and Retry.
 - **Do** keep every target at 2.75rem or more, extending a hit area with a pseudo-element where the visible shape is smaller (the badge).
-- **Do** keep state changes to colour and edge over 200 ms with `--ease-out`, and every basin change to the 900 ms settle; let reduced motion, the CPU path and a figure's jumps show changes at once.
+- **Do** keep state changes to colour and edge over 200 ms with `--ease-out`, and every basin change, newly lit code and a then-and-now morph to the 900 ms settle; let reduced motion, the CPU path and a figure's jumps show changes at once.
 - **Do** keep Play or Pause the first focusable control of every figure, and its breaking controls set apart from playback by space.
 - **Do** set a list nothing on which is a target at the compact density, and any list that takes a check or a remove at the regular one.
 - **Do** give every message on a wire its label, requests and replies on opposite sides of it, and a push's dot in fresh ink.
 - **Do** give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, a wire band in CanvasText with a push in Highlight, and the rings, the checked circle and the scrub bar's track, dot and ticks keep their fills with `forced-color-adjust: none` in CanvasText (the scrub bar GrayText while it waits).
-- **Do** set ids, versions, counts and the short state lines built on them in Spline Sans Mono, and everything else in Commissioner.
+- **Do** set ids, versions, counts, file paths, the short state lines built on them and code in Spline Sans Mono, and everything else in Commissioner.
+- **Do** colour code only through the `--code-*` aliases in `tokens.css`: names in `--text`, keywords and strings in `--text-2`, comments and punctuation in `--text-3`.
+- **Do** wrap code at its block's measure with each line hanging from its own indentation, and keep every code block's text on one edge, `--space-3` in from its head and its rule.
+- **Do** light only the span of the latest trace event a figure's lights answer, washed in `--water` behind a 1 px `--ink-2` rule, and scroll only the code to it, snapped to a whole line.
 
 ### Don't:
 - **Don't** use the vermilion seal for anything but a rejection or a stopped sync: not offline, not retrying, not remove, not a breaking control, not hover, not a lost message, not a stopped figure.
@@ -513,3 +594,5 @@ A one-field add for each device in free play, 0.75rem under its list: the field,
 - **Don't** ship a value for one theme only; day and night are both designed.
 - **Don't** put a target, or a fact the lists and the caption do not also say, on a figure's wire band.
 - **Don't** change a figure's basin scale once it is set, or draw the app's badge at any scale but 1.
+- **Don't** scroll code sideways, number its lines, box it in a card, or move the page to bring lit lines into view.
+- **Don't** give code a hue: fresh ink and the seal never colour a token, and syntax has no palette of its own.

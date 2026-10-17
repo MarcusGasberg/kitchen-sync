@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-16T22:50:17Z",
+  "generatedAt": "2026-10-17T18:50:14Z",
   "title": "Design System: Kitchen Sync",
   "extensions": {
     "colorMeta": {
@@ -307,6 +307,10 @@
         "displayName": "Body Small",
         "purpose": "Status line, band sentence, rejection reason, dialog note, part tabs, a quick add's hint, a figure's \"Preparing the world…\"."
       },
+      "note": {
+        "displayName": "Note",
+        "purpose": "A few words beside a code block's path: the reference panel's \"Not running in this figure\". The words of a choice (Then, Now) and Then's date take the same face and size, set solid (line height 1)."
+      },
       "control": {
         "displayName": "Control",
         "purpose": "The row's Remove word."
@@ -317,19 +321,23 @@
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Button labels, category heads and a figure's Speed legend; uppercase, tracked 0.18em."
+        "purpose": "Button labels, category heads and a choice's legend (Speed, Version); uppercase, tracked 0.18em."
       },
       "label-lg": {
         "displayName": "Label Large",
-        "purpose": "A device's name over its pane in a figure; uppercase, tracked 0.18em."
+        "purpose": "A device's name over its pane in a figure, and a code block's title; uppercase, tracked 0.18em."
       },
       "mono": {
         "displayName": "Mono",
-        "purpose": "Ids, versions, counts and the short state lines built on them: #15, v9 · synced, Add #15, 2 left, beat 2 of 4 · 5.00 s. Set solid (line height 1) for a speed option, a message's label on a wire and a basin's version label."
+        "purpose": "Ids, versions, counts, file paths and the short state lines built on them: #15, v9 · synced, Add #15, 2 left, beat 2 of 4 · 5.00 s, a code block's path (src/lib/sync.ts, --text-3) and note (A · #6), Then's commit. Set solid (line height 1) for a speed option, a message's label on a wire and a basin's version label."
       },
       "mono-mark": {
         "displayName": "Mono Mark",
         "purpose": "The device mark: the first four characters of the client id."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Every line of code: Spline Sans Mono 400 at 0.8125rem (--text-code), line height 1.6, tab size 2, at a size whose longest engine lines fit a figure's code column. No line numbers, no gutter. Colours from the --code-* aliases."
       }
     },
     "shadows": [
@@ -358,7 +366,7 @@
       {
         "name": "motion-state",
         "value": "200ms",
-        "purpose": "Colour and edge changes on buttons, fields, the check, tabs, the remove control, the badge's frame and a figure's speed options."
+        "purpose": "Colour and edge changes on buttons, fields, the check, tabs, the remove control, the badge's frame and a choice's options."
       },
       {
         "name": "ease-out",
@@ -399,6 +407,21 @@
         "name": "lost-fade",
         "value": "600ms of world time, linear",
         "purpose": "A lost message's \"… · lost\" label fades out where it was dropped (LOST_MARK_MILLIS in src/lib/sandbox/frame.ts)."
+      },
+      {
+        "name": "lit-settle",
+        "value": "var(--settle) var(--ease-out)",
+        "purpose": "A newly lit span of code settles in: its --ink-2 rule and --water wash rise from transparent. A jump (scrub, Back, Step, Restart, a fork, Play from the end) and reduced motion show it at once."
+      },
+      {
+        "name": "code-scroll",
+        "value": "smooth while settling, instant otherwise",
+        "purpose": "Lit lines outside the code's view scroll into it a third of the way down, snapped to the start of a whole line (the block's line height from its top padding). Only the code's own box scrolls (scrollTo), never the page."
+      },
+      {
+        "name": "then-now-morph",
+        "value": "900ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Then and Now from a 40rem panel: @shikijs/magic-move moves matching tokens and fades the rest out or in, at --settle's length on --ease-out's curve. Reduced motion replaces at once; below a 40rem panel the choice cuts between per-line drawings."
       }
     ],
     "breakpoints": [
@@ -420,12 +443,27 @@
       {
         "name": "figure-wide",
         "value": "64rem",
-        "purpose": "Viewport min-width: words and controls in the left third, the stage in the right two thirds; speed and Your turn under playback instead of under the stage."
+        "purpose": "Viewport min-width: words and controls in the left third, the stage in the right two thirds; speed and Your turn under playback instead of under the stage. A figure with code puts its code in a full-width row under both columns until 80rem."
       },
       {
         "name": "stage-wide",
         "value": "47rem",
         "purpose": "Container min-width on the stage (`container: stage / inline-size`): the server's compact list beside its basin, the basin at least 23rem. On a narrower stage, whatever the viewport, the list sits above a full-width basin."
+      },
+      {
+        "name": "figure-code-wide",
+        "value": "80rem",
+        "purpose": "Viewport min-width, a figure with code only (Stage | code, the user's choice of 2026-10-17): a band of copy and playback across the top, then the stage at minmax(47rem, 3fr) beside a sticky code column at minmax(0, 2fr), held to 100dvh less 1.5rem above and below; speed, Your turn and the breaking controls under the stage."
+      },
+      {
+        "name": "playback-narrow",
+        "value": "container playback, max-width: 27rem",
+        "purpose": "Playback's cell in the Stage | code band: its four buttons keep one row, flex 1 1 0, none narrower than its label, as on a phone."
+      },
+      {
+        "name": "then-and-now-wide",
+        "value": "container min-width: 40rem",
+        "purpose": "Then and Now's panel: from 40rem the magic-move morph shows and Then's date sits beside it on one line; narrower, per-line code with hanging indents, a cut between versions, and Then's date under it."
       }
     ],
     "basin": {
@@ -462,7 +500,14 @@
         "narrow": "one column: copy, playback, stage, pace, breaking; gap 1.5rem (1rem below 45rem)",
         "wide": "from 64rem: minmax(18rem, 1fr) minmax(0, 2fr), column gap 3rem; copy, playback, pace, breaking on the left, the stage spanning on the right",
         "breakingSetApart": "padding-top 2rem (--space-6)",
-        "firstFocusable": "Play or Pause"
+        "firstFocusable": "Play or Pause",
+        "withCode": {
+          "narrow": "below 64rem: copy, playback, stage, pace, breaking, code",
+          "medium": "64rem to 80rem: the two columns as without code, then the code in a full-width row",
+          "wide": "from 80rem: columns minmax(47rem, 3fr) minmax(0, 2fr), column gap 3rem; areas \"copy playback\" \"stage code\" \"pace code\" \"breaking code\"; playback aligned to the band's foot",
+          "stickyCode": "position sticky, top 1.5rem (--space-5), max-block-size calc(100dvh - 2 * --space-5); the code scrolls inside it",
+          "stageFloor": "47rem, the server row's container threshold, so the server keeps its list beside its basin and A, B and C stay in the first view"
+        }
       },
       "stage": {
         "order": "server row, wire band, device row",
@@ -505,6 +550,44 @@
         "1×",
         "4×"
       ]
+    },
+    "code": {
+      "font": "Spline Sans Mono Variable 400, 0.8125rem (--text-code), line height 1.6, tab size 2; no line numbers",
+      "highlighting": "build time only (src/build/highlight.ts, Shiki's CSS-variables theme with prefix --code-); no highlighter in the page",
+      "syntax": {
+        "--code-foreground": "var(--text)",
+        "--code-token-constant": "var(--text)",
+        "--code-token-function": "var(--text)",
+        "--code-token-parameter": "var(--text)",
+        "--code-token-keyword": "var(--text-2)",
+        "--code-token-string": "var(--text-2)",
+        "--code-token-string-expression": "var(--text-2)",
+        "--code-token-link": "var(--text-2)",
+        "--code-token-comment": "var(--text-3)",
+        "--code-token-punctuation": "var(--text-3)",
+        "--code-token-inserted": "var(--text)",
+        "--code-token-deleted": "var(--text)",
+        "--code-token-changed": "var(--text)"
+      },
+      "block": "head (title, path, then a note or the reference note), 0.75rem gap, then the code under a 1px --line rule, padding-block 0.75rem, overflow auto, tabindex 0; no card",
+      "wrap": "white-space pre-wrap, overflow-wrap anywhere; each line padding-inline-start calc(--space-3 + --indent + 2ch - --lit-rule) with text-indent -(--indent + 2ch), padding-inline-end --space-3; --indent is the line's leading spaces in ch",
+      "edge": "text --space-3 in from the head and the rule in every block, lit or not; the lit rule's 1px comes out of the line's inset (--lit-rule)",
+      "lit": {
+        "rule": "the latest trace event at or before the playhead that a light answers lights that light's span, until another does; the first light wins a tie; nothing before any",
+        "element": "<mark>, display block, background --water, border-inline-start 1px (--rule) solid --ink-2, color inherit",
+        "settle": "animation from transparent rule and wash over --settle with --ease-out, only while the world plays and motion is allowed",
+        "note": "at the head's far end, Mono --text-2: whose code ran and on what (A · #6, A · ack #5, poke v7)",
+        "forcedColors": "the system's mark colours; the rule, a border, stays"
+      },
+      "reference": "running={false}: \"Not running in this figure\" in Note type --text-2 after the path; never lit, no note",
+      "thenAndNow": {
+        "opens": "Then",
+        "choice": "Version: Then (date in Commissioner --text-3, commit in Mono) and Now",
+        "wide": "from a 40rem panel: magic-move morph, 900ms, cubic-bezier(0.16, 1, 0.3, 1); wraps flush on the shared edge (no hanging indent); Then's date on one line beside it",
+        "narrow": "below a 40rem panel: per-line drawing with hanging indents, a cut between versions; Then's date and commit under \"Then\", start-aligned; Now one line, centred",
+        "hidden": "the other drawing is display none, so the code is never read twice",
+        "firstPaint": "Then from build-time HTML, before any script runs"
+      }
     }
   },
   "components": [
@@ -591,8 +674,8 @@
     {
       "name": "Player Controls",
       "kind": "custom",
-      "refersTo": "speed-option",
-      "description": "A figure's playback (Play or Pause first, then Back, Step, Restart), the scrub bar with a tick per beat, its position in mono, and the pace: Speed as 44px mono options, the chosen one framed, then Your turn.",
+      "refersTo": "choice-option",
+      "description": "A figure's playback (Play or Pause first, then Back, Step, Restart), the scrub bar with a tick per beat, its position in mono, and the pace: a Speed choice (0.5×, 1×, 4×), the chosen one framed, then Your turn.",
       "html": "<div class=\"ds-player\"><div class=\"ds-player-buttons\"><button class=\"ds-player-btn\" type=\"button\">Pause</button><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Back</button><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Step</button><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Restart</button></div><div class=\"ds-scrub\"><input class=\"ds-scrub-range\" type=\"range\" min=\"0\" max=\"100\" value=\"62\" aria-label=\"Time in this figure\"><ol class=\"ds-scrub-ticks\" aria-hidden=\"true\"><li class=\"ds-scrub-tick\" style=\"left: 0%\"></li><li class=\"ds-scrub-tick\" style=\"left: 38%\"></li><li class=\"ds-scrub-tick\" style=\"left: 62%\"></li></ol></div><p class=\"ds-player-where\"><span>beat 2 of 4 · 5.00 s</span></p><fieldset class=\"ds-speed\"><legend class=\"ds-speed-legend\">Speed</legend><label class=\"ds-speed-option\"><input type=\"radio\" name=\"ds-speed\"><span>0.5×</span></label><label class=\"ds-speed-option\"><input type=\"radio\" name=\"ds-speed\" checked><span>1×</span></label><label class=\"ds-speed-option\"><input type=\"radio\" name=\"ds-speed\"><span>4×</span></label></fieldset><button class=\"ds-player-btn ds-player-btn-secondary\" type=\"button\">Your turn</button></div>",
       "css": ".ds-player { display: grid; justify-items: start; gap: var(--space-4); } .ds-player-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); } .ds-player-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-5); border: var(--rule) solid var(--text); border-radius: var(--radius-control); font: 500 var(--text-xs) / 1 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background-color var(--motion-state) var(--ease-out), border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); background: var(--text); color: var(--page); } .ds-player-btn:hover:not(:disabled) { border-color: var(--text-2); background: var(--text-2); } .ds-player-btn-secondary { border-color: var(--edge); background: transparent; color: var(--text); } .ds-player-btn-secondary:hover:not(:disabled) { border-color: var(--text); background: transparent; color: var(--text); } .ds-player-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-scrub { position: relative; justify-self: stretch; } .ds-scrub-range { position: relative; z-index: 1; display: block; width: 100%; height: var(--target); margin: 0; background: transparent; cursor: pointer; appearance: none; } .ds-scrub-range::-webkit-slider-runnable-track { height: var(--rule); background: var(--edge); } .ds-scrub-range::-moz-range-track { height: var(--rule); background: var(--edge); } .ds-scrub-range::-webkit-slider-thumb { width: 0.875rem; height: 0.875rem; margin-top: calc(var(--rule) / 2 - 0.4375rem); border: 0; border-radius: 50%; background: var(--text); appearance: none; } .ds-scrub-range::-moz-range-thumb { width: 0.875rem; height: 0.875rem; border: 0; border-radius: 50%; background: var(--text); } .ds-scrub-range:focus-visible { outline: 2px solid var(--text); outline-offset: 0; } .ds-scrub-ticks { position: absolute; inset: 50% 0.4375rem auto; height: 0.5rem; margin: 0; padding: 0; list-style: none; translate: 0 -50%; pointer-events: none; } .ds-scrub-tick { position: absolute; width: var(--rule); height: 100%; background: var(--text-3); } .ds-player-where { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-speed { display: flex; align-items: center; gap: var(--space-1); margin: 0; padding: 0; border: 0; } .ds-speed-legend { float: left; margin-right: var(--space-3); padding: 0; color: var(--text-3); font: 500 var(--text-xs) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-speed-option { position: relative; display: inline-grid; place-items: center; min-width: var(--target); min-height: var(--target); padding: 0 var(--space-2); border: var(--rule) solid transparent; border-radius: var(--radius-control); color: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); cursor: pointer; transition: border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); } .ds-speed-option input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; } .ds-speed-option:has(input:checked) { border-color: var(--edge); color: var(--text); } .ds-speed-option:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; } .ds-speed-option:hover { color: var(--text); } .ds-scrub-range:disabled { cursor: not-allowed; } .ds-scrub-range:disabled::-webkit-slider-runnable-track { background: var(--line); } .ds-scrub-range:disabled::-moz-range-track { background: var(--line); } .ds-scrub-range:disabled::-webkit-slider-thumb { background: var(--text-3); } .ds-scrub-range:disabled::-moz-range-thumb { background: var(--text-3); } .ds-scrub-range:disabled + .ds-scrub-ticks .ds-scrub-tick { background: var(--line); } @media (forced-colors: active) { .ds-speed-option:has(input:checked) { border-color: Highlight; } .ds-scrub-range, .ds-scrub-ticks { forced-color-adjust: none; } .ds-scrub-range::-webkit-slider-runnable-track { background: CanvasText; } .ds-scrub-range::-moz-range-track { background: CanvasText; } .ds-scrub-range::-webkit-slider-thumb { background: CanvasText; } .ds-scrub-range::-moz-range-thumb { background: CanvasText; } .ds-scrub-range:focus-visible { outline-color: CanvasText; } .ds-scrub-tick { background: CanvasText; } .ds-scrub-range:disabled::-webkit-slider-runnable-track { background: GrayText; } .ds-scrub-range:disabled::-moz-range-track { background: GrayText; } .ds-scrub-range:disabled::-webkit-slider-thumb { background: GrayText; } .ds-scrub-range:disabled::-moz-range-thumb { background: GrayText; } .ds-scrub-range:disabled + .ds-scrub-ticks .ds-scrub-tick { background: GrayText; } }"
     },
@@ -603,19 +686,44 @@
       "description": "The network between the server's basin and its devices: one straight hairline wire per device, requests on one side and replies on the other, a push in fresh ink, a held message a dashed ring, a lost one only its fading label. aria-hidden; never a target.",
       "html": "<div class=\"ds-wires\"><div class=\"ds-wires-basin\"></div><svg class=\"ds-wires-band\" viewBox=\"0 0 420 140\" width=\"420\" height=\"140\" aria-hidden=\"true\"><line class=\"ds-wire\" x1=\"60\" y1=\"40\" x2=\"40\" y2=\"120\"/><line class=\"ds-wire\" x1=\"180\" y1=\"40\" x2=\"180\" y2=\"120\"/><line class=\"ds-wire\" x1=\"300\" y1=\"40\" x2=\"320\" y2=\"120\"/><g class=\"ds-wire-message\" data-kind=\"push\"><circle cx=\"36\" cy=\"108\" r=\"4\"/><text x=\"27\" y=\"108\" text-anchor=\"end\" dominant-baseline=\"middle\">#6</text></g><g class=\"ds-wire-lost\" style=\"opacity: 0.5\"><text x=\"66\" y=\"72\" dominant-baseline=\"middle\">v7 · lost</text></g><g class=\"ds-wire-message\"><circle cx=\"186\" cy=\"70\" r=\"4\"/><text x=\"195\" y=\"70\" dominant-baseline=\"middle\">poke v7</text></g><g class=\"ds-wire-message\"><circle cx=\"174\" cy=\"96\" r=\"4\"/><text x=\"165\" y=\"96\" text-anchor=\"end\" dominant-baseline=\"middle\">pull v6</text></g><g class=\"ds-wire-message\" data-held=\"\"><circle cx=\"307\" cy=\"46\" r=\"4\"/><text x=\"316\" y=\"46\" dominant-baseline=\"middle\">ack #5 · held</text></g></svg></div>",
       "css": ".ds-wires { position: relative; width: 420px; height: 140px; } .ds-wires-basin { height: 40px; border-radius: 0 0 var(--radius-basin) var(--radius-basin); background: var(--water); box-shadow: inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)), inset 0 0 0 var(--rule) var(--line); } .ds-wires-band { position: absolute; inset: 0; overflow: visible; pointer-events: none; } .ds-wire { stroke: var(--line); stroke-width: 1; } .ds-wire-message circle { fill: var(--text-2); } .ds-wire-message[data-kind=\"push\"] circle { fill: var(--ink-fresh); } .ds-wire-message[data-held] circle { fill: none; stroke: var(--text-2); stroke-dasharray: 2 2; } .ds-wires-band text { fill: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); paint-order: stroke; stroke: var(--page); stroke-width: 3px; stroke-linejoin: round; } .ds-wire-lost text { fill: var(--text-3); } @media (forced-colors: active) { .ds-wire { stroke: CanvasText; } .ds-wire-message circle { fill: CanvasText; } .ds-wire-message[data-kind=\"push\"] circle { fill: Highlight; } .ds-wire-message[data-held] circle { fill: none; stroke: CanvasText; } .ds-wires-band text, .ds-wire-lost text { fill: CanvasText; stroke: Canvas; } }"
+    },
+    {
+      "name": "Choice",
+      "kind": "chip",
+      "refersTo": "choice-option",
+      "description": "One of a few options: 44px targets with the radio laid invisibly over each, the legend on their line, the chosen one framed in the control edge. Numbers in mono (a figure's speed), words in Commissioner (Then and Now's version).",
+      "html": "<fieldset class=\"ds-choices\"><legend class=\"ds-choice-legend\">Speed</legend><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-choice-speed\"><span>0.5×</span></label><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-choice-speed\" checked><span>1×</span></label><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-choice-speed\"><span>4×</span></label></fieldset><fieldset class=\"ds-choices\"><legend class=\"ds-choice-legend\">Version</legend><label class=\"ds-choice ds-choice-words\"><input type=\"radio\" name=\"ds-choice-version\" checked><span>Then</span><span class=\"ds-choice-when\">28 Sep 2026 · <span class=\"ds-choice-commit\">7622158</span></span></label><label class=\"ds-choice ds-choice-words\"><input type=\"radio\" name=\"ds-choice-version\"><span>Now</span></label></fieldset>",
+      "css": ".ds-choices { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: 0; padding: 0; border: 0; } .ds-choices + .ds-choices { margin-top: var(--space-4); } .ds-choice-legend { float: left; margin-right: var(--space-3); padding: 0; color: var(--text-3); font: 500 var(--text-xs) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-choice { position: relative; display: inline-grid; place-items: center; min-width: var(--target); min-height: var(--target); padding: 0 var(--space-2); border: var(--rule) solid transparent; border-radius: var(--radius-control); color: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); cursor: pointer; transition: border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); } .ds-choice input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; } .ds-choice:has(input:checked) { border-color: var(--edge); color: var(--text); } .ds-choice:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; } @media (hover: hover) { .ds-choice:hover { color: var(--text); } } .ds-choice-words { grid-auto-flow: column; gap: var(--space-2); font-family: var(--font-text); } .ds-choice-when { color: var(--text-3); } .ds-choice-commit { font-family: var(--font-mono); } @media (forced-colors: active) { .ds-choice:has(input:checked) { border-color: Highlight; } }"
+    },
+    {
+      "name": "Code Panel",
+      "kind": "custom",
+      "refersTo": "code-block",
+      "description": "The engine's own source under a hairline, no card: title, path and the note of the event that lit it; the branch that last ran washed in water behind a 1px ink rule; lines wrap and hang from their own indentation on one shared edge. Below it the reference panel: code no world beside it runs, never lit.",
+      "html": "<section class=\"ds-code\" aria-labelledby=\"ds-code-push\"><header class=\"ds-code-head\"><h3 id=\"ds-code-push\" class=\"ds-code-title\">The push loop</h3><p class=\"ds-code-path\">src/lib/sync.ts</p><p class=\"ds-code-note\">A · #6</p></header><pre class=\"ds-code-block\" tabindex=\"0\"><code><span class=\"ds-code-line\" style=\"--indent: 0ch\"><span style=\"color: var(--code-token-keyword)\">const</span> pushLoop <span style=\"color: var(--code-token-keyword)\">=</span> (clientId: string) <span style=\"color: var(--code-token-keyword)\">=&gt;</span></span><span class=\"ds-code-line\" style=\"--indent: 2ch\">  untilFatal(<span style=\"color: var(--code-token-string)\">\"push\"</span>)(</span><span class=\"ds-code-line\" style=\"--indent: 4ch\">    Effect.gen(<span style=\"color: var(--code-token-keyword)\">function*</span> () {</span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">if</span> (<span style=\"color: var(--code-token-keyword)\">!</span>seeded) <span style=\"color: var(--code-token-keyword)\">return</span>;</span><span class=\"ds-code-line\" style=\"--indent: 0ch\"></span><mark class=\"ds-code-lit\"><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-comment)\">// Acked entries wait in the outbox for a pull to confirm them;</span></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-comment)\">// sending them again would only be deduped.</span></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">const</span> pending <span style=\"color: var(--code-token-keyword)\">=</span> outbox.filter(</span><span class=\"ds-code-line\" style=\"--indent: 8ch\">        (o) <span style=\"color: var(--code-token-keyword)\">=&gt;</span> o.mutation.clientMutationId <span style=\"color: var(--code-token-keyword)\">&gt;</span> ackedThrough<span style=\"color: var(--code-token-punctuation)\">,</span></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      );</span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">if</span> (pending.length <span style=\"color: var(--code-token-keyword)\">===</span> 0) <span style=\"color: var(--code-token-keyword)\">return</span>;</span></mark><span class=\"ds-code-line\" style=\"--indent: 0ch\"></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">const</span> request <span style=\"color: var(--code-token-keyword)\">=</span> PushRequest.make({</span></code></pre></section><section class=\"ds-code\" aria-labelledby=\"ds-code-http\"><header class=\"ds-code-head\"><h3 id=\"ds-code-http\" class=\"ds-code-title\">Pushing over HTTP</h3><p class=\"ds-code-path\">src/lib/transport.ts</p><p class=\"ds-code-reference\">Not running in this figure</p></header><pre class=\"ds-code-block\" tabindex=\"0\"><code><span class=\"ds-code-line\" style=\"--indent: 0ch\">push<span style=\"color: var(--code-token-keyword)\">:</span> (req) <span style=\"color: var(--code-token-keyword)\">=&gt;</span></span><span class=\"ds-code-line\" style=\"--indent: 2ch\">  asTransportFailure(</span><span class=\"ds-code-line\" style=\"--indent: 4ch\">    Effect.gen(<span style=\"color: var(--code-token-keyword)\">function*</span> () {</span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-comment)\">// Encode through the schema: a plain `JSON.stringify` writes an</span></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-comment)\">// `Option` as `{\"_id\":\"Option\",…}`, which the route rejects.</span></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">const</span> response <span style=\"color: var(--code-token-keyword)\">=</span> <span style=\"color: var(--code-token-keyword)\">yield*</span> httpClient.post(<span style=\"color: var(--code-token-string)\">\"/api/push\"</span><span style=\"color: var(--code-token-punctuation)\">,</span> {</span></code></pre></section>",
+      "css": ".ds-code { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; max-width: 40rem; } .ds-code + .ds-code { margin-top: var(--space-7); } .ds-code-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-3); row-gap: var(--space-1); } .ds-code-title { margin: 0; color: var(--text); font: 500 var(--text-sm) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-code-path { margin: 0; color: var(--text-3); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-code-note { margin: 0 0 0 auto; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-code-reference { margin: 0; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-text); } .ds-code-block { position: relative; min-block-size: 0; margin: 0; padding-block: var(--space-3); overflow: auto; border-block-start: var(--rule) solid var(--line); color: var(--code-foreground); font: 400 var(--text-code) / 1.6 var(--font-mono); tab-size: 2; } .ds-code-block code { display: block; font: inherit; } .ds-code-block:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-code-line { display: block; min-block-size: 1lh; padding-inline-start: calc(var(--space-3) + var(--indent, 0ch) + 2ch - var(--lit-rule, 0px)); padding-inline-end: var(--space-3); text-indent: calc(-1 * (var(--indent, 0ch) + 2ch)); white-space: pre-wrap; overflow-wrap: anywhere; } .ds-code-lit { display: block; border-inline-start: var(--rule) solid var(--ink-2); --lit-rule: var(--rule); background: var(--water); color: inherit; animation: ds-code-lit var(--settle) var(--ease-out); } @keyframes ds-code-lit { from { border-inline-start-color: transparent; background-color: transparent; } } @media (prefers-reduced-motion: reduce) { .ds-code-lit { animation: none; } }"
+    },
+    {
+      "name": "Then and Now",
+      "kind": "custom",
+      "refersTo": "then-date",
+      "description": "A region's history: the code panel's head, a Version choice opening on Then (its date and commit beside it from a 40rem panel, under it below), and the code. From a 40rem panel Now morphs in token by token over 900ms; narrower, the choice cuts between per-line versions, as shown here.",
+      "html": "<section class=\"ds-tan\" aria-labelledby=\"ds-tan-title\"><header class=\"ds-code-head\"><h3 id=\"ds-tan-title\" class=\"ds-code-title\">The push loop, then and now</h3><p class=\"ds-code-path\">src/lib/sync.ts</p></header><fieldset class=\"ds-choices\"><legend class=\"ds-choice-legend\">Version</legend><label class=\"ds-choice ds-choice-words ds-tan-then\"><input type=\"radio\" name=\"ds-tan-version\" checked><span>Then</span><span class=\"ds-choice-when\">28 Sep 2026 · <span class=\"ds-choice-commit\">7622158</span></span></label><label class=\"ds-choice ds-choice-words\"><input type=\"radio\" name=\"ds-tan-version\"><span>Now</span></label></fieldset><pre class=\"ds-code-block\" tabindex=\"0\"><code><span class=\"ds-code-line\" style=\"--indent: 0ch\"><span style=\"color: var(--code-token-keyword)\">const</span> pushLoop <span style=\"color: var(--code-token-keyword)\">=</span> (clientId: string) <span style=\"color: var(--code-token-keyword)\">=&gt;</span></span><span class=\"ds-code-line\" style=\"--indent: 2ch\">  forever(<span style=\"color: var(--code-token-string)\">\"push\"</span>)(</span><span class=\"ds-code-line\" style=\"--indent: 4ch\">    Effect.gen(<span style=\"color: var(--code-token-keyword)\">function*</span> () {</span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">if</span> (outbox.length <span style=\"color: var(--code-token-keyword)\">===</span> 0) <span style=\"color: var(--code-token-keyword)\">return</span>;</span><span class=\"ds-code-line\" style=\"--indent: 0ch\"></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      <span style=\"color: var(--code-token-keyword)\">const</span> request <span style=\"color: var(--code-token-keyword)\">=</span> PushRequest.make({</span><span class=\"ds-code-line\" style=\"--indent: 8ch\">        mutations<span style=\"color: var(--code-token-keyword)\">:</span> outbox.map((o) <span style=\"color: var(--code-token-keyword)\">=&gt;</span> o.mutation)<span style=\"color: var(--code-token-punctuation)\">,</span></span><span class=\"ds-code-line\" style=\"--indent: 6ch\">      });</span></code></pre></section>",
+      "css": ".ds-tan { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; max-width: 24rem; container-type: inline-size; } .ds-choices { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: 0; padding: 0; border: 0; } .ds-choice-legend { float: left; margin-right: var(--space-3); padding: 0; color: var(--text-3); font: 500 var(--text-xs) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-choice { position: relative; display: inline-grid; place-items: center; min-width: var(--target); min-height: var(--target); padding: 0 var(--space-2); border: var(--rule) solid transparent; border-radius: var(--radius-control); color: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); cursor: pointer; transition: border-color var(--motion-state) var(--ease-out), color var(--motion-state) var(--ease-out); } .ds-choice input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; } .ds-choice:has(input:checked) { border-color: var(--edge); color: var(--text); } .ds-choice:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; } @media (hover: hover) { .ds-choice:hover { color: var(--text); } } .ds-choice-words { grid-auto-flow: column; gap: var(--space-2); font-family: var(--font-text); } .ds-choice-when { color: var(--text-3); } .ds-choice-commit { font-family: var(--font-mono); } @media (forced-colors: active) { .ds-choice:has(input:checked) { border-color: Highlight; } } .ds-code { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; max-width: 40rem; } .ds-code-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-3); row-gap: var(--space-1); } .ds-code-title { margin: 0; color: var(--text); font: 500 var(--text-sm) / 1.2 var(--font-text); letter-spacing: var(--tracking-label); text-transform: uppercase; } .ds-code-path { margin: 0; color: var(--text-3); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-code-note { margin: 0 0 0 auto; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-mono); } .ds-code-reference { margin: 0; color: var(--text-2); font: 400 var(--text-xs) / 1.2 var(--font-text); } .ds-code-block { position: relative; min-block-size: 0; margin: 0; padding-block: var(--space-3); overflow: auto; border-block-start: var(--rule) solid var(--line); color: var(--code-foreground); font: 400 var(--text-code) / 1.6 var(--font-mono); tab-size: 2; } .ds-code-block code { display: block; font: inherit; } .ds-code-block:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; } .ds-code-line { display: block; min-block-size: 1lh; padding-inline-start: calc(var(--space-3) + var(--indent, 0ch) + 2ch - var(--lit-rule, 0px)); padding-inline-end: var(--space-3); text-indent: calc(-1 * (var(--indent, 0ch) + 2ch)); white-space: pre-wrap; overflow-wrap: anywhere; } @container (max-width: 39.99rem) { .ds-tan-then { grid-auto-flow: row; justify-items: start; align-content: center; gap: var(--space-1); } }"
     }
   ],
   "narrative": {
     "northStar": "The Ink Basin",
-    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads the stage, a straight hairline wire runs from under it to every device, and each device's basin heads its pane. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
+    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop. Code is the engine's own source on the same margin, under a hairline and never in a card: one ink in tonal steps, wrapping at its measure, with the branch a figure's world last ran washed in water.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads the stage, a straight hairline wire runs from under it to every device, and each device's basin heads its pane. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
     "keyCharacteristics": [
       "One indigo ink family in `light-dark()` pairs; a vermilion seal for a rejection or a stopped sync, and nothing else.",
       "Recessed water (18 px corners, an inset shade) against a still margin of 1 px hairlines; no cards.",
       "Commissioner by weight (300 titles, 400 body, 500 labels and controls, 600 emphasis); Spline Sans Mono for ids, versions and counts.",
       "Labels in small capitals tracked 0.18em; the app's name alone at 0.32em.",
       "Every state has a form and a word: rings, solid and dashed edges, and the state's own name.",
-      "Motion is 200 ms colour and edge changes plus the basin's 900 ms settle; reduced motion cuts both.",
-      "A figure keeps its words and controls in its left third and gives the stage the rest: the server's basin and list, a 5rem band of straight hairline wires, then the devices in a row."
+      "Motion is 200 ms colour and edge changes plus 900 ms settles (a basin's change, newly lit code, a then-and-now morph); reduced motion cuts them all.",
+      "A figure keeps its words and controls in its left third and gives the stage the rest: the server's basin and list, a 5rem band of straight hairline wires, then the devices in a row. Given code, from 80rem it sets its words and playback in a band across the top and its code in a sticky column beside the stage.",
+      "Code in Spline Sans Mono at 0.8125rem, one ink in three tonal steps, wrapping at its measure on one shared edge; the branch that last ran washed in water behind a 1 px ink rule."
     ],
     "rules": [
       {
@@ -634,13 +742,18 @@
         "section": "colors"
       },
       {
+        "name": "The Tonal Syntax Rule",
+        "body": "Code takes no hue of its own. Shiki's CSS-variables theme names the `--code-*` aliases in `tokens.css`, and they point at three text tones, not new colours: names, constants, parameters and code's own foreground in `--text`; keywords, strings and links in `--text-2`; comments and punctuation, receding furthest, in `--text-3`. Inserted, deleted and changed text stay `--text`; fresh ink and the seal never colour code.",
+        "section": "colors"
+      },
+      {
         "name": "The Weight Ladder Rule",
         "body": "Hierarchy is weight before size: 300 titles, 400 body, 500 labels and controls, 600 emphasis. Nothing is heavier than 600.",
         "section": "typography"
       },
       {
         "name": "The Mono Is Data Rule",
-        "body": "Spline Sans Mono sets ids, versions and counts and the short state lines built on them, and nothing else. The state's word beside an id goes back to Commissioner (a row's \"pending\", the outbox's \"acked\"), as does every sentence. Commissioner has no tabular figures, so anything that must align is mono.",
+        "body": "Spline Sans Mono sets ids, versions, counts and file paths, the short state lines built on them, and code, and nothing else. The state's word beside an id goes back to Commissioner (a row's \"pending\", the outbox's \"acked\"), as do the words of a choice (Then, Now), a date (\"28 Sep 2026\") and every sentence. Commissioner has no tabular figures, so anything that must align is mono.",
         "section": "typography"
       },
       {
@@ -674,13 +787,23 @@
         "section": "layout"
       },
       {
+        "name": "The Measure Rule",
+        "body": "Code wraps at its block's measure and never scrolls sideways, every line hanging from its own indentation. The one drawing that cannot hang, Then and Now's morph (one flat run of tokens), shows only from a 40rem panel; a narrower panel cuts between per-line versions instead.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Code Edge Rule",
+        "body": "Every code block sets its text `--space-3` in from its head and its rule. Lit code's 1 px rule takes its pixel out of the line's inset (`--lit-rule`), so lighting a span never moves a character.",
+        "section": "layout"
+      },
+      {
         "name": "The Recessed Water Rule",
         "body": "Water sits below the margin, never above it: a basin takes the inset shade and a hairline ring, never a drop shadow. Under forced colours the shade goes and a 1 px CanvasText edge keeps the water's shape.",
         "section": "elevation"
       },
       {
         "name": "The Two Risers Rule",
-        "body": "Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes, badges and a figure's stage and wires are flat.",
+        "body": "Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes, badges, code blocks and a figure's stage and wires are flat.",
         "section": "elevation"
       },
       {
@@ -696,15 +819,18 @@
     ],
     "dos": [
       "Do take every ground, text, edge and ink colour from the thirteen custom properties in `src/styles/tokens.css`, and add any new one as a `light-dark()` pair mirrored in `src/ui/palette.ts` and checked in `tokens.test.ts` (4.5:1 text, 3:1 control edges, on page and water, day and night).",
-      "Do take spacing, corners and sizes from the tokens (`--space-1` to `--space-7`, `--radius-control`, `--radius-badge`, `--radius-basin`, `--target`, `--row-height`, `--row-height-compact`, `--rule`, `--column`), and type sizes from `--text-xs` to `--text-2xl` and `--text-2xl-phone`.",
+      "Do take spacing, corners and sizes from the tokens (`--space-1` to `--space-7`, `--radius-control`, `--radius-badge`, `--radius-basin`, `--target`, `--row-height`, `--row-height-compact`, `--rule`, `--column`), and type sizes from `--text-xs` to `--text-2xl`, `--text-2xl-phone` and, for code alone, `--text-code`.",
       "Do give every state its form and its word: pending a hollow ring with its `#id`; acked a half-filled ring; synced no marker; rejected a dashed seal ring with the server's reason; offline a solid band; retrying a dashed band; stopped the solid band with its word in the seal, its reason and Retry.",
       "Do keep every target at 2.75rem or more, extending a hit area with a pseudo-element where the visible shape is smaller (the badge).",
-      "Do keep state changes to colour and edge over 200 ms with `--ease-out`, and every basin change to the 900 ms settle; let reduced motion, the CPU path and a figure's jumps show changes at once.",
+      "Do keep state changes to colour and edge over 200 ms with `--ease-out`, and every basin change, newly lit code and a then-and-now morph to the 900 ms settle; let reduced motion, the CPU path and a figure's jumps show changes at once.",
       "Do keep Play or Pause the first focusable control of every figure, and its breaking controls set apart from playback by space.",
       "Do set a list nothing on which is a target at the compact density, and any list that takes a check or a remove at the regular one.",
       "Do give every message on a wire its label, requests and replies on opposite sides of it, and a push's dot in fresh ink.",
       "Do give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, a wire band in CanvasText with a push in Highlight, and the rings, the checked circle and the scrub bar's track, dot and ticks keep their fills with `forced-color-adjust: none` in CanvasText (the scrub bar GrayText while it waits).",
-      "Do set ids, versions, counts and the short state lines built on them in Spline Sans Mono, and everything else in Commissioner."
+      "Do set ids, versions, counts, file paths, the short state lines built on them and code in Spline Sans Mono, and everything else in Commissioner.",
+      "Do colour code only through the `--code-*` aliases in `tokens.css`: names in `--text`, keywords and strings in `--text-2`, comments and punctuation in `--text-3`.",
+      "Do wrap code at its block's measure with each line hanging from its own indentation, and keep every code block's text on one edge, `--space-3` in from its head and its rule.",
+      "Do light only the span of the latest trace event a figure's lights answer, washed in `--water` behind a 1 px `--ink-2` rule, and scroll only the code to it, snapped to a whole line."
     ],
     "donts": [
       "Don't use the vermilion seal for anything but a rejection or a stopped sync: not offline, not retrying, not remove, not a breaking control, not hover, not a lost message, not a stopped figure.",
@@ -717,7 +843,9 @@
       "Don't set any text heavier than 600, or use small capitals as a kicker or eyebrow above a title or a section.",
       "Don't ship a value for one theme only; day and night are both designed.",
       "Don't put a target, or a fact the lists and the caption do not also say, on a figure's wire band.",
-      "Don't change a figure's basin scale once it is set, or draw the app's badge at any scale but 1."
+      "Don't change a figure's basin scale once it is set, or draw the app's badge at any scale but 1.",
+      "Don't scroll code sideways, number its lines, box it in a card, or move the page to bring lit lines into view.",
+      "Don't give code a hue: fresh ink and the seal never colour a token, and syntax has no palette of its own."
     ]
   }
 }
