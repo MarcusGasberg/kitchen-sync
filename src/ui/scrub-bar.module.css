@@ -62,3 +62,83 @@
   height: 100%;
   background: var(--text-3);
 }
+
+/* Waiting, while a fork is built: muted as a disabled button is, and no
+   pointer. */
+.range:disabled {
+  cursor: not-allowed;
+}
+
+.range:disabled::-webkit-slider-runnable-track {
+  background: var(--line);
+}
+
+.range:disabled::-moz-range-track {
+  background: var(--line);
+}
+
+.range:disabled::-webkit-slider-thumb {
+  background: var(--text-3);
+}
+
+.range:disabled::-moz-range-thumb {
+  background: var(--text-3);
+}
+
+.range:disabled + .ticks .tick {
+  background: var(--line);
+}
+
+/* Forced colours paint every background Canvas, which would leave only the
+   focus ring: the track, the dot and the ticks keep their own, in CanvasText,
+   and GrayText while the bar waits. */
+@media (forced-colors: active) {
+  .range,
+  .ticks {
+    forced-color-adjust: none;
+  }
+
+  .range::-webkit-slider-runnable-track {
+    background: CanvasText;
+  }
+
+  .range::-moz-range-track {
+    background: CanvasText;
+  }
+
+  .range::-webkit-slider-thumb {
+    background: CanvasText;
+  }
+
+  .range::-moz-range-thumb {
+    background: CanvasText;
+  }
+
+  .range:focus-visible {
+    outline-color: CanvasText;
+  }
+
+  .tick {
+    background: CanvasText;
+  }
+
+  .range:disabled::-webkit-slider-runnable-track {
+    background: GrayText;
+  }
+
+  .range:disabled::-moz-range-track {
+    background: GrayText;
+  }
+
+  .range:disabled::-webkit-slider-thumb {
+    background: GrayText;
+  }
+
+  .range:disabled::-moz-range-thumb {
+    background: GrayText;
+  }
+
+  .range:disabled + .ticks .tick {
+    background: GrayText;
+  }
+}
