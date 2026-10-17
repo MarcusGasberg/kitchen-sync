@@ -1,0 +1,48 @@
+/* What every code block shares: a head of title and path, then the code in
+   mono on the still margin under a hairline. No card. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-block-size: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+}
+
+/* Set as a pane's name is. */
+.title {
+  font: 500 var(--text-sm) / 1.2 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.path {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}
+
+/* The code scrolls inside its block, never the page. Positioned, so lit
+   lines measure their offset from it. */
+.code {
+  position: relative;
+  min-block-size: 0;
+  margin: 0;
+  padding-block: var(--space-3);
+  overflow: auto;
+  border-block-start: var(--rule) solid var(--line);
+  color: var(--code-foreground);
+  font: 400 var(--text-code) / 1.6 var(--font-mono);
+  tab-size: 2;
+}
+
+.code:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}

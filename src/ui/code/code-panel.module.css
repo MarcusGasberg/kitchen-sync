@@ -1,0 +1,50 @@
+.reference {
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-text);
+}
+
+/* Whose code ran, and on what: at the head's far end. */
+.note {
+  margin-inline-start: auto;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}
+
+/* Every line as wide as the longest, so a lit line's wash runs under the
+   code however far it scrolls sideways. */
+.lines {
+  display: block;
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+
+.line {
+  display: block;
+  min-block-size: 1lh;
+  padding-inline: var(--space-3);
+}
+
+/* The branch that last ran: washed in water, with an ink rule at its start.
+   The rule is a border, so forced colours keep it. */
+.lit {
+  display: block;
+  border-inline-start: 2px solid var(--ink-2);
+  background: var(--water);
+  color: inherit;
+}
+
+.lit .line {
+  padding-inline-start: calc(var(--space-3) - 2px);
+}
+
+/* A new event settles in as a drop does; a jump shows at once. */
+.lit[data-motion="true"] {
+  animation: lit var(--settle) var(--ease-out);
+}
+
+@keyframes lit {
+  from {
+    border-inline-start-color: transparent;
+    background-color: transparent;
+  }
+}

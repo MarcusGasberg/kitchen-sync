@@ -35,6 +35,8 @@
   /* A chapter's title below 45rem, where 2.75rem would hold the server's
      basin off a phone's first screen. */
   --text-2xl-phone: 2rem;
+  /* Code, at a size whose longest engine lines fit a figure's code column. */
+  --text-code: 0.8125rem;
   --tracking-label: 0.18em;
 
   --space-1: 0.25rem;
@@ -59,4 +61,21 @@
   /* `SETTLE_MS` in src/ui/marbling/mount.ts is the same 900 ms. */
   --settle: 900ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Code: one ink in tonal steps. Shiki's CSS-variables theme names these
+     (src/build/highlight.ts). Names come forward, structure recedes, and
+     comments and punctuation recede furthest. */
+  --code-foreground: var(--text);
+  --code-token-constant: var(--text);
+  --code-token-function: var(--text);
+  --code-token-parameter: var(--text);
+  --code-token-keyword: var(--text-2);
+  --code-token-string: var(--text-2);
+  --code-token-string-expression: var(--text-2);
+  --code-token-link: var(--text-2);
+  --code-token-comment: var(--text-3);
+  --code-token-punctuation: var(--text-3);
+  --code-token-inserted: var(--text);
+  --code-token-deleted: var(--text);
+  --code-token-changed: var(--text);
 }
