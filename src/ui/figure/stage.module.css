@@ -24,13 +24,14 @@
 
 /* A stage wide enough for the list beside the basin, both from the row's top:
    the list takes room for its two compact columns (two 10rem ones and their
-   gap) and the basin the rest, at least 26rem (50rem less the list's 22rem
-   and the 2rem between), so in the scene the list runs no taller than the
-   basin. Narrower, the list stays above a full-width basin, whatever the
-   viewport. A list that grows past the basin's foot (a reader's adds) moves
-   the band's top down to its own foot, and the wires leave from under the
-   basin there (`layWires`), so none crosses it. */
-@container stage (min-width: 50rem) {
+   gap) and the basin the rest, at least 23rem (47rem less the list's 22rem
+   and the 2rem between). That keeps a 1280 px desktop's composition, its
+   basin about as tall as the scene's list; at 1440 px the basin runs taller.
+   Narrower, the list stays above a full-width basin, whatever the viewport.
+   A list that runs past the basin's foot (a narrow beside-layout, or a
+   reader's adds) moves the band's top down to its own foot, and the wires
+   leave from under the basin there (`layWires`), so none crosses it. */
+@container stage (min-width: 47rem) {
   .serverBody {
     grid-template-columns: minmax(0, 1fr) 22rem;
     grid-template-areas: "basin list";
