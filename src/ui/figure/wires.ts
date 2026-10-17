@@ -26,7 +26,10 @@ export interface Box {
   readonly bottom: number;
 }
 
-// How far in from the server basin's 18 px corners the outermost wires leave.
+// How far in from each of the server basin's 18 px corners the span the
+// wires leave across starts and ends. A wire leaves at its device's middle's
+// share of the row, so none sits at the span's ends: the outermost sit in from
+// them by the share of the row that half a device takes.
 export const CORNER_PX = 24;
 
 // The device row's extent across, in the stage's pixels: on a phone, the

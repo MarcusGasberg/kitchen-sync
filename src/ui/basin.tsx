@@ -36,7 +36,9 @@ interface BasinProps {
   readonly settle?: boolean;
   // Text to set beside an item's rings, by item id: the server's basin labels
   // its newest items with their versions. The list beside the basin says the
-  // same, so the labels are part of the picture.
+  // same, so the labels are part of the picture. Memoise it on the state it
+  // comes from, as `waiting`: a new map each render places every label again
+  // (`labelSpotsOf`) each render, every frame while a figure plays.
   readonly labels?: ReadonlyMap<string, string>;
   // How large every item lands (`patternOf`): 1, the app's badge, unless a
   // figure sets one scale for all its basins. Keep it for the basin's life:

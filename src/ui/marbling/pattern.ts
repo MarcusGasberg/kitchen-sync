@@ -75,8 +75,10 @@ const INNER_RING = Math.sqrt(
 // One item's operations: five drops that land as rings of ink and clear water
 // around a core and, once checked, a stroke across the basin. Every number is
 // drawn from the item's id in a fixed order, so checking an item moves nothing
-// else. `scale` sizes the rings and the stroke alike; where they land does
-// not change with it.
+// else. `scale` sizes the rings and the stroke alike. Where they land holds
+// up to a scale of about 1.4; past it the insets below grow with the rings'
+// reach, drawing every item in from the water's top and bottom edges (and,
+// past about 1.74, from its sides), though never out of order.
 const itemOperations = (
   item: GroceryItem,
   fresh: boolean,
