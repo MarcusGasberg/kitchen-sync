@@ -52,6 +52,17 @@ describe("CodePanel", () => {
     );
   });
 
+  it("hangs a wrapped line from its own indentation", () => {
+    const indented: Snippet = {
+      ...SNIPPET,
+      lines: [[{ text: "    nested();" }], [{ text: "flat();" }]],
+    };
+    render(<CodePanel title="The engine" snippet={indented} />);
+    const lines = [...document.querySelectorAll("code > span")];
+    expect(lines[0]?.getAttribute("style")).toContain("--indent: 4ch");
+    expect(lines[1]?.getAttribute("style")).toContain("--indent: 0ch");
+  });
+
   it("colours a token by its custom property", () => {
     render(<CodePanel title="The engine" snippet={SNIPPET} />);
     expect(screen.getByText("const").getAttribute("style")).toContain(

@@ -28,8 +28,8 @@
   font: 400 var(--text-xs) / 1.2 var(--font-mono);
 }
 
-/* The code scrolls inside its block, never the page. Positioned, so lit
-   lines measure their offset from it. */
+/* The code scrolls up and down inside its block, never the page, and its
+   lines wrap. Positioned, so lit lines measure their offset from it. */
 .code {
   position: relative;
   min-block-size: 0;

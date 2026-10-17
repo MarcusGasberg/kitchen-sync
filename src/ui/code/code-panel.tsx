@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { type CSSProperties, useEffect, useId, useRef } from "react";
 import shared from "./code.module.css";
 import { CodeHead } from "./code-head";
 import styles from "./code-panel.module.css";
@@ -23,9 +23,19 @@ interface Numbered {
   readonly number: number;
 }
 
+// The spaces a line starts with, across its tokens: what a wrapped line
+// hangs from. A blank line has none.
+const indentOf = (tokens: ReadonlyArray<CodeToken>) => {
+  const text = tokens.map((token) => token.text).join("");
+  return text.length - text.trimStart().length;
+};
+
 function Line({ tokens }: { readonly tokens: ReadonlyArray<CodeToken> }) {
   return (
-    <span className={styles.line}>
+    <span
+      className={styles.line}
+      style={{ "--indent": `${indentOf(tokens)}ch` } as CSSProperties}
+    >
       {tokens.map((token, index) => (
         <span
           // biome-ignore lint/suspicious/noArrayIndexKey: a line's tokens never move

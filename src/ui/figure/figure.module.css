@@ -133,10 +133,13 @@
    caption and playback take a band across the top. Under it the stage and
    its code sit side by side, the code held in view while the stage scrolls
    past and never taller than the screen; speed, the hand-over and the
-   breaking controls go under the stage. */
+   breaking controls go under the stage. The stage has a floor of 47rem, the
+   server pane's container threshold: narrower, the server stacks its list
+   above its basin and A, B and C fall below the first view. The code takes
+   what is left. */
 @media (min-width: 80rem) {
   .figure.withCode {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-columns: minmax(47rem, 3fr) minmax(0, 2fr);
     grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
       "copy playback"

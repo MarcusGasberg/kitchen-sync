@@ -134,7 +134,7 @@ export function ThenAndNow({
       {/* The renderer owns these lines once mounted; React sets them once. */}
       <pre
         ref={container}
-        className={`shiki-magic-move-container ${shared.code}`}
+        className={`shiki-magic-move-container ${shared.code} ${styles.snippet}`}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: code wider than its column scrolls, and a keyboard scrolls it
         tabIndex={0}
         // biome-ignore lint/security/noDangerouslySetInnerHtml: build-time HTML of our own source, escaped

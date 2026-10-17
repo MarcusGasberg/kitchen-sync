@@ -2,8 +2,10 @@
    it, invisible: the figure's speed, and then-and-now's version. */
 .choices {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+  row-gap: var(--space-1);
   margin: 0;
   padding: 0;
   border: 0;

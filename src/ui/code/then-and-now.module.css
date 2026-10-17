@@ -1,6 +1,8 @@
 /* Then and Now are words, not numbers: Commissioner, in the speed control's
-   options. Then's date and commit sit beside it on one line. */
-.version {
+   options. Then's date and commit sit beside it on one line. The selectors
+   carry an element, so they beat `.option` from another module whatever
+   order the stylesheets load in. */
+label.version {
   grid-auto-flow: column;
   gap: var(--space-2);
   font-family: var(--font-text);
@@ -11,6 +13,16 @@
   color: var(--text-3);
 }
 
-.commit {
+label.version .commit {
   font-family: var(--font-mono);
+}
+
+/* The renderer's container sets `white-space: pre`: here the code wraps at
+   the panel's measure, as the other code blocks do, and sits on their edge.
+   Magic-move draws one flat run of tokens, so a wrapped line has no hanging
+   indent. */
+pre.snippet {
+  padding-inline: var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
