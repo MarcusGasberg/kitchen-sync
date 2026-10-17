@@ -139,9 +139,17 @@ compile(result: SceneResult, scene: Scene, options): Cut
   the path. **Enactments:** typing 400 ms + 85 ms a character + 350 ms for
   the press; a tap, toggle or network change 700 ms; a network rule armed
   900 ms.
-- **Steps open on a hold** of their first shot's framing: in a standalone
-  figure as long as the caption's reading time (today's dwell), in a chapter
-  700 ms. Play pressed on a paused step skips it, as today.
+- **Steps open on a hold** of the frame the step before ended on (the first
+  step opens wide, and the light table reopens as wide), showing the world
+  before the step's own events; the camera then moves into its first shot.
+  The hold lasts the caption's reading time in a standalone figure (today's
+  dwell) and 700 ms in a chapter. Play pressed on a paused step skips it, as
+  today.
+- **Frames, not subjects, decide moves.** Two shots share a frame when their
+  framing and their containers (devices, the server, messages, the basins)
+  match; rows, rings and outboxes inside a container only place its notes. So
+  an add's enactment and its landing share one close-up, with no move
+  between.
 - **The first beat is the setup** and compiles quiet: `wide`, play and skip
   only, no enactments or notes.
 - **Notes** come from `noteFor(entry)`, a sibling of `narrate` in the
