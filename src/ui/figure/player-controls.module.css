@@ -29,6 +29,21 @@
   }
 }
 
+/* Beside the code (the figure's `playback` container, set only in the
+   Stage | code band): a cell narrower than the buttons' natural row keeps
+   them on one row, as a phone does, rather than dropping Restart alone. */
+@container playback (max-width: 27rem) {
+  .buttons {
+    justify-self: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .buttons > button {
+    flex: 1 1 0;
+    padding-inline: var(--space-1);
+  }
+}
+
 .scrub {
   justify-self: stretch;
 }

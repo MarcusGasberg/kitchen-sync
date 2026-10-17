@@ -77,6 +77,37 @@ describe("ThenAndNow", () => {
     expect(renderer.render).toHaveBeenCalledTimes(1);
   });
 
+  describe("the per-line drawing for a narrow panel", () => {
+    const lineBlock = () => document.querySelectorAll("pre")[1];
+
+    it("holds the old version's lines at first", () => {
+      render(<ThenAndNow title="The push loop" morph={MORPH} />);
+      const lines = lineBlock()?.querySelectorAll("code > span") ?? [];
+      expect(lines.length).toBe(2);
+      expect(lines[0]?.textContent).toBe("if (outbox.length === 0) return;");
+      expect(lines[1]?.textContent).toBe("send(outbox);");
+    });
+
+    it("cuts to today's lines when the reader chooses Now", () => {
+      spies();
+      render(<ThenAndNow title="The push loop" morph={MORPH} />);
+      fireEvent.click(screen.getByRole("radio", { name: "Now" }));
+      const lines = lineBlock()?.querySelectorAll("code > span") ?? [];
+      expect(lines.length).toBe(3);
+      expect(lines[0]?.textContent).toBe("const pending = unacked(outbox);");
+    });
+
+    it("gives each line its hanging indent", () => {
+      render(<ThenAndNow title="The push loop" morph={MORPH} />);
+      const lines = lineBlock()?.querySelectorAll("code > span") ?? [];
+      for (const line of lines) {
+        expect((line as HTMLElement).style.getPropertyValue("--indent")).toBe(
+          "0ch",
+        );
+      }
+    });
+  });
+
   it("paints the old version as HTML before the renderer mounts", () => {
     const html = htmlOf(keyed("a < b\nc"));
     expect(html).toContain("a &lt; b");

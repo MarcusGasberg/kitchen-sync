@@ -150,6 +150,9 @@
 
   .withCode .playback {
     align-self: end;
+    /* Named, so the playback buttons can see how wide their cell is: it is
+       the narrow code column's width here, and nowhere else. */
+    container: playback / inline-size;
   }
 
   .withCode .pace {

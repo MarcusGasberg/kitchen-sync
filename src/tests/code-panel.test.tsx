@@ -207,6 +207,19 @@ describe("CodePanel", () => {
       expect(box).toHaveBeenCalledWith({ top: 500, behavior: "instant" });
     });
 
+    it("scrolls to a whole line of the code", () => {
+      layout(300);
+      const real = window.getComputedStyle.bind(window);
+      vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
+        element.tagName === "PRE"
+          ? ({ lineHeight: "20px", paddingTop: "12px" } as CSSStyleDeclaration)
+          : real(element),
+      );
+      lightUp(false);
+      // 500 rounded down to 12 + 24 x 20.
+      expect(box).toHaveBeenCalledWith({ top: 492, behavior: "instant" });
+    });
+
     it("leaves lit lines it already shows where they are", () => {
       layout(900);
       lightUp(true);

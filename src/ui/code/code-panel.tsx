@@ -1,6 +1,7 @@
-import { type CSSProperties, useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import shared from "./code.module.css";
 import { CodeHead } from "./code-head";
+import { Line } from "./code-line";
 import styles from "./code-panel.module.css";
 import { type Lit, noteOf } from "./lit";
 import type { CodeToken, Snippet } from "./snippet";
@@ -21,32 +22,6 @@ interface CodePanelProps {
 interface Numbered {
   readonly tokens: ReadonlyArray<CodeToken>;
   readonly number: number;
-}
-
-// The spaces a line starts with, across its tokens: what a wrapped line
-// hangs from. A blank line has none.
-const indentOf = (tokens: ReadonlyArray<CodeToken>) => {
-  const text = tokens.map((token) => token.text).join("");
-  return text.length - text.trimStart().length;
-};
-
-function Line({ tokens }: { readonly tokens: ReadonlyArray<CodeToken> }) {
-  return (
-    <span
-      className={styles.line}
-      style={{ "--indent": `${indentOf(tokens)}ch` } as CSSProperties}
-    >
-      {tokens.map((token, index) => (
-        <span
-          // biome-ignore lint/suspicious/noArrayIndexKey: a line's tokens never move
-          key={index}
-          style={token.color === undefined ? undefined : { color: token.color }}
-        >
-          {token.text}
-        </span>
-      ))}
-    </span>
-  );
 }
 
 const row = ({ tokens, number }: Numbered) => (
@@ -80,8 +55,18 @@ export function CodePanel({
     if (top >= box.scrollTop && bottom <= box.scrollTop + box.clientHeight) {
       return;
     }
+    const target = Math.max(0, top - box.clientHeight / 3);
+    // Whole lines: round down to a row start, so no line is sliced under the
+    // head's hairline. Every visual row is one line-height tall, wrapped ones
+    // too. Without a parsed line height (jsdom), the target stands.
+    const style = getComputedStyle(box);
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    const inset = Number.parseFloat(style.paddingTop) || 0;
+    const snapped = Number.isFinite(lineHeight)
+      ? inset + Math.floor((target - inset) / lineHeight) * lineHeight
+      : target;
     box.scrollTo({
-      top: Math.max(0, top - box.clientHeight / 3),
+      top: Math.max(0, snapped),
       behavior: motion ? "smooth" : "instant",
     });
   }, [seq, motion]);

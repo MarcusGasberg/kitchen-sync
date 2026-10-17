@@ -14,37 +14,16 @@
   display: block;
 }
 
-/* A line wraps at the panel's measure and never scrolls sideways. The code's
-   own indentation (`--indent`, set by the line) stays, and a continuation
-   sits two characters in from it. The text is untouched, so it copies as it
-   is. */
-.line {
-  display: block;
-  min-block-size: 1lh;
-  padding-inline-start: calc(var(--space-3) + var(--indent, 0ch) + 2ch);
-  padding-inline-end: var(--space-3);
-  text-indent: calc(-1 * (var(--indent, 0ch) + 2ch));
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 /* The branch that last ran: washed in water, with the world's 1px ink rule
    at its start. The rule is a border, so forced colours keep it. */
 .lit {
   display: block;
   border-inline-start: var(--rule) solid var(--ink-2);
+  /* The rule takes 1px of the inset: the lines inside give it up
+     (`.line`, in the shared module), so lit and unlit code share one edge. */
+  --lit-rule: var(--rule);
   background: var(--water);
   color: inherit;
-}
-
-/* The rule takes 1px of the inset, so lit and unlit code share one edge. */
-.lit .line {
-  padding-inline-start: calc(
-    var(--space-3) +
-    var(--indent, 0ch) +
-    2ch -
-    var(--rule)
-  );
 }
 
 /* A new event settles in as a drop does; a jump shows at once. */

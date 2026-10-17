@@ -17,6 +17,21 @@ label.version .commit {
   font-family: var(--font-mono);
 }
 
+/* Then's date and commit go on a second line under "Then", start-aligned, so
+   Then and Now share one row on a phone. Now stays one line, centred. */
+label.then {
+  grid-auto-flow: row;
+  justify-items: start;
+  align-content: center;
+  gap: var(--space-1);
+}
+
+/* The panel is an inline-size container: its code is drawn by its own width,
+   not the page's. */
+.panel {
+  container-type: inline-size;
+}
+
 /* The renderer's container sets `white-space: pre`: here the code wraps at
    the panel's measure, as the other code blocks do, and sits on their edge.
    Magic-move draws one flat run of tokens, so a wrapped line has no hanging
@@ -25,4 +40,21 @@ pre.snippet {
   padding-inline: var(--space-3);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Under 40rem the morph would wrap its lines flush left, so the panel shows
+   the same version as per-line code (hanging indents) and the choice cuts.
+   From 40rem the morph shows. `display: none` keeps the hidden copy out of
+   the accessibility tree, so the code is never read twice. The renderer
+   keeps following the version on the hidden morph. */
+@container (min-width: 40rem) {
+  pre.lines {
+    display: none;
+  }
+}
+
+@container (max-width: 39.99rem) {
+  pre.snippet {
+    display: none;
+  }
 }

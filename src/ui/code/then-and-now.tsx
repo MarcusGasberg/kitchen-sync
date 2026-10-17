@@ -13,7 +13,8 @@ import choice from "#/ui/choice.module.css";
 import { browserFigureHost, type FigureHost } from "#/ui/figure/figure-host";
 import shared from "./code.module.css";
 import { CodeHead } from "./code-head";
-import type { Morph } from "./snippet";
+import { Line } from "./code-line";
+import type { CodeToken, Morph } from "./snippet";
 import styles from "./then-and-now.module.css";
 
 interface ThenAndNowProps {
@@ -40,6 +41,28 @@ export const htmlOf = (step: KeyedTokensInfo): string =>
           }>${escapeHtml(token.content)}</span>`,
     )
     .join("");
+
+// A step as lines of tokens, split at its newline tokens: the narrow panel's
+// drawing, where each line wraps with a hanging indent.
+export const linesOf = (
+  step: KeyedTokensInfo,
+): ReadonlyArray<ReadonlyArray<CodeToken>> => {
+  const lines: CodeToken[][] = [[]];
+  for (const token of step.tokens) {
+    if (token.content === "\n") {
+      lines.push([]);
+    } else {
+      lines[lines.length - 1]?.push(
+        token.color === undefined
+          ? { text: token.content }
+          : { text: token.content, color: token.color },
+      );
+    }
+  }
+  // A newline ends every line, the last too: it opens no line of its own.
+  if (lines.at(-1)?.length === 0) lines.pop();
+  return lines;
+};
 
 const MONTHS = [
   "Jan",
@@ -81,6 +104,10 @@ export function ThenAndNow({
   const container = useRef<HTMLPreElement>(null);
   const renderer = useRef<MagicMoveRenderer | null>(null);
   const first = useMemo(() => ({ __html: htmlOf(morph.then.tokens) }), [morph]);
+  const lines = useMemo(
+    () => linesOf(version === "then" ? morph.then.tokens : morph.now.tokens),
+    [version, morph],
+  );
 
   useEffect(() => {
     const target = container.current;
@@ -102,11 +129,14 @@ export function ThenAndNow({
   }, [version, reduced, morph]);
 
   return (
-    <section className={shared.panel} aria-labelledby={titleId}>
+    <section
+      className={`${shared.panel} ${styles.panel}`}
+      aria-labelledby={titleId}
+    >
       <CodeHead id={titleId} title={title} path={morph.path} />
       <fieldset className={choice.choices}>
         <legend className={choice.legend}>Version</legend>
-        <label className={`${choice.option} ${styles.version}`}>
+        <label className={`${choice.option} ${styles.version} ${styles.then}`}>
           <input
             type="radio"
             name={name}
@@ -140,6 +170,17 @@ export function ThenAndNow({
         // biome-ignore lint/security/noDangerouslySetInnerHtml: build-time HTML of our own source, escaped
         dangerouslySetInnerHTML={first}
       />
+      {/* The narrow panel's drawing of the same version: a cut, line by line,
+          each with a hanging indent. Only one of the two shows. */}
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: code taller than its column scrolls, and a keyboard scrolls it */}
+      <pre className={`${shared.code} ${styles.lines}`} tabIndex={0}>
+        <code>
+          {lines.map((tokens, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the lines of a version are swapped whole
+            <Line key={index} tokens={tokens} />
+          ))}
+        </code>
+      </pre>
     </section>
   );
 }
