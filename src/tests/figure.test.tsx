@@ -1,9 +1,19 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import { frameAt, senderOf } from "#/lib/sandbox/frame";
+import { makePlayer } from "#/lib/sandbox/player";
 import type { Scene } from "#/lib/sandbox/scene";
 import { Figure } from "#/ui/figure/figure";
-import { fakeHost } from "./figure-helpers";
+import { DEVICE_INSET_PX } from "#/ui/figure/wires";
+import { fakeHost, rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
 
 const scene: Scene = {
@@ -36,6 +46,63 @@ const shown = async (host: ReturnType<typeof fakeHost>) => {
   host.show(0, 1);
   await screen.findByRole("button", { name: /Play|Pause/ });
 };
+
+// The scene's recording, as the figure plays it: the first instant on the
+// scrub bar's 50 ms steps with one message alone in flight, a fifth to two
+// fifths of its way, as an offset along the bar.
+const oneInFlight = async () => {
+  const player = await Effect.runPromise(
+    makePlayer(scene, { autoplay: false }),
+  );
+  const { timeline, start, end } = player.view();
+  await Effect.runPromise(player.close);
+  for (let at = start; at <= end; at += 50) {
+    const flights = frameAt(timeline, at)?.flights ?? [];
+    const [only] = flights;
+    if (
+      flights.length === 1 &&
+      only !== undefined &&
+      only.message.departedAt !== null &&
+      only.progress >= 0.2 &&
+      only.progress <= 0.4
+    ) {
+      return {
+        offset: at - start,
+        fromDevice: senderOf(only.message.kind) === "client",
+        progress: only.progress,
+      };
+    }
+  }
+  throw new Error("No instant with one message alone in flight.");
+};
+
+// Plumb wires from the basin's foot (300) to the devices' tops (380): a
+// message's lane runs from 300 to DEVICE_INSET_PX above 380.
+const plumb = new Map([
+  ["server-basin", rect(-24, 60, 924, 300)],
+  ["server-list", rect(0, 0, 900, 40)],
+  ["devices", rect(0, 380, 900, 700)],
+  ["A", rect(0, 380, 450, 700)],
+  ["B", rect(450, 380, 900, 700)],
+]);
+const SERVER_END = 300;
+const DEVICE_END = 380 - DEVICE_INSET_PX;
+
+// Where a message's dot sits on its plumb lane at `progress` of the way.
+const onLane = (fromDevice: boolean, progress: number) =>
+  fromDevice
+    ? DEVICE_END - (DEVICE_END - SERVER_END) * progress
+    : SERVER_END + (DEVICE_END - SERVER_END) * progress;
+
+const dots = (figure: HTMLElement) =>
+  [...figure.querySelectorAll("circle")].map((dot) =>
+    Number(dot.getAttribute("cy")),
+  );
+
+const scrubTo = (offset: number) =>
+  fireEvent.change(screen.getByRole("slider"), {
+    target: { value: String(offset) },
+  });
 
 describe("Figure", () => {
   it("opens on its title, its caption and play first", async () => {
@@ -204,6 +271,51 @@ describe("Figure", () => {
       }),
     );
     await within(screen.getByRole("region", { name: /^B/ })).findByText(/Eggs/);
+  });
+
+  // Under reduced motion a message does not travel: it sits at its sender
+  // for the first half of its flight.
+  it("keeps a message at its sender under reduced motion", async () => {
+    const flight = await oneInFlight();
+    const restore = stubLayout(plumb);
+    try {
+      const host = fakeHost({ reduced: true });
+      render(<Figure scene={scene} title="Still" host={host.host} />);
+      await shown(host);
+      scrubTo(flight.offset);
+      const figure = screen.getByRole("figure", { name: "Still" });
+      await waitFor(() =>
+        expect(dots(figure)).toEqual([onLane(flight.fromDevice, 0)]),
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  // The setting is read once and followed: a reader who turns reduced motion
+  // on or off mid-figure sees the messages change how they move at once.
+  it("follows a change of the reader's motion setting", async () => {
+    const flight = await oneInFlight();
+    const restore = stubLayout(plumb);
+    try {
+      const host = fakeHost();
+      render(<Figure scene={scene} title="Setting" host={host.host} />);
+      await shown(host);
+      scrubTo(flight.offset);
+      const figure = screen.getByRole("figure", { name: "Setting" });
+      const moving = onLane(flight.fromDevice, flight.progress);
+      await waitFor(() => {
+        const [dot] = dots(figure);
+        expect(dot).toBeCloseTo(moving);
+      });
+      host.setReduced(true);
+      expect(dots(figure)).toEqual([onLane(flight.fromDevice, 0)]);
+      host.setReduced(false);
+      const [dot] = dots(figure);
+      expect(dot).toBeCloseTo(moving);
+    } finally {
+      restore();
+    }
   });
 
   it("says the figure stopped when its scene breaks, and restarts it", async () => {

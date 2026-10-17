@@ -200,4 +200,54 @@ describe("usePlayer", () => {
     unmount();
     await waitFor(() => expect(closed).toBe(true));
   });
+
+  // A reader's change during the scene forks the world for free play. The
+  // figure unmounting while that fork is built closes the player only once
+  // the change has run, so the world it forked is the one closed, and
+  // nothing fails.
+  it("closes the player after a fork in flight when the figure unmounts", async () => {
+    const fake = fakeHost();
+    const order: Array<string> = [];
+    const build: typeof makePlayer = (s, o) =>
+      Effect.map(makePlayer(s, o), (player) => ({
+        ...player,
+        close: Effect.andThen(
+          player.close,
+          Effect.sync(() => {
+            order.push("closed");
+          }),
+        ),
+      }));
+    let state: Seen | undefined;
+    const { unmount } = render(
+      <Probe
+        host={fake.host}
+        build={build}
+        onState={(s) => {
+          state = s;
+        }}
+      />,
+    );
+    fake.show(0, 1);
+    await waitFor(() => expect(state?.player).not.toBeNull());
+    const player = state?.player;
+    if (player === null || player === undefined) throw new Error("no player");
+    const acting = Effect.runPromise(
+      player.act(() =>
+        Effect.sync(() => {
+          order.push("acted");
+        }),
+      ),
+    );
+    // The fork is being built.
+    expect(player.view().busy).toBe(true);
+    unmount();
+    await acting;
+    await waitFor(() => expect(order).toEqual(["acted", "closed"]));
+    expect(player.view()).toMatchObject({
+      mode: "free",
+      busy: false,
+      failure: null,
+    });
+  });
 });

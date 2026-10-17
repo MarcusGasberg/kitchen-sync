@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { World } from "#/lib/sandbox/world";
 import { Stage } from "#/ui/figure/stage";
 import { makeStageView } from "#/ui/figure/stage-view";
+import { rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
 
 // A has added milk and both phones have pulled it.
@@ -190,34 +191,9 @@ describe("Stage", () => {
 
   // The stage's panes as a layout sets them, and the wires it draws over
   // them: [x1, y1, x2, y2] each.
-  const rect = (left: number, top: number, right: number, bottom: number) =>
-    ({
-      left,
-      top,
-      right,
-      bottom,
-      width: right - left,
-      height: bottom - top,
-      x: left,
-      y: top,
-      toJSON: () => ({}),
-    }) as DOMRect;
   const wiresOver = async (boxes: ReadonlyMap<string, DOMRect>) => {
     const view = makeStageView()(await snapshot(), new Map());
-    const measured = vi
-      .spyOn(Element.prototype, "getBoundingClientRect")
-      .mockImplementation(function (this: Element) {
-        const anchor =
-          this instanceof HTMLElement
-            ? this.dataset.anchor === "device"
-              ? this.dataset.client
-              : this.dataset.anchor
-            : undefined;
-        return (
-          (anchor === undefined ? undefined : boxes.get(anchor)) ??
-          rect(0, 0, 900, 800)
-        );
-      });
+    const restore = stubLayout(boxes);
     try {
       const { container } = render(
         <Stage
@@ -240,7 +216,7 @@ describe("Stage", () => {
           ) as [number, number, number, number],
       );
     } finally {
-      measured.mockRestore();
+      restore();
     }
   };
 

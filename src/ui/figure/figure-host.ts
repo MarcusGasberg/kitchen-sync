@@ -15,6 +15,7 @@ export interface FigureHost {
   readonly pageVisible: () => boolean;
   readonly onPageVisibility: (listener: () => void) => () => void;
   readonly reducedMotion: () => boolean;
+  readonly onReducedMotion: (listener: () => void) => () => void;
   // A phone: one world runs at a time.
   readonly narrow: () => boolean;
   readonly onNarrow: (listener: () => void) => () => void;
@@ -24,6 +25,19 @@ export interface FigureHost {
 
 // Below the app's own switch to a phone layout.
 const NARROW = "(max-width: 44.99rem)";
+const REDUCED = "(prefers-reduced-motion: reduce)";
+
+// Whether a media query holds, and each change of it. No window (a server
+// render): it never holds, and never changes.
+const holds = (query: string) =>
+  typeof window !== "undefined" &&
+  (window.matchMedia?.(query).matches ?? false);
+const onChange = (query: string, listener: () => void) => {
+  if (typeof window === "undefined") return () => {};
+  const list = window.matchMedia?.(query);
+  list?.addEventListener("change", listener);
+  return () => list?.removeEventListener("change", listener);
+};
 
 // How much of a figure is in view: the share of it that shows, or of the
 // screen it fills, whichever is more. A figure taller than two screens never
@@ -73,19 +87,12 @@ export const browserFigureHost: FigureHost = {
     document.addEventListener("visibilitychange", listener);
     return () => document.removeEventListener("visibilitychange", listener);
   },
-  // Both are read while rendering. No window (a server render): no
-  // preference, and no phone.
-  reducedMotion: () =>
-    typeof window !== "undefined" &&
-    (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false),
-  narrow: () =>
-    typeof window !== "undefined" &&
-    (window.matchMedia?.(NARROW).matches ?? false),
-  onNarrow: (listener) => {
-    const query = window.matchMedia?.(NARROW);
-    query?.addEventListener("change", listener);
-    return () => query?.removeEventListener("change", listener);
-  },
+  // Each is read once into a figure's state, then again on each change. No
+  // window (a server render): no preference, and no phone.
+  reducedMotion: () => holds(REDUCED),
+  onReducedMotion: (listener) => onChange(REDUCED, listener),
+  narrow: () => holds(NARROW),
+  onNarrow: (listener) => onChange(NARROW, listener),
   requestFrame: (callback) => requestAnimationFrame(callback),
   cancelFrame: (handle) => cancelAnimationFrame(handle),
 };

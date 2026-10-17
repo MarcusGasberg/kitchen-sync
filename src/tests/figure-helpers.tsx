@@ -1,14 +1,17 @@
 import { act } from "@testing-library/react";
+import { vi } from "vitest";
 import type { FigureHost } from "#/ui/figure/figure-host";
 
-// A browser the test drives by hand: what shows, and when frames run. The
-// hook's tests and the figure's share it.
+// A browser the test drives by hand: what shows, the reader's motion setting,
+// and when frames run. The hook's tests and the figure's share it.
 export const fakeHost = (
   options: { reduced?: boolean; narrow?: boolean } = {},
 ) => {
   const seen: Array<(seen: { ratio: number; near: boolean }) => void> = [];
   // Every element observed, in order: a figure keeps one for its life.
   const observed: Array<Element> = [];
+  let reduced = options.reduced ?? false;
+  const motion = new Set<() => void>();
   let frames = new Map<number, (time: number) => void>();
   let handle = 1;
   let time = 0;
@@ -20,7 +23,13 @@ export const fakeHost = (
     },
     pageVisible: () => true,
     onPageVisibility: () => () => {},
-    reducedMotion: () => options.reduced ?? false,
+    reducedMotion: () => reduced,
+    onReducedMotion: (listener) => {
+      motion.add(listener);
+      return () => {
+        motion.delete(listener);
+      };
+    },
     narrow: () => options.narrow ?? false,
     onNarrow: () => () => {},
     requestFrame: (callback) => {
@@ -36,6 +45,12 @@ export const fakeHost = (
     observed: (): ReadonlyArray<Element> => observed,
     show: (index: number, ratio: number) =>
       act(() => seen[index]?.({ ratio, near: true })),
+    // The reader changes their motion setting.
+    setReduced: (next: boolean) =>
+      act(() => {
+        reduced = next;
+        for (const listener of motion) listener();
+      }),
     frames: async (count: number, millis = 100) => {
       for (let i = 0; i < count; i++) {
         await act(async () => {
@@ -47,4 +62,43 @@ export const fakeHost = (
       }
     },
   };
+};
+
+export const rect = (
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+): DOMRect =>
+  ({
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
+// Lays a stage out by hand, as jsdom does not: each anchor (`data-anchor`, or
+// a device's client name) measures as its box, anything else as a 900 × 800
+// stage. Returns the restore.
+export const stubLayout = (boxes: ReadonlyMap<string, DOMRect>) => {
+  const measured = vi
+    .spyOn(Element.prototype, "getBoundingClientRect")
+    .mockImplementation(function (this: Element) {
+      const anchor =
+        this instanceof HTMLElement
+          ? this.dataset.anchor === "device"
+            ? this.dataset.client
+            : this.dataset.anchor
+          : undefined;
+      return (
+        (anchor === undefined ? undefined : boxes.get(anchor)) ??
+        rect(0, 0, 900, 800)
+      );
+    });
+  return () => measured.mockRestore();
 };

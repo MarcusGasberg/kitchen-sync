@@ -92,7 +92,12 @@ function FigureBody({
   if (scale === null && view !== null) {
     setScale(scaleFor(mostRows(view.timeline)));
   }
-  const reduced = host.reducedMotion();
+  // The reader's motion setting, read once and followed, as `narrow` is.
+  const [reduced, setReduced] = useState(() => host.reducedMotion());
+  useEffect(() => {
+    setReduced(host.reducedMotion());
+    return host.onReducedMotion(() => setReduced(host.reducedMotion()));
+  }, [host]);
   const frame =
     view === null ? null : frameAt(view.timeline, view.at, { reduced });
   const snapshot = frame?.snapshot ?? null;
