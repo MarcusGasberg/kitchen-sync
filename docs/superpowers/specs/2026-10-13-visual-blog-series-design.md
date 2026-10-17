@@ -457,6 +457,12 @@ review and DESIGN.md).
   64-character column; chapters with code show the stage and a sticky code
   panel side by side. On phones, the server pane sits on top and the clients
   in a swipeable strip.
+  A figure with code (the user's choice, 2026-10-17, over code in the left
+  column and code under the stage): from 80rem its title, caption and
+  playback take a band across the top, and under it the stage (three fifths)
+  and the code panel (two fifths) sit side by side, the code held in view
+  while the stage scrolls; speed, "Your turn" and the breaking controls sit
+  under the stage. Narrower, the code follows the figure's controls.
 - **Pane stage:** panes are HTML, each rendering `GroceryList` from its
   client's snapshot at *t*. One SVG overlay draws the wires and travelling
   messages; a message sits at `(t − departed) / (arrive − departed)` along its
@@ -483,7 +489,9 @@ review and DESIGN.md).
   time by a small Vite plugin running Shiki, so no highlighter ships to the
   browser. Lit lines follow the trace event at *t*. "Then and now" snippets
   read an old version with `git show <sha>:<path>` at build time and morph into
-  today's with `shiki-magic-move`.
+  today's with `@shikijs/magic-move` (the user's choice, 2026-10-17: the
+  maintained package, which `shiki-magic-move` now only wraps). Its tokens
+  are keyed at build time, so the page runs only its renderer.
 - **Performance:** a world runs only while its figure is on screen and the tab
   is visible; on phones one world runs at a time.
 
@@ -500,9 +508,11 @@ Four plans, each on its own branch off `visual-blog-series`:
    keyboard, the breaking controls, visibility and one world at a time on
    phones, the error boundary. Built on a development route, with
    Impeccable's finish on the figure.
-3. **The code panel:** the Shiki build plugin, `#region` snippets, lit lines
-   from the trace, then-and-now morphs, the "not running in this figure"
-   panel.
+3. **The code panel**
+   (`docs/superpowers/plans/2026-10-17-the-code-panel.md`): the Shiki build
+   plugin, `#region` snippets, lit lines from the trace, then-and-now morphs,
+   the "not running in this figure" panel. Built on the development route,
+   with Impeccable's finish on the code.
 4. **The blog routes:** MDX, `/blog` and `/blog/part-1` with the page rhythm,
    prerendering with each scene's first frame, the standalone tests, and
    Impeccable's finish with DESIGN.md.
