@@ -117,8 +117,8 @@ in short:
   sync, and nothing else. Every text colour holds 4.5:1 on the page and on the
   water in both themes; control edges hold 3:1. `src/styles/tokens.css` holds
   every value.
-- **Type:** Commissioner (all text and controls) and Spline Sans Mono (ids,
-  versions and counts only), both self-hosted.
+- **Type:** Commissioner (all text and controls) and Spline Sans Mono (code,
+  paths, commit hashes, ids, versions and counts), both self-hosted.
 - **State has a form as well as a word:** pending is a hollow ring with its
   `#id`; acked (decided by the server, waiting for a pull) a half-filled ring
   with its `#id`; synced has no marker; rejected is a dashed seal ring with the

@@ -1,5 +1,5 @@
 /* Then and Now are words, not numbers: Commissioner, in the speed control's
-   options. Then's date and commit sit beside it on one line. The selectors
+   options. Then's date and commit sit beside it, and drop under it on a narrow panel. The selectors
    carry an element, so they beat `.option` from another module whatever
    order the stylesheets load in. */
 label.version {
@@ -28,6 +28,10 @@ label.version .commit {
    Magic-move draws one flat run of tokens, so a wrapped line has no hanging
    indent. */
 pre.snippet {
+  /* The renderer holds the container at its old height while the new tokens
+     sit in it, so the content overflows for the length of the morph. Clip,
+     so no scrollbar shows. This code wraps and has no height cap. */
+  overflow: clip;
   padding-inline: var(--space-3);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -38,7 +42,7 @@ pre.snippet {
    From 40rem the morph shows. `display: none` keeps the hidden copy out of
    the accessibility tree, so the code is never read twice. The renderer
    keeps following the version on the hidden morph. */
-@container (min-width: 40rem) {
+@container (width >= 40rem) {
   pre.lines {
     display: none;
   }
@@ -48,7 +52,7 @@ pre.snippet {
    and commit go on a second line under "Then", start-aligned. Now stays one
    line, centred. From 40rem the Then option stays on one line, as the speed
    control's options are. */
-@container (max-width: 39.99rem) {
+@container (width < 40rem) {
   pre.snippet {
     display: none;
   }

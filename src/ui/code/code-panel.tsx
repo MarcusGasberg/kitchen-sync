@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef } from "react";
+import {
+  memo,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import shared from "./code.module.css";
 import { CodeHead } from "./code-head";
 import { Line } from "./code-line";
@@ -28,9 +36,29 @@ const row = ({ tokens, number }: Numbered) => (
   <Line key={number} tokens={tokens} />
 );
 
+// The lit lines. Keyed by the event's seq, so a mark lives for one event, and
+// whether it settles is decided when it mounts: a later change of `motion`
+// alone never starts the settle on lines that are already lit.
+function LitLines({
+  motion,
+  marked,
+  children,
+}: {
+  readonly motion: boolean;
+  readonly marked: React.RefObject<HTMLElement | null>;
+  readonly children: ReactNode;
+}) {
+  const [settles] = useState(motion);
+  return (
+    <mark ref={marked} className={styles.lit} data-motion={settles}>
+      {children}
+    </mark>
+  );
+}
+
 // A snippet of the engine, with the branch that last ran lit. With `running`
 // false, the reference panel: code the world beside it does not run.
-export function CodePanel({
+export const CodePanel = memo(function CodePanel({
   title,
   snippet,
   lit = null,
@@ -46,10 +74,10 @@ export function CodePanel({
 
   // Lit lines outside the code's own view scroll into it, a third of the way
   // down. Only the code scrolls, never the page: no `scrollIntoView`.
-  useEffect(() => {
+  const scrollTo = useEffectEvent((smooth: boolean) => {
     const box = scroller.current;
     const lines = marked.current;
-    if (seq === null || box === null || lines === null) return;
+    if (box === null || lines === null) return;
     const top = lines.offsetTop;
     const bottom = top + lines.offsetHeight;
     if (top >= box.scrollTop && bottom <= box.scrollTop + box.clientHeight) {
@@ -67,9 +95,15 @@ export function CodePanel({
       : target;
     box.scrollTo({
       top: Math.max(0, snapped),
-      behavior: motion ? "smooth" : "instant",
+      behavior: smooth ? "smooth" : "instant",
     });
-  }, [seq, motion]);
+  });
+
+  // Only a new lit event scrolls: a change of `motion` alone does not.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `scrollTo` is an effect event, and `seq` is the trigger
+  useEffect(() => {
+    if (seq !== null) scrollTo(motion);
+  }, [seq]);
 
   const numbered = snippet.lines.map((tokens, number) => ({ tokens, number }));
   const from = span?.from ?? numbered.length;
@@ -88,18 +122,13 @@ export function CodePanel({
         <code className={styles.lines}>
           {numbered.slice(0, from).map(row)}
           {shown !== null && (
-            <mark
-              key={shown.event.seq}
-              ref={marked}
-              className={styles.lit}
-              data-motion={motion}
-            >
+            <LitLines key={shown.event.seq} motion={motion} marked={marked}>
               {numbered.slice(from, to).map(row)}
-            </mark>
+            </LitLines>
           )}
           {numbered.slice(to).map(row)}
         </code>
       </pre>
     </section>
   );
-}
+});

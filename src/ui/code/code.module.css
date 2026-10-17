@@ -47,6 +47,12 @@
    sits two characters in from it. The text is untouched, so it copies as it
    is. A lit region's rule (`--lit-rule`) takes 1px of the inset, so lit and
    unlit code share one edge. */
+/* The browser sets `code` in its own monospace face. Scoped to the code
+   block, so inline code in prose is not pulled into this face. */
+.code code {
+  font: inherit;
+}
+
 .line {
   display: block;
   min-block-size: 1lh;

@@ -102,24 +102,25 @@ describe("CodePanel", () => {
     expect(screen.getByText("Not running in this figure")).toBeTruthy();
   });
 
-  it("settles lit lines in only when it moves", () => {
-    const { rerender } = render(
-      <CodePanel title="The engine" snippet={SNIPPET} lit={sent(1)} motion />,
-    );
-    expect(document.querySelector("mark")?.getAttribute("data-motion")).toBe(
-      "true",
-    );
-    rerender(
-      <CodePanel
-        title="The engine"
-        snippet={SNIPPET}
-        lit={sent(2)}
-        motion={false}
-      />,
-    );
-    expect(document.querySelector("mark")?.getAttribute("data-motion")).toBe(
-      "false",
-    );
+  const panel = (lit: Lit, motion: boolean) => (
+    <CodePanel title="The engine" snippet={SNIPPET} lit={lit} motion={motion} />
+  );
+  const settle = () =>
+    document.querySelector("mark")?.getAttribute("data-motion");
+
+  it("settles lit lines in only when a new event moves", () => {
+    const { rerender } = render(panel(sent(1), true));
+    expect(settle()).toBe("true");
+    rerender(panel(sent(2), false));
+    expect(settle()).toBe("false");
+    rerender(panel(sent(3), true));
+    expect(settle()).toBe("true");
+  });
+
+  it("never settles lines already lit when motion turns on", () => {
+    const { rerender } = render(panel(sent(1), false));
+    rerender(panel(sent(1), true));
+    expect(settle()).toBe("false");
   });
 
   describe("scrolling", () => {
@@ -218,6 +219,14 @@ describe("CodePanel", () => {
       lightUp(false);
       // 500 rounded down to 12 + 24 x 20.
       expect(box).toHaveBeenCalledWith({ top: 492, behavior: "instant" });
+    });
+
+    it("does not scroll again when only motion changes", () => {
+      layout(300);
+      const { rerender } = render(panel(sent(1), false));
+      expect(box).toHaveBeenCalledTimes(1);
+      rerender(panel(sent(1), true));
+      expect(box).toHaveBeenCalledTimes(1);
     });
 
     it("leaves lit lines it already shows where they are", () => {

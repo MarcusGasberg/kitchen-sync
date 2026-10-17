@@ -165,15 +165,12 @@ export function ThenAndNow({
       <pre
         ref={container}
         className={`shiki-magic-move-container ${shared.code} ${styles.snippet}`}
-        // biome-ignore lint/a11y/noNoninteractiveTabindex: code wider than its column scrolls, and a keyboard scrolls it
-        tabIndex={0}
         // biome-ignore lint/security/noDangerouslySetInnerHtml: build-time HTML of our own source, escaped
         dangerouslySetInnerHTML={first}
       />
       {/* The narrow panel's drawing of the same version: a cut, line by line,
           each with a hanging indent. Only one of the two shows. */}
-      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: code taller than its column scrolls, and a keyboard scrolls it */}
-      <pre className={`${shared.code} ${styles.lines}`} tabIndex={0}>
+      <pre className={`${shared.code} ${styles.lines}`}>
         <code>
           {lines.map((tokens, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: the lines of a version are swapped whole
