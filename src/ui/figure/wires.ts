@@ -49,11 +49,11 @@ export interface ServerRow {
 // Each device's wire, in device order. Its server end sits across the basin's
 // span (inset from its corners) where its device's middle sits along the
 // device row, so each wire leans as little as the layout allows and their
-// order never crosses; and down at the band's top, the basin's foot unless a list beside it runs lower, when the
-// wires leave from under the basin at the list's foot. Where the basin sits
-// left of its list (a wide stage), the fan still leans right: the cost of the
-// list beside its basin ("lists always render as real text on the still
-// margin beside their basin").
+// order never crosses; and down at the band's top, the basin's foot unless a
+// list beside it runs lower, when the wires leave from under the basin at the
+// list's foot. Where the basin sits left of its list (a wide stage), the fan
+// still leans right: the cost of the list beside its basin ("lists always
+// render as real text on the still margin beside their basin").
 export const layWires = (
   { basin, list }: ServerRow,
   row: Row,
