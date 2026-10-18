@@ -147,6 +147,40 @@ const addOn = (client: string, name: string) => (world: WorldHandle) =>
   );
 
 describe("makePlayer", () => {
+  it.effect("opens, replays and restarts on step 1 when it takes 0 ms", () =>
+    Effect.gen(function* () {
+      const instant: Scene = {
+        id: "test-instant",
+        world: scene.world,
+        beats: [
+          scene.beats[0] as Scene["beats"][number],
+          {
+            caption: "A adds milk, and it shows at once.",
+            run: addOn("A", "Milk"),
+            until: ({ since }) => since.some((e) => e._tag === "Applied"),
+          },
+        ],
+      };
+      const player = yield* makePlayer(instant, { autoplay: false });
+      yield* player.setVisible(true);
+      const onStepOne = () => {
+        expect(player.view().beat).toBe(1);
+        expect(player.view().ended).toBe(false);
+        expect(shotOf(player)?.opening).toBe(true);
+      };
+      onStepOne();
+      yield* player.scrub(player.view().end);
+      expect(player.view().ended).toBe(true);
+      yield* player.play;
+      onStepOne();
+      expect(player.view().jumped).toBe(true);
+      yield* player.scrub(player.view().end);
+      yield* player.restart;
+      onStepOne();
+      yield* player.close;
+    }),
+  );
+
   it.effect(
     "says when the playhead jumped, so a figure shows that instant at once",
     () =>

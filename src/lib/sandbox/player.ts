@@ -170,6 +170,12 @@ export const makePlayer = (
       options.free === true
         ? sceneEnd
         : (result.beats[0]?.endedAt ?? sceneStart);
+    // The cursor a figure opens, restarts and replays on. It goes by step,
+    // not by instant: several steps can share the opening instant, and a 0 ms
+    // last step ends at it, so an instant would land on the end. A free
+    // figure opens at the scene's end, where its scene cursor is never shown.
+    const openingCursor = (): CutCursor =>
+      options.free === true ? cursorAt(cut, opening) : stepStart(cut, 1);
     // Forked for free play, which keeps the last 2,000 events.
     const recording: Recording = {
       options: { ...result.options, limit: FREE_PLAY_LIMIT },
@@ -179,7 +185,7 @@ export const makePlayer = (
     const listeners = new Set<() => void>();
 
     // Everything below changes only while `lock` is held.
-    let cursor: CutCursor = cursorAt(cut, opening);
+    let cursor: CutCursor = openingCursor();
     let live: Live | null = null;
     // Free play's timeline, playhead and world clock.
     let timeline: Timeline = result.timeline;
@@ -286,7 +292,7 @@ export const makePlayer = (
       lock.withPermits(1)(guard(effect));
 
     const toOpening = () => {
-      cursor = cursorAt(cut, opening);
+      cursor = openingCursor();
       jumped = true;
       handedBeats = result.beats;
       fastSince = null;
@@ -387,7 +393,7 @@ export const makePlayer = (
             // once instead of settling backwards into it. Otherwise they had
             // this step's opening in front of them.
             if (atEnd(cut, cursor)) {
-              cursor = cursorAt(cut, opening);
+              cursor = openingCursor();
               jumped = true;
             } else {
               cursor = pastOpening(cut, cursor);
