@@ -34,6 +34,7 @@ import {
 } from "./camera";
 import { type Measured, measureWorld, sameMeasure } from "./measure";
 import styles from "./stage.module.css";
+import { StageNotes } from "./stage-notes";
 import type { StageView } from "./stage-view";
 import { WireBand } from "./wire-band";
 import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
@@ -455,6 +456,19 @@ export function Stage({
           </Button>
         </div>
       )}
+      {camera !== null &&
+        cue.kind === "shot" &&
+        shot !== undefined &&
+        !shot.move &&
+        shot.notes.length > 0 && (
+          <StageNotes
+            key={cue.cursor.shot}
+            notes={shot.notes}
+            anchors={anchors}
+            view={camera}
+            viewport={size}
+          />
+        )}
     </div>
   );
 }

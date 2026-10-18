@@ -28,7 +28,7 @@ const noop = () => {};
 
 const FREE: Cue = { kind: "free", focus: null };
 
-const closeOn = (client: string): Cue => {
+const closeOn = (client: string, notes: Shot["notes"] = []): Cue => {
   const shot: Shot = {
     framing: "close",
     subjects: [{ kind: "device", client }],
@@ -38,7 +38,7 @@ const closeOn = (client: string): Cue => {
     screen: 1000,
     through: 0,
     enact: null,
-    notes: [],
+    notes,
     move: false,
     opening: false,
     step: 0,
@@ -569,5 +569,19 @@ describe("Stage", () => {
       true,
     );
     first.restore();
+  });
+
+  it("writes a hold's notes over the viewport, for the eye only", async () => {
+    const { container, restore } = await staged(
+      closeOn("A", [
+        { on: { kind: "device", client: "A" }, text: "A acts at once." },
+      ]),
+    );
+    restore();
+    const words = [...container.querySelectorAll("p")].find(
+      (p) => p.textContent === "A acts at once.",
+    );
+    expect(words).toBeTruthy();
+    expect(words?.closest("[aria-hidden='true']")).toBeTruthy();
   });
 });
