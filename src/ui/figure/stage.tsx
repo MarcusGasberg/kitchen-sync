@@ -27,6 +27,7 @@ import {
   frameFor,
   intersects,
   litOf,
+  MARGIN_PX,
   type MessageAnchor,
   type Size,
   transformOf,
@@ -207,18 +208,50 @@ export function Stage({
   };
   const ready = size.width > 0 && size.height > 0 && measured.size.width > 0;
 
-  // The last view drawn: a shot whose subjects are gone keeps it.
+  // The last view drawn: a shot whose subjects are gone keeps it. With it,
+  // the shot it was drawn for.
   const last = useRef<View | null>(null);
+  const lastShot = useRef<{
+    readonly cut: Cut;
+    readonly shot: number;
+  } | null>(null);
+  // The view drawn as the cue's shot began, kept while that shot plays, when
+  // the camera arrived from the shot before: a shot that eases from that one
+  // starts where the camera was, though the layout may have changed under it
+  // (an add's row lands and its pane grows). A seek is not an arrival, and
+  // eases from the shot before as `cameraAt` recomputes it.
+  const cutNow = cue.kind === "shot" ? cue.cut : null;
+  const shotNow = cue.kind === "shot" ? cue.cursor.shot : null;
+  const arriving =
+    cutNow !== null &&
+    shotNow !== null &&
+    lastShot.current?.cut === cutNow &&
+    lastShot.current.shot === shotNow - 1
+      ? last.current
+      : null;
+  const [entry, setEntry] = useState<{
+    readonly cut: Cut | null;
+    readonly shot: number | null;
+    readonly view: View | null;
+  }>({ cut: null, shot: null, view: null });
+  const entered = entry.cut === cutNow && entry.shot === shotNow;
+  if (!entered) setEntry({ cut: cutNow, shot: shotNow, view: arriving });
   const camera: View | null = !ready
     ? null
     : cue.kind === "shot"
       ? cameraAt(cue.cut, cue.cursor, anchors, size, {
           reduced,
           fallback: last.current,
+          entry: entered ? entry.view : arriving,
         })
       : freeView(cue.focus, anchors, size);
   useEffect(() => {
-    if (camera !== null) last.current = camera;
+    if (camera === null) return;
+    last.current = camera;
+    lastShot.current =
+      cutNow === null || shotNow === null
+        ? null
+        : { cut: cutNow, shot: shotNow };
   });
 
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
@@ -318,6 +351,9 @@ export function Stage({
             fade
               ? ({
                   "--share-from": `${fitArea(size, true).right}px`,
+                  // From the framing margin before the share: a subject
+                  // framed against it keeps full ink.
+                  "--fade-from": `${fitArea(size, true).right - MARGIN_PX}px`,
                 } as CSSProperties)
               : undefined
           }

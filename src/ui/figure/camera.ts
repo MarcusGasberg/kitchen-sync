@@ -60,6 +60,10 @@ export const SERVER_RING_PAD_PX = 64;
 // A split on a narrow viewport pans from one device to the next: each takes
 // an equal share of the hold, the first PAN_SHARE of which moves to it.
 export const PAN_SHARE = 0.2;
+// Screen milliseconds over which a shot eases from the view of the shot
+// before it, when the two share a frame but not a view (an add acted out on
+// a pane, then held on its new row beside a note).
+export const EASE_MILLIS = 400;
 // Plane pixels kept around a message when its wire was not measured.
 const MESSAGE_PAD_PX = 48;
 
@@ -495,25 +499,62 @@ export const zoomPath = (
   };
 };
 
+// Whether two views are one on screen: within half a pixel and a thousandth
+// of scale.
+const sameView = (a: View, b: View): boolean =>
+  Math.abs(a.x - b.x) <= 0.5 &&
+  Math.abs(a.y - b.y) <= 0.5 &&
+  Math.abs(a.scale - b.scale) <= 0.001;
+
 // The view at the cursor. A shot holds its frame (a split on a narrow
-// viewport pans across its devices); a move runs from where the shot before
-// it ended to its own frame, eased and kept on the plane, and under reduced
-// motion is its own at once. Nothing measured keeps `fallback`, the last view
-// drawn, or else goes wide.
+// viewport pans across its devices). After a shot that shares its frame but
+// not its view, it first eases there over EASE_MILLIS (or its own length),
+// so nothing cuts inside one frame. The ease starts from `entry`, the view
+// drawn as the shot began, when the stage knows it: the shot before's view,
+// recomputed now, can differ from it, as an add's row lands and its pane
+// grows. A move runs from where the shot before it ended to its own frame,
+// eased and kept on the plane. Under reduced motion each is its own view at
+// once. Nothing measured keeps `fallback`, the last view drawn, or else goes
+// wide.
 export const cameraAt = (
   cut: Cut,
   cursor: CutCursor,
   anchors: Anchors,
   viewport: Size,
-  options: { readonly reduced: boolean; readonly fallback: View | null },
+  options: {
+    readonly reduced: boolean;
+    readonly fallback: View | null;
+    readonly entry?: View | null;
+  },
 ): View => {
   const rest = options.fallback ?? wideView(anchors, viewport);
   const shot = cut.shots[cursor.shot];
   if (shot === undefined) return rest;
   if (!shot.move) {
-    return (
-      heldAt(shot, cursor.offset, anchors, viewport, options.reduced) ?? rest
+    const view = heldAt(
+      shot,
+      cursor.offset,
+      anchors,
+      viewport,
+      options.reduced,
     );
+    if (view === null) return rest;
+    const before = cut.shots[cursor.shot - 1];
+    const span = Math.min(EASE_MILLIS, shot.screen);
+    if (
+      options.reduced ||
+      before === undefined ||
+      before.move ||
+      span <= 0 ||
+      cursor.offset >= span
+    ) {
+      return view;
+    }
+    const from =
+      options.entry ?? heldAt(before, before.screen, anchors, viewport, false);
+    if (from === null || sameView(from, view)) return view;
+    const t = easeInOut(Math.max(0, cursor.offset) / span);
+    return along(from, view, t, anchors, viewport);
   }
   const target = frameFor(shot, anchors, viewport) ?? rest;
   if (options.reduced || shot.screen <= 0) return target;

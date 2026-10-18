@@ -6,6 +6,7 @@ import {
   cameraAt,
   DETAIL_PAD_PX,
   densityFor,
+  EASE_MILLIS,
   FOLLOW_MAX_SCALE,
   FOLLOW_PAD_PX,
   fitArea,
@@ -669,6 +670,93 @@ describe("moving", () => {
     ).toEqual(wide);
     for (const value of Object.values(wide))
       expect(Number.isFinite(value)).toBe(true);
+  });
+
+  describe("within one frame", () => {
+    // An add acted out on B frames its pane (its row does not exist yet);
+    // the hold that follows frames the basin and the new row, beside its
+    // note. The two share a frame, so no move runs between them.
+    const enact = shot({
+      framing: "close",
+      subjects: [{ kind: "device", client: "B" }],
+      screen: 1400,
+    });
+    const hold = shot({
+      framing: "close",
+      subjects: PULLS.slice(0, 3),
+      notes: [{ on: PULLS[1] as Shot["subjects"][number], text: "Lands." }],
+      screen: 3000,
+    });
+    const at = (cut: Cut, index: number, offset: number, reduced = false) =>
+      cameraAt(cut, { shot: index, offset }, DETAIL, viewport, {
+        reduced,
+        fallback: null,
+      });
+    const from = frameFor(enact, DETAIL, viewport);
+    const to = frameFor(hold, DETAIL, viewport);
+
+    it("eases from the shot before's view to its own over EASE_MILLIS", () => {
+      const cut: Cut = { shots: [enact, hold], steps: [] };
+      expect(from).not.toEqual(to);
+      expect(at(cut, 1, 0)).toEqual(from);
+      const half = at(cut, 1, EASE_MILLIS / 2);
+      const [low, high] = [from?.scale ?? 0, to?.scale ?? 0].sort(
+        (a, b) => a - b,
+      );
+      expect(half.scale).toBeGreaterThan(low ?? 0);
+      expect(half.scale).toBeLessThan(high ?? 0);
+      for (const offset of [EASE_MILLIS, 2000]) {
+        expect(at(cut, 1, offset)).toEqual(to);
+      }
+      // A hold shorter than the ease eases over its own length.
+      const brief: Cut = {
+        shots: [enact, { ...hold, screen: 200 }],
+        steps: [],
+      };
+      expect(at(brief, 1, 200)).toEqual(to);
+    });
+
+    it("holds at once when the views are the same, and under reduced motion", () => {
+      const again: Cut = { shots: [enact, { ...enact }], steps: [] };
+      expect(at(again, 1, 0)).toEqual(from);
+      const cut: Cut = { shots: [enact, hold], steps: [] };
+      expect(at(cut, 1, 0, true)).toEqual(to);
+      expect(at(cut, 1, EASE_MILLIS / 2, true)).toEqual(to);
+    });
+
+    it("does not ease a hold after a move: the move has brought it there", () => {
+      const cut: Cut = {
+        shots: [
+          shot({
+            framing: "close",
+            subjects: [{ kind: "device", client: "A" }],
+          }),
+          { ...hold, notes: [], move: true, screen: 800 },
+          hold,
+        ],
+        steps: [],
+      };
+      expect(at(cut, 2, 0)).toEqual(to);
+    });
+
+    // The add's row lands as the hold begins, so the pane the enactment
+    // framed is a row taller now: recomputed, its view is not the one drawn.
+    // Given the view drawn as the shot began, the ease starts there.
+    it("eases from the view drawn as the shot began, when it is given", () => {
+      const cut: Cut = { shots: [enact, hold], steps: [] };
+      const drawn: View = { x: 540, y: 600, scale: 1.1 };
+      const entering = (offset: number) =>
+        cameraAt(cut, { shot: 1, offset }, DETAIL, viewport, {
+          reduced: false,
+          fallback: null,
+          entry: drawn,
+        });
+      expect(entering(0)).toEqual(drawn);
+      const half = entering(EASE_MILLIS / 2);
+      expect(half.scale).toBeGreaterThan(1.1);
+      expect(half.scale).toBeLessThan(to?.scale ?? 0);
+      expect(entering(EASE_MILLIS)).toEqual(to);
+    });
   });
 });
 

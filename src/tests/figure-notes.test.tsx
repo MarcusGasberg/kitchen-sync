@@ -4,6 +4,7 @@ import type { Note } from "#/lib/director/shots";
 import { type Anchors, NOTE_SHARE } from "#/ui/figure/camera";
 import {
   EDGE_PX,
+  FEATHER_PX,
   LINE_PX,
   NOTE_GAP_PX,
   NOTE_MAX_PX,
@@ -231,6 +232,39 @@ describe("placeNotes", () => {
     expect(only(placed, "B pulls v6.").pin?.x).toBe(
       onScreen({ x: 410, y: 0 }).x,
     );
+  });
+
+  // The window's edges fade over FEATHER_PX: a dot there or past them would
+  // float on nothing.
+  it("drops a dot outside the window less its feather, and beside the subjects its leader, keeping the words", () => {
+    const row = note({ kind: "row", where: "C", itemId: "1" }, "Arrives.");
+    // Beside: C's row end (610, 310) moved to 10 px from the window's foot.
+    const [low] = placeNotes([row], ANCHORS, { x: 500, y: 20, scale: 1 }, WIDE);
+    expect(low?.pin).toBeNull();
+    expect(low?.leader).toBeNull();
+    expect(low?.at).not.toBeNull();
+    expect(low?.text).toBe("Arrives.");
+    // Just inside the feather, it stays.
+    const [kept] = placeNotes(
+      [row],
+      ANCHORS,
+      { x: 500, y: 300 + 310 - (600 - FEATHER_PX - 1), scale: 1 },
+      WIDE,
+    );
+    expect(kept?.pin?.y).toBe(600 - FEATHER_PX - 1);
+    expect(kept?.leader).not.toBeNull();
+    // Under the subjects: the row's end 10 px from a 400 px phone's edge.
+    const phone = { width: 400, height: 700 };
+    const [edge] = placeNotes(
+      [row],
+      ANCHORS,
+      { x: 610 - 190, y: 300, scale: 1 },
+      phone,
+    );
+    expect(edge?.pin).toBeNull();
+    expect(edge?.text).toBe("Arrives.");
+    const [inside] = placeNotes([row], ANCHORS, IDENTITY, phone);
+    expect(inside?.pin).not.toBeNull();
   });
 
   it("never lets notes overlap in a short strip: the extras run off its foot", () => {

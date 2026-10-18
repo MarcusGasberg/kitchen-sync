@@ -24,10 +24,12 @@
 }
 
 /* The lens over the plane: the window's four edges fade to the page over
-   24 px, so no glyph is sliced at them. While notes show beside the
-   subjects, the plane also fades out over the 32 px before their share, so
-   their words sit on the page. The layers intersect. A mask reads alpha
-   alone: #000 is opaque, never a colour on screen. */
+   24 px (FEATHER_PX in note-placement.ts), so no glyph is sliced at them.
+   While notes show beside the subjects, the plane also fades out from
+   `--fade-from` (the framing margin before their share, set by the stage)
+   to `--share-from`, so their words sit on the page and a subject framed
+   against the share keeps full ink. The layers intersect. A mask reads
+   alpha alone: #000 is opaque, never a colour on screen. */
 .lens {
   --feather: var(--space-5);
   --across: linear-gradient(
@@ -55,7 +57,7 @@
 .lens[data-notes] {
   --share: linear-gradient(
     to right,
-    #000 calc(var(--share-from) - var(--space-6)),
+    #000 var(--fade-from),
     transparent var(--share-from)
   );
   -webkit-mask-image: var(--across), var(--down), var(--share);

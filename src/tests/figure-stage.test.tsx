@@ -4,6 +4,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
+import { MARGIN_PX } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
@@ -637,6 +638,11 @@ describe("Stage", () => {
     expect(
       Number.parseFloat(lens?.style.getPropertyValue("--share-from") ?? ""),
     ).toBeCloseTo(660);
+    // The fade starts at the framing margin before the share, so a subject
+    // framed against the share keeps full ink.
+    expect(
+      Number.parseFloat(lens?.style.getPropertyValue("--fade-from") ?? ""),
+    ).toBeCloseTo(660 - MARGIN_PX);
     noted.unmount();
     const bare = await staged(closeOn("A"));
     bare.restore();
@@ -645,6 +651,133 @@ describe("Stage", () => {
     const phone = await staged(closeOn("A", NOTED), { layout: PHONE });
     phone.restore();
     expect(lensOf(phone.container)?.hasAttribute("data-notes")).toBe(false);
+  });
+
+  // An add acted out on A, then held on A with its note: one frame, two
+  // views. The add's row lands as the hold begins and A's pane grows, so the
+  // ease into the hold starts from the view the camera drew, not from the
+  // enactment's view recomputed on the taller pane.
+  it("eases into a hold from where the camera was, though the layout changed under it", async () => {
+    const shotOf = (notes: Shot["notes"]): Shot => ({
+      framing: "close",
+      subjects: [{ kind: "device", client: "A" }],
+      from: 0,
+      to: 0,
+      rate: 0,
+      screen: 1000,
+      through: 0,
+      enact: null,
+      notes,
+      move: false,
+      opening: false,
+      step: 0,
+    });
+    const cut = {
+      shots: [shotOf([]), shotOf(NOTED)],
+      steps: [{ label: "Test.", first: 0, end: 2, startedAt: 0, endedAt: 0 }],
+    };
+    const at = (shot: number): Cue => ({
+      kind: "shot",
+      cut,
+      cursor: { shot, offset: shot === 0 ? 500 : 0 },
+    });
+    const numbers = (container: HTMLElement) =>
+      (
+        container.querySelector<HTMLElement>("[data-anchor='plane']")?.style
+          .transform ?? ""
+      )
+        .match(/-?[\d.]+(e-?\d+)?/g)
+        ?.map(Number) ?? [];
+    const enacted = await staged(at(0));
+    const drawn = numbers(enacted.container);
+    enacted.restore();
+    expect(drawn).toHaveLength(3);
+    const taller = stubLayout(
+      new Map([
+        ...LAYOUT,
+        ["devices", rect(40, 400, 1180, 890)],
+        ["A", rect(40, 400, 360, 890)],
+      ]),
+    );
+    const view = makeStageView()(await snapshot(), new Map());
+    enacted.rerender(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={at(1)}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    const entered = numbers(enacted.container);
+    taller();
+    for (const [i, value] of drawn.entries()) {
+      expect(entered[i]).toBeCloseTo(value);
+    }
+  });
+
+  // Back and Step land on a step's opening at offset 0, paused. A seek is
+  // not an arrival: the ease into it starts from the shot before it, not
+  // from wherever the camera was.
+  it("eases a seek's landing from the shot before it, not from where the camera was", async () => {
+    const shotOf = (client: string, notes: Shot["notes"]): Shot => ({
+      framing: "close",
+      subjects: [{ kind: "device", client }],
+      from: 0,
+      to: 0,
+      rate: 0,
+      screen: 1000,
+      through: 0,
+      enact: null,
+      notes,
+      move: false,
+      opening: false,
+      step: 0,
+    });
+    const cut = {
+      shots: [shotOf("A", []), shotOf("A", NOTED), shotOf("B", [])],
+      steps: [{ label: "Test.", first: 0, end: 3, startedAt: 0, endedAt: 0 }],
+    };
+    const at = (shot: number, offset: number): Cue => ({
+      kind: "shot",
+      cut,
+      cursor: { shot, offset },
+    });
+    const transform = (container: HTMLElement) =>
+      container.querySelector<HTMLElement>("[data-anchor='plane']")?.style
+        .transform;
+    const view = makeStageView()(await snapshot(), new Map());
+    const stage = (cue: Cue) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={cue}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const { container, rerender, restore } = await staged(at(0, 500));
+    const onA = transform(container);
+    rerender(stage(at(2, 500)));
+    const onB = transform(container);
+    expect(onB).not.toBe(onA);
+    rerender(stage(at(1, 0)));
+    expect(transform(container)).toBe(onA);
+    restore();
   });
 
   it("keeps All devices in the foot, never over the plane", async () => {

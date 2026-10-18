@@ -32,6 +32,10 @@ const LEADER_GAP_PX = 6;
 const LONE_GAP_PX = 12;
 // How far inside the notes' share a leader drops from the wire band.
 const SHARE_INSET_PX = 12;
+// The stage's lens fades the window's edges over this (`--feather`, the
+// 1.5rem space token): a dot there or past them would float on nothing, so
+// it is dropped, and beside the subjects its leader with it.
+export const FEATHER_PX = 24;
 
 export interface PlacedNote {
   readonly key: string;
@@ -44,9 +48,11 @@ export interface PlacedNote {
     readonly width: number;
   } | null;
   // From the subject's end into the note, as an orthogonal polyline; null
-  // under the subjects, or when the subject was not measured.
+  // under the subjects, when the subject was not measured, or when its end
+  // lies outside the window less its feather.
   readonly leader: ReadonlyArray<Point> | null;
-  // The dot at the subject's end; null when the subject was not measured.
+  // The dot at the subject's end; null when the subject was not measured or
+  // its end lies outside the window less its feather.
   readonly pin: Point | null;
 }
 
@@ -187,13 +193,22 @@ export const placeNotes = (
       return (x === null ? 1 : 0) - (y === null ? 1 : 0);
     return x - y;
   });
+  // A subject's end shows a dot only inside the window, less its feather.
+  const shown = (p: Point | null): Point | null =>
+    p !== null &&
+    p.x >= FEATHER_PX &&
+    p.x <= viewport.width - FEATHER_PX &&
+    p.y >= FEATHER_PX &&
+    p.y <= viewport.height - FEATHER_PX
+      ? p
+      : null;
   if (!beside) {
     return ordered.map((target) => ({
       key: String(target.index),
       text: target.note.text,
       at: null,
       leader: null,
-      pin: endOf(target),
+      pin: shown(endOf(target)),
     }));
   }
 
@@ -312,13 +327,14 @@ export const placeNotes = (
 
   return ordered.map((target, i) => {
     const top = final[i] ?? strip.top;
-    const leader = route(target, top + LINE_PX / 2);
+    const routed = route(target, top + LINE_PX / 2);
+    const pin = shown(routed?.[0] ?? null);
     return {
       key: String(target.index),
       text: target.note.text,
       at: { left: strip.left, top, width: strip.width },
-      leader,
-      pin: leader?.[0] ?? null,
+      leader: pin === null ? null : routed,
+      pin,
     };
   });
 };
