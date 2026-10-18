@@ -4,6 +4,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
+import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
@@ -340,12 +341,13 @@ describe("Stage", () => {
     ["server-basin", rect(40, 40, 700, 300)],
     ["server-list", rect(740, 40, 1160, 260)],
     ["server", rect(40, 40, 1160, 300)],
-    ["devices", rect(40, 400, 1160, 860)],
+    ["devices", rect(40, 400, 1180, 860)],
     ["A", rect(40, 400, 360, 860)],
-    // Far enough right that A's close-up does not reach it.
-    ["B", rect(760, 400, 1080, 860)],
+    // Far enough right that A's close-up, held on the plane from its left
+    // edge, does not reach it.
+    ["B", rect(860, 400, 1180, 860)],
     ["basin:A", rect(40, 430, 360, 558)],
-    ["basin:B", rect(760, 430, 1080, 558)],
+    ["basin:B", rect(860, 430, 1180, 558)],
   ]);
 
   const staged = async (
@@ -376,6 +378,21 @@ describe("Stage", () => {
     );
     return { ...result, restore };
   };
+
+  it("measures the world's band of basins: the server from its top to its basin's foot, each device to its basin's foot", async () => {
+    const { container, restore } = await staged(FREE);
+    const plane = container.querySelector<HTMLElement>("[data-anchor='plane']");
+    const world = plane === null ? undefined : measureWorld(plane).boxes;
+    restore();
+    // The server's top (40) and its basin (to 300); A and B from their tops
+    // (400) to their basins' feet (558); the lists below are left out.
+    expect(world?.get("world")).toEqual({
+      left: 40,
+      top: 40,
+      right: 1180,
+      bottom: 558,
+    });
+  });
 
   it("places the world by the camera: wide in free play, close on a shot's device", async () => {
     const wide = await staged(FREE);
@@ -571,17 +588,73 @@ describe("Stage", () => {
     first.restore();
   });
 
-  it("writes a hold's notes over the viewport, for the eye only", async () => {
-    const { container, restore } = await staged(
-      closeOn("A", [
-        { on: { kind: "device", client: "A" }, text: "A acts at once." },
-      ]),
-    );
-    restore();
-    const words = [...container.querySelectorAll("p")].find(
+  const NOTED: Shot["notes"] = [
+    { on: { kind: "device", client: "A" }, text: "A acts at once." },
+  ];
+  const wordsIn = (container: HTMLElement) =>
+    [...container.querySelectorAll("p")].find(
       (p) => p.textContent === "A acts at once.",
     );
+  const viewportIn = (container: HTMLElement) =>
+    container.querySelector<HTMLElement>("[data-anchor='viewport']");
+  const PHONE = new Map([...LAYOUT, ["viewport", rect(0, 0, 360, 450)]]);
+
+  it("writes a hold's notes over the viewport beside the subjects, for the eye only", async () => {
+    const { container, restore } = await staged(closeOn("A", NOTED));
+    restore();
+    const words = wordsIn(container);
     expect(words).toBeTruthy();
     expect(words?.closest("[aria-hidden='true']")).toBeTruthy();
+    expect(viewportIn(container)?.contains(words ?? null)).toBe(true);
+  });
+
+  it("sets a hold's notes in the foot under a narrow viewport, leaving only the dots in it", async () => {
+    const { container, restore } = await staged(closeOn("A", NOTED), {
+      layout: PHONE,
+    });
+    restore();
+    const words = wordsIn(container);
+    const viewport = viewportIn(container);
+    expect(words).toBeTruthy();
+    expect(words?.closest("[aria-hidden='true']")).toBeTruthy();
+    expect(viewport?.contains(words ?? null)).toBe(false);
+    expect(viewport?.querySelectorAll("circle")).toHaveLength(1);
+    expect(viewport?.querySelectorAll("polyline")).toHaveLength(0);
+  });
+
+  it("fades the plane out across the notes' share while a beside shot has notes", async () => {
+    const lensOf = (container: HTMLElement) =>
+      container.querySelector<HTMLElement>("[data-anchor='lens']");
+    const noted = await staged(closeOn("A", NOTED));
+    noted.restore();
+    const lens = lensOf(noted.container);
+    // The mask wraps the plane, not the notes.
+    expect(
+      lens?.contains(noted.container.querySelector("[data-anchor='plane']")),
+    ).toBe(true);
+    expect(lens?.contains(wordsIn(noted.container) ?? null)).toBe(false);
+    expect(lens?.hasAttribute("data-notes")).toBe(true);
+    expect(
+      Number.parseFloat(lens?.style.getPropertyValue("--share-from") ?? ""),
+    ).toBeCloseTo(660);
+    noted.unmount();
+    const bare = await staged(closeOn("A"));
+    bare.restore();
+    expect(lensOf(bare.container)?.hasAttribute("data-notes")).toBe(false);
+    bare.unmount();
+    const phone = await staged(closeOn("A", NOTED), { layout: PHONE });
+    phone.restore();
+    expect(lensOf(phone.container)?.hasAttribute("data-notes")).toBe(false);
+  });
+
+  it("keeps All devices in the foot, never over the plane", async () => {
+    const { container, restore } = await staged(
+      { kind: "free", focus: "A" },
+      { live: true, layout: PHONE },
+    );
+    restore();
+    const back = screen.getByRole("button", { name: "All devices" });
+    expect(viewportIn(container)?.contains(back)).toBe(false);
+    expect(container.contains(back)).toBe(true);
   });
 });

@@ -1,6 +1,9 @@
-/* A shot's notes: short lines in place over the viewport, on the page's own
-   ground by a halo of it, never in a box, each tied to what it names by a
-   1 px leader in the second ink. The leader draws in; the words follow. */
+/* A shot's notes: short lines in place, never in a box, each tied to what it
+   names by a 1 px leader in the second ink that leaves the subject's end at a
+   2.5 px dot. Beside the subjects the words sit in the notes' share, where the
+   plane is faded to the page; the leader draws in from the dot and the words
+   follow. Under them (a narrow viewport) the words stack in the stage's foot
+   and each subject keeps only its dot. */
 .notes {
   position: absolute;
   inset: 0;
@@ -26,17 +29,22 @@
   animation: appear var(--motion-state) var(--ease-out) both;
 }
 
-.note {
-  position: absolute;
+.note,
+.footNote {
   margin: 0;
   color: var(--text);
   font: 400 var(--text-sm) / 1.45 var(--font-text);
   text-wrap: pretty;
-  text-shadow:
-    0 0 4px var(--page),
-    0 0 4px var(--page),
-    0 0 4px var(--page);
   animation: appear var(--motion-state) var(--ease-out) 120ms both;
+}
+
+.note {
+  position: absolute;
+}
+
+.foot {
+  display: grid;
+  gap: var(--space-1);
 }
 
 @keyframes draw {
@@ -54,7 +62,8 @@
 @media (prefers-reduced-motion: reduce) {
   .leader,
   .pin,
-  .note {
+  .note,
+  .footNote {
     animation: none;
   }
 }
@@ -68,9 +77,9 @@
     fill: CanvasText;
   }
 
-  .note {
+  .note,
+  .footNote {
     color: CanvasText;
-    text-shadow: none;
     background: Canvas;
   }
 }

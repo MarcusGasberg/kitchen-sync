@@ -32,7 +32,8 @@ export interface MessageAnchor {
 }
 
 // The plane as the stage measured it, in the plane's own pixels: boxes keyed
-// by `subjectKey`, plus `wire:<client>`, `basin:<place>` and `basins`.
+// by `subjectKey`, plus `wire:<client>`, `basin:<place>`, `basins` and
+// `world` (the band of basins a wide shot frames).
 export interface Anchors {
   readonly plane: Size;
   readonly boxes: ReadonlyMap<string, Box>;
@@ -43,17 +44,28 @@ export interface Anchors {
 export const MARGIN_PX = 24;
 // A close-up never enlarges the plane past this, so text stays text.
 export const MAX_SCALE = 2;
-// The share of the viewport a shot with notes keeps for them: beside its
-// subjects from NOTES_BESIDE_FROM_PX wide, under them on a narrower one.
+// The share of the viewport a shot with notes keeps for them, beside its
+// subjects, from NOTES_BESIDE_FROM_PX wide. A narrower viewport keeps none:
+// its notes leave the window for the stage's foot.
 export const NOTE_SHARE = 0.34;
 export const NOTES_BESIDE_FROM_PX = 600;
-// A followed message sits this share of the way from the frame's centre back
-// toward where it came from: the frame leads it toward its receiver.
-export const LEAD = 0.2;
-// Plane pixels kept around a followed wire.
-export const FOLLOW_PAD_PX = 96;
+// Plane pixels kept around a followed wire, whose whole length a follow
+// frames, never closer than FOLLOW_MAX_SCALE.
+export const FOLLOW_PAD_PX = 48;
+export const FOLLOW_MAX_SCALE = 1.25;
+// Plane pixels kept around a close-up's basin, rows and rings; around the
+// server's ring, which stands for its basin (as wide as most of the plane).
+export const DETAIL_PAD_PX = 16;
+export const SERVER_RING_PAD_PX = 64;
+// A split on a narrow viewport pans from one device to the next: each takes
+// an equal share of the hold, the first PAN_SHARE of which moves to it.
+export const PAN_SHARE = 0.2;
 // Plane pixels kept around a message when its wire was not measured.
 const MESSAGE_PAD_PX = 48;
+
+// Whether a viewport is wide enough to set notes beside the subjects.
+export const besideIn = (viewport: Size): boolean =>
+  viewport.width >= NOTES_BESIDE_FROM_PX;
 
 const union = (boxes: ReadonlyArray<Box>): Box | null => {
   const [first, ...rest] = boxes;
@@ -84,7 +96,7 @@ const around = (p: Point): Box => ({
 });
 
 // The part of the viewport a shot's subjects fit into: all of it, or, with
-// notes, all but the notes' share.
+// notes beside them, all but the notes' share.
 export const fitArea = (viewport: Size, notes: boolean): Box => {
   const all = {
     left: 0,
@@ -92,10 +104,70 @@ export const fitArea = (viewport: Size, notes: boolean): Box => {
     right: viewport.width,
     bottom: viewport.height,
   };
-  if (!notes) return all;
-  return viewport.width >= NOTES_BESIDE_FROM_PX
+  return notes && besideIn(viewport)
     ? { ...all, right: viewport.width * (1 - NOTE_SHARE) }
-    : { ...all, bottom: viewport.height * (1 - NOTE_SHARE) };
+    : all;
+};
+
+const planeBox = (plane: Size): Box => ({
+  left: 0,
+  top: 0,
+  right: Math.max(1, plane.width),
+  bottom: Math.max(1, plane.height),
+});
+
+// One axis of `clampView`: the span `[low, high]` a view shows, moved by the
+// returned amount to sit inside `[from, to]`, or centred on it when larger.
+const shiftInto = (
+  low: number,
+  high: number,
+  from: number,
+  to: number,
+): number => {
+  if (high - low >= to - from) return (from + to) / 2 - (low + high) / 2;
+  if (low < from) return from - low;
+  if (high > to) return to - high;
+  return 0;
+};
+
+// `view`, moved so the part of the plane `area` shows stays inside `bounds`
+// (the plane, unless a move allows its ends' overshoot): on each axis where it
+// is smaller it is moved in, and where it is larger the bounds are centred.
+// No shot shows void past the plane's edges. With notes beside the subjects
+// the area stops at their share, where the plane is faded out.
+const clampView = (
+  view: View,
+  viewport: Size,
+  bounds: Box,
+  area: Box = fitArea(viewport, false),
+): View => {
+  // Where a screen column or line falls on the plane.
+  const planeX = (x: number) => view.x + (x - viewport.width / 2) / view.scale;
+  const planeY = (y: number) => view.y + (y - viewport.height / 2) / view.scale;
+  const dx = shiftInto(
+    planeX(area.left),
+    planeX(area.right),
+    bounds.left,
+    bounds.right,
+  );
+  const dy = shiftInto(
+    planeY(area.top),
+    planeY(area.bottom),
+    bounds.top,
+    bounds.bottom,
+  );
+  return { x: view.x + dx, y: view.y + dy, scale: view.scale };
+};
+
+// What a view shows past the plane's edges, in plane pixels, on each side.
+const overshootOf = (view: View, viewport: Size, plane: Box): Box => {
+  const seen = visibleBox(view, viewport);
+  return {
+    left: Math.max(0, plane.left - seen.left),
+    top: Math.max(0, plane.top - seen.top),
+    right: Math.max(0, seen.right - plane.right),
+    bottom: Math.max(0, seen.bottom - plane.bottom),
+  };
 };
 
 // The view that fits `b` (plane pixels) into `area` (screen pixels), with a
@@ -121,17 +193,37 @@ export const fitView = (
   };
 };
 
-// The whole plane, never enlarged.
-export const wideView = (anchors: Anchors, viewport: Size): View =>
-  fitView(
-    {
-      left: 0,
-      top: 0,
-      right: Math.max(1, anchors.plane.width),
-      bottom: Math.max(1, anchors.plane.height),
-    },
-    fitArea(viewport, false),
+// `b` fitted into the viewport's area for a shot with or without notes,
+// never closer than `cap`, and kept on the plane.
+const frame = (
+  b: Box,
+  anchors: Anchors,
+  viewport: Size,
+  notes: boolean,
+  cap: number = MAX_SCALE,
+): View => {
+  const area = fitArea(viewport, notes);
+  return clampView(
+    fitView(b, area, viewport, cap),
     viewport,
+    planeBox(anchors.plane),
+    area,
+  );
+};
+
+// The world's band of basins (the server to its basin's foot, the wire band,
+// the devices to their basins' feet), or the whole plane before that was
+// measured; never enlarged.
+export const wideView = (
+  anchors: Anchors,
+  viewport: Size,
+  notes = false,
+): View =>
+  frame(
+    anchors.boxes.get("world") ?? planeBox(anchors.plane),
+    anchors,
+    viewport,
+    notes,
     1,
   );
 
@@ -167,50 +259,186 @@ const measured = (
     return b === null ? [] : [b];
   });
 
-// A shot's view, or null when none of its subjects was measured.
+// Where a subject is: the device or server it is in, or itself.
+const groupOf = (subject: Subject): string => {
+  switch (subject.kind) {
+    case "device":
+    case "outbox":
+      return `place:${subject.client}`;
+    case "row":
+    case "ring":
+      return `place:${subject.where}`;
+    case "server":
+      return `place:${SERVER}`;
+    case "message":
+      return `wire:${subject.client}`;
+    case "basins":
+      return "basins";
+  }
+};
+
+// A shot's subjects by where they are, in the order the shot names them.
+const groupsOf = (
+  subjects: ReadonlyArray<Subject>,
+): ReadonlyArray<ReadonlyArray<Subject>> => {
+  const groups = new Map<string, Array<Subject>>();
+  for (const subject of subjects) {
+    const key = groupOf(subject);
+    const group = groups.get(key) ?? [];
+    group.push(subject);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+};
+
+// What a close-up frames of one place's subjects: what they name, not the
+// whole device. Its rows and rings with its basin, padded; for the server, its
+// rings (padded 64, standing for its basin) with its rows. With no row or ring
+// measured, its containers; with none of those, nothing.
+const groupBox = (
+  subjects: ReadonlyArray<Subject>,
+  anchors: Anchors,
+): Box | null => {
+  const details = subjects.flatMap((subject) =>
+    subject.kind === "row" || subject.kind === "ring" ? [subject] : [],
+  );
+  const rows = measured(
+    details.filter((s) => s.kind === "row"),
+    anchors,
+  );
+  const rings = measured(
+    details.filter((s) => s.kind === "ring"),
+    anchors,
+  );
+  const place = details[0]?.where;
+  if (place !== undefined && rows.length + rings.length > 0) {
+    if (place === SERVER && rings.length > 0) {
+      return union([
+        ...rings.map((b) => pad(b, SERVER_RING_PAD_PX)),
+        ...rows.map((b) => pad(b, DETAIL_PAD_PX)),
+      ]);
+    }
+    const basin = anchors.boxes.get(`basin:${place}`);
+    const all = union([
+      ...(basin === undefined ? [] : [basin]),
+      ...rows,
+      ...rings,
+    ]);
+    return all === null ? null : pad(all, DETAIL_PAD_PX);
+  }
+  return union(
+    measured(
+      subjects.filter((s) => CONTAINERS.has(s.kind)),
+      anchors,
+    ),
+  );
+};
+
+// The boxes a close-up, a split or the light table frames, one per place
+// that was measured.
+const groupBoxes = (
+  shot: Pick<Shot, "subjects">,
+  anchors: Anchors,
+): ReadonlyArray<Box> =>
+  groupsOf(shot.subjects).flatMap((group) => {
+    const b = groupBox(group, anchors);
+    return b === null ? [] : [b];
+  });
+
+// Whether a shot is a split a narrow viewport pans across, one device at a
+// time.
+const pans = (shot: Pick<Shot, "framing">, viewport: Size): boolean =>
+  shot.framing === "split" && !besideIn(viewport);
+
+// A shot's view, or null when none of its subjects was measured. A split on
+// a narrow viewport frames its first device's subjects here; `cameraAt` pans
+// it across the rest.
 export const frameFor = (
   shot: Pick<Shot, "framing" | "subjects" | "notes">,
   anchors: Anchors,
   viewport: Size,
 ): View | null => {
+  const notes = shot.notes.length > 0;
   switch (shot.framing) {
     case "wide":
-      return wideView(anchors, viewport);
+      return wideView(anchors, viewport, notes);
     case "follow": {
+      // The whole wire, from the server's end to the device's, still while
+      // its message travels: the distance is the time it takes.
       const first = shot.subjects.find((s) => s.kind === "message");
       if (first === undefined || first.kind !== "message") return null;
       const wire = anchors.boxes.get(`wire:${first.client}`);
       const message = anchors.messages.get(first.messageId);
-      const frame =
+      const b =
         wire ?? (message === undefined ? undefined : around(message.at));
-      if (frame === undefined) return null;
-      const view = fitView(
-        pad(frame, FOLLOW_PAD_PX),
-        fitArea(viewport, false),
+      if (b === undefined) return null;
+      return frame(
+        pad(b, FOLLOW_PAD_PX),
+        anchors,
         viewport,
+        notes,
+        FOLLOW_MAX_SCALE,
       );
-      if (message === undefined) return view;
-      return {
-        ...view,
-        x: message.at.x + (message.to.x - message.at.x) * LEAD,
-        y: message.at.y + (message.to.y - message.at.y) * LEAD,
-      };
     }
     case "close":
     case "split":
     case "table": {
-      const containers = measured(
-        shot.subjects.filter((s) => CONTAINERS.has(s.kind)),
-        anchors,
-      );
-      const b = union(
-        containers.length > 0 ? containers : measured(shot.subjects, anchors),
-      );
-      return b === null
-        ? null
-        : fitView(b, fitArea(viewport, shot.notes.length > 0), viewport);
+      const boxes = groupBoxes(shot, anchors);
+      const b = pans(shot, viewport) ? (boxes[0] ?? null) : union(boxes);
+      return b === null ? null : frame(b, anchors, viewport, notes);
     }
   }
+};
+
+// One step along the zoom path from `from` to `to` at eased `t`, kept on the
+// plane: a long pan's arc never shows more past its edges than its ends do.
+const along = (
+  from: View,
+  to: View,
+  t: number,
+  anchors: Anchors,
+  viewport: Size,
+): View => {
+  const plane = planeBox(anchors.plane);
+  const start = overshootOf(from, viewport, plane);
+  const end = overshootOf(to, viewport, plane);
+  const slack = (side: keyof Box) =>
+    start[side] + (end[side] - start[side]) * t;
+  return clampView(zoomPath(from, to, viewport)(t), viewport, {
+    left: plane.left - slack("left"),
+    top: plane.top - slack("top"),
+    right: plane.right + slack("right"),
+    bottom: plane.bottom + slack("bottom"),
+  });
+};
+
+// A held shot's view at `offset` into it: its frame, or for a split on a
+// narrow viewport, the device whose share of the hold it is in, moving there
+// over that share's first PAN_SHARE (at once under reduced motion).
+const heldAt = (
+  shot: Shot,
+  offset: number,
+  anchors: Anchors,
+  viewport: Size,
+  reduced: boolean,
+): View | null => {
+  if (!pans(shot, viewport)) return frameFor(shot, anchors, viewport);
+  const views = groupBoxes(shot, anchors).map((b) =>
+    frame(b, anchors, viewport, shot.notes.length > 0),
+  );
+  const last = views.length - 1;
+  if (last < 0) return null;
+  if (last === 0 || shot.screen <= 0) return views[0] ?? null;
+  const share = shot.screen / views.length;
+  const at = Math.min(shot.screen, Math.max(0, offset));
+  const index = Math.min(last, Math.floor(at / share));
+  const view = views[index] ?? null;
+  const previous = views[index - 1];
+  const into = (at - index * share) / (share * PAN_SHARE);
+  if (view === null || previous === undefined || reduced || into >= 1) {
+    return view;
+  }
+  return along(previous, view, easeInOut(into), anchors, viewport);
 };
 
 // Slow in, slow out.
@@ -267,10 +495,11 @@ export const zoomPath = (
   };
 };
 
-// The view at the cursor. A shot holds its frame (a follow tracks its
-// message); a move runs from the frame before it to its own, eased, and under
-// reduced motion is its own at once. Nothing measured keeps `fallback`, the
-// last view drawn, or else goes wide.
+// The view at the cursor. A shot holds its frame (a split on a narrow
+// viewport pans across its devices); a move runs from where the shot before
+// it ended to its own frame, eased and kept on the plane, and under reduced
+// motion is its own at once. Nothing measured keeps `fallback`, the last view
+// drawn, or else goes wide.
 export const cameraAt = (
   cut: Cut,
   cursor: CutCursor,
@@ -281,15 +510,23 @@ export const cameraAt = (
   const rest = options.fallback ?? wideView(anchors, viewport);
   const shot = cut.shots[cursor.shot];
   if (shot === undefined) return rest;
+  if (!shot.move) {
+    return (
+      heldAt(shot, cursor.offset, anchors, viewport, options.reduced) ?? rest
+    );
+  }
   const target = frameFor(shot, anchors, viewport) ?? rest;
-  if (!shot.move || options.reduced || shot.screen <= 0) return target;
+  if (options.reduced || shot.screen <= 0) return target;
   const previous = cut.shots[cursor.shot - 1];
   const from =
     previous === undefined
       ? target
-      : (frameFor(previous, anchors, viewport) ?? rest);
+      : ((previous.move
+          ? frameFor(previous, anchors, viewport)
+          : heldAt(previous, previous.screen, anchors, viewport, false)) ??
+        rest);
   const t = easeInOut(Math.min(1, Math.max(0, cursor.offset / shot.screen)));
-  return zoomPath(from, target, viewport)(t);
+  return along(from, target, t, anchors, viewport);
 };
 
 // The CSS transform that puts `view` on screen (origin at the plane's top left).

@@ -1,3 +1,10 @@
+/* The stage: the camera's window on the world, and under it a foot. */
+.stage {
+  display: grid;
+  row-gap: var(--space-3);
+  min-width: 0;
+}
+
 /* The camera's window on the world: a fixed shape that clips the plane.
    Nothing is drawn on it, so its edges are the page's. 16:10 from 45rem,
    4:5 on a phone, never taller than most of the screen. */
@@ -14,6 +21,59 @@
     aspect-ratio: 4 / 5;
     max-block-size: 75svh;
   }
+}
+
+/* The lens over the plane: the window's four edges fade to the page over
+   24 px, so no glyph is sliced at them. While notes show beside the
+   subjects, the plane also fades out over the 32 px before their share, so
+   their words sit on the page. The layers intersect. A mask reads alpha
+   alone: #000 is opaque, never a colour on screen. */
+.lens {
+  --feather: var(--space-5);
+  --across: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--feather),
+    #000 calc(100% - var(--feather)),
+    transparent
+  );
+  --down: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--feather),
+    #000 calc(100% - var(--feather)),
+    transparent
+  );
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: var(--across), var(--down);
+  mask-image: var(--across), var(--down);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.lens[data-notes] {
+  --share: linear-gradient(
+    to right,
+    #000 calc(var(--share-from) - var(--space-6)),
+    transparent var(--share-from)
+  );
+  -webkit-mask-image: var(--across), var(--down), var(--share);
+  mask-image: var(--across), var(--down), var(--share);
+}
+
+/* Under the window, never over the plane. During a scene on a narrow
+   viewport it holds the hold's notes, and keeps two notes' lines however
+   few there are, so the page holds still from hold to hold; in free play it
+   holds the way back to every device, its room kept while none is shown. */
+.foot[data-foot="notes"] {
+  min-block-size: calc(2 * var(--text-sm) * 1.45);
+}
+
+.foot[data-foot="free"] {
+  display: flex;
+  justify-content: flex-end;
+  min-block-size: var(--target);
 }
 
 /* The world plane: laid out once, at the app's own density, at every screen
@@ -121,13 +181,6 @@
 .show:focus-visible {
   outline: calc(2px / var(--camera-scale, 1)) solid var(--text);
   outline-offset: calc(var(--space-2) / var(--camera-scale, 1));
-}
-
-.back {
-  position: absolute;
-  inset-block-start: var(--space-4);
-  inset-inline-end: var(--space-4);
-  z-index: 3;
 }
 
 @media (prefers-reduced-motion: reduce) {

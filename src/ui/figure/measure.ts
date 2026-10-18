@@ -66,6 +66,26 @@ export const measureWorld = (plane: HTMLElement): Measured => {
       .map(([, b]) => b),
   );
   if (table !== null) boxes.set("basins", table);
+  // A wide shot frames the world's band of basins: the server's pane from
+  // its top to its basin's foot, the wire band, and each device from its top
+  // to its basin's foot. The lists under the basins are left below.
+  const topOf = (b: Box): Box => ({ ...b, bottom: b.top });
+  const server = boxes.get("server");
+  const serverBasin = boxes.get("basin:server");
+  const world = unionOf([
+    ...(server === undefined ? [] : [topOf(server)]),
+    ...(serverBasin === undefined ? [] : [serverBasin]),
+    ...[...boxes].flatMap(([key, device]) => {
+      if (!key.startsWith("device:")) return [];
+      const basin = boxes.get(`basin:${key.slice("device:".length)}`);
+      return [
+        basin === undefined
+          ? topOf(device)
+          : { ...device, bottom: Math.max(device.top, basin.bottom) },
+      ];
+    }),
+  ]);
+  if (world !== null) boxes.set("world", world);
 
   const basin = plane.querySelector("[data-anchor='server-basin']");
   const list = plane.querySelector("[data-anchor='server-list']");

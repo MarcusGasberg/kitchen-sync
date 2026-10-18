@@ -1,25 +1,17 @@
-import type { Note } from "#/lib/director/shots";
-import type { Anchors, Size, View } from "./camera";
-import { placeNotes } from "./note-placement";
+import type { Size } from "./camera";
+import type { PlacedNote } from "./note-placement";
 import styles from "./stage-notes.module.css";
 
 interface StageNotesProps {
-  readonly notes: ReadonlyArray<Note>;
-  readonly anchors: Anchors;
-  readonly view: View;
+  readonly placed: ReadonlyArray<PlacedNote>;
   readonly viewport: Size;
 }
 
-// A shot's notes over the viewport: a few words each, tied to what they name
-// by a fine leader. Hidden from assistive technology, since the caption (and
-// later the transcript) carries the same words.
-export function StageNotes({
-  notes,
-  anchors,
-  view,
-  viewport,
-}: StageNotesProps) {
-  const placed = placeNotes(notes, anchors, view, viewport);
+// A shot's notes over the viewport: a dot at each subject's end and, beside
+// the subjects, a few words each in the notes' share, tied to it by a fine
+// leader. Hidden from assistive technology, since the caption (and later the
+// transcript) carries the same words.
+export function StageNotes({ placed, viewport }: StageNotesProps) {
   return (
     <div className={styles.notes} aria-hidden="true">
       <svg
@@ -30,30 +22,56 @@ export function StageNotes({
         viewBox={`0 0 ${viewport.width} ${viewport.height}`}
       >
         {placed.map((note) =>
-          note.leader === null ? null : (
+          note.pin === null ? null : (
             <g key={note.key}>
-              <polyline
-                className={styles.leader}
-                fill="none"
-                points={note.leader.map((p) => `${p.x},${p.y}`).join(" ")}
-                pathLength={1}
-              />
+              {note.leader !== null && (
+                <polyline
+                  className={styles.leader}
+                  fill="none"
+                  points={note.leader.map((p) => `${p.x},${p.y}`).join(" ")}
+                  pathLength={1}
+                />
+              )}
               <circle
                 className={styles.pin}
-                cx={note.leader[note.leader.length - 1]?.x}
-                cy={note.leader[note.leader.length - 1]?.y}
+                cx={note.pin.x}
+                cy={note.pin.y}
                 r={2.5}
               />
             </g>
           ),
         )}
       </svg>
+      {placed.map((note) =>
+        note.at === null ? null : (
+          <p
+            key={note.key}
+            className={styles.note}
+            style={{
+              left: note.at.left,
+              top: note.at.top,
+              width: note.at.width,
+            }}
+          >
+            {note.text}
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
+// A shot's notes under a narrow viewport, in the stage's foot: the words
+// alone, stacked in the order of what they name, for the eye only.
+export function FootNotes({
+  placed,
+}: {
+  readonly placed: ReadonlyArray<PlacedNote>;
+}) {
+  return (
+    <div className={styles.foot} aria-hidden="true">
       {placed.map((note) => (
-        <p
-          key={note.key}
-          className={styles.note}
-          style={{ left: note.left, top: note.top, width: note.width }}
-        >
+        <p key={note.key} className={styles.footNote}>
           {note.text}
         </p>
       ))}

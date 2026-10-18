@@ -20,8 +20,10 @@ import { QuickAdd } from "#/ui/quick-add";
 import { StatusBand } from "#/ui/status-band";
 import {
   type Anchors,
+  besideIn,
   cameraAt,
   densityFor,
+  fitArea,
   frameFor,
   intersects,
   litOf,
@@ -33,8 +35,9 @@ import {
   wideView,
 } from "./camera";
 import { type Measured, measureWorld, sameMeasure } from "./measure";
+import { placeNotes } from "./note-placement";
 import styles from "./stage.module.css";
-import { StageNotes } from "./stage-notes";
+import { FootNotes, StageNotes } from "./stage-notes";
 import type { StageView } from "./stage-view";
 import { WireBand } from "./wire-band";
 import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
@@ -280,195 +283,225 @@ export function Stage({
     }
   };
 
+  // A hold's notes: beside the subjects on a wide viewport, where the plane
+  // fades out across their share; on a narrow one, in the foot under it.
+  const beside = besideIn(size);
+  const placed =
+    camera !== null && shot !== undefined && !shot.move && shot.notes.length > 0
+      ? placeNotes(shot.notes, anchors, camera, size)
+      : [];
+  const fade = beside && placed.length > 0;
+  const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
+  // The foot under the window: a narrow viewport's notes for the whole
+  // scene, so the page holds still between holds; free play's way back.
+  const foot =
+    cue.kind === "shot"
+      ? beside
+        ? null
+        : "notes"
+      : live || focused !== null
+        ? "free"
+        : null;
+
   const { server } = view;
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: Escape returns a close-up to every device; the viewport is not itself a control
-    <div
-      ref={viewport}
-      className={styles.viewport}
-      data-anchor="viewport"
-      onKeyDown={onKeyDown}
-    >
-      <div
-        ref={plane}
-        className={[
-          styles.plane,
-          // Only once a view has been drawn: the first placement lands at once.
-          cue.kind === "free" && !reduced && last.current !== null
-            ? styles.gliding
-            : "",
-          moving && !reduced ? styles.moving : "",
-        ].join(" ")}
-        data-anchor="plane"
-        style={
-          {
-            transform: camera === null ? undefined : transformOf(camera, size),
-            "--clients": view.devices.length,
-            "--camera-scale": camera?.scale ?? 1,
-          } as CSSProperties
-        }
-      >
-        {/* The server is a pane like a device's: its list, compact and in
-            two columns, beside its basin, from whose foot the wires leave. */}
+    // biome-ignore lint/a11y/noStaticElementInteractions: Escape returns a close-up to every device; the stage is not itself a control
+    <div className={styles.stage} onKeyDown={onKeyDown}>
+      <div ref={viewport} className={styles.viewport} data-anchor="viewport">
+        {/* The camera's lens: the window's edges feathered, and the notes'
+            share faded, over the plane alone. */}
         <div
-          className={styles.server}
-          data-anchor-key="server"
-          data-place="server"
-          data-dim={dim("server")}
+          className={styles.lens}
+          data-anchor="lens"
+          data-notes={fade ? "" : undefined}
+          style={
+            fade
+              ? ({
+                  "--share-from": `${fitArea(size, true).right}px`,
+                } as CSSProperties)
+              : undefined
+          }
         >
-          <Pane level={3} title="Server" status={server.line}>
-            <div className={styles.serverBody}>
-              {/* biome-ignore lint/a11y/useSemanticElements: a group of the list's sections, not a form's fields */}
-              <div
-                className={styles.serverList}
-                role="group"
-                aria-label="The server's items"
-                data-anchor="server-list"
-              >
-                <GroceryList
-                  groups={server.list.groups}
-                  rejected={[]}
-                  headingLevel={4}
-                  density="compact"
-                  columns={2}
-                />
-              </div>
-              <div
-                className={styles.serverBasin}
-                data-anchor="server-basin"
-                data-anchor-key="basin:server"
-              >
-                <Basin
-                  items={server.items}
-                  labels={server.labels}
-                  label="The server's list"
-                  settle={settle}
-                  scale={scale}
-                  density={density}
-                  active={inView("basin:server")}
-                  ringAnchors="server"
-                />
-              </div>
-            </div>
-          </Pane>
-        </div>
-
-        <div className={styles.devices} data-anchor="devices">
-          {view.devices.map((device) => (
-            // biome-ignore lint/a11y/noStaticElementInteractions: focus entering a device's pane shows it up close in free play; the container is not itself a control
+          <div
+            ref={plane}
+            className={[
+              styles.plane,
+              // Only once a view has been drawn: the first placement lands at
+              // once.
+              cue.kind === "free" && !reduced && last.current !== null
+                ? styles.gliding
+                : "",
+              moving && !reduced ? styles.moving : "",
+            ].join(" ")}
+            data-anchor="plane"
+            style={
+              {
+                transform:
+                  camera === null ? undefined : transformOf(camera, size),
+                "--clients": view.devices.length,
+                "--camera-scale": camera?.scale ?? 1,
+              } as CSSProperties
+            }
+          >
+            {/* The server is a pane like a device's: its list, compact and in
+                two columns, beside its basin, from whose foot the wires
+                leave. */}
             <div
-              key={device.name}
-              className={styles.device}
-              data-anchor="device"
-              data-client={device.name}
-              data-anchor-key={`device:${device.name}`}
-              data-place={device.name}
-              data-dim={dim(`device:${device.name}`)}
-              onFocus={
-                live && cue.kind === "free" && focused !== device.name
-                  ? (event) => {
-                      if (
-                        pending.current?.back !== true &&
-                        event.target instanceof HTMLElement &&
-                        event.target.dataset.show === undefined
-                      ) {
-                        onFocus(device.name);
-                      }
-                    }
-                  : undefined
-              }
+              className={styles.server}
+              data-anchor-key="server"
+              data-place="server"
+              data-dim={dim("server")}
             >
-              <Pane
-                level={3}
-                title={device.name}
-                clientId={device.clientId}
-                status={device.line}
-                basin={
-                  <div data-anchor-key={`basin:${device.name}`}>
+              <Pane level={3} title="Server" status={server.line}>
+                <div className={styles.serverBody}>
+                  {/* biome-ignore lint/a11y/useSemanticElements: a group of the list's sections, not a form's fields */}
+                  <div
+                    className={styles.serverList}
+                    role="group"
+                    aria-label="The server's items"
+                    data-anchor="server-list"
+                  >
+                    <GroceryList
+                      groups={server.list.groups}
+                      rejected={[]}
+                      headingLevel={4}
+                      density="compact"
+                      columns={2}
+                    />
+                  </div>
+                  <div
+                    className={styles.serverBasin}
+                    data-anchor="server-basin"
+                    data-anchor-key="basin:server"
+                  >
                     <Basin
-                      items={device.items}
-                      waiting={device.waiting}
-                      label={`${device.name}'s list`}
+                      items={server.items}
+                      labels={server.labels}
+                      label="The server's list"
                       settle={settle}
                       scale={scale}
                       density={density}
-                      active={inView(`basin:${device.name}`)}
-                      ringAnchors={device.name}
+                      active={inView("basin:server")}
+                      ringAnchors="server"
                     />
                   </div>
-                }
-                band={
-                  <StatusBand
-                    status={device.status}
-                    onRetry={live ? () => onRetry(device.name) : undefined}
-                  />
-                }
-              >
-                {/* The app's own rows: read-only in a scene, taking checks and
-                    removals from the hand-over. */}
-                {live ? (
-                  <GroceryList
-                    groups={device.list.groups}
-                    rejected={device.list.rejected}
-                    headingLevel={4}
-                    onIntent={(intent) => onIntent(device.name, intent)}
-                  />
-                ) : (
-                  <GroceryList
-                    groups={device.list.groups}
-                    rejected={device.list.rejected}
-                    headingLevel={4}
-                  />
-                )}
-                {live && (
-                  <QuickAdd
-                    label={`Add to ${device.name}'s list`}
-                    onAdd={(name) => onAdd(device.name, name)}
-                  />
-                )}
+                </div>
               </Pane>
-              {offerShow && focused !== device.name && (
-                <button
-                  type="button"
-                  className={styles.show}
-                  data-show=""
-                  aria-label={`Show ${device.name} up close`}
-                  onClick={() => show(device.name)}
-                />
-              )}
             </div>
-          ))}
-        </div>
 
-        <WireBand
-          width={measured.size.width}
-          height={measured.size.height}
-          wires={measured.wires}
-          flights={flying}
-          lost={gone}
-          lit={lit}
-        />
+            <div className={styles.devices} data-anchor="devices">
+              {view.devices.map((device) => (
+                // biome-ignore lint/a11y/noStaticElementInteractions: focus entering a device's pane shows it up close in free play; the container is not itself a control
+                <div
+                  key={device.name}
+                  className={styles.device}
+                  data-anchor="device"
+                  data-client={device.name}
+                  data-anchor-key={`device:${device.name}`}
+                  data-place={device.name}
+                  data-dim={dim(`device:${device.name}`)}
+                  onFocus={
+                    live && cue.kind === "free" && focused !== device.name
+                      ? (event) => {
+                          if (
+                            pending.current?.back !== true &&
+                            event.target instanceof HTMLElement &&
+                            event.target.dataset.show === undefined
+                          ) {
+                            onFocus(device.name);
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  <Pane
+                    level={3}
+                    title={device.name}
+                    clientId={device.clientId}
+                    status={device.line}
+                    basin={
+                      <div data-anchor-key={`basin:${device.name}`}>
+                        <Basin
+                          items={device.items}
+                          waiting={device.waiting}
+                          label={`${device.name}'s list`}
+                          settle={settle}
+                          scale={scale}
+                          density={density}
+                          active={inView(`basin:${device.name}`)}
+                          ringAnchors={device.name}
+                        />
+                      </div>
+                    }
+                    band={
+                      <StatusBand
+                        status={device.status}
+                        onRetry={live ? () => onRetry(device.name) : undefined}
+                      />
+                    }
+                  >
+                    {/* The app's own rows: read-only in a scene, taking
+                        checks and removals from the hand-over. */}
+                    {live ? (
+                      <GroceryList
+                        groups={device.list.groups}
+                        rejected={device.list.rejected}
+                        headingLevel={4}
+                        onIntent={(intent) => onIntent(device.name, intent)}
+                      />
+                    ) : (
+                      <GroceryList
+                        groups={device.list.groups}
+                        rejected={device.list.rejected}
+                        headingLevel={4}
+                      />
+                    )}
+                    {live && (
+                      <QuickAdd
+                        label={`Add to ${device.name}'s list`}
+                        onAdd={(name) => onAdd(device.name, name)}
+                      />
+                    )}
+                  </Pane>
+                  {offerShow && focused !== device.name && (
+                    <button
+                      type="button"
+                      className={styles.show}
+                      data-show=""
+                      aria-label={`Show ${device.name} up close`}
+                      onClick={() => show(device.name)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <WireBand
+              width={measured.size.width}
+              height={measured.size.height}
+              wires={measured.wires}
+              flights={flying}
+              lost={gone}
+              lit={lit}
+            />
+          </div>
+        </div>
+        {placed.length > 0 && (
+          <StageNotes key={noteKey} placed={placed} viewport={size} />
+        )}
       </div>
-      {focused !== null && (
-        <div className={styles.back}>
-          <Button kind="secondary" onClick={back}>
-            All devices
-          </Button>
+      {foot !== null && (
+        <div className={styles.foot} data-foot={foot}>
+          {foot === "notes" && placed.length > 0 && (
+            <FootNotes key={noteKey} placed={placed} />
+          )}
+          {foot === "free" && focused !== null && (
+            <Button kind="secondary" onClick={back}>
+              All devices
+            </Button>
+          )}
         </div>
       )}
-      {camera !== null &&
-        cue.kind === "shot" &&
-        shot !== undefined &&
-        !shot.move &&
-        shot.notes.length > 0 && (
-          <StageNotes
-            key={cue.cursor.shot}
-            notes={shot.notes}
-            anchors={anchors}
-            view={camera}
-            viewport={size}
-          />
-        )}
     </div>
   );
 }
