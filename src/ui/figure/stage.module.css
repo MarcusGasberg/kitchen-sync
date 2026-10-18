@@ -29,7 +29,9 @@
    `--fade-from` (the framing margin before their share, set by the stage)
    to `--share-from`, so their words sit on the page and a subject framed
    against the share keeps full ink. The layers intersect. A mask reads
-   alpha alone: #000 is opaque, never a colour on screen. */
+   alpha alone: #000 is opaque, never a colour on screen. Forced colours
+   keep the feather too: a line fading to a partial CanvasText within 24 px
+   of the edge is better than a glyph sliced at it. */
 .lens {
   --feather: var(--space-5);
   --across: linear-gradient(
@@ -62,20 +64,6 @@
   );
   -webkit-mask-image: var(--across), var(--down), var(--share);
   mask-image: var(--across), var(--down), var(--share);
-}
-
-/* Forced colours keep every line whole to the window's edge: no feather.
-   The notes' share still fades, so their words keep their Canvas ground. */
-@media (forced-colors: active) {
-  .lens {
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-
-  .lens[data-notes] {
-    -webkit-mask-image: var(--share);
-    mask-image: var(--share);
-  }
 }
 
 /* Under the window, never over the plane. During a scene on a narrow

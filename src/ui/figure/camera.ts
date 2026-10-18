@@ -518,11 +518,14 @@ const sameView = (a: View, b: View): boolean =>
   Math.abs(a.scale - b.scale) <= 0.001;
 
 // Which shots of a cut frame with the notes' share. A frame run is a
-// maximal sequence of consecutive shots that are not moves and share the
-// director's frame (`frameKey`); a move belongs to the run it leads into.
-// Every shot of a run keeps the share when any of them has notes, so a move
-// into a noted hold ends on the hold's view and an add acted out before its
-// noted hold is framed beside the same share. Kept per cut.
+// maximal sequence of consecutive shots of one step that are not moves or
+// openings and share the director's frame (`frameKey`); a move belongs to
+// the run it leads into. An opening holds the view of the step before and
+// belongs to no run, and no run crosses a step: a step that opens on a noted
+// hold and plays on without notes eases out of the share. Every shot of a
+// run keeps the share when any of them has notes, so a move into a noted
+// hold ends on the hold's view and an add acted out before its noted hold is
+// framed beside the same share. Kept per cut.
 const sharing = new WeakMap<Cut, ReadonlyArray<boolean>>();
 const sharesOf = (cut: Cut): ReadonlyArray<boolean> => {
   const known = sharing.get(cut);
@@ -532,17 +535,19 @@ const sharesOf = (cut: Cut): ReadonlyArray<boolean> => {
   let start = 0;
   while (start < shots.length) {
     const first = shots[start];
-    if (first === undefined || first.move) {
+    if (first === undefined || first.move || first.opening) {
       start++;
       continue;
     }
     const key = frameKey(first);
+    const joins = (shot: Shot | undefined): shot is Shot =>
+      shot !== undefined &&
+      !shot.move &&
+      !shot.opening &&
+      shot.step === first.step &&
+      frameKey(shot) === key;
     let end = start;
-    while (
-      end + 1 < shots.length &&
-      shots[end + 1]?.move === false &&
-      frameKey(shots[end + 1] as Shot) === key
-    ) {
+    while (joins(shots[end + 1])) {
       end++;
     }
     const noted = shots

@@ -796,6 +796,30 @@ describe("moving", () => {
         expect(played.scale).toBeCloseTo(paused.scale);
       });
 
+      // The poke's hold (wide, with notes) ends step 2; step 3 opens on its
+      // view and then plays wide with no notes. A run never crosses a step:
+      // the playing wide keeps no share and eases out of the opening's.
+      it("ends a frame run at the step: the next step's playing wide keeps no share", () => {
+        const poke = shot({
+          framing: "wide",
+          notes: [{ on: { kind: "server" }, text: "The server pokes." }],
+          step: 2,
+        });
+        const opens = shot({ framing: "wide", opening: true, step: 3 });
+        const plays = shot({ framing: "wide", rate: 1, step: 3 });
+        const steps: Cut = { shots: [poke, opens, plays], steps: [] };
+        const held = frameFor(poke, DETAIL, viewport);
+        const bare = wideView(DETAIL, viewport);
+        expect(held).not.toEqual(bare);
+        expect(at(steps, 1, 0)).toEqual(held);
+        expect(at(steps, 2, 0)).toEqual(held);
+        const half = at(steps, 2, EASE_MILLIS / 2);
+        expect(half).not.toEqual(held);
+        expect(half).not.toEqual(bare);
+        expect(at(steps, 2, EASE_MILLIS)).toEqual(bare);
+        expect(at(steps, 2, 600)).toEqual(bare);
+      });
+
       it("opens the first step wide", () => {
         const first: Cut = {
           shots: [shot({ framing: "wide", opening: true }), enact],
