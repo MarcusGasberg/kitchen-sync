@@ -541,7 +541,7 @@
       "camera": {
         "density": "densityFor(scale): 1 up to scale 1, then 1.25 (MAX_SCALE); held while the camera moves (a move, an ease within a frame, a narrow window's pan), taken at rest",
         "maxCanvasPx": 2048,
-        "active": "out of the camera's view a basin stops drawing and keeps its pattern; back in view it draws the latest at once",
+        "active": "out of the camera's view a basin stops drawing and keeps its pattern, its canvas unresized (a new density or box waits); back in view it draws the latest at once, at its size",
         "ringAnchors": "an invisible 1.5rem square per item at where its rings sit once every later drop has pushed them, keyed ring:<place>:<id>; aria-hidden, pointer-events none"
       }
     },

@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Cut, Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
-import { EASE_MILLIS, MARGIN_PX } from "#/ui/figure/camera";
+import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
@@ -430,7 +430,7 @@ describe("Stage", () => {
     const closeScale = scaleOf(close.container);
     close.restore();
     expect(closeScale ?? 0).toBeGreaterThan(wideScale ?? 0);
-    expect(closeScale ?? 3).toBeLessThanOrEqual(2);
+    expect(closeScale ?? 3).toBeLessThanOrEqual(MAX_SCALE);
   });
 
   it("dims what a close-up is not about, and stops drawing basins out of view", async () => {
@@ -594,6 +594,73 @@ describe("Stage", () => {
     expect(a.contains(document.activeElement)).toBe(true);
     expect(screen.queryByRole("button", { name: "All devices" })).toBeNull();
     restore();
+  });
+
+  // On a phone each device offers Show: going back lands on the one the
+  // reader came in by.
+  it("goes back to every device with focus on the device's Show", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(
+      new Map([...LAYOUT, ["viewport", rect(0, 0, 360, 450)]]),
+    );
+    render(<Held view={view} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show A up close" }));
+    expect(screen.getByTestId("focus").textContent).toBe("A");
+    const back = screen.getByRole("button", { name: "All devices" });
+    act(() => back.focus());
+    fireEvent.click(back);
+    expect(screen.getByTestId("focus").textContent).toBe("none");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Show A up close" }),
+    );
+    restore();
+  });
+
+  // A click on the stage's background focuses the figure's world group
+  // around it, not the stage: Escape there goes back too.
+  it("goes back to every device by Escape on the figure's world group", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(LAYOUT);
+    const onFocus = vi.fn();
+    const Figure = ({ focus }: { focus: string | null }) => {
+      const group = useRef<HTMLDivElement>(null);
+      return (
+        // biome-ignore lint/a11y/useSemanticElements: as the figure's world group
+        <div
+          ref={group}
+          role="group"
+          aria-label="The world"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: as the figure's world group, which takes its keys
+          tabIndex={0}
+        >
+          <Stage
+            view={view}
+            flights={[]}
+            lost={[]}
+            settle
+            scale={1}
+            live
+            cue={{ kind: "free", focus }}
+            reduced={false}
+            group={group}
+            onFocus={onFocus}
+            onIntent={noop}
+            onAdd={noop}
+            onRetry={noop}
+          />
+        </div>
+      );
+    };
+    const { rerender } = render(<Figure focus={null} />);
+    const world = screen.getByRole("group", { name: "The world" });
+    act(() => world.focus());
+    // Nothing is shown up close: Escape leaves the stage as it is.
+    fireEvent.keyDown(world, { key: "Escape" });
+    expect(onFocus).not.toHaveBeenCalled();
+    rerender(<Figure focus="A" />);
+    fireEvent.keyDown(world, { key: "Escape" });
+    restore();
+    expect(onFocus).toHaveBeenCalledWith(null);
   });
 
   it("glides only once a view has been drawn, so the first placement lands at once", async () => {

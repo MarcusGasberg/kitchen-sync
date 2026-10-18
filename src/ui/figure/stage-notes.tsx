@@ -9,8 +9,9 @@ interface StageNotesProps {
 
 // A shot's notes over the viewport: a dot at each subject's end and, beside
 // the subjects, a few words each in the notes' share, tied to it by a fine
-// leader. Hidden from assistive technology, since the caption (and later the
-// transcript) carries the same words.
+// leader. Hidden from assistive technology: the caption tells the step, but
+// not a note's specifics (`#6`, `v6`), which have no accessible equivalent
+// until the transcript carries them.
 export function StageNotes({ placed, viewport }: StageNotesProps) {
   return (
     <div className={styles.notes} aria-hidden="true">

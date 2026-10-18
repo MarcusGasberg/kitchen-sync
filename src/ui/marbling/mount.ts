@@ -220,6 +220,8 @@ export const mountBasin = (
   let feather = 0;
   let density = 1;
   let active = true;
+  // Whether a resize waits for the basin to come back into view.
+  let unsized = false;
 
   const draw = () => {
     frame = null;
@@ -232,8 +234,16 @@ export const mountBasin = (
   const redraw = () => {
     if (made !== null && frame === null) frame = host.requestFrame(draw);
   };
-  const resize = () => {
-    if (made === null) return;
+  // Sizes the canvas to its box at the density, and draws it at once if that
+  // changed it; true when it did. Out of view it waits until the basin is
+  // back: a resize clears the canvas, which would stay blank there while a
+  // camera's glide may still show it.
+  const resize = (): boolean => {
+    if (made === null) return false;
+    if (!active) {
+      unsized = true;
+      return false;
+    }
     const cssWidth = canvas.clientWidth;
     const cssHeight = canvas.clientHeight;
     const ratio = Math.min(
@@ -244,13 +254,14 @@ export const mountBasin = (
     feather = basinFeather(cssWidth, ratio);
     const width = Math.max(1, Math.round(cssWidth * ratio));
     const height = Math.max(1, Math.round(cssHeight * ratio));
-    if (canvas.width === width && canvas.height === height) return;
+    if (canvas.width === width && canvas.height === height) return false;
     canvas.width = width;
     canvas.height = height;
     // A resize clears the canvas: draw now, not next frame, so no frame
     // paints it empty.
     if (frame !== null) host.cancelFrame(frame);
     draw();
+    return true;
   };
   const retone = () => {
     tones = inks();
@@ -296,7 +307,13 @@ export const mountBasin = (
       active = next;
       if (frame !== null) host.cancelFrame(frame);
       frame = null;
-      if (active) draw();
+      if (!active) return;
+      // Back in view: sized to its box if that waited, which draws it.
+      if (unsized) {
+        unsized = false;
+        if (resize()) return;
+      }
+      draw();
     },
     unmount: () => {
       if (frame !== null) host.cancelFrame(frame);

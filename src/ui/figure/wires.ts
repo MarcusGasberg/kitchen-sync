@@ -32,8 +32,8 @@ export interface Box {
 // them by the share of the row that half a device takes.
 export const CORNER_PX = 24;
 
-// The device row's extent across, in the stage's pixels: on a phone, the
-// whole strip, scrolled or not.
+// The device row's extent across, in the stage's pixels: the whole row,
+// however much of it the camera shows.
 export interface Row {
   readonly left: number;
   readonly width: number;
@@ -49,8 +49,7 @@ export interface ServerRow {
 // Each device's wire, in device order. Its server end sits across the basin's
 // span (inset from its corners) where its device's middle sits along the
 // device row, so each wire leans as little as the layout allows and their
-// order never crosses, wherever a phone's strip has scrolled; and down at the
-// band's top, the basin's foot unless a list beside it runs lower, when the
+// order never crosses; and down at the band's top, the basin's foot unless a list beside it runs lower, when the
 // wires leave from under the basin at the list's foot. Where the basin sits
 // left of its list (a wide stage), the fan still leans right: the cost of the
 // list beside its basin ("lists always render as real text on the still

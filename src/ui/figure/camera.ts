@@ -805,8 +805,7 @@ export const litOf = (
 };
 
 // How many times sharper than the page a basin draws at `scale`: 1 up to the
-// plane's own size, then the next half step, held at MAX_SCALE (no close-up
-// is closer).
+// plane's own size, then MAX_SCALE, which no close-up passes.
 export const densityFor = (scale: number): number =>
   Number.isFinite(scale) && scale > 1
     ? Math.min(MAX_SCALE, Math.ceil(scale * 2) / 2)

@@ -45,7 +45,7 @@ A new drop lands crisp at the moment its device applies the change and settles i
 ## Unresolved
 
 - Faces chosen while planning: Commissioner (text) and Spline Sans Mono (data), self-hosted.
-- Phone composition of the client strip at 320 px.
+- Phone composition at 320 px of the stage's window and its foot, to be confirmed by a phone capture.
 
 ## Direction contract
 
@@ -55,7 +55,7 @@ OWN-WORLD: One ink family on water: indigo depth at night, paper-white water by 
 
 STORY: The reader watches A drop a change into its own basin, sees it land in order in the server's basin and the other basins redraw to match, then breaks the world (drop the ack, go offline, reorder) and watches the patterns disagree until the rule restores them.
 
-FIRST VIEWPORT: Desktop: the left third holds a 44 px light title naming the chapter, the caption, Back, Play and Step, and, set apart below, the breaking controls. The right two thirds hold the server's basin wide across the top with its version labels, and A, B and C's basins in a row beneath, each with its name, its state in words and its list on the margin under it; A's newest drop crisp. Phone: title, caption and playback above, the server basin, the client basins in a swipeable strip, breaking controls below. A figure with code (user, 2026-10-17: Stage | code): from 80rem, title, caption and playback take a band across the top; under it the stage (three fifths) and its code panel (two fifths) sit side by side, the code held in view, its lit lines the branch that last ran; speed, Your turn and the breaking controls sit under the stage. Narrower, the code follows the figure's controls.
+FIRST VIEWPORT: Desktop: the left third holds a 44 px light title naming the chapter, the caption, Back, Play and Step, and, set apart below, the breaking controls. The right two thirds hold the server's basin wide across the top with its version labels, and A, B and C's basins in a row beneath, each with its name, its state in words and its list on the margin under it; A's newest drop crisp. Phone: title, caption and playback above; then the stage's window, a camera over one world plane that rests wide on the server's basin above the devices' basins in one row and comes in close for each shot, with its foot under it (a scene's notes, kept two notes tall; in free play, All devices); breaking controls below. A figure with code (user, 2026-10-17: Stage | code): from 80rem, title, caption and playback take a band across the top; under it the stage (three fifths) and its code panel (two fifths) sit side by side, the code held in view, its lit lines the branch that last ran; speed, Your turn and the breaking controls sit under the stage. Narrower, the code follows the figure's controls.
 
 FORM: Ink Basin (suminagashi marbling, catalog medium-native-fluid-ink-basin), dealt as a competitive challenger in the bolder re-roll and chosen by the user over the lead; not on my grounded list. seed: none (unavailable)
 

@@ -1,9 +1,9 @@
 import {
   type CSSProperties,
-  type KeyboardEvent,
   type RefObject,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -63,6 +63,9 @@ interface StageProps {
   readonly scale: number;
   readonly cue: Cue;
   readonly reduced: boolean;
+  // The figure's world group around the stage, which a click on the stage's
+  // background focuses: Escape on it goes back to every device too.
+  readonly group?: RefObject<HTMLElement | null>;
   // Free play: show a device up close, or every device (null).
   readonly onFocus: (client: ClientName | null) => void;
   readonly onIntent: (client: ClientName, intent: ListIntent) => void;
@@ -171,6 +174,7 @@ export function Stage({
   scale,
   cue,
   reduced,
+  group,
   onFocus,
   onIntent,
   onAdd,
@@ -254,12 +258,25 @@ export function Stage({
     if (focused !== null) pending.current = { to: focused, back: true };
     onFocus(null);
   };
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  // Escape goes back to every device: in the stage, and on the figure's
+  // world group around it (its own keys, not those that bubble out of the
+  // stage).
+  const onKeyDown = (event: Pick<KeyboardEvent, "key" | "preventDefault">) => {
     if (event.key === "Escape" && focused !== null) {
       event.preventDefault();
       back();
     }
   };
+  const onGroupKey = useEffectEvent((event: KeyboardEvent) => {
+    if (event.target === group?.current) onKeyDown(event);
+  });
+  useEffect(() => {
+    const around = group?.current;
+    if (around === null || around === undefined) return;
+    const listener = (event: KeyboardEvent) => onGroupKey(event);
+    around.addEventListener("keydown", listener);
+    return () => around.removeEventListener("keydown", listener);
+  }, [group]);
 
   // A hold's notes: beside the subjects on a wide viewport, where the plane
   // fades out across their share; under a wide or a table frame, in the

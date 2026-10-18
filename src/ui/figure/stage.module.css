@@ -193,8 +193,10 @@
   opacity: 0.35;
 }
 
-/* Free play on a small screen: the whole pane is one button that shows its
-   device up close. Its focus ring keeps its 2 px on screen at any scale. */
+/* Free play, while resting wide leaves a device's rows too small to use
+   (under 0.75, FOCUS_BELOW) or its pane cut off: the whole pane is one
+   button that shows its device up close. Its focus ring keeps its 2 px on
+   screen at any scale. */
 .show {
   position: absolute;
   inset: 0;

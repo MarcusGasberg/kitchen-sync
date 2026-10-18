@@ -304,6 +304,7 @@ function FigureBody({
             scale={scale ?? 1}
             cue={cue}
             reduced={reduced}
+            group={world}
             onFocus={setFocus}
             onIntent={(client, intent) =>
               run(player.act(applyIntent(client, intent)))

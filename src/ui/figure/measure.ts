@@ -59,7 +59,8 @@ export const measureWorld = (plane: HTMLElement): Measured => {
     const box = within(element.getBoundingClientRect());
     boxes.set(n === 0 ? `header:${place}` : `text:${place}:${n - 1}`, box);
   }
-  // The light table frames the devices' basins together.
+  // The devices' basins together: what a light-table note is about. The
+  // light table itself frames the world's band, as wide does.
   const table = union(
     [...boxes]
       .filter(([key]) => key.startsWith("basin:") && key !== "basin:server")

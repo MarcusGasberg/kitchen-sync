@@ -436,6 +436,32 @@ describe("mountBasin", () => {
     fake.frame();
     expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
   });
+
+  // A resize clears the canvas, and a basin out of view draws nothing: so
+  // out of view it keeps its canvas, which a camera's glide may still show,
+  // and is sized to its box once back.
+  it("keeps its pattern through a resize while out of view, and draws it resized once back", () => {
+    const fake = fakeHost();
+    let clientWidth = 400;
+    const canvas = document.createElement("canvas");
+    Object.defineProperty(canvas, "clientWidth", { get: () => clientWidth });
+    Object.defineProperty(canvas, "clientHeight", { value: 160 });
+    const basin = mountBasin(canvas, fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    const drawn = fake.draws.length;
+    basin.setActive(false);
+    basin.setDensity(2);
+    clientWidth = 500;
+    fake.resize();
+    expect([canvas.width, canvas.height]).toEqual([800, 320]);
+    expect(fake.draws).toHaveLength(drawn);
+    basin.setActive(true);
+    expect([canvas.width, canvas.height]).toEqual([2000, 640]);
+    expect(fake.draws).toHaveLength(drawn + 1);
+    expect(fake.fine.at(-1)).toBe(true);
+    expect(fake.waiting()).toBe(0);
+  });
 });
 
 describe("createSharedGpu", () => {

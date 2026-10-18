@@ -1181,11 +1181,11 @@ describe("the view on screen", () => {
     ).toEqual(["device:B", "server", "wire:B"]);
   });
 
-  it("sharpens basins in a close-up, in half steps up to the scale cap", () => {
+  it("sharpens basins in a close-up: 1 up to the plane's own size, then the scale cap", () => {
     expect(MAX_SCALE).toBe(1.25);
     expect(densityFor(0.4)).toBe(1);
     expect(densityFor(1)).toBe(1);
-    // The next half step, 1.5, is past the cap: no close-up is closer.
+    // Past scale 1, the cap: no close-up is closer.
     expect(densityFor(1.2)).toBe(MAX_SCALE);
     expect(densityFor(1.8)).toBe(MAX_SCALE);
     expect(densityFor(Number.NaN)).toBe(1);
