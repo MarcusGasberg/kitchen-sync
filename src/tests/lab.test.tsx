@@ -4,6 +4,8 @@ import { Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { DROP_SCENE, FREE_SCENE, Lab } from "#/app/lab";
 import { PUSH_LOOP } from "#/app/lab-code";
+import { compile } from "#/lib/director/compile";
+import type { Shot } from "#/lib/director/shots";
 import { entryIndexAt } from "#/lib/sandbox/frame";
 import { runHeadless } from "#/lib/sandbox/scene";
 import { isConverged } from "#/lib/sandbox/trace";
@@ -81,4 +83,48 @@ describe("the lab's code", () => {
     ).toBeTruthy();
     expect(screen.getByText("Not running in this figure")).toBeTruthy();
   });
+});
+
+// A shot as a word, as director-compile.test.ts reads them.
+const label = (shot: Shot): string => {
+  if (shot.move) return `move→${shot.framing}`;
+  if (shot.enact !== null) return `enact ${shot.enact.kind}`;
+  if (shot.opening) return `open ${shot.framing}`;
+  if (shot.rate === 0) return `hold ${shot.framing}`;
+  return shot.rate > 1 ? "skip" : `${shot.framing} ×${shot.rate}`;
+};
+
+describe("the lab's camera", () => {
+  effect.effect(
+    "frames the drop scene's add, push, server, pulls and agreement",
+    () =>
+      Effect.gen(function* () {
+        const cut = compile(yield* runHeadless(DROP_SCENE), DROP_SCENE);
+        const story = (step: number) => {
+          const found = cut.steps[step];
+          return found === undefined
+            ? []
+            : cut.shots.slice(found.first, found.end).map(label);
+        };
+        expect(story(1)).toEqual([
+          "open wide",
+          "move→close",
+          "enact type",
+          "hold close",
+        ]);
+        const hold = cut.shots[(cut.steps[1]?.end ?? 0) - 1];
+        expect(hold?.notes[0]?.text).toBe(
+          "Oat milk shows on A at once. It waits in A's outbox as #6.",
+        );
+        const later = [...story(2), ...story(3)];
+        for (const word of [
+          "follow ×0.5",
+          "hold close",
+          "hold split",
+          "hold table",
+        ]) {
+          expect(later).toContain(word);
+        }
+      }),
+  );
 });
