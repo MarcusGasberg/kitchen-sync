@@ -8,7 +8,7 @@
 
 .wire {
   stroke: var(--line);
-  stroke-width: 1;
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
 }
 
 .message circle {
@@ -24,6 +24,7 @@
   fill: none;
   stroke: var(--text-2);
   stroke-dasharray: 2 2;
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
 }
 
 /* A label keeps a halo of the page so it reads over a wire. */
@@ -66,6 +67,6 @@
 }
 
 /* The spotlight: a wire a shot is not about steps back with its messages. */
-[data-dim] {
+.band [data-dim] {
   opacity: 0.35;
 }

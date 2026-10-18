@@ -329,4 +329,21 @@ describe("WireBand", () => {
     expect(svg?.textContent).toContain("#3–#5");
     expect(svg?.textContent).toContain("ack #2 · lost");
   });
+
+  it("keeps a lit device's own wire lit and dims the others'", () => {
+    const other: Wire = { ...wire, client: "B" };
+    const { container } = render(
+      <WireBand
+        width={200}
+        height={120}
+        wires={[{ ...wire, client: "A" }, other]}
+        flights={[]}
+        lost={[]}
+        lit={new Set(["device:A"])}
+      />,
+    );
+    const [a, b] = [...container.querySelectorAll("line")];
+    expect(a?.hasAttribute("data-dim")).toBe(false);
+    expect(b?.hasAttribute("data-dim")).toBe(true);
+  });
 });

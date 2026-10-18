@@ -48,8 +48,11 @@ export function WireBand({
   lost,
   lit = null,
 }: WireBandProps) {
+  // A wire stays lit when the shot is about it or about its device.
   const dim = (client: string) =>
-    lit !== null && !lit.has(`wire:${client}`) ? "" : undefined;
+    lit !== null && !lit.has(`wire:${client}`) && !lit.has(`device:${client}`)
+      ? ""
+      : undefined;
   return (
     <svg
       className={styles.band}
@@ -89,12 +92,13 @@ export function WireBand({
         </g>
       ))}
       {lost.map((placed) => (
-        <g
-          key={`lost:${placed.key}`}
-          className={styles.lost}
-          style={{ opacity: 1 - (placed.age ?? 0) / LOST_MARK_MILLIS }}
-        >
-          <Label placed={placed} text={`${placed.message.label} · lost`} />
+        <g key={`lost:${placed.key}`} data-dim={dim(placed.message.client)}>
+          <g
+            className={styles.lost}
+            style={{ opacity: 1 - (placed.age ?? 0) / LOST_MARK_MILLIS }}
+          >
+            <Label placed={placed} text={`${placed.message.label} · lost`} />
+          </g>
         </g>
       ))}
     </svg>

@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
 import { type Cue, Stage } from "#/ui/figure/stage";
-import { makeStageView } from "#/ui/figure/stage-view";
+import stageStyles from "#/ui/figure/stage.module.css";
+import { makeStageView, type StageView } from "#/ui/figure/stage-view";
 import { rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
 
@@ -437,6 +439,10 @@ describe("Stage", () => {
         onRetry={noop}
       />,
     );
+    // Close on A on a phone, the other device still offers its Show.
+    expect(
+      screen.getByRole("button", { name: "Show B up close" }),
+    ).toBeTruthy();
     // Focus went into A, not to the page.
     expect(
       screen
@@ -470,5 +476,98 @@ describe("Stage", () => {
     // jsdom lays nothing out: every box is 0 x 0.
     expect(scaleOf(container)).toBeNull();
     expect(screen.getByRole("region", { name: "A" })).toBeTruthy();
+  });
+
+  // A host that holds the focus state, as the figure does.
+  const Held = ({ view }: { view: StageView }) => {
+    const [focus, setFocus] = useState<string | null>(null);
+    return (
+      <>
+        <output data-testid="focus">{focus ?? "none"}</output>
+        <Stage
+          view={view}
+          flights={[]}
+          lost={[]}
+          settle
+          scale={1}
+          live
+          cue={{ kind: "free", focus }}
+          reduced={false}
+          onFocus={setFocus}
+          onIntent={noop}
+          onAdd={noop}
+          onRetry={noop}
+        />
+      </>
+    );
+  };
+
+  // No Show buttons on a big viewport: focus alone frames a device, and going
+  // back must not bounce, as the focus it returns lands in the device.
+  it.each([
+    [
+      "All devices",
+      () => {
+        // A real click moves focus onto the button first.
+        const button = screen.getByRole("button", { name: "All devices" });
+        act(() => button.focus());
+        fireEvent.click(button);
+      },
+    ],
+    [
+      "Escape",
+      () =>
+        fireEvent.keyDown(screen.getByRole("region", { name: "A" }), {
+          key: "Escape",
+        }),
+    ],
+  ])("goes back to every device by %s without bouncing", async (_name, goBack) => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(
+      new Map([...LAYOUT, ["viewport", rect(0, 0, 1600, 1000)]]),
+    );
+    render(<Held view={view} />);
+    const a = screen.getByRole("region", { name: "A" });
+    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
+    act(() => within(a).getAllByRole("checkbox")[0]?.focus());
+    expect(screen.getByTestId("focus").textContent).toBe("A");
+    expect(screen.getByRole("button", { name: "All devices" })).toBeTruthy();
+    goBack();
+    expect(screen.getByTestId("focus").textContent).toBe("none");
+    expect(a.contains(document.activeElement)).toBe(true);
+    expect(screen.queryByRole("button", { name: "All devices" })).toBeNull();
+    restore();
+  });
+
+  it("glides only once a view has been drawn, so the first placement lands at once", async () => {
+    const first = await staged(FREE);
+    const plane = first.container.querySelector<HTMLElement>(
+      "[data-anchor='plane']",
+    );
+    expect(plane?.style.transform).not.toBe("");
+    expect(plane?.classList.contains(stageStyles.gliding ?? "gliding")).toBe(
+      false,
+    );
+    const view = makeStageView()(await snapshot(), new Map());
+    first.rerender(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={{ kind: "free", focus: "A" }}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    expect(plane?.classList.contains(stageStyles.gliding ?? "gliding")).toBe(
+      true,
+    );
+    first.restore();
   });
 });

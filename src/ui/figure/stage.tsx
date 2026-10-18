@@ -238,8 +238,8 @@ export function Stage({
   const offerShow =
     live &&
     cue.kind === "free" &&
-    camera !== null &&
-    camera.scale < FOCUS_BELOW;
+    ready &&
+    wideView(anchors, size).scale < FOCUS_BELOW;
 
   // Focus never drops to the page: shown up close, a device takes it on its
   // first field or control; back to all, the device it was on takes it back.
@@ -252,7 +252,6 @@ export function Stage({
     const world = plane.current;
     if (wanted === null || world === null) return;
     if (wanted.back ? focused !== null : focused !== wanted.to) return;
-    pending.current = null;
     const device = world.querySelector<HTMLElement>(
       `[data-anchor='device'][data-client='${wanted.to}']`,
     );
@@ -260,7 +259,10 @@ export function Stage({
       ? (device?.querySelector<HTMLElement>("[data-show]") ??
         device?.querySelector<HTMLElement>("input, button"))
       : device?.querySelector<HTMLElement>("input, button:not([data-show])");
+    // Focus landing in the device must not frame it again: a back stays
+    // pending until it has landed.
     target?.focus({ preventScroll: true });
+    pending.current = null;
   }, [focused]);
   const show = (client: ClientName) => {
     pending.current = { to: client, back: false };
@@ -290,7 +292,10 @@ export function Stage({
         ref={plane}
         className={[
           styles.plane,
-          cue.kind === "free" && !reduced ? styles.gliding : "",
+          // Only once a view has been drawn: the first placement lands at once.
+          cue.kind === "free" && !reduced && last.current !== null
+            ? styles.gliding
+            : "",
           moving && !reduced ? styles.moving : "",
         ].join(" ")}
         data-anchor="plane"
@@ -362,6 +367,7 @@ export function Stage({
                 live && cue.kind === "free" && focused !== device.name
                   ? (event) => {
                       if (
+                        pending.current?.back !== true &&
                         event.target instanceof HTMLElement &&
                         event.target.dataset.show === undefined
                       ) {

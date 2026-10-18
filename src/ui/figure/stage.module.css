@@ -33,6 +33,9 @@
     calc(var(--clients) * 20rem + (var(--clients) - 1) * var(--space-6))
   );
   padding: var(--space-6);
+  /* The page sets border-box everywhere; the width above is the content's, so
+     the padding comes on top of it and the container query sees 47rem. */
+  box-sizing: content-box;
 }
 
 /* Free play's camera glides to a device and back; a scene's moves are drawn
@@ -98,7 +101,8 @@
   transition: opacity var(--motion-state) var(--ease-out);
 }
 
-[data-dim] {
+.server[data-dim],
+.device[data-dim] {
   opacity: 0.35;
 }
 

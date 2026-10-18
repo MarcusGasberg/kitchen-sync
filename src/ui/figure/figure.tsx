@@ -242,7 +242,7 @@ function FigureBody({
           cut: view.cut,
           cursor: { shot: view.shot, offset: view.offset },
         }
-      : { kind: "free", focus };
+      : { kind: "free", focus: inFreePlay ? focus : null };
 
   return (
     <figure
