@@ -333,8 +333,8 @@ export function Stage({
 
   // A hold's notes: beside the subjects on a wide viewport, where the plane
   // fades out across their share; under a wide or a table frame, in the
-  // room it leaves at the window's foot, faded the same way; on a narrow
-  // viewport, or with no such room, in the foot under the window.
+  // room it leaves at the window's foot (kept tall enough for them), faded
+  // the same way; on a narrow viewport, in the foot under the window.
   const beside = besideIn(size);
   const spot =
     camera !== null && shot !== undefined && !shot.move && shot.notes.length > 0
@@ -354,13 +354,14 @@ export function Stage({
   const room = spot?.kind === "room" ? spot : null;
   const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
   // The foot under the window: a narrow viewport's notes for the whole
-  // scene, kept two notes tall so the page holds still between holds; a
-  // wide viewport's when a hold's room is too short; free play's way back.
+  // scene, kept two notes tall so the page holds still between holds, and
+  // free play's way back. A wide viewport's scene keeps its notes in the
+  // window and has none.
   const foot =
     cue.kind === "shot"
-      ? !beside || spot?.kind === "foot"
-        ? "notes"
-        : null
+      ? beside
+        ? null
+        : "notes"
       : live || focused !== null
         ? "free"
         : null;

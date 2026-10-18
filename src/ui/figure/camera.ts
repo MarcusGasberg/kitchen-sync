@@ -68,9 +68,18 @@ export const EASE_MILLIS = 400;
 // Plane pixels kept around a message when its wire was not measured.
 const MESSAGE_PAD_PX = 48;
 
+// A note's line height, and the gap between two notes, in screen pixels.
+export const LINE_PX = 20;
+export const NOTE_GAP_PX = 10;
+
 // Whether a viewport is wide enough to set notes beside the subjects.
 export const besideIn = (viewport: Size): boolean =>
   viewport.width >= NOTES_BESIDE_FROM_PX;
+
+// The room `count` notes take under a wide or a table frame: about two lines
+// a note, and the gaps between them.
+export const roomFor = (count: number): number =>
+  count * 2 * LINE_PX + Math.max(0, count - 1) * NOTE_GAP_PX;
 
 const union = (boxes: ReadonlyArray<Box>): Box | null => {
   const [first, ...rest] = boxes;
@@ -198,6 +207,22 @@ export const fitView = (
   };
 };
 
+// `b` fitted into `area` of the viewport, never closer than `cap`, and kept
+// on the plane.
+const frameIn = (
+  b: Box,
+  area: Box,
+  anchors: Anchors,
+  viewport: Size,
+  cap: number = MAX_SCALE,
+): View =>
+  clampView(
+    fitView(b, area, viewport, cap),
+    viewport,
+    planeBox(anchors.plane),
+    area,
+  );
+
 // `b` fitted into the viewport's area for a shot with or without notes,
 // never closer than `cap`, and kept on the plane.
 const frame = (
@@ -206,27 +231,36 @@ const frame = (
   viewport: Size,
   notes: boolean,
   cap: number = MAX_SCALE,
-): View => {
-  const area = fitArea(viewport, notes);
-  return clampView(
-    fitView(b, area, viewport, cap),
-    viewport,
-    planeBox(anchors.plane),
-    area,
-  );
-};
+): View => frameIn(b, fitArea(viewport, notes), anchors, viewport, cap);
 
 // The world's band of basins (the server to its basin's foot, the wire band,
 // the devices to their basins' feet), or the whole plane before that was
-// measured; never enlarged, and never beside notes.
+// measured.
+const bandOf = (anchors: Anchors): Box =>
+  anchors.boxes.get("world") ?? planeBox(anchors.plane);
+
+// The world's band, never enlarged, and never beside notes.
 export const wideView = (anchors: Anchors, viewport: Size): View =>
-  frame(
-    anchors.boxes.get("world") ?? planeBox(anchors.plane),
-    anchors,
-    viewport,
-    false,
-    1,
-  );
+  frame(bandOf(anchors), anchors, viewport, false, 1);
+
+// Where the room under a wide or a table frame starts on screen: a margin
+// under the frame's foot.
+export const roomTop = (frame: Box, view: View, viewport: Size): number =>
+  project(view, viewport, { x: frame.left, y: frame.bottom }).y + MARGIN_PX;
+
+// A wide or a table hold's view, with `notes` notes in its frame run: wide.
+// On a wide viewport, where the room under the band is too short for them,
+// the band is fitted above a room at the window's foot that holds them (the
+// margin under the band, then the notes), so they never leave the window.
+const wideFor = (notes: number, anchors: Anchors, viewport: Size): View => {
+  const view = wideView(anchors, viewport);
+  if (notes <= 0 || !besideIn(viewport)) return view;
+  const band = bandOf(anchors);
+  const need = roomFor(notes);
+  if (viewport.height - roomTop(band, view, viewport) >= need) return view;
+  const above = { ...fitArea(viewport, false), bottom: viewport.height - need };
+  return frameIn(band, above, anchors, viewport, 1);
+};
 
 // A subject's box on the plane: its measured anchor, or for a message, where
 // it is (padded) together with its wire.
@@ -386,14 +420,15 @@ const pans = (
   panBoxes(shot, anchors).length > 1;
 
 // A shot's view, or null when none of its subjects was measured, keeping the
-// notes' share when it has notes. A shot a narrow viewport pans across
-// frames its first box here; `cameraAt` pans it across the rest, and gives
-// every shot of a frame run the share any of them needs.
+// notes' share, or the room under a wide or a table frame, its notes need. A
+// shot a narrow viewport pans across frames its first box here; `cameraAt`
+// pans it across the rest, and gives every shot of a frame run the share or
+// the room any of them needs.
 export const frameFor = (
   shot: Pick<Shot, "framing" | "subjects" | "notes">,
   anchors: Anchors,
   viewport: Size,
-): View | null => framed(shot, shot.notes.length > 0, anchors, viewport);
+): View | null => framed(shot, shot.notes.length, anchors, viewport);
 
 // The box a wide or a table hold frames, on the plane: for both, the
 // world's band of basins (or the whole plane before it was measured). The
@@ -406,25 +441,26 @@ export const frameBoxOf = (
   switch (shot.framing) {
     case "wide":
     case "table":
-      return anchors.boxes.get("world") ?? planeBox(anchors.plane);
+      return bandOf(anchors);
     default:
       return null;
   }
 };
 
-// A shot's view, with or without the notes' share. Wide and table holds
-// frame the world's band alike and never take the share: their notes go in
-// the room under their frame.
+// A shot's view, for `notes` notes in its frame run. A close-up, split or
+// follow with notes takes the notes' share. Wide and table holds frame the
+// world's band alike and never take the share: their notes go in the room
+// under their frame, which a wide viewport keeps tall enough for them.
 const framed = (
   shot: Pick<Shot, "framing" | "subjects">,
-  notes: boolean,
+  notes: number,
   anchors: Anchors,
   viewport: Size,
 ): View | null => {
   switch (shot.framing) {
     case "wide":
     case "table":
-      return wideView(anchors, viewport);
+      return wideFor(notes, anchors, viewport);
     case "follow": {
       // The whole wire, from the server's end to the device's, still while
       // its message travels: the distance is the time it takes.
@@ -435,14 +471,14 @@ const framed = (
       const b =
         wire ?? (message === undefined ? undefined : around(message.at));
       if (b === undefined) return null;
-      return frame(pad(b, FOLLOW_PAD_PX), anchors, viewport, notes);
+      return frame(pad(b, FOLLOW_PAD_PX), anchors, viewport, notes > 0);
     }
     case "close":
     case "split": {
       const b = pans(shot, anchors, viewport)
         ? (panBoxes(shot, anchors)[0] ?? null)
         : union(groupBoxes(shot, anchors));
-      return b === null ? null : frame(b, anchors, viewport, notes);
+      return b === null ? null : frame(b, anchors, viewport, notes > 0);
     }
   }
 };
@@ -469,13 +505,13 @@ const along = (
   });
 };
 
-// A held shot's view at `offset` into it, with or without the notes' share:
-// its frame, or for a shot a narrow viewport pans across, the box whose
+// A held shot's view at `offset` into it, for `notes` notes in its frame
+// run: its frame, or for a shot a narrow viewport pans across, the box whose
 // share of the hold it is in, moving there over that share's first
 // PAN_SHARE (at once under reduced motion).
 const heldAt = (
   shot: Shot,
-  notes: boolean,
+  notes: number,
   offset: number,
   anchors: Anchors,
   viewport: Size,
@@ -485,7 +521,7 @@ const heldAt = (
     return framed(shot, notes, anchors, viewport);
   }
   const views = panBoxes(shot, anchors).map((b) =>
-    frame(b, anchors, viewport, notes),
+    frame(b, anchors, viewport, notes > 0),
   );
   const last = views.length - 1;
   if (last < 0) return null;
@@ -563,21 +599,22 @@ const sameView = (a: View, b: View): boolean =>
   Math.abs(a.y - b.y) <= 0.5 &&
   Math.abs(a.scale - b.scale) <= 0.001;
 
-// Which shots of a cut frame with the notes' share. A frame run is a
-// maximal sequence of consecutive shots of one step that are not moves or
-// openings and share the director's frame (`frameKey`); a move belongs to
-// the run it leads into. An opening holds the view of the step before and
-// belongs to no run, and no run crosses a step: a step that opens on a noted
-// hold and plays on without notes eases out of the share. Every shot of a
-// run keeps the share when any of them has notes, so a move into a noted
-// hold ends on the hold's view and an add acted out before its noted hold is
-// framed beside the same share. Kept per cut.
-const sharing = new WeakMap<Cut, ReadonlyArray<boolean>>();
-const sharesOf = (cut: Cut): ReadonlyArray<boolean> => {
-  const known = sharing.get(cut);
+// How many notes each shot of a cut frames for: the most any shot of its
+// frame run has. A frame run is a maximal sequence of consecutive shots of
+// one step that are not moves or openings and share the director's frame
+// (`frameKey`); a move belongs to the run it leads into. An opening holds the
+// view of the step before and belongs to no run, and no run crosses a step:
+// a step that opens on a noted hold and plays on without notes eases out of
+// the share. Every shot of a run keeps the share, or the room under a wide
+// or a table frame, when any of them has notes, so a move into a noted hold
+// ends on the hold's view, an add acted out before its noted hold is framed
+// beside the same share, and a wide run holds one view. Kept per cut.
+const runNotes = new WeakMap<Cut, ReadonlyArray<number>>();
+const runNotesOf = (cut: Cut): ReadonlyArray<number> => {
+  const known = runNotes.get(cut);
   if (known !== undefined) return known;
   const { shots } = cut;
-  const flags = shots.map(() => false);
+  const counts = shots.map(() => 0);
   let start = 0;
   while (start < shots.length) {
     const first = shots[start];
@@ -596,19 +633,19 @@ const sharesOf = (cut: Cut): ReadonlyArray<boolean> => {
     while (joins(shots[end + 1])) {
       end++;
     }
-    const noted = shots
-      .slice(start, end + 1)
-      .some((shot) => shot.notes.length > 0);
-    for (let i = start; i <= end; i++) flags[i] = noted;
+    const noted = Math.max(
+      ...shots.slice(start, end + 1).map((shot) => shot.notes.length),
+    );
+    for (let i = start; i <= end; i++) counts[i] = noted;
     // The move into this run, when one leads into it.
-    if (shots[start - 1]?.move === true) flags[start - 1] = noted;
+    if (shots[start - 1]?.move === true) counts[start - 1] = noted;
     start = end + 1;
   }
-  sharing.set(cut, flags);
-  return flags;
+  runNotes.set(cut, counts);
+  return counts;
 };
 
-// Shot `index`'s view at `offset` into it, framed with its run's share. A
+// Shot `index`'s view at `offset` into it, framed for its run's notes. A
 // step's opening is drawn at the view the shot before it ended on, whatever
 // its own framing says: paused there, the camera shows the frame the reader
 // last saw, and the move after it starts from there. The first step's
@@ -628,15 +665,15 @@ const viewOf = (
   if (shot.opening && before !== undefined) {
     return viewOf(cut, index - 1, before.screen, anchors, viewport, false);
   }
-  const notes = sharesOf(cut)[index] === true;
+  const notes = runNotesOf(cut)[index] ?? 0;
   return shot.move
     ? framed(shot, notes, anchors, viewport)
     : heldAt(shot, notes, offset, anchors, viewport, reduced);
 };
 
 // The view at the cursor. A shot holds its frame (a split on a narrow
-// viewport pans across its devices), with the notes' share its frame run
-// needs. After a shot that shares its frame but not its view, it first eases
+// viewport pans across its devices), with the notes' share, or the room
+// under a wide or a table frame, its frame run needs. After a shot that shares its frame but not its view, it first eases
 // there over EASE_MILLIS (or its own length), so nothing cuts inside one
 // frame. The ease starts from `entry`, the view drawn as the shot began,
 // when the stage knows it: the shot before's view, recomputed now, can

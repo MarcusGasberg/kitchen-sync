@@ -9,9 +9,13 @@ import {
   type Anchors,
   besideIn,
   boxOf,
+  LINE_PX,
   MARGIN_PX,
+  NOTE_GAP_PX,
   NOTE_SHARE,
   project,
+  roomFor,
+  roomTop,
   type Size,
   type View,
 } from "./camera";
@@ -26,17 +30,16 @@ import type { Box } from "./wires";
 //   others keep only the dot at their subject's end (their words name it),
 //   stacked around the level ones in their subjects' order.
 // - Under a wide or a table hold's frame, which keeps the whole window, the
-//   notes go in the room the frame leaves at the window's foot, with dots.
-// - On a narrow viewport, or when that room is too short, the notes leave
-//   the window for the stage's foot, and each subject keeps only its dot.
+//   notes go in the room the frame leaves at the window's foot, with dots;
+//   the camera keeps that room tall enough for them (`roomFor`).
+// - On a narrow viewport the notes leave the window for the stage's foot,
+//   and each subject keeps only its dot.
 
 export const EDGE_PX = 16;
 export const NOTE_MAX_PX = 288;
-// A note's line height, and an average character's width, to estimate how
-// tall a note runs before it is drawn.
-export const LINE_PX = 20;
+// An average character's width, to estimate how tall a note runs (in lines
+// of LINE_PX) before it is drawn.
 export const CHAR_PX = 7.4;
-export const NOTE_GAP_PX = 10;
 // The gap between a note and the end of its leader.
 const LEADER_GAP_PX = 6;
 // The room a dot keeps from the end of a pane header's text.
@@ -92,10 +95,13 @@ const clamp = (n: number, low: number, high: number) =>
   Math.min(high, Math.max(low, n));
 
 // Where `count` notes go for a shot of `framing` whose frame is `frame` (a
-// wide or a table hold's box on the plane, from `frameBoxOf`). Beside the
-// subjects on a wide viewport; under a wide or a table frame, in the room it
-// leaves at the window's foot (below the frame's projected bottom less the
-// margin), when that room holds about two lines a note; else the foot.
+// wide or a table hold's box on the plane, from `frameBoxOf`). On a narrow
+// viewport, the foot. On a wide one, beside the subjects; under a wide or a
+// table frame, in the room it leaves at the window's foot, a margin under
+// the frame's projected bottom. The camera frames such a hold so that room
+// holds the notes; while it eases there, the room starts no lower than the
+// notes need, so they never leave the window. With no frame, the room is at
+// the window's foot.
 export const spotFor = (
   framing: Framing,
   count: number,
@@ -105,14 +111,19 @@ export const spotFor = (
 ): NoteSpot => {
   if (!besideIn(viewport)) return { kind: "foot" };
   if (framing !== "wide" && framing !== "table") return { kind: "beside" };
-  if (frame === null) return { kind: "foot" };
+  const lowest = viewport.height - roomFor(count);
+  if (frame === null) {
+    return {
+      kind: "room",
+      top: lowest,
+      left: EDGE_PX,
+      right: viewport.width - EDGE_PX,
+    };
+  }
   const framed = onScreen(frame, view, viewport);
-  const top = framed.bottom + MARGIN_PX;
-  const need = count * 2 * LINE_PX + Math.max(0, count - 1) * NOTE_GAP_PX;
-  if (viewport.height - top < need) return { kind: "foot" };
   return {
     kind: "room",
-    top,
+    top: Math.min(roomTop(frame, view, viewport), lowest),
     left: Math.max(EDGE_PX, framed.left),
     right: Math.min(viewport.width - EDGE_PX, framed.right),
   };

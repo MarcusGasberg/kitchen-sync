@@ -562,9 +562,9 @@
       "stage": {
         "camera": "a window on one world plane, placed by one transform: translate(window/2 - view * scale) scale(scale), origin at the plane's top left",
         "window": {
-          "shape": "the stage's full width; aspect 16 / 10, max 80svh; below 45rem 4 / 5, max 75svh; overflow hidden, nothing drawn on it",
+          "shape": "the stage's full width; aspect 16 / 10, max 80svh; below 45rem 4 / 5, max 75svh; overflow clip (after hidden, for browsers without clip), never a scroll container; nothing drawn on it",
           "feather": "24px (--space-5) on all four edges, a mask that fades the plane to the page; kept under forced colours",
-          "foot": "under the window, 0.75rem (--space-3) below it: a narrow window's notes for the whole scene (min-block-size two notes: 2 * 1.45 * --text-sm + --space-1), a wide window's when a wide or table hold's room is too short, free play's All devices (min-block-size --target, at the end)"
+          "foot": "under the window, 0.75rem (--space-3) below it: a narrow window's notes for the whole scene (min-block-size two notes: 2 * 1.45 * --text-sm + --space-1), none in a wide window's scene, free play's All devices (min-block-size --target, at the end)"
         },
         "plane": {
           "layout": "laid out once at the app's own sizes, whatever the screen: padding 2rem; server row, 5rem wire band (--space-7 + --space-6), device row",
@@ -581,7 +581,7 @@
           "fallback": "a shot whose subjects are gone keeps the last view drawn, else wide"
         },
         "framings": {
-          "wide": "the world's band of basins: the server's pane top to its basin's foot, the wire band, each device top to its basin's foot; the lists left out; never past 1, never beside notes",
+          "wide": "the world's band of basins: the server's pane top to its basin's foot, the wire band, each device top to its basin's foot; the lists left out; never past 1, never beside notes; from a 600px window, with notes whose room under it is short (roomFor: 2 * 20px a note + 10px gaps), fitted above a room at the window's foot that holds them, one view across the frame run",
           "close": "a place's named rows and rings with its basin, padded 16 (DETAIL_PAD_PX); the server's rings padded 64 (SERVER_RING_PAD_PX) with its rows padded 16; else its containers (a pane, a wire)",
           "split": "one close box per place, framed together; below a 600px window it pans place to place",
           "follow": "the message's whole wire, padded 48 (FOLLOW_PAD_PX), held still while the message travels",
@@ -645,8 +645,8 @@
         "when": "on a hold only, never through a move; redrawn for each shot",
         "beside": "from a 600px window, for close, split and follow: a strip from the share's start + 16px (EDGE_PX), 16px from the window's top and foot, width min(288px, 34% of the window - 32px); ordered down the share by their subjects' ends; 10px apart (NOTE_GAP_PX)",
         "leader": "straight and level, 1px (--rule) --ink-2, from the subject's end to 6px short of the words; only where the end shows, the words fit level, and the run touches no row, list heading, pane header or basin water but the subject's own, short of the share; otherwise the dot alone; a level note that would overlap or crowd a gap drops to a dot",
-        "room": "under a wide or table frame: stacked from 24px under the frame's foot, left-aligned with it, as wide as it within 16px of the window's sides, dots only; the plane fades over the 24px above; needs two lines (40px) a note plus gaps, else the foot",
-        "foot": "below a 600px window, or with no room: the words in the stage's foot, 0.25rem apart (--space-1), in their subjects' order; dots only",
+        "room": "under a wide or table frame: stacked from 24px under the frame's foot, left-aligned with it, as wide as it within 16px of the window's sides, dots only; the plane fades over the 24px above; the camera keeps it two lines (40px) a note plus gaps (roomFor), and while it eases there the room starts no lower than that",
+        "foot": "below a 600px window: the words in the stage's foot, 0.25rem apart (--space-1), in their subjects' order; dots only",
         "dot": "r 2.5px, --ink-2: a row's or ring's right edge at its middle; 6px past a pane header's end at its middle; another container's right edge; none for the light table; dropped within 24px (FEATHER_PX) of the window's edges",
         "forcedColors": "leader and dot CanvasText; words CanvasText on Canvas"
       }

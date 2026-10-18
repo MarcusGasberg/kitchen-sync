@@ -7,10 +7,16 @@
 
 /* The camera's window on the world: a fixed shape that clips the plane.
    Nothing is drawn on it, so its edges are the page's. 16:10 from 45rem,
-   4:5 on a phone, never taller than most of the screen. */
+   4:5 on a phone, never taller than most of the screen. It clips without
+   being a scroll container: a hidden overflow still scrolls to a focused
+   control, a find in the page or a screen reader's cursor outside the frame,
+   and nothing would scroll it back. `hidden` stays for browsers without
+   `clip`. */
 .viewport {
   position: relative;
   overflow: hidden;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: hidden, above, is the fallback for browsers without clip. */
+  overflow: clip;
   inline-size: 100%;
   aspect-ratio: 16 / 10;
   max-block-size: 80svh;

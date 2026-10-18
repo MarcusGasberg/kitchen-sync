@@ -12,12 +12,15 @@ import {
   frameBoxOf,
   frameFor,
   intersects,
+  LINE_PX,
   litOf,
   MARGIN_PX,
   MAX_SCALE,
+  NOTE_GAP_PX,
   NOTE_SHARE,
   PAN_SHARE,
   project,
+  roomFor,
   SERVER_RING_PAD_PX,
   transformOf,
   type View,
@@ -279,8 +282,9 @@ describe("framing", () => {
   });
 
   // Wide and table holds keep their frame: their notes go in the room the
-  // frame leaves at the window's foot.
-  it("frames a wide or table hold with notes exactly as without them", () => {
+  // frame leaves at the window's foot. Here the band's foot lands at 521 of
+  // 600, so the room under it holds a note.
+  it("frames a wide or table hold with notes exactly as without them, where the room under it holds them", () => {
     const note = { on: { kind: "server" }, text: "A note." } as const;
     for (const [framing, subjects] of [
       ["wide", []],
@@ -291,12 +295,116 @@ describe("framing", () => {
       const anchors = anchorsOf({
         ...Object.fromEntries(DETAIL.boxes),
         basins: box(400, 430, 1080, 558),
+        world: box(40, 40, 1160, 560),
       });
       expect(frameFor(noted, anchors, viewport)).toEqual(
         frameFor(bare, anchors, viewport),
       );
       expect(frameBoxOf(noted, anchors)).not.toBeNull();
     }
+  });
+
+  // The two- and three-device planes as the app lays them out, in the
+  // stage's window on a 1440 × 900 screen, with the code beside it and
+  // without: the room under the band is too short for the notes.
+  describe("a noted wide or table hold whose room is short, on a wide window", () => {
+    const TWO = {
+      plane: { width: 816, height: 1054 },
+      boxes: new Map([["world", box(32, 32, 784, 485)]]),
+      messages: new Map(),
+    };
+    const THREE = {
+      plane: { width: 1088, height: 1140 },
+      boxes: new Map([["world", box(32, 32, 1056, 566)]]),
+      messages: new Map(),
+    };
+    const WINDOWS = [
+      { width: 778, height: 486 },
+      { width: 864, height: 540 },
+    ];
+    const notes = (count: number): Shot["notes"] =>
+      Array.from({ length: count }, (_, i) => ({
+        on: { kind: "server" },
+        text: `Note ${i}.`,
+      }));
+    const cases: ReadonlyArray<[string, Anchors, number]> = [
+      ["two devices, one note", TWO, 1],
+      ["three devices, two notes", THREE, 2],
+    ];
+
+    it.each(
+      cases,
+    )("frames the band above a room at the window's foot that holds the notes: %s", (_name, anchors, count) => {
+      for (const framing of ["wide", "table"] as const) {
+        for (const size of WINDOWS) {
+          const noted = shot({ framing, notes: notes(count) });
+          const view = frameFor(noted, anchors, size);
+          const wide = wideView(anchors, size);
+          const world = anchors.boxes.get("world") ?? box(0, 0, 0, 0);
+          const foot = (v: View) =>
+            project(v, size, { x: world.left, y: world.bottom }).y;
+          // As wide frames it, the room under the band is too short.
+          expect(size.height - (foot(wide) + MARGIN_PX)).toBeLessThan(
+            roomFor(count),
+          );
+          // Framed above that room, it is tall enough: the margin under the
+          // band, then the notes.
+          expect(view).not.toBeNull();
+          if (view === null) return;
+          expect(size.height - (foot(view) + MARGIN_PX)).toBeGreaterThanOrEqual(
+            roomFor(count) - 1e-6,
+          );
+          // Smaller only as it must be, never enlarged, and whole.
+          expect(view.scale).toBeLessThanOrEqual(wide.scale);
+          expect(inside(world, visibleBox(view, size))).toBe(true);
+        }
+      }
+    });
+
+    it("needs about two lines a note, and the gaps between them", () => {
+      expect(roomFor(1)).toBe(2 * LINE_PX);
+      expect(roomFor(2)).toBe(4 * LINE_PX + NOTE_GAP_PX);
+    });
+
+    it("keeps a narrow window's wide as it was: its notes go to the foot", () => {
+      const phone = { width: 390, height: 488 };
+      expect(
+        frameFor(shot({ framing: "wide", notes: notes(2) }), THREE, phone),
+      ).toEqual(wideView(THREE, phone));
+    });
+
+    // Every shot of a frame run holds one view: the run's most notes set the
+    // room, and a move into the run ends on it.
+    it("holds one view across a run, and a move into it ends there", () => {
+      const size = WINDOWS[0] ?? viewport;
+      const held = shot({ framing: "wide", notes: notes(2), screen: 2000 });
+      const cut: Cut = {
+        shots: [
+          shot({ framing: "close", subjects: [{ kind: "server" }] }),
+          shot({ framing: "wide", move: true, screen: 800 }),
+          shot({ framing: "wide", rate: 1, screen: 1000 }),
+          shot({ framing: "wide", notes: notes(1), screen: 1000 }),
+          held,
+        ],
+        steps: [],
+      };
+      const options = { reduced: false, fallback: null };
+      const target = frameFor(held, THREE, size);
+      for (const [index, offset] of [
+        [1, 800],
+        [2, 0],
+        [3, 0],
+        [4, 0],
+        [4, 2000],
+      ] as const) {
+        const at = cameraAt(cut, { shot: index, offset }, THREE, size, options);
+        expect(at.x, `${index} @ ${offset}`).toBeCloseTo(target?.x ?? 0);
+        expect(at.y, `${index} @ ${offset}`).toBeCloseTo(target?.y ?? 0);
+        expect(at.scale, `${index} @ ${offset}`).toBeCloseTo(
+          target?.scale ?? 0,
+        );
+      }
+    });
   });
 
   // The light table's note is about every basin, the server's among them:

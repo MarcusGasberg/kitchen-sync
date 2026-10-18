@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
 import { useState } from "react";
@@ -872,6 +874,71 @@ describe("Stage", () => {
     expect(
       Number.parseFloat(lens?.style.getPropertyValue("--room-fade-from") ?? ""),
     ).toBeCloseTo(from - MARGIN_PX);
+  });
+
+  // A wide window's scene keeps every hold's notes in the window: a wide
+  // hold whose room under the band is short frames the band higher and
+  // smaller, so the foot never comes and goes and the page holds still.
+  it("keeps a wide hold's notes in the window when the room under its band is short, with no foot", async () => {
+    const wide: Cue = {
+      kind: "shot",
+      cut: {
+        shots: [
+          {
+            framing: "wide",
+            subjects: [],
+            from: 0,
+            to: 0,
+            rate: 0,
+            screen: 1000,
+            through: 0,
+            enact: null,
+            notes: [
+              { on: { kind: "server" }, text: "The server pokes." },
+              { on: { kind: "device", client: "A" }, text: "A pulls." },
+            ],
+            move: false,
+            opening: false,
+            step: 0,
+          },
+        ],
+        steps: [{ label: "Test.", first: 0, end: 1, startedAt: 0, endedAt: 0 }],
+      },
+      cursor: { shot: 0, offset: 0 },
+    };
+    const { container, restore } = await staged(wide, {
+      layout: new Map([...LAYOUT, ["viewport", rect(0, 0, 1000, 520)]]),
+    });
+    restore();
+    expect(container.querySelector("[data-foot]")).toBeNull();
+    const viewport = viewportIn(container);
+    for (const text of ["The server pokes.", "A pulls."]) {
+      const words = [...container.querySelectorAll("p")].find(
+        (p) => p.textContent === text,
+      );
+      expect(viewport?.contains(words ?? null), text).toBe(true);
+    }
+    expect(
+      container
+        .querySelector("[data-anchor='lens']")
+        ?.hasAttribute("data-room"),
+    ).toBe(true);
+  });
+
+  // jsdom cannot scroll, so the rule is pinned where it is written. `hidden`
+  // still makes the window a scroll container, which a focused control, a
+  // find in the page or a screen reader's cursor scrolls (and nothing scrolls
+  // back); `clip` is not one. `hidden` comes first, for browsers without
+  // `clip`.
+  it("clips the window without making it a scroll container", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/ui/figure/stage.module.css"),
+      "utf8",
+    );
+    const block = /\n\.viewport \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(
+      [...block.matchAll(/overflow:\s*([a-z]+);/g)].map((match) => match[1]),
+    ).toEqual(["hidden", "clip"]);
   });
 
   it("keeps All devices in the foot, never over the plane", async () => {

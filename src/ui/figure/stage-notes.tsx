@@ -66,9 +66,8 @@ export function StageNotes({ placed, viewport }: StageNotesProps) {
 // the controls under the stage hold still from hold to hold.
 export const FOOT_MIN = "calc(2 * 1.45 * var(--text-sm) + var(--space-1))";
 
-// A shot's notes in the stage's foot (a narrow viewport's, or a wide or a
-// table hold's with no room under its frame): the words alone, stacked in
-// the order of what they name, for the eye only.
+// A shot's notes in the stage's foot (a narrow viewport's): the words alone,
+// stacked in the order of what they name, for the eye only.
 export function FootNotes({
   placed,
 }: {

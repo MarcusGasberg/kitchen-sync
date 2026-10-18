@@ -1,12 +1,23 @@
 import { render } from "@testing-library/react";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
+import { compile } from "#/lib/director/compile";
 import type { Note } from "#/lib/director/shots";
-import { type Anchors, MARGIN_PX, NOTE_SHARE } from "#/ui/figure/camera";
+import { runHeadless } from "#/lib/sandbox/scene";
+import {
+  type Anchors,
+  cameraAt,
+  EASE_MILLIS,
+  frameBoxOf,
+  LINE_PX,
+  MARGIN_PX,
+  NOTE_GAP_PX,
+  NOTE_SHARE,
+  project,
+} from "#/ui/figure/camera";
 import {
   EDGE_PX,
   FEATHER_PX,
-  LINE_PX,
-  NOTE_GAP_PX,
   NOTE_MAX_PX,
   type PlacedNote,
   placeNotes,
@@ -15,6 +26,14 @@ import {
 import { StageNotes } from "#/ui/figure/stage-notes";
 import type { Box } from "#/ui/figure/wires";
 import type { Point } from "#/ui/marbling/operations";
+import {
+  BACK_ONLINE_SCENE,
+  DROP_RETRY_SCENE,
+  MILK_SCENE,
+  OAT_SCENE,
+  REMOVE_FIRST_SCENE,
+  TWO_WRITERS_SCENE,
+} from "./director-helpers";
 
 const box = (
   left: number,
@@ -339,21 +358,27 @@ describe("placeNotes", () => {
       }
     });
 
-    it("sends them to the foot when the room is too short", () => {
+    // The camera frames such a hold so its room holds its notes; while it
+    // eases there the room may be short, and the notes still keep to the
+    // window: the room starts no lower than they need.
+    it("never sends them to the foot on a wide window: the room starts no lower than the notes need", () => {
       const low = box(40, 40, 960, 560);
       expect(spotFor("wide", 1, low, IDENTITY, WIDE)).toEqual({
-        kind: "foot",
+        kind: "room",
+        top: 600 - 2 * LINE_PX,
+        left: 40,
+        right: 960,
       });
-      const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, {
-        kind: "foot",
-      });
-      expect(placed?.at).toBeNull();
-      expect(placed?.leader).toBeNull();
-      // About two lines each: room for one note, not for two.
+      // About two lines each, and the gap between them: room for one note
+      // under the frame's foot, not for two.
       const tight = box(40, 40, 960, 500);
-      expect(spotFor("wide", 1, tight, IDENTITY, WIDE).kind).toBe("room");
-      expect(spotFor("wide", 2, tight, IDENTITY, WIDE)).toEqual({
-        kind: "foot",
+      expect(spotFor("wide", 1, tight, IDENTITY, WIDE)).toMatchObject({
+        kind: "room",
+        top: 500 + MARGIN_PX,
+      });
+      expect(spotFor("wide", 2, tight, IDENTITY, WIDE)).toMatchObject({
+        kind: "room",
+        top: 600 - 4 * LINE_PX - NOTE_GAP_PX,
       });
     });
 
@@ -364,6 +389,78 @@ describe("placeNotes", () => {
       expect(
         spotFor("wide", 1, frame, IDENTITY, { width: 400, height: 700 }),
       ).toEqual({ kind: "foot" });
+      const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, {
+        kind: "foot",
+      });
+      expect(placed?.at).toBeNull();
+      expect(placed?.leader).toBeNull();
+    });
+  });
+
+  // The director's scenes, compiled, on the two- and three-device planes as
+  // the app lays them out, in a wide window on a 1440 × 900 screen and a
+  // tablet's: no hold's notes leave the window, and once the camera rests
+  // on a wide or a table hold its band sits above the room its notes take.
+  describe("a scene's holds on a wide window", () => {
+    const TWO: Anchors = {
+      plane: { width: 816, height: 1054 },
+      boxes: new Map([["world", box(32, 32, 784, 485)]]),
+      messages: new Map(),
+    };
+    const THREE: Anchors = {
+      plane: { width: 1088, height: 1140 },
+      boxes: new Map([["world", box(32, 32, 1056, 566)]]),
+      messages: new Map(),
+    };
+    const WINDOWS = [
+      { width: 778, height: 486 },
+      { width: 864, height: 540 },
+      { width: 736, height: 460 },
+    ];
+
+    it.each([
+      ["milk", MILK_SCENE],
+      ["oat", OAT_SCENE],
+      ["two writers", TWO_WRITERS_SCENE],
+      ["back online", BACK_ONLINE_SCENE],
+      ["remove first", REMOVE_FIRST_SCENE],
+      ["drop and retry", DROP_RETRY_SCENE],
+    ])("never sends a hold's notes to the foot: %s", async (_name, scene) => {
+      const cut = compile(await Effect.runPromise(runHeadless(scene)), scene);
+      const anchors = scene.world.clients.length > 2 ? THREE : TWO;
+      let roomed = 0;
+      for (const [index, shot] of cut.shots.entries()) {
+        if (shot.move || shot.notes.length === 0) continue;
+        for (const size of WINDOWS) {
+          for (const offset of [0, EASE_MILLIS / 2, shot.screen]) {
+            const view = cameraAt(cut, { shot: index, offset }, anchors, size, {
+              reduced: false,
+              fallback: null,
+            });
+            const frame = frameBoxOf(shot, anchors);
+            const spot = spotFor(
+              shot.framing,
+              shot.notes.length,
+              frame,
+              view,
+              size,
+            );
+            expect(spot.kind, `${index} @ ${offset}`).not.toBe("foot");
+            if (frame === null || spot.kind !== "room") continue;
+            roomed++;
+            if (offset < Math.min(EASE_MILLIS, shot.screen)) continue;
+            // At rest: the room starts a margin under the band's foot.
+            const foot = project(view, size, {
+              x: frame.left,
+              y: frame.bottom,
+            }).y;
+            expect(foot + MARGIN_PX, `${index}`).toBeCloseTo(spot.top);
+          }
+        }
+      }
+      if (scene === OAT_SCENE || scene === MILK_SCENE) {
+        expect(roomed).toBeGreaterThan(0);
+      }
     });
   });
 
