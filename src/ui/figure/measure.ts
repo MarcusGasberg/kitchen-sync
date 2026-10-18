@@ -1,4 +1,4 @@
-import type { Size } from "./camera";
+import { type Size, union } from "./camera";
 import { type Box, layWires, type Wire } from "./wires";
 
 // What the stage reads off its world plane once laid out: the plane's size,
@@ -12,20 +12,6 @@ export interface Measured {
   readonly boxes: ReadonlyMap<string, Box>;
   readonly wires: ReadonlyArray<Wire>;
 }
-
-const unionOf = (boxes: ReadonlyArray<Box>): Box | null => {
-  const [first, ...rest] = boxes;
-  if (first === undefined) return null;
-  return rest.reduce(
-    (all, b) => ({
-      left: Math.min(all.left, b.left),
-      top: Math.min(all.top, b.top),
-      right: Math.max(all.right, b.right),
-      bottom: Math.max(all.bottom, b.bottom),
-    }),
-    first,
-  );
-};
 
 export const measureWorld = (plane: HTMLElement): Measured => {
   const shown = plane.getBoundingClientRect();
@@ -74,7 +60,7 @@ export const measureWorld = (plane: HTMLElement): Measured => {
     boxes.set(n === 0 ? `header:${place}` : `text:${place}:${n - 1}`, box);
   }
   // The light table frames the devices' basins together.
-  const table = unionOf(
+  const table = union(
     [...boxes]
       .filter(([key]) => key.startsWith("basin:") && key !== "basin:server")
       .map(([, b]) => b),
@@ -86,7 +72,7 @@ export const measureWorld = (plane: HTMLElement): Measured => {
   const topOf = (b: Box): Box => ({ ...b, bottom: b.top });
   const server = boxes.get("server");
   const serverBasin = boxes.get("basin:server");
-  const world = unionOf([
+  const world = union([
     ...(server === undefined ? [] : [topOf(server)]),
     ...(serverBasin === undefined ? [] : [serverBasin]),
     ...[...boxes].flatMap(([key, device]) => {

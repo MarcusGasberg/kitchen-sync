@@ -48,7 +48,8 @@ export function WireBand({
   lost,
   lit = null,
 }: WireBandProps) {
-  // A wire stays lit when the shot is about it or about its device.
+  // A wire stays lit when the shot is about it or about its device: `lit`
+  // holds containers' keys (`containerOf`), and a lit device lights its wire.
   const dim = (client: string) =>
     lit !== null && !lit.has(`wire:${client}`) && !lit.has(`device:${client}`)
       ? ""

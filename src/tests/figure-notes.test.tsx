@@ -267,7 +267,7 @@ describe("placeNotes", () => {
         withHeader,
         IDENTITY,
         WIDE,
-        room,
+        { spot: room },
       );
       expect(placed?.pin).toEqual({ x: 646, y: 32 });
       expect(placed?.leader).toBeNull();
@@ -279,7 +279,7 @@ describe("placeNotes", () => {
         ANCHORS,
         IDENTITY,
         WIDE,
-        room,
+        { spot: room },
       );
       expect(placed?.pin).toEqual({ x: 410, y: 390 });
     });
@@ -296,7 +296,9 @@ describe("placeNotes", () => {
         expect(placed?.leader).toBeNull();
         expect(placed?.text).toBe("Every basin shows one pattern.");
       }
-      const [roomed] = placeNotes([table], basins, IDENTITY, WIDE, room);
+      const [roomed] = placeNotes([table], basins, IDENTITY, WIDE, {
+        spot: room,
+      });
       expect(roomed?.pin).toBeNull();
     });
   });
@@ -349,7 +351,7 @@ describe("placeNotes", () => {
           left: 40,
           right: 960,
         });
-        const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, spot);
+        const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, { spot });
         expect(placed?.at?.top).toBeGreaterThanOrEqual(400);
         expect(placed?.at?.left).toBe(40);
         expect(placed?.leader).toBeNull();
@@ -390,7 +392,7 @@ describe("placeNotes", () => {
         spotFor("wide", 1, frame, IDENTITY, { width: 400, height: 700 }),
       ).toEqual({ kind: "foot" });
       const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, {
-        kind: "foot",
+        spot: { kind: "foot" },
       });
       expect(placed?.at).toBeNull();
       expect(placed?.leader).toBeNull();

@@ -42,6 +42,35 @@ export const subjectKey = (subject: Subject): string => {
   }
 };
 
+// The container a subject is in, by its anchor's key: a device's pane (for
+// the device, its outbox, and its rows and rings), the server's pane (for
+// the server, and its rows and rings), a message's wire, or the light table.
+// A frame is made of containers, a spotlight lights them, and a close-up
+// frames each one's subjects together.
+export const containerOf = (subject: Subject): string => {
+  switch (subject.kind) {
+    case "device":
+    case "outbox":
+      return `device:${subject.client}`;
+    case "row":
+    case "ring":
+      return subject.where === SERVER ? SERVER : `device:${subject.where}`;
+    case "message":
+      return `wire:${subject.client}`;
+    case "server":
+    case "basins":
+      return subject.kind;
+  }
+};
+
+// Whether a subject is a container itself (a pane, a message on its wire,
+// the light table) rather than something in a pane (an outbox, a row, a
+// ring).
+export const isContainer = (subject: Subject): boolean =>
+  subject.kind !== "outbox" &&
+  subject.kind !== "row" &&
+  subject.kind !== "ring";
+
 // How the camera frames a shot's subjects: the whole world; close on them;
 // following a message along its wire; devices side by side; the devices'
 // basins stacked on the light table.

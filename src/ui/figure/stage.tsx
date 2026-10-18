@@ -21,13 +21,13 @@ import { StatusBand } from "#/ui/status-band";
 import {
   type Anchors,
   besideIn,
-  fitArea,
   frameBoxOf,
   intersects,
   litOf,
   MARGIN_PX,
   type MessageAnchor,
   type Size,
+  shareFrom,
   transformOf,
   visibleBox,
   wideView,
@@ -279,7 +279,7 @@ export function Stage({
   const placed =
     spot === null || camera === null || shot === undefined
       ? []
-      : placeNotes(shot.notes, anchors, camera, size, spot);
+      : placeNotes(shot.notes, anchors, camera, size, { spot });
   const fade = spot?.kind === "beside";
   const room = spot?.kind === "room" ? spot : null;
   const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
@@ -311,10 +311,10 @@ export function Stage({
           style={
             fade
               ? ({
-                  "--share-from": `${fitArea(size, true).right}px`,
+                  "--share-from": `${shareFrom(size)}px`,
                   // From the framing margin before the share: a subject
                   // framed against it keeps full ink.
-                  "--fade-from": `${fitArea(size, true).right - MARGIN_PX}px`,
+                  "--fade-from": `${shareFrom(size) - MARGIN_PX}px`,
                 } as CSSProperties)
               : room !== null
                 ? ({

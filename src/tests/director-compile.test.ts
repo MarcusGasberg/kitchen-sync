@@ -5,6 +5,7 @@ import {
   BARE_HOLD_MILLIS,
   compile,
   FOLLOW_RATE,
+  frameKey,
   MOVE_MILLIS,
   SLOW_INTO_MILLIS,
   SLOW_RATE,
@@ -26,6 +27,7 @@ import type {
 } from "#/lib/sandbox/trace";
 import {
   adds,
+  BACK_ONLINE_SCENE,
   DROP_RETRY_SCENE,
   lastEntryWhere,
   MILK_SCENE,
@@ -509,6 +511,35 @@ describe("compile", () => {
         "The server applies A's #3–#4.",
       ]);
     }),
+  );
+
+  // The camera eases, and never moves, between two shots that follow each
+  // other with no move between them in one step: it trusts the director to
+  // move wherever the frame changes.
+  it.effect(
+    "moves wherever a step's frame changes: two held shots side by side in a step share a frame",
+    () =>
+      Effect.gen(function* () {
+        for (const scene of [
+          MILK_SCENE,
+          OAT_SCENE,
+          TWO_WRITERS_SCENE,
+          BACK_ONLINE_SCENE,
+          REMOVE_FIRST_SCENE,
+          DROP_RETRY_SCENE,
+        ]) {
+          const cut = compile(yield* runHeadless(scene), scene);
+          let pairs = 0;
+          for (const [i, shot] of cut.shots.entries()) {
+            const next = cut.shots[i + 1];
+            if (next === undefined || next.step !== shot.step) continue;
+            if (shot.move || next.move) continue;
+            pairs++;
+            expect(frameKey(next), `${scene.id}: ${i}`).toBe(frameKey(shot));
+          }
+          expect(pairs, scene.id).toBeGreaterThan(0);
+        }
+      }),
   );
 });
 

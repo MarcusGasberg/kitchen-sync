@@ -1,5 +1,6 @@
 import {
   type Framing,
+  isContainer,
   type Note,
   SERVER,
   subjectKey,
@@ -17,6 +18,7 @@ import {
   roomFor,
   roomTop,
   type Size,
+  shareFrom,
   type View,
 } from "./camera";
 import type { Box } from "./wires";
@@ -196,14 +198,18 @@ interface Target {
   readonly note: Note;
   readonly index: number;
   // The subject's box on screen, and whether it is a container (a device,
-  // the server, the light table, a message) rather than a row or a ring.
+  // the server, the light table, a message; `isContainer`) rather than
+  // something in a pane.
   readonly box: Box | null;
   readonly container: boolean;
   // A device's or the server's pane header on screen, when measured.
   readonly header: Box | null;
 }
 
-// The pane header a note on a device or the server ends at, by its key.
+// The pane header a note on a device or the server ends at, by its key. A
+// pane's header and basin are keyed by its place (`header:<place>`,
+// `basin:<place>`), not by its container (`containerOf`), so this and
+// `ownOf` read the place straight off the subject.
 const headerKeyOf = (on: Note["on"]): string | null =>
   on.kind === "server"
     ? `header:${SERVER}`
@@ -221,15 +227,23 @@ const ownOf = (on: Note["on"]): ReadonlySet<string> => {
   return own;
 };
 
+// How a shot's notes are placed: where they go (`spotFor`); by default beside
+// the subjects on a wide viewport, in the foot on a narrow one.
+export interface NoteOptions {
+  readonly spot?: NoteSpot;
+}
+
 export const placeNotes = (
   notes: ReadonlyArray<Note>,
   anchors: Anchors,
   view: View,
   viewport: Size,
-  spot: NoteSpot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
+  {
+    spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
+  }: NoteOptions = {},
 ): ReadonlyArray<PlacedNote> => {
   const beside = spot.kind === "beside";
-  const share = viewport.width * (1 - NOTE_SHARE);
+  const share = shareFrom(viewport);
   const targets: ReadonlyArray<Target> = notes.map((note, index) => {
     const b = boxOf(note.on, anchors);
     const key = headerKeyOf(note.on);
@@ -238,7 +252,7 @@ export const placeNotes = (
       note,
       index,
       box: b === null ? null : onScreen(b, view, viewport),
-      container: note.on.kind !== "row" && note.on.kind !== "ring",
+      container: isContainer(note.on),
       header: header === undefined ? null : onScreen(header, view, viewport),
     };
   });

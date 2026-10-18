@@ -18,8 +18,10 @@ import { diffItems, entryBeforeUpdate } from "./marks";
 import { decisionNote, noteFor } from "./notes";
 import {
   type Cut,
+  containerOf,
   type Enactment,
   type Framing,
+  isContainer,
   type Note,
   SERVER,
   type Shot,
@@ -716,38 +718,18 @@ const directedShots = (
   return shots;
 };
 
-// What makes a frame: the framing and its containers. A message stands for
-// its wire, so a follow that passes from one message to the next on one wire
-// keeps its frame; rows, rings and outboxes inside a container only place
-// its notes, so an add's typing and its landing share one close-up.
-const containerKey = (subject: Subject): string | null => {
-  switch (subject.kind) {
-    case "message":
-      return `wire:${subject.client}`;
-    case "device":
-    case "server":
-    case "basins":
-      return subjectKey(subject);
-    case "outbox":
-    case "row":
-    case "ring":
-      return null;
-  }
+// What makes a frame: the framing and its containers (`containerOf`). A
+// message stands for its wire, so a follow that passes from one message to
+// the next on one wire keeps its frame. Only the subjects that are
+// containers count: rows, rings and outboxes inside one only place its
+// notes, so an add's typing and its landing share one close-up. The camera
+// reads it too: the shots of one frame run share the notes' share.
+export const frameKey = (shot: Pick<Shot, "framing" | "subjects">): string => {
+  const containers = new Set(
+    shot.subjects.filter(isContainer).map(containerOf),
+  );
+  return `${shot.framing}|${[...containers].sort().join(",")}`;
 };
-
-// The camera reads it too: the shots of one frame run share the notes'
-// share.
-export const frameKey = (shot: Pick<Shot, "framing" | "subjects">): string =>
-  `${shot.framing}|${[
-    ...new Set(
-      shot.subjects.flatMap((s) => {
-        const key = containerKey(s);
-        return key === null ? [] : [key];
-      }),
-    ),
-  ]
-    .sort()
-    .join(",")}`;
 
 // A step's shots with a move wherever the frame changes; the world holds
 // while the camera moves.

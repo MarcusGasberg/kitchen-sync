@@ -1,6 +1,8 @@
 import { frameKey } from "#/lib/director/compile";
 import {
   type Cut,
+  containerOf,
+  isContainer,
   SERVER,
   type Shot,
   type Subject,
@@ -81,7 +83,8 @@ export const besideIn = (viewport: Size): boolean =>
 export const roomFor = (count: number): number =>
   count * 2 * LINE_PX + Math.max(0, count - 1) * NOTE_GAP_PX;
 
-const union = (boxes: ReadonlyArray<Box>): Box | null => {
+// The least box holding every box, or null for none.
+export const union = (boxes: ReadonlyArray<Box>): Box | null => {
   const [first, ...rest] = boxes;
   if (first === undefined) return null;
   return rest.reduce(
@@ -109,6 +112,12 @@ const around = (p: Point): Box => ({
   bottom: p.y,
 });
 
+// Where the notes' share starts across a wide viewport, in screen pixels:
+// the subjects are framed left of it, the notes set right of it, and the
+// plane fades out up to it.
+export const shareFrom = (viewport: Size): number =>
+  viewport.width * (1 - NOTE_SHARE);
+
 // The part of the viewport a shot's subjects fit into: all of it, or, with
 // notes beside them, all but the notes' share.
 export const fitArea = (viewport: Size, notes: boolean): Box => {
@@ -119,7 +128,7 @@ export const fitArea = (viewport: Size, notes: boolean): Box => {
     bottom: viewport.height,
   };
   return notes && besideIn(viewport)
-    ? { ...all, right: viewport.width * (1 - NOTE_SHARE) }
+    ? { ...all, right: shareFrom(viewport) }
     : all;
 };
 
@@ -278,13 +287,6 @@ export const boxOf = (subject: Subject, anchors: Anchors): Box | null => {
   return anchors.boxes.get(subjectKey(subject)) ?? null;
 };
 
-const CONTAINERS = new Set<Subject["kind"]>([
-  "device",
-  "server",
-  "message",
-  "basins",
-]);
-
 const measured = (
   subjects: ReadonlyArray<Subject>,
   anchors: Anchors,
@@ -294,31 +296,14 @@ const measured = (
     return b === null ? [] : [b];
   });
 
-// Where a subject is: the device or server it is in, or itself.
-const groupOf = (subject: Subject): string => {
-  switch (subject.kind) {
-    case "device":
-    case "outbox":
-      return `place:${subject.client}`;
-    case "row":
-    case "ring":
-      return `place:${subject.where}`;
-    case "server":
-      return `place:${SERVER}`;
-    case "message":
-      return `wire:${subject.client}`;
-    case "basins":
-      return "basins";
-  }
-};
-
-// A shot's subjects by where they are, in the order the shot names them.
+// A shot's subjects by their container (`containerOf`), in the order the
+// shot names them.
 const groupsOf = (
   subjects: ReadonlyArray<Subject>,
 ): ReadonlyArray<ReadonlyArray<Subject>> => {
   const groups = new Map<string, Array<Subject>>();
   for (const subject of subjects) {
-    const key = groupOf(subject);
+    const key = containerOf(subject);
     const group = groups.get(key) ?? [];
     group.push(subject);
     groups.set(key, group);
@@ -361,12 +346,7 @@ const groupBox = (
     ]);
     return all === null ? null : pad(all, DETAIL_PAD_PX);
   }
-  return union(
-    measured(
-      subjects.filter((s) => CONTAINERS.has(s.kind)),
-      anchors,
-    ),
-  );
+  return union(measured(subjects.filter(isContainer), anchors));
 };
 
 // The boxes a close-up or a split frames, one per place that was
@@ -812,27 +792,13 @@ export const litOf = (
   if (shot.framing === "wide" || shot.framing === "table") return null;
   const lit = new Set<string>();
   for (const subject of shot.subjects) {
-    switch (subject.kind) {
-      case "device":
-      case "outbox":
-        lit.add(`device:${subject.client}`);
-        break;
-      case "server":
-        lit.add("server");
-        break;
-      case "row":
-      case "ring":
-        lit.add(
-          subject.where === SERVER ? "server" : `device:${subject.where}`,
-        );
-        break;
-      case "message":
-        lit.add(`wire:${subject.client}`);
-        lit.add(`device:${subject.client}`);
-        lit.add("server");
-        break;
-      case "basins":
-        break;
+    // The light table lights nothing of its own: it is every basin.
+    if (subject.kind === "basins") continue;
+    lit.add(containerOf(subject));
+    // A message lights both ends of its wire too: its device and the server.
+    if (subject.kind === "message") {
+      lit.add(`device:${subject.client}`);
+      lit.add(SERVER);
     }
   }
   return lit;
