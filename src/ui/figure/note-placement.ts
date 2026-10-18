@@ -24,6 +24,9 @@ export const CHAR_PX = 7.4;
 export const NOTE_GAP_PX = 10;
 // The gap between a note and the start of its leader.
 const LEADER_GAP_PX = 6;
+// Under the subjects, a leader leaves a note's left edge by this much, and
+// climbs the gutter at the middle of EDGE_PX.
+const ELBOW_GAP_PX = 4;
 
 export interface PlacedNote {
   readonly key: string;
@@ -31,8 +34,9 @@ export interface PlacedNote {
   readonly left: number;
   readonly top: number;
   readonly width: number;
-  // From the note to what it names; null when that was not measured.
-  readonly leader: { readonly from: Point; readonly to: Point } | null;
+  // From the note to what it names, as a polyline; null when that was not
+  // measured.
+  readonly leader: ReadonlyArray<Point> | null;
 }
 
 const heightOf = (text: string, width: number) =>
@@ -76,34 +80,70 @@ export const placeNotes = (
           : { x: middle.x, y: box.bottom };
     return { note, index, to: project(view, viewport, end) };
   });
-  const ordered = [...targets].sort((a, b) =>
-    beside ? (a.to?.y ?? 0) - (b.to?.y ?? 0) : (a.to?.x ?? 0) - (b.to?.x ?? 0),
-  );
+  // Notes whose subject was measured come first, in the order of their
+  // subjects; those with none sort last.
+  const along = (to: Point | null): number | null =>
+    to === null ? null : beside ? to.y : to.x;
+  const ordered = [...targets].sort((a, b) => {
+    const x = along(a.to);
+    const y = along(b.to);
+    if (x === null || y === null)
+      return (x === null ? 1 : 0) - (y === null ? 1 : 0);
+    return x - y;
+  });
+  const heights = ordered.map(({ note }) => heightOf(note.text, strip.width));
+  // Forward: each note sits as level with its subject as the notes before it
+  // allow, and never above the strip's top. `packed` is where each would sit
+  // were every note above it packed from the top: no note goes above that.
+  const tops: number[] = [];
+  const packed: number[] = [];
   let next = strip.top;
-  return ordered.map(({ note, index, to }) => {
-    const height = heightOf(note.text, strip.width);
+  let floor = strip.top;
+  ordered.forEach(({ to }, i) => {
     const wanted = beside && to !== null ? to.y - LINE_PX / 2 : strip.top;
-    const top = Math.min(
-      Math.max(wanted, next),
-      Math.max(strip.top, strip.bottom - height),
+    const top = Math.max(wanted, next);
+    tops.push(top);
+    packed.push(floor);
+    next = top + (heights[i] ?? 0) + NOTE_GAP_PX;
+    floor += (heights[i] ?? 0) + NOTE_GAP_PX;
+  });
+  // Backward, last note first: each note's bottom sits no lower than the
+  // strip's bottom (the last) or the top of the note below less the gap, so
+  // a note near the bottom is pulled up into the strip when the notes below
+  // it allow. Never above its packed floor, so notes never overlap; when
+  // there are too many to fit, the extras run off the bottom and are clipped.
+  const final = [...tops];
+  let below = strip.bottom;
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const height = heights[i] ?? 0;
+    const top = Math.max(
+      packed[i] ?? strip.top,
+      Math.min(tops[i] ?? strip.top, below - height),
     );
-    next = top + height + NOTE_GAP_PX;
-    const from = beside
-      ? { x: strip.left - LEADER_GAP_PX, y: top + LINE_PX / 2 }
-      : {
-          x: Math.min(
-            Math.max(to?.x ?? strip.left, strip.left),
-            strip.left + strip.width,
-          ),
-          y: top - LEADER_GAP_PX,
-        };
+    final[i] = top;
+    below = top - NOTE_GAP_PX;
+  }
+  return ordered.map(({ note, index, to }, i) => {
+    const top = final[i] ?? strip.top;
+    const mid = top + LINE_PX / 2;
+    const leader =
+      to === null
+        ? null
+        : beside
+          ? [{ x: strip.left - LEADER_GAP_PX, y: mid }, to]
+          : [
+              { x: strip.left - ELBOW_GAP_PX, y: mid },
+              { x: EDGE_PX / 2, y: mid },
+              { x: EDGE_PX / 2, y: strip.top - LEADER_GAP_PX },
+              to,
+            ];
     return {
       key: String(index),
       text: note.text,
       left: strip.left,
       top,
       width: strip.width,
-      leader: to === null ? null : { from, to },
+      leader,
     };
   });
 };

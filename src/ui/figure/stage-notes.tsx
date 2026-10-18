@@ -32,18 +32,16 @@ export function StageNotes({
         {placed.map((note) =>
           note.leader === null ? null : (
             <g key={note.key}>
-              <line
+              <polyline
                 className={styles.leader}
-                x1={note.leader.from.x}
-                y1={note.leader.from.y}
-                x2={note.leader.to.x}
-                y2={note.leader.to.y}
+                fill="none"
+                points={note.leader.map((p) => `${p.x},${p.y}`).join(" ")}
                 pathLength={1}
               />
               <circle
                 className={styles.pin}
-                cx={note.leader.to.x}
-                cy={note.leader.to.y}
+                cx={note.leader[note.leader.length - 1]?.x}
+                cy={note.leader[note.leader.length - 1]?.y}
                 r={2.5}
               />
             </g>
