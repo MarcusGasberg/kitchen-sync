@@ -61,8 +61,14 @@ export function StageNotes({ placed, viewport }: StageNotesProps) {
   );
 }
 
-// A shot's notes under a narrow viewport, in the stage's foot: the words
-// alone, stacked in the order of what they name, for the eye only.
+// The foot's least height during a scene: two notes (a line each, in the
+// notes' type: `--text-sm` at 1.45) and the gap between them (`.foot`), so
+// the controls under the stage hold still from hold to hold.
+export const FOOT_MIN = "calc(2 * 1.45 * var(--text-sm) + var(--space-1))";
+
+// A shot's notes in the stage's foot (a narrow viewport's, or a wide or a
+// table hold's with no room under its frame): the words alone, stacked in
+// the order of what they name, for the eye only.
 export function FootNotes({
   placed,
 }: {

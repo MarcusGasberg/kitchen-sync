@@ -24,6 +24,7 @@ import {
   cameraAt,
   densityFor,
   fitArea,
+  frameBoxOf,
   frameFor,
   intersects,
   litOf,
@@ -36,9 +37,9 @@ import {
   wideView,
 } from "./camera";
 import { type Measured, measureWorld, sameMeasure } from "./measure";
-import { placeNotes } from "./note-placement";
+import { placeNotes, spotFor } from "./note-placement";
 import styles from "./stage.module.css";
-import { FootNotes, StageNotes } from "./stage-notes";
+import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import type { StageView } from "./stage-view";
 import { WireBand } from "./wire-band";
 import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
@@ -331,21 +332,35 @@ export function Stage({
   };
 
   // A hold's notes: beside the subjects on a wide viewport, where the plane
-  // fades out across their share; on a narrow one, in the foot under it.
+  // fades out across their share; under a wide or a table frame, in the
+  // room it leaves at the window's foot, faded the same way; on a narrow
+  // viewport, or with no such room, in the foot under the window.
   const beside = besideIn(size);
-  const placed =
+  const spot =
     camera !== null && shot !== undefined && !shot.move && shot.notes.length > 0
-      ? placeNotes(shot.notes, anchors, camera, size)
-      : [];
-  const fade = beside && placed.length > 0;
+      ? spotFor(
+          shot.framing,
+          shot.notes.length,
+          frameBoxOf(shot, anchors),
+          camera,
+          size,
+        )
+      : null;
+  const placed =
+    spot === null || camera === null || shot === undefined
+      ? []
+      : placeNotes(shot.notes, anchors, camera, size, spot);
+  const fade = spot?.kind === "beside";
+  const room = spot?.kind === "room" ? spot : null;
   const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
   // The foot under the window: a narrow viewport's notes for the whole
-  // scene, so the page holds still between holds; free play's way back.
+  // scene, kept two notes tall so the page holds still between holds; a
+  // wide viewport's when a hold's room is too short; free play's way back.
   const foot =
     cue.kind === "shot"
-      ? beside
-        ? null
-        : "notes"
+      ? !beside || spot?.kind === "foot"
+        ? "notes"
+        : null
       : live || focused !== null
         ? "free"
         : null;
@@ -356,11 +371,12 @@ export function Stage({
     <div className={styles.stage} onKeyDown={onKeyDown}>
       <div ref={viewport} className={styles.viewport} data-anchor="viewport">
         {/* The camera's lens: the window's edges feathered, and the notes'
-            share faded, over the plane alone. */}
+            share or room faded, over the plane alone. */}
         <div
           className={styles.lens}
           data-anchor="lens"
           data-notes={fade ? "" : undefined}
+          data-room={room === null ? undefined : ""}
           style={
             fade
               ? ({
@@ -369,7 +385,13 @@ export function Stage({
                   // framed against it keeps full ink.
                   "--fade-from": `${fitArea(size, true).right - MARGIN_PX}px`,
                 } as CSSProperties)
-              : undefined
+              : room !== null
+                ? ({
+                    "--room-from": `${room.top}px`,
+                    // From the frame's foot, a margin above the room.
+                    "--room-fade-from": `${room.top - MARGIN_PX}px`,
+                  } as CSSProperties)
+                : undefined
           }
         >
           <div
@@ -541,8 +563,16 @@ export function Stage({
         )}
       </div>
       {foot !== null && (
-        <div className={styles.foot} data-foot={foot}>
-          {foot === "notes" && placed.length > 0 && (
+        <div
+          className={styles.foot}
+          data-foot={foot}
+          style={
+            foot === "notes"
+              ? ({ "--foot-min": FOOT_MIN } as CSSProperties)
+              : undefined
+          }
+        >
+          {foot === "notes" && spot?.kind === "foot" && (
             <FootNotes key={noteKey} placed={placed} />
           )}
           {foot === "free" && focused !== null && (

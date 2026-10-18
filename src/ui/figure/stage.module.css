@@ -66,12 +66,27 @@
   mask-image: var(--across), var(--down), var(--share);
 }
 
+/* A wide or a table hold keeps its whole frame; its notes go in the room
+   under it, where the plane fades out the same way: from the frame's foot
+   (`--room-fade-from`) to the room's top (`--room-from`), both set by the
+   stage. */
+.lens[data-room] {
+  --room: linear-gradient(
+    to bottom,
+    #000 var(--room-fade-from),
+    transparent var(--room-from)
+  );
+  -webkit-mask-image: var(--across), var(--down), var(--room);
+  mask-image: var(--across), var(--down), var(--room);
+}
+
 /* Under the window, never over the plane. During a scene on a narrow
-   viewport it holds the hold's notes, and keeps two notes' lines however
-   few there are, so the page holds still from hold to hold; in free play it
-   holds the way back to every device, its room kept while none is shown. */
+   viewport it holds the hold's notes, and keeps two notes and the gap
+   between them (`--foot-min`, set by the stage) however few there are, so
+   the page holds still from hold to hold; in free play it holds the way back
+   to every device, its room kept while none is shown. */
 .foot[data-foot="notes"] {
-  min-block-size: calc(2 * var(--text-sm) * 1.45);
+  min-block-size: var(--foot-min);
 }
 
 .foot[data-foot="free"] {

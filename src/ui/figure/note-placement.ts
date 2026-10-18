@@ -1,4 +1,4 @@
-import { type Note, SERVER, type Subject } from "#/lib/director/shots";
+import { type Framing, type Note, subjectKey } from "#/lib/director/shots";
 import type { Point } from "#/ui/marbling/operations";
 import {
   type Anchors,
@@ -12,11 +12,18 @@ import {
 } from "./camera";
 import type { Box } from "./wires";
 
-// Where a shot's notes sit, and where each leader runs. On a wide viewport
-// they go in the share of it the camera left for them, beside the subjects,
-// each as level with what it names as the notes before it allow, tied to it
-// by a leader that keeps to the gaps. On a narrow one they leave the window
-// for the stage's foot, and each subject keeps only its dot.
+// Where a shot's notes sit, and which of them are tied to what they name.
+//
+// - Beside the subjects (a wide viewport's close-ups, splits and follows),
+//   the notes go in the share of the window the camera left for them. A note
+//   whose straight run from its subject's end touches no text and no basin
+//   water sits level with its subject and draws that run as its leader. The
+//   others keep only the dot at their subject's end (their words name it),
+//   stacked around the level ones in their subjects' order.
+// - Under a wide or a table hold's frame, which keeps the whole window, the
+//   notes go in the room the frame leaves at the window's foot, with dots.
+// - On a narrow viewport, or when that room is too short, the notes leave
+//   the window for the stage's foot, and each subject keeps only its dot.
 
 export const EDGE_PX = 16;
 export const NOTE_MAX_PX = 288;
@@ -27,11 +34,6 @@ export const CHAR_PX = 7.4;
 export const NOTE_GAP_PX = 10;
 // The gap between a note and the end of its leader.
 const LEADER_GAP_PX = 6;
-// A leader's channel beside its subject's container: half the gap to the
-// next container on the right, or half this when none stands there.
-const LONE_GAP_PX = 12;
-// How far inside the notes' share a leader drops from the wire band.
-const SHARE_INSET_PX = 12;
 // The stage's lens fades the window's edges over this (`--feather`, the
 // 1.5rem space token): a dot there or past them would float on nothing, so
 // it is dropped, and beside the subjects its leader with it.
@@ -40,21 +42,33 @@ export const FEATHER_PX = 24;
 export interface PlacedNote {
   readonly key: string;
   readonly text: string;
-  // Where its words sit over the viewport, beside the subjects; null under
-  // them, where the words stack in the stage's foot.
+  // Where its words sit over the viewport, beside the subjects or in the
+  // room under a wide or a table frame; null when they are in the stage's
+  // foot.
   readonly at: {
     readonly left: number;
     readonly top: number;
     readonly width: number;
   } | null;
-  // From the subject's end into the note, as an orthogonal polyline; null
-  // under the subjects, when the subject was not measured, or when its end
-  // lies outside the window less its feather.
+  // From the subject's end straight into the note, level with both; null
+  // unless that run touches no text or basin water, beside the subjects.
   readonly leader: ReadonlyArray<Point> | null;
   // The dot at the subject's end; null when the subject was not measured or
   // its end lies outside the window less its feather.
   readonly pin: Point | null;
 }
+
+// Where a shot's notes go: beside the subjects, in the room under a wide or
+// a table frame (screen pixels), or in the stage's foot.
+export type NoteSpot =
+  | { readonly kind: "beside" }
+  | {
+      readonly kind: "room";
+      readonly top: number;
+      readonly left: number;
+      readonly right: number;
+    }
+  | { readonly kind: "foot" };
 
 const heightOf = (text: string, width: number) =>
   Math.max(1, Math.ceil((text.length * CHAR_PX) / Math.max(1, width))) *
@@ -70,66 +84,94 @@ const onScreen = (b: Box, view: View, viewport: Size): Box => {
 const clamp = (n: number, low: number, high: number) =>
   Math.min(high, Math.max(low, n));
 
-// The containers a leader keeps out of: the server's pane and each device's.
-const containersOf = (anchors: Anchors): ReadonlyArray<[string, Box]> =>
-  [...anchors.boxes].filter(
-    ([key]) => key === "server" || key.startsWith("device:"),
-  );
-
-// The containers a subject sits in, which its own leader may cross: a row's
-// or a ring's device or server; the light table's devices.
-const ownOf = (subject: Subject, anchors: Anchors): ReadonlyArray<string> => {
-  switch (subject.kind) {
-    case "row":
-    case "ring":
-      return [subject.where === SERVER ? "server" : `device:${subject.where}`];
-    case "device":
-    case "outbox":
-      return [`device:${subject.client}`];
-    case "server":
-      return ["server"];
-    case "basins":
-      return containersOf(anchors)
-        .map(([key]) => key)
-        .filter((key) => key.startsWith("device:"));
-    case "message":
-      return [];
-  }
+// Where `count` notes go for a shot of `framing` whose frame is `frame` (a
+// wide or a table hold's box on the plane, from `frameBoxOf`). Beside the
+// subjects on a wide viewport; under a wide or a table frame, in the room it
+// leaves at the window's foot (below the frame's projected bottom less the
+// margin), when that room holds about two lines a note; else the foot.
+export const spotFor = (
+  framing: Framing,
+  count: number,
+  frame: Box | null,
+  view: View,
+  viewport: Size,
+): NoteSpot => {
+  if (!besideIn(viewport)) return { kind: "foot" };
+  if (framing !== "wide" && framing !== "table") return { kind: "beside" };
+  if (frame === null) return { kind: "foot" };
+  const framed = onScreen(frame, view, viewport);
+  const top = framed.bottom + MARGIN_PX;
+  const need = count * 2 * LINE_PX + Math.max(0, count - 1) * NOTE_GAP_PX;
+  if (viewport.height - top < need) return { kind: "foot" };
+  return {
+    kind: "room",
+    top,
+    left: Math.max(EDGE_PX, framed.left),
+    right: Math.min(viewport.width - EDGE_PX, framed.right),
+  };
 };
 
-// Whether an axis-aligned segment runs through a box's inside, short of
-// `until` (the notes' share, where the plane is faded out).
-const crosses = (a: Point, b: Point, inside: Box, until: number) => {
-  const left = Math.min(a.x, b.x);
-  const right = Math.min(Math.max(a.x, b.x), until);
-  if (right < left) return false;
+// Notes of `heights` set as near their `wanted` tops as `[low, high]` and
+// each other allow. Forward: each as level with its subject as the notes
+// before it allow, and never above `low`; `packed` is where each would sit
+// were every note before it packed from `low`. Backward, last first: each
+// note's bottom no lower than `high` (the last) or the top of the note below
+// less the gap, never above its packed floor, so notes never overlap; when
+// too many to fit, the extras run past `high`.
+const pack = (
+  wanted: ReadonlyArray<number>,
+  heights: ReadonlyArray<number>,
+  low: number,
+  high: number,
+): Array<number> => {
+  const tops: Array<number> = [];
+  const packed: Array<number> = [];
+  let next = low;
+  let floor = low;
+  for (const [i, want] of wanted.entries()) {
+    const height = heights[i] ?? 0;
+    const top = Math.max(want, next);
+    tops.push(top);
+    packed.push(floor);
+    next = top + height + NOTE_GAP_PX;
+    floor += height + NOTE_GAP_PX;
+  }
+  const final = [...tops];
+  let below = high;
+  for (let i = wanted.length - 1; i >= 0; i--) {
+    const height = heights[i] ?? 0;
+    const top = Math.max(
+      packed[i] ?? low,
+      Math.min(tops[i] ?? low, below - height),
+    );
+    final[i] = top;
+    below = top - NOTE_GAP_PX;
+  }
+  return final;
+};
+
+// The height a run of notes needs, gaps between them included.
+const stacked = (heights: ReadonlyArray<number>) =>
+  heights.reduce((all, h) => all + h, 0) +
+  Math.max(0, heights.length - 1) * NOTE_GAP_PX;
+
+// Whether a level run at `y` from `from` to `to` runs through a box's
+// inside, short of `until` (the notes' share, where the plane is faded out).
+const crosses = (
+  y: number,
+  from: number,
+  to: number,
+  inside: Box,
+  until: number,
+) => {
+  const right = Math.min(to, until);
   return (
-    left < inside.right &&
+    from < right &&
+    from < inside.right &&
     right > inside.left &&
-    Math.min(a.y, b.y) < inside.bottom &&
-    Math.max(a.y, b.y) > inside.top
+    y > inside.top &&
+    y < inside.bottom
   );
-};
-
-// A polyline without repeated points or straight-through corners.
-const simplify = (points: ReadonlyArray<Point>): ReadonlyArray<Point> => {
-  const out: Array<Point> = [];
-  for (const p of points) {
-    const last = out.at(-1);
-    if (last !== undefined && last.x === p.x && last.y === p.y) continue;
-    const before = out.at(-2);
-    if (
-      before !== undefined &&
-      last !== undefined &&
-      ((before.x === last.x && last.x === p.x) ||
-        (before.y === last.y && last.y === p.y))
-    ) {
-      out[out.length - 1] = p;
-    } else {
-      out.push(p);
-    }
-  }
-  return out;
 };
 
 interface Target {
@@ -141,30 +183,22 @@ interface Target {
   readonly container: boolean;
 }
 
-const isDetail = (subject: Subject) =>
-  subject.kind === "row" || subject.kind === "ring";
-
 export const placeNotes = (
   notes: ReadonlyArray<Note>,
   anchors: Anchors,
   view: View,
   viewport: Size,
+  spot: NoteSpot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
 ): ReadonlyArray<PlacedNote> => {
-  const beside = besideIn(viewport);
+  const beside = spot.kind === "beside";
   const share = viewport.width * (1 - NOTE_SHARE);
-  const strip = {
-    left: share + EDGE_PX,
-    top: EDGE_PX,
-    width: Math.min(NOTE_MAX_PX, viewport.width * NOTE_SHARE - 2 * EDGE_PX),
-    bottom: viewport.height - EDGE_PX,
-  };
   const targets: ReadonlyArray<Target> = notes.map((note, index) => {
     const b = boxOf(note.on, anchors);
     return {
       note,
       index,
       box: b === null ? null : onScreen(b, view, viewport),
-      container: !isDetail(note.on),
+      container: note.on.kind !== "row" && note.on.kind !== "ring",
     };
   });
   // The subject's end, facing the notes: a row's or a ring's right edge at
@@ -181,18 +215,6 @@ export const placeNotes = (
       y: (top + bottom) / 2,
     };
   };
-  // Notes whose subject was measured come first, in the order of their
-  // subjects (down the share beside them, across the foot under them);
-  // those with none sort last.
-  const along = (end: Point | null): number | null =>
-    end === null ? null : beside ? end.y : end.x;
-  const ordered = [...targets].sort((a, b) => {
-    const x = along(endOf(a));
-    const y = along(endOf(b));
-    if (x === null || y === null)
-      return (x === null ? 1 : 0) - (y === null ? 1 : 0);
-    return x - y;
-  });
   // A subject's end shows a dot only inside the window, less its feather.
   const shown = (p: Point | null): Point | null =>
     p !== null &&
@@ -202,139 +224,144 @@ export const placeNotes = (
     p.y <= viewport.height - FEATHER_PX
       ? p
       : null;
-  if (!beside) {
-    return ordered.map((target) => ({
-      key: String(target.index),
-      text: target.note.text,
-      at: null,
-      leader: null,
-      pin: shown(endOf(target)),
-    }));
-  }
-
-  const heights = ordered.map(({ note }) => heightOf(note.text, strip.width));
-  // Forward: each note sits as level with its subject as the notes before it
-  // allow, and never above the strip's top. `packed` is where each would sit
-  // were every note above it packed from the top: no note goes above that.
-  const tops: number[] = [];
-  const packed: number[] = [];
-  let next = strip.top;
-  let floor = strip.top;
-  ordered.forEach((target, i) => {
-    const end = endOf(target);
-    const wanted = end === null ? strip.top : end.y - LINE_PX / 2;
-    const top = Math.max(wanted, next);
-    tops.push(top);
-    packed.push(floor);
-    next = top + (heights[i] ?? 0) + NOTE_GAP_PX;
-    floor += (heights[i] ?? 0) + NOTE_GAP_PX;
+  // Notes whose subject was measured come first, in the order of their
+  // subjects (down the share beside them, across otherwise); those with
+  // none sort last.
+  const along = (end: Point | null): number | null =>
+    end === null ? null : beside ? end.y : end.x;
+  const ordered = [...targets].sort((a, b) => {
+    const x = along(endOf(a));
+    const y = along(endOf(b));
+    if (x === null || y === null)
+      return (x === null ? 1 : 0) - (y === null ? 1 : 0);
+    return x - y;
   });
-  // Backward, last note first: each note's bottom sits no lower than the
-  // strip's bottom (the last) or the top of the note below less the gap, so
-  // a note near the bottom is pulled up into the strip when the notes below
-  // it allow. Never above its packed floor, so notes never overlap; when
-  // there are too many to fit, the extras run off the bottom and are clipped.
-  const final = [...tops];
-  let below = strip.bottom;
-  for (let i = ordered.length - 1; i >= 0; i--) {
-    const height = heights[i] ?? 0;
-    const top = Math.max(
-      packed[i] ?? strip.top,
-      Math.min(tops[i] ?? strip.top, below - height),
-    );
-    final[i] = top;
-    below = top - NOTE_GAP_PX;
+  const dotted = (target: Target, at: PlacedNote["at"]): PlacedNote => ({
+    key: String(target.index),
+    text: target.note.text,
+    at,
+    leader: null,
+    pin: shown(endOf(target)),
+  });
+
+  if (spot.kind === "foot") return ordered.map((t) => dotted(t, null));
+  if (spot.kind === "room") {
+    // Stacked from the room's top, left-aligned with the frame.
+    const width = Math.max(1, spot.right - spot.left);
+    let top = spot.top;
+    return ordered.map((target) => {
+      const placed = dotted(target, { left: spot.left, top, width });
+      top += heightOf(target.note.text, width) + NOTE_GAP_PX;
+      return placed;
+    });
   }
 
-  // The leaders' routes. The containers on screen, and the wire band's
-  // middle, between the server's foot and the devices' tops, when in view.
-  const containers = containersOf(anchors).map(
-    ([key, b]) => [key, onScreen(b, view, viewport)] as const,
-  );
-  const server = containers.find(([key]) => key === "server")?.[1];
-  const devices = containers.filter(([key]) => key !== "server");
-  const band =
-    server === undefined || devices.length === 0
-      ? null
-      : (server.bottom + Math.min(...devices.map(([, b]) => b.top))) / 2;
-  const bandInView = band !== null && band >= 0 && band <= viewport.height;
-  const drop = share + SHARE_INSET_PX;
-
-  // From the subject's end right to a channel just outside its container,
-  // up or down it to the note's line, and right into the note. Where that
-  // would cross another container, the channel climbs to the wire band, runs
-  // along it into the notes' share and drops to the note instead. A
-  // close-up framed tight under the band has none in view to climb to: there
-  // the straight route stands, past the dimmed neighbour.
-  const route = (target: Target, line: number): ReadonlyArray<Point> | null => {
-    const end = endOf(target);
-    if (end === null || target.box === null) return null;
-    const start = target.container
-      ? {
-          x: end.x,
-          y: clamp(line, target.box.top, target.box.bottom),
-        }
-      : end;
-    const own = new Set(ownOf(target.note.on, anchors));
-    const owned = containers.filter(([key]) => own.has(key));
-    const others = containers.filter(([key]) => !own.has(key));
-    const around =
-      owned.length === 0
-        ? target.box
-        : owned
-            .map(([, b]) => b)
-            .reduce((all, b) => ({
-              left: Math.min(all.left, b.left),
-              top: Math.min(all.top, b.top),
-              right: Math.max(all.right, b.right),
-              bottom: Math.max(all.bottom, b.bottom),
-            }));
-    const gaps = others
-      .map(([, b]) => b)
-      .filter(
-        (b) =>
-          b.left >= around.right &&
-          b.top < around.bottom &&
-          b.bottom > around.top,
-      )
-      .map((b) => b.left - around.right);
-    const gap = gaps.length > 0 ? Math.min(...gaps) : LONE_GAP_PX;
-    const channel = Math.min(around.right + gap / 2, drop);
-    const into = Math.max(channel, strip.left - LEADER_GAP_PX);
-    const climb = { x: channel, y: line };
-    const blocked = others.some(
-      ([, b]) =>
-        crosses({ x: channel, y: start.y }, climb, b, share) ||
-        crosses(climb, { x: into, y: line }, b, share),
-    );
-    if (!blocked || !bandInView || band === null) {
-      return simplify([
-        start,
-        { x: channel, y: start.y },
-        climb,
-        { x: into, y: line },
-      ]);
-    }
-    return simplify([
-      start,
-      { x: channel, y: start.y },
-      { x: channel, y: band },
-      { x: drop, y: band },
-      { x: drop, y: line },
-      { x: Math.max(drop, strip.left - LEADER_GAP_PX), y: line },
-    ]);
+  const strip = {
+    left: share + EDGE_PX,
+    top: EDGE_PX,
+    width: Math.min(NOTE_MAX_PX, viewport.width * NOTE_SHARE - 2 * EDGE_PX),
+    bottom: viewport.height - EDGE_PX,
   };
+  const into = strip.left - LEADER_GAP_PX;
+  const heights = ordered.map(({ note }) => heightOf(note.text, strip.width));
+  // What a leader may not touch, on screen: text (each row, list heading and
+  // pane header) and basin water.
+  const obstacles = [...anchors.boxes]
+    .filter(
+      ([key]) =>
+        key.startsWith("row:") ||
+        key.startsWith("text:") ||
+        key.startsWith("basin:"),
+    )
+    .map(([key, b]) => [key, onScreen(b, view, viewport)] as const);
+  // Whether a note can sit level with its subject and run straight into it:
+  // its subject's end shows, its level top fits the strip, and the run from
+  // that end into the note touches nothing.
+  const level = ordered.map((target, i) => {
+    const end = shown(endOf(target));
+    if (end === null) return false;
+    const top = end.y - LINE_PX / 2;
+    if (top < strip.top || top + (heights[i] ?? 0) > strip.bottom) {
+      return false;
+    }
+    const own = subjectKey(target.note.on);
+    return obstacles.every(
+      ([key, b]) => key === own || !crosses(end.y, end.x, into, b, share),
+    );
+  });
+  const wanted = ordered.map((target) => {
+    const end = endOf(target);
+    return end === null ? strip.top : end.y - LINE_PX / 2;
+  });
+  // Level notes keep their subjects' heights, a later one that would
+  // overlap the one before dropping to a dot. The dotted notes stack in the
+  // gaps between them, in order; where a gap is too short for its notes, the
+  // level note under it (or the last) drops to a dot, and the stacking runs
+  // again.
+  const fixed = [...level];
+  let last = -1;
+  for (const [i, isLevel] of fixed.entries()) {
+    if (!isLevel) continue;
+    const previous =
+      last < 0 ? null : (wanted[last] ?? 0) + (heights[last] ?? 0);
+    if (previous !== null && (wanted[i] ?? 0) < previous + NOTE_GAP_PX) {
+      fixed[i] = false;
+    } else {
+      last = i;
+    }
+  }
+  const tops = [...wanted];
+  for (;;) {
+    const anchorsAt = fixed.flatMap((isFixed, i) => (isFixed ? [i] : []));
+    let dropped = false;
+    let low = strip.top;
+    let start = 0;
+    for (const boundary of [...anchorsAt, ordered.length]) {
+      const atBoundary = boundary < ordered.length;
+      const high = atBoundary
+        ? (wanted[boundary] ?? 0) - NOTE_GAP_PX
+        : strip.bottom;
+      const run = Array.from({ length: boundary - start }, (_, k) => start + k);
+      const runHeights = run.map((i) => heights[i] ?? 0);
+      if (
+        anchorsAt.length > 0 &&
+        run.length > 0 &&
+        stacked(runHeights) > high - low
+      ) {
+        // Too short: the level note under this gap, or the last one above
+        // the foot, drops to a dot.
+        const drop = atBoundary ? boundary : anchorsAt.at(-1);
+        if (drop !== undefined) fixed[drop] = false;
+        dropped = true;
+        break;
+      }
+      const packedTops = pack(
+        run.map((i) => wanted[i] ?? low),
+        runHeights,
+        low,
+        high,
+      );
+      for (const [k, i] of run.entries()) tops[i] = packedTops[k] ?? low;
+      if (atBoundary) {
+        tops[boundary] = wanted[boundary] ?? low;
+        low = (wanted[boundary] ?? 0) + (heights[boundary] ?? 0) + NOTE_GAP_PX;
+        start = boundary + 1;
+      }
+    }
+    if (!dropped) break;
+  }
 
   return ordered.map((target, i) => {
-    const top = final[i] ?? strip.top;
-    const routed = route(target, top + LINE_PX / 2);
-    const pin = shown(routed?.[0] ?? null);
+    const top = tops[i] ?? strip.top;
+    const at = { left: strip.left, top, width: strip.width };
+    const end = shown(endOf(target));
+    if (!fixed[i] || end === null) return dotted(target, at);
     return {
       key: String(target.index),
       text: target.note.text,
-      at: { left: strip.left, top, width: strip.width },
-      leader: pin === null ? null : routed,
-      pin,
+      at,
+      leader: [end, { x: into, y: end.y }],
+      pin: end,
     };
   });
 };

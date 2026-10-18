@@ -59,6 +59,18 @@ export const measureWorld = (plane: HTMLElement): Measured => {
       );
     }
   }
+  // The text a leader may not touch besides the rows: each pane's header and
+  // each list heading, by its place.
+  const counts = new Map<string, number>();
+  for (const element of plane.querySelectorAll<HTMLElement>(
+    "[data-place] header",
+  )) {
+    const place = element.closest<HTMLElement>("[data-place]")?.dataset.place;
+    if (place === undefined) continue;
+    const n = counts.get(place) ?? 0;
+    counts.set(place, n + 1);
+    boxes.set(`text:${place}:${n}`, within(element.getBoundingClientRect()));
+  }
   // The light table frames the devices' basins together.
   const table = unionOf(
     [...boxes]

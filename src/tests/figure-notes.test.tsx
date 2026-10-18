@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Note } from "#/lib/director/shots";
-import { type Anchors, NOTE_SHARE } from "#/ui/figure/camera";
+import { type Anchors, MARGIN_PX, NOTE_SHARE } from "#/ui/figure/camera";
 import {
   EDGE_PX,
   FEATHER_PX,
@@ -10,6 +10,7 @@ import {
   NOTE_MAX_PX,
   type PlacedNote,
   placeNotes,
+  spotFor,
 } from "#/ui/figure/note-placement";
 import { StageNotes } from "#/ui/figure/stage-notes";
 import type { Box } from "#/ui/figure/wires";
@@ -49,9 +50,8 @@ const ANCHORS: Anchors = {
 
 const IDENTITY = { x: 500, y: 300, scale: 1 };
 const WIDE = { width: 1000, height: 600 };
-// Where the notes' share starts, and the wire band's middle.
+// Where the notes' share starts.
 const SHARE = 1000 * (1 - NOTE_SHARE);
-const BAND = (140 + 200) / 2;
 
 const note = (on: Note["on"], text: string): Note => ({ on, text });
 
@@ -104,7 +104,11 @@ describe("placeNotes", () => {
     expect(orthogonal(placed?.leader ?? [])).toBe(true);
   });
 
-  it("runs a beside leader from B's row through gaps, never across C", () => {
+  // The split: B's straight run into its note would strike C's "1 Oat
+  // milk", so B's note keeps only its dot (its words name B). C's runs clear,
+  // so C's note takes its row's height and its leader runs level; B's
+  // stacks above it.
+  it("drops B's leader to a pin in a split with C, and runs C's straight and level", () => {
     const placed = placeNotes(
       [
         note({ kind: "row", where: "B", itemId: "1" }, "B pulls v6."),
@@ -114,71 +118,132 @@ describe("placeNotes", () => {
       IDENTITY,
       WIDE,
     );
-    const fromB = only(placed, "B pulls v6.").leader ?? [];
-    expect(fromB[0]).toEqual({ x: 400, y: 310 });
-    expect(orthogonal(fromB)).toBe(true);
-    for (const [a, b] of segmentsOf(fromB)) {
-      expect(crosses(a, b, C), `${a.x},${a.y} → ${b.x},${b.y}`).toBe(false);
+    const onB = only(placed, "B pulls v6.");
+    const onC = only(placed, "C pulls v6.");
+    expect(onB.leader).toBeNull();
+    expect(onB.pin).toEqual({ x: 400, y: 310 });
+    expect(onC.leader).toEqual([
+      { x: 610, y: 310 },
+      { x: SHARE + EDGE_PX - 6, y: 310 },
+    ]);
+    expect(onC.at?.top).toBeCloseTo(310 - LINE_PX / 2);
+    expect((onB.at?.top ?? 0) + LINE_PX + NOTE_GAP_PX).toBeLessThanOrEqual(
+      onC.at?.top ?? 0,
+    );
+  });
+
+  it("draws a leader only when its run touches no text and no basin water", () => {
+    const run = (extra: ReadonlyArray<[string, Box]>) => {
+      const anchors: Anchors = {
+        ...ANCHORS,
+        boxes: new Map([...ANCHORS.boxes, ...extra]),
+      };
+      const [placed] = placeNotes(
+        [note({ kind: "row", where: "C", itemId: "1" }, "Arrives.")],
+        anchors,
+        IDENTITY,
+        WIDE,
+      );
+      return placed;
+    };
+    expect(run([])?.leader).not.toBeNull();
+    // A list heading or a pane header on its way.
+    expect(run([["text:C:0", box(615, 305, 640, 315)]])?.leader).toBeNull();
+    // Another basin's water.
+    expect(run([["basin:D", box(615, 290, 650, 330)]])?.leader).toBeNull();
+    // Inside the notes' share the plane is faded out: nothing there counts.
+    expect(
+      run([["text:D:0", box(SHARE + 1, 305, SHARE + 40, 315)]])?.leader,
+    ).not.toBeNull();
+    for (const placed of [run([["text:C:0", box(615, 305, 640, 315)]])]) {
+      expect(placed?.pin).toEqual({ x: 610, y: 310 });
+      expect(placed?.at).not.toBeNull();
     }
-    // Over C by the wire band, between the server's foot and the devices.
-    expect(fromB.some((p) => p.y === BAND)).toBe(true);
-    // C's own runs out of its gap on the right, never back across itself.
-    const fromC = only(placed, "C pulls v6.").leader ?? [];
-    expect(orthogonal(fromC)).toBe(true);
-    for (const [a, b] of segmentsOf(fromC)) {
-      for (const other of [A, B, SERVER]) {
-        expect(crosses(a, b, other)).toBe(false);
+  });
+
+  it("never draws a leader across a container other than its subject's own", () => {
+    const own = (on: Note["on"]) =>
+      on.kind === "row" ? `device:${on.where}` : "";
+    const containers: ReadonlyArray<[string, Box]> = [
+      ["server", SERVER],
+      ["device:A", A],
+      ["device:B", B],
+      ["device:C", C],
+    ];
+    const cases: ReadonlyArray<ReadonlyArray<Note>> = [
+      [
+        note({ kind: "row", where: "B", itemId: "1" }, "B."),
+        note({ kind: "row", where: "C", itemId: "1" }, "C."),
+      ],
+      [note({ kind: "row", where: "A", itemId: "1" }, "A.")],
+      [note({ kind: "row", where: "B", itemId: "1" }, "B alone.")],
+      [note({ kind: "row", where: "C", itemId: "1" }, "C alone.")],
+    ];
+    for (const notes of cases) {
+      const placed = placeNotes(notes, ANCHORS, IDENTITY, WIDE);
+      for (const [i, p] of placed.entries()) {
+        const subject = notes[Number(p.key)]?.on ?? notes[i]?.on;
+        for (const [a, b] of segmentsOf(p.leader ?? [])) {
+          for (const [key, inside] of containers) {
+            if (subject !== undefined && key === own(subject)) continue;
+            expect(crosses(a, b, inside), `${p.text} across ${key}`).toBe(
+              false,
+            );
+          }
+        }
       }
     }
   });
 
-  it("takes the band when a beside note sits above its subject, past the server's foot", () => {
-    // A short viewport: three notes on C's lowest rows stack up from the
-    // strip's foot, the first beside the server.
-    const short = { width: 1000, height: 200 };
-    const anchors: Anchors = {
-      plane: { width: 1000, height: 600 },
-      boxes: new Map([
-        ["server", box(20, 20, 640, 120)],
-        ["device:C", box(440, 140, 620, 400)],
-        ["row:C:1", box(450, 150, 610, 166)],
-        ["row:C:2", box(450, 166, 610, 182)],
-        ["row:C:3", box(450, 182, 610, 198)],
-      ]),
-      messages: new Map(),
-    };
-    const placed = placeNotes(
-      [1, 2, 3].map((n) =>
-        note({ kind: "row", where: "C", itemId: String(n) }, `Row ${n}.`),
-      ),
-      anchors,
-      { x: 500, y: 100, scale: 1 },
-      short,
-    );
-    const first = only(placed, "Row 1.");
-    expect((first.at?.top ?? 0) + LINE_PX / 2).toBeLessThan(120);
-    const leader = first.leader ?? [];
-    expect(orthogonal(leader)).toBe(true);
-    expect(leader.some((p) => p.y === 130)).toBe(true);
-    for (const [a, b] of segmentsOf(leader)) {
-      expect(crosses(a, b, box(20, 20, 640, 120))).toBe(false);
-    }
-  });
+  describe("under a wide or table hold's frame", () => {
+    // The hold frames a band whose foot lands at y 400 on a 600 px window.
+    const frame = box(40, 40, 960, 400);
+    const poke = note({ kind: "server" }, "The server pokes every phone.");
 
-  // A close-up framed tight under the band (the hold on A's add) has no band
-  // in view to climb to: the leader keeps the straight route the close-up
-  // was kept with, past its dimmed neighbour, rather than leave the window.
-  it("runs straight past a neighbour when the wire band is out of view", () => {
-    const [placed] = placeNotes(
-      [note({ kind: "row", where: "B", itemId: "1" }, "B pulls v6.")],
-      ANCHORS,
-      { x: 500, y: 500, scale: 1 },
-      WIDE,
-    );
-    expect(placed?.leader).toEqual([
-      { x: 400, y: 110 },
-      { x: SHARE + EDGE_PX - 6, y: 110 },
-    ]);
+    it("sets the notes in the room under the frame, with pins and no leader", () => {
+      for (const framing of ["wide", "table"] as const) {
+        const spot = spotFor(framing, 1, frame, IDENTITY, WIDE);
+        expect(spot).toEqual({
+          kind: "room",
+          top: 400 + MARGIN_PX,
+          left: 40,
+          right: 960,
+        });
+        const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, spot);
+        expect(placed?.at?.top).toBeGreaterThanOrEqual(400);
+        expect(placed?.at?.left).toBe(40);
+        expect(placed?.leader).toBeNull();
+        // The server's dot at its pane's right edge.
+        expect(placed?.pin?.x).toBe(640);
+      }
+    });
+
+    it("sends them to the foot when the room is too short", () => {
+      const low = box(40, 40, 960, 560);
+      expect(spotFor("wide", 1, low, IDENTITY, WIDE)).toEqual({
+        kind: "foot",
+      });
+      const [placed] = placeNotes([poke], ANCHORS, IDENTITY, WIDE, {
+        kind: "foot",
+      });
+      expect(placed?.at).toBeNull();
+      expect(placed?.leader).toBeNull();
+      // About two lines each: room for one note, not for two.
+      const tight = box(40, 40, 960, 500);
+      expect(spotFor("wide", 1, tight, IDENTITY, WIDE).kind).toBe("room");
+      expect(spotFor("wide", 2, tight, IDENTITY, WIDE)).toEqual({
+        kind: "foot",
+      });
+    });
+
+    it("keeps the side share for other framings, and the foot on a phone", () => {
+      expect(spotFor("close", 1, frame, IDENTITY, WIDE)).toEqual({
+        kind: "beside",
+      });
+      expect(
+        spotFor("wide", 1, frame, IDENTITY, { width: 400, height: 700 }),
+      ).toEqual({ kind: "foot" });
+    });
   });
 
   it("stacks notes whose subjects sit close, in their order", () => {
@@ -244,14 +309,15 @@ describe("placeNotes", () => {
     expect(low?.leader).toBeNull();
     expect(low?.at).not.toBeNull();
     expect(low?.text).toBe("Arrives.");
-    // Just inside the feather, it stays.
+    // Just inside the feather, it stays, and with room for its note level
+    // with it in the strip, so does its leader.
     const [kept] = placeNotes(
       [row],
       ANCHORS,
-      { x: 500, y: 300 + 310 - (600 - FEATHER_PX - 1), scale: 1 },
+      { x: 500, y: 300 + 310 - (600 - FEATHER_PX - 2), scale: 1 },
       WIDE,
     );
-    expect(kept?.pin?.y).toBe(600 - FEATHER_PX - 1);
+    expect(kept?.pin?.y).toBe(600 - FEATHER_PX - 2);
     expect(kept?.leader).not.toBeNull();
     // Under the subjects: the row's end 10 px from a 400 px phone's edge.
     const phone = { width: 400, height: 700 };

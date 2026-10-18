@@ -218,17 +218,13 @@ const frame = (
 
 // The world's band of basins (the server to its basin's foot, the wire band,
 // the devices to their basins' feet), or the whole plane before that was
-// measured; never enlarged.
-export const wideView = (
-  anchors: Anchors,
-  viewport: Size,
-  notes = false,
-): View =>
+// measured; never enlarged, and never beside notes.
+export const wideView = (anchors: Anchors, viewport: Size): View =>
   frame(
     anchors.boxes.get("world") ?? planeBox(anchors.plane),
     anchors,
     viewport,
-    notes,
+    false,
     1,
   );
 
@@ -350,22 +346,74 @@ const groupBoxes = (
     return b === null ? [] : [b];
   });
 
-// Whether a shot is a split a narrow viewport pans across, one device at a
-// time.
-const pans = (shot: Pick<Shot, "framing">, viewport: Size): boolean =>
-  shot.framing === "split" && !besideIn(viewport);
+// What a narrow viewport pans across, in order, for a shot that pans: a
+// split's devices one at a time, or the server's close-up from its ring
+// (padded 64) to its applied row (padded 16). Otherwise its one frame's
+// boxes.
+const panBoxes = (
+  shot: Pick<Shot, "framing" | "subjects">,
+  anchors: Anchors,
+): ReadonlyArray<Box> => {
+  if (shot.framing === "close") {
+    const onServer = (s: Subject) =>
+      (s.kind === "row" || s.kind === "ring") && s.where === SERVER;
+    const rings = union(
+      measured(
+        shot.subjects.filter((s) => s.kind === "ring" && onServer(s)),
+        anchors,
+      ).map((b) => pad(b, SERVER_RING_PAD_PX)),
+    );
+    const rows = union(
+      measured(
+        shot.subjects.filter((s) => s.kind === "row" && onServer(s)),
+        anchors,
+      ).map((b) => pad(b, DETAIL_PAD_PX)),
+    );
+    if (rings !== null && rows !== null) return [rings, rows];
+  }
+  return groupBoxes(shot, anchors);
+};
+
+// Whether a narrow viewport pans across a shot: a split, or the server's
+// close-up, with more than one box to pan between.
+const pans = (
+  shot: Pick<Shot, "framing" | "subjects">,
+  anchors: Anchors,
+  viewport: Size,
+): boolean =>
+  !besideIn(viewport) &&
+  (shot.framing === "split" || shot.framing === "close") &&
+  panBoxes(shot, anchors).length > 1;
 
 // A shot's view, or null when none of its subjects was measured, keeping the
-// notes' share when it has notes. A split on a narrow viewport frames its
-// first device's subjects here; `cameraAt` pans it across the rest, and
-// gives every shot of a frame run the share any of them needs.
+// notes' share when it has notes. A shot a narrow viewport pans across
+// frames its first box here; `cameraAt` pans it across the rest, and gives
+// every shot of a frame run the share any of them needs.
 export const frameFor = (
   shot: Pick<Shot, "framing" | "subjects" | "notes">,
   anchors: Anchors,
   viewport: Size,
 ): View | null => framed(shot, shot.notes.length > 0, anchors, viewport);
 
-// A shot's view, with or without the notes' share.
+// The box a wide or a table hold frames, on the plane: the world's band of
+// basins (or the whole plane before it was measured), or the devices'
+// basins. Their notes go in the room it leaves at the window's foot.
+export const frameBoxOf = (
+  shot: Pick<Shot, "framing" | "subjects">,
+  anchors: Anchors,
+): Box | null => {
+  switch (shot.framing) {
+    case "wide":
+      return anchors.boxes.get("world") ?? planeBox(anchors.plane);
+    case "table":
+      return union(groupBoxes(shot, anchors));
+    default:
+      return null;
+  }
+};
+
+// A shot's view, with or without the notes' share. Wide and table holds
+// never take the share: their notes go in the room under their frame.
 const framed = (
   shot: Pick<Shot, "framing" | "subjects">,
   notes: boolean,
@@ -374,7 +422,7 @@ const framed = (
 ): View | null => {
   switch (shot.framing) {
     case "wide":
-      return wideView(anchors, viewport, notes);
+      return wideView(anchors, viewport);
     case "follow": {
       // The whole wire, from the server's end to the device's, still while
       // its message travels: the distance is the time it takes.
@@ -396,9 +444,12 @@ const framed = (
     case "close":
     case "split":
     case "table": {
-      const boxes = groupBoxes(shot, anchors);
-      const b = pans(shot, viewport) ? (boxes[0] ?? null) : union(boxes);
-      return b === null ? null : frame(b, anchors, viewport, notes);
+      const b = pans(shot, anchors, viewport)
+        ? (panBoxes(shot, anchors)[0] ?? null)
+        : union(groupBoxes(shot, anchors));
+      return b === null
+        ? null
+        : frame(b, anchors, viewport, notes && shot.framing !== "table");
     }
   }
 };
@@ -426,9 +477,9 @@ const along = (
 };
 
 // A held shot's view at `offset` into it, with or without the notes' share:
-// its frame, or for a split on a narrow viewport, the device whose share of
-// the hold it is in, moving there over that share's first PAN_SHARE (at once
-// under reduced motion).
+// its frame, or for a shot a narrow viewport pans across, the box whose
+// share of the hold it is in, moving there over that share's first
+// PAN_SHARE (at once under reduced motion).
 const heldAt = (
   shot: Shot,
   notes: boolean,
@@ -437,8 +488,10 @@ const heldAt = (
   viewport: Size,
   reduced: boolean,
 ): View | null => {
-  if (!pans(shot, viewport)) return framed(shot, notes, anchors, viewport);
-  const views = groupBoxes(shot, anchors).map((b) =>
+  if (!pans(shot, anchors, viewport)) {
+    return framed(shot, notes, anchors, viewport);
+  }
+  const views = panBoxes(shot, anchors).map((b) =>
     frame(b, anchors, viewport, notes),
   );
   const last = views.length - 1;

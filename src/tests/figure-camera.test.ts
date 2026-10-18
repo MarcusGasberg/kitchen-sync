@@ -10,6 +10,7 @@ import {
   FOLLOW_MAX_SCALE,
   FOLLOW_PAD_PX,
   fitArea,
+  frameBoxOf,
   frameFor,
   intersects,
   litOf,
@@ -256,7 +257,7 @@ describe("framing", () => {
     expect(inside(framed, visibleBox(view, viewport))).toBe(true);
   });
 
-  it("keeps a share of the viewport for notes beside the subjects, wide included, and none under them", () => {
+  it("keeps a share of the viewport for notes beside the subjects, and none under them", () => {
     const area = fitArea(viewport, true);
     expect(area.right).toBeCloseTo(1000 * (1 - NOTE_SHARE));
     expect(fitArea(viewport, false).right).toBe(1000);
@@ -276,18 +277,27 @@ describe("framing", () => {
     expect(frameFor(noted, ANCHORS, phone)).toEqual(
       frameFor({ ...noted, notes: [] }, ANCHORS, phone),
     );
-    // A wide hold with notes keeps their share too.
-    const wide = frameFor(
-      shot({ framing: "wide", notes: [note] as Shot["notes"] }),
-      ANCHORS,
-      viewport,
-    );
-    expect(wide?.scale).toBeCloseTo(
-      Math.min(1, (area.right - 48) / 1200, 552 / 900),
-    );
-    expect(
-      wide === null ? null : project(wide, viewport, { x: 600, y: 450 }).x,
-    ).toBeCloseTo(area.right / 2);
+  });
+
+  // Wide and table holds keep their frame: their notes go in the room the
+  // frame leaves at the window's foot.
+  it("frames a wide or table hold with notes exactly as without them", () => {
+    const note = { on: { kind: "server" }, text: "A note." } as const;
+    for (const [framing, subjects] of [
+      ["wide", []],
+      ["table", [{ kind: "basins" }]],
+    ] as const) {
+      const bare = shot({ framing, subjects: [...subjects] });
+      const noted = { ...bare, notes: [note] };
+      const anchors = anchorsOf({
+        ...Object.fromEntries(DETAIL.boxes),
+        basins: box(400, 430, 1080, 558),
+      });
+      expect(frameFor(noted, anchors, viewport)).toEqual(
+        frameFor(bare, anchors, viewport),
+      );
+      expect(frameBoxOf(noted, anchors)).not.toBeNull();
+    }
   });
 
   it("keeps every framed subject inside a 320 px phone", () => {
@@ -508,6 +518,64 @@ describe("framing", () => {
       const seen = visibleBox(both, viewport);
       expect(inside(unionOf(BASIN_B, ROW_B), seen)).toBe(true);
       expect(inside(unionOf(BASIN_C, ROW_C), seen)).toBe(true);
+    });
+
+    describe("the server's close-up", () => {
+      const server = shot({
+        framing: "close",
+        subjects: [
+          { kind: "server" },
+          { kind: "row", where: "server", itemId: "1" },
+          { kind: "ring", where: "server", itemId: "1" },
+        ],
+        screen: 1000,
+      });
+      const ring = pad(RING_SERVER, SERVER_RING_PAD_PX);
+      const row = pad(ROW_SERVER, DETAIL_PAD_PX);
+
+      it("pans from its ring to its applied row on a phone", () => {
+        const start = at({ shots: [server], steps: [] }, 0, 0);
+        expect(start).toEqual(
+          frameFor(
+            { ...server, subjects: server.subjects.slice(2) },
+            DETAIL,
+            phone,
+          ),
+        );
+        expect(inside(ring, visibleBox(start, phone))).toBe(true);
+        expect(inside(ROW_SERVER, visibleBox(start, phone))).toBe(false);
+        const end = at({ shots: [server], steps: [] }, 0, 1000);
+        expect(end.scale).toBeCloseTo(
+          Math.min(
+            MAX_SCALE,
+            (360 - 48) / (row.right - row.left),
+            (450 - 48) / (row.bottom - row.top),
+          ),
+        );
+        expect(inside(ROW_SERVER, visibleBox(end, phone))).toBe(true);
+        // Under reduced motion it cuts to the row.
+        expect(at({ shots: [server], steps: [] }, 0, 520, true)).toEqual(end);
+      });
+
+      it("is moved into on its ring, and keeps the union on a wide viewport", () => {
+        const moving: Cut = {
+          shots: [
+            shot({ framing: "wide" }),
+            { ...server, move: true, screen: 800 },
+            server,
+          ],
+          steps: [],
+        };
+        const onRing = at(moving, 2, 0);
+        const end = at(moving, 1, 800);
+        expect(end.x).toBeCloseTo(onRing.x);
+        expect(end.scale).toBeCloseTo(onRing.scale);
+        const wide = frameFor(server, DETAIL, viewport);
+        if (wide === null) return;
+        expect(inside(unionOf(ring, row), visibleBox(wide, viewport))).toBe(
+          true,
+        );
+      });
     });
 
     it("is moved into on its first group, and left from its last", () => {
@@ -796,20 +864,32 @@ describe("moving", () => {
         expect(played.scale).toBeCloseTo(paused.scale);
       });
 
-      // The poke's hold (wide, with notes) ends step 2; step 3 opens on its
-      // view and then plays wide with no notes. A run never crosses a step:
-      // the playing wide keeps no share and eases out of the opening's.
-      it("ends a frame run at the step: the next step's playing wide keeps no share", () => {
-        const poke = shot({
-          framing: "wide",
-          notes: [{ on: { kind: "server" }, text: "The server pokes." }],
+      // A noted close hold on B ends step 2; step 3 opens on its view and
+      // then plays on B with no notes. A run never crosses a step: the
+      // playing shot keeps no share and eases out of the opening's.
+      it("ends a frame run at the step: the next step's playing shot keeps no share", () => {
+        const onB = PULLS.slice(0, 1);
+        const noted = shot({
+          framing: "close",
+          subjects: onB,
+          notes: [{ on: PULLS[0] as Shot["subjects"][number], text: "B." }],
           step: 2,
         });
-        const opens = shot({ framing: "wide", opening: true, step: 3 });
-        const plays = shot({ framing: "wide", rate: 1, step: 3 });
-        const steps: Cut = { shots: [poke, opens, plays], steps: [] };
-        const held = frameFor(poke, DETAIL, viewport);
-        const bare = wideView(DETAIL, viewport);
+        const opens = shot({
+          framing: "close",
+          subjects: onB,
+          opening: true,
+          step: 3,
+        });
+        const plays = shot({
+          framing: "close",
+          subjects: onB,
+          rate: 1,
+          step: 3,
+        });
+        const steps: Cut = { shots: [noted, opens, plays], steps: [] };
+        const held = frameFor(noted, DETAIL, viewport);
+        const bare = frameFor(plays, DETAIL, viewport);
         expect(held).not.toEqual(bare);
         expect(at(steps, 1, 0)).toEqual(held);
         expect(at(steps, 2, 0)).toEqual(held);

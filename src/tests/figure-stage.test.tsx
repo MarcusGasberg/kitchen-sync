@@ -8,6 +8,7 @@ import { MARGIN_PX } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
+import { FOOT_MIN } from "#/ui/figure/stage-notes";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
 import { rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
@@ -393,6 +394,21 @@ describe("Stage", () => {
       right: 1180,
       bottom: 558,
     });
+  });
+
+  // A leader may not touch text: each pane's header and each list heading
+  // is measured, by its place, beside the rows.
+  it("measures each pane header and list heading as text", async () => {
+    const { container, restore } = await staged(FREE);
+    const plane = container.querySelector<HTMLElement>("[data-anchor='plane']");
+    const keys = plane === null ? [] : [...measureWorld(plane).boxes.keys()];
+    restore();
+    const texts = (place: string) =>
+      keys.filter((key) => key.startsWith(`text:${place}:`)).length;
+    // A pane header and one list heading (Dairy) each.
+    expect(texts("A")).toBe(2);
+    expect(texts("B")).toBe(2);
+    expect(texts("server")).toBe(2);
   });
 
   it("places the world by the camera: wide in free play, close on a shot's device", async () => {
@@ -793,6 +809,63 @@ describe("Stage", () => {
     rerender(stage(at(1, 0)));
     expect(transform(container)).toBe(onA);
     restore();
+  });
+
+  // The controls under the stage never move between holds with one note and
+  // holds with two: the foot keeps room for two notes and the gap between.
+  it("keeps the foot two notes tall on a phone, whatever the hold's notes", async () => {
+    const { container, restore } = await staged(closeOn("A", NOTED), {
+      layout: PHONE,
+    });
+    restore();
+    const foot = container.querySelector<HTMLElement>("[data-foot='notes']");
+    expect(foot?.style.getPropertyValue("--foot-min")).toBe(FOOT_MIN);
+    expect(FOOT_MIN).toBe("calc(2 * 1.45 * var(--text-sm) + var(--space-1))");
+  });
+
+  // A wide hold keeps its frame; its note goes in the room under it, with a
+  // dot and no leader, and the plane fades across that room.
+  it("sets a wide hold's notes in the room under its frame", async () => {
+    const wide: Cue = {
+      kind: "shot",
+      cut: {
+        shots: [
+          {
+            framing: "wide",
+            subjects: [],
+            from: 0,
+            to: 0,
+            rate: 0,
+            screen: 1000,
+            through: 0,
+            enact: null,
+            notes: [{ on: { kind: "server" }, text: "The server pokes." }],
+            move: false,
+            opening: false,
+            step: 0,
+          },
+        ],
+        steps: [{ label: "Test.", first: 0, end: 1, startedAt: 0, endedAt: 0 }],
+      },
+      cursor: { shot: 0, offset: 0 },
+    };
+    const { container, restore } = await staged(wide);
+    restore();
+    const words = [...container.querySelectorAll("p")].find(
+      (p) => p.textContent === "The server pokes.",
+    );
+    const lens = container.querySelector<HTMLElement>("[data-anchor='lens']");
+    expect(viewportIn(container)?.contains(words ?? null)).toBe(true);
+    expect(container.querySelectorAll("polyline")).toHaveLength(0);
+    expect(lens?.hasAttribute("data-room")).toBe(true);
+    expect(lens?.hasAttribute("data-notes")).toBe(false);
+    const from = Number.parseFloat(
+      lens?.style.getPropertyValue("--room-from") ?? "",
+    );
+    expect(Number.parseFloat(words?.style.top ?? "")).toBeCloseTo(from);
+    expect(
+      Number.parseFloat(lens?.style.getPropertyValue("--room-fade-from") ?? ""),
+    ).toBeCloseTo(from - MARGIN_PX);
   });
 
   it("keeps All devices in the foot, never over the plane", async () => {
