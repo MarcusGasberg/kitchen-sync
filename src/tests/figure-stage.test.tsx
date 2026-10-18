@@ -350,6 +350,10 @@ describe("Stage", () => {
     ["B", rect(860, 400, 1180, 860)],
     ["basin:A", rect(40, 430, 360, 558)],
     ["basin:B", rect(860, 430, 1180, 558)],
+    // Each pane's header line, where a note on the pane puts its dot.
+    ["header:server", rect(40, 40, 1160, 64)],
+    ["header:A", rect(40, 400, 360, 424)],
+    ["header:B", rect(860, 400, 1180, 424)],
   ]);
 
   const staged = async (
@@ -405,10 +409,12 @@ describe("Stage", () => {
     restore();
     const texts = (place: string) =>
       keys.filter((key) => key.startsWith(`text:${place}:`)).length;
-    // A pane header and one list heading (Dairy) each.
-    expect(texts("A")).toBe(2);
-    expect(texts("B")).toBe(2);
-    expect(texts("server")).toBe(2);
+    // A pane header, where a note on the pane puts its dot, and one list
+    // heading each.
+    for (const place of ["A", "B", "server"]) {
+      expect(keys).toContain(`header:${place}`);
+      expect(texts(place)).toBe(1);
+    }
   });
 
   it("places the world by the camera: wide in free play, close on a shot's device", async () => {

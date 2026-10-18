@@ -7,7 +7,6 @@ import {
   DETAIL_PAD_PX,
   densityFor,
   EASE_MILLIS,
-  FOLLOW_MAX_SCALE,
   FOLLOW_PAD_PX,
   fitArea,
   frameBoxOf,
@@ -180,7 +179,7 @@ describe("framing", () => {
     );
   });
 
-  it("frames a close-up on its container with a margin, capped at 2×", () => {
+  it("frames a close-up on its container with a margin, capped at MAX_SCALE", () => {
     const view = frameFor(
       shot({ framing: "close", subjects: [{ kind: "device", client: "B" }] }),
       ANCHORS,
@@ -300,6 +299,53 @@ describe("framing", () => {
     }
   });
 
+  // The light table's note is about every basin, the server's among them:
+  // it frames the world's band of basins, exactly as wide does.
+  it("frames the light table on the world's band, exactly as wide", () => {
+    const world = box(40, 40, 1160, 560);
+    const anchors = anchorsOf({
+      ...Object.fromEntries(DETAIL.boxes),
+      basins: box(400, 430, 1080, 558),
+      world,
+    });
+    const table = shot({ framing: "table", subjects: [{ kind: "basins" }] });
+    for (const size of [viewport, { width: 390, height: 480 }]) {
+      expect(frameFor(table, anchors, size)).toEqual(
+        frameFor(shot({ framing: "wide" }), anchors, size),
+      );
+    }
+    expect(frameBoxOf(table, anchors)).toEqual(world);
+    expect(frameBoxOf(table, anchorsOf({}))).toEqual(box(0, 0, 1200, 900));
+  });
+
+  // The close-up on A on the 1440 desktop is framed by its height, under
+  // the cap: the cap leaves it as it was.
+  it("leaves a close-up framed under the cap as it was", () => {
+    const desktop = { width: 780, height: 488 };
+    const tall = anchorsOf({
+      ...Object.fromEntries(DETAIL.boxes),
+      "row:B:5": box(420, 836, 700, 882),
+    });
+    const view = frameFor(
+      shot({
+        framing: "close",
+        subjects: [
+          { kind: "device", client: "B" },
+          { kind: "row", where: "B", itemId: "5" },
+        ],
+        notes: [{ on: { kind: "device", client: "B" }, text: "B." }],
+      }),
+      tall,
+      desktop,
+    );
+    const framed = pad(
+      unionOf(BASIN_B, box(420, 836, 700, 882)),
+      DETAIL_PAD_PX,
+    );
+    expect(view?.scale).toBeCloseTo((488 - 48) / (framed.bottom - framed.top));
+    expect(view?.scale).toBeLessThan(MAX_SCALE);
+  });
+
   it("keeps every framed subject inside a 320 px phone", () => {
     const phone = { width: 320, height: 400 };
     const cases: ReadonlyArray<[Shot["subjects"], Box]> = [
@@ -350,7 +396,7 @@ describe("framing", () => {
     expect(FOLLOW_PAD_PX).toBe(48);
     expect(view?.scale).toBe(
       Math.min(
-        FOLLOW_MAX_SCALE,
+        MAX_SCALE,
         (1000 - 48) / (200 + 2 * FOLLOW_PAD_PX),
         (600 - 48) / (100 + 2 * FOLLOW_PAD_PX),
       ),
@@ -553,6 +599,10 @@ describe("framing", () => {
           ),
         );
         expect(inside(ROW_SERVER, visibleBox(end, phone))).toBe(true);
+        // Neither past the one cap: the ring is framed at it, with its
+        // neighbours around it.
+        expect(start.scale).toBe(1.25);
+        expect(end.scale).toBeLessThanOrEqual(1.25);
         // Under reduced motion it cuts to the row.
         expect(at({ shots: [server], steps: [] }, 0, 520, true)).toEqual(end);
       });
@@ -971,11 +1021,13 @@ describe("the view on screen", () => {
     ).toEqual(["device:B", "server", "wire:B"]);
   });
 
-  it("sharpens basins in a close-up, in half steps", () => {
+  it("sharpens basins in a close-up, in half steps up to the scale cap", () => {
+    expect(MAX_SCALE).toBe(1.25);
     expect(densityFor(0.4)).toBe(1);
     expect(densityFor(1)).toBe(1);
-    expect(densityFor(1.2)).toBe(1.5);
-    expect(densityFor(1.8)).toBe(2);
+    // The next half step, 1.5, is past the cap: no close-up is closer.
+    expect(densityFor(1.2)).toBe(MAX_SCALE);
+    expect(densityFor(1.8)).toBe(MAX_SCALE);
     expect(densityFor(Number.NaN)).toBe(1);
   });
 });

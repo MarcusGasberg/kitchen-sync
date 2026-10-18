@@ -43,17 +43,17 @@ export interface Anchors {
 
 // Screen pixels kept clear around what a shot frames.
 export const MARGIN_PX = 24;
-// A close-up never enlarges the plane past this, so text stays text.
-export const MAX_SCALE = 2;
+// No framing enlarges the plane past this (a close-up, a pan's box, a
+// follow), so text stays at about the app's own size, never poster-size.
+export const MAX_SCALE = 1.25;
 // The share of the viewport a shot with notes keeps for them, beside its
 // subjects, from NOTES_BESIDE_FROM_PX wide. A narrower viewport keeps none:
 // its notes leave the window for the stage's foot.
 export const NOTE_SHARE = 0.34;
 export const NOTES_BESIDE_FROM_PX = 600;
 // Plane pixels kept around a followed wire, whose whole length a follow
-// frames, never closer than FOLLOW_MAX_SCALE.
+// frames.
 export const FOLLOW_PAD_PX = 48;
-export const FOLLOW_MAX_SCALE = 1.25;
 // Plane pixels kept around a close-up's basin, rows and rings; around the
 // server's ring, which stands for its basin (as wide as most of the plane).
 export const DETAIL_PAD_PX = 16;
@@ -335,8 +335,8 @@ const groupBox = (
   );
 };
 
-// The boxes a close-up, a split or the light table frames, one per place
-// that was measured.
+// The boxes a close-up or a split frames, one per place that was
+// measured.
 const groupBoxes = (
   shot: Pick<Shot, "subjects">,
   anchors: Anchors,
@@ -395,25 +395,26 @@ export const frameFor = (
   viewport: Size,
 ): View | null => framed(shot, shot.notes.length > 0, anchors, viewport);
 
-// The box a wide or a table hold frames, on the plane: the world's band of
-// basins (or the whole plane before it was measured), or the devices'
-// basins. Their notes go in the room it leaves at the window's foot.
+// The box a wide or a table hold frames, on the plane: for both, the
+// world's band of basins (or the whole plane before it was measured). The
+// light table's note is about every basin, the server's among them. Their
+// notes go in the room it leaves at the window's foot.
 export const frameBoxOf = (
   shot: Pick<Shot, "framing" | "subjects">,
   anchors: Anchors,
 ): Box | null => {
   switch (shot.framing) {
     case "wide":
-      return anchors.boxes.get("world") ?? planeBox(anchors.plane);
     case "table":
-      return union(groupBoxes(shot, anchors));
+      return anchors.boxes.get("world") ?? planeBox(anchors.plane);
     default:
       return null;
   }
 };
 
 // A shot's view, with or without the notes' share. Wide and table holds
-// never take the share: their notes go in the room under their frame.
+// frame the world's band alike and never take the share: their notes go in
+// the room under their frame.
 const framed = (
   shot: Pick<Shot, "framing" | "subjects">,
   notes: boolean,
@@ -422,6 +423,7 @@ const framed = (
 ): View | null => {
   switch (shot.framing) {
     case "wide":
+    case "table":
       return wideView(anchors, viewport);
     case "follow": {
       // The whole wire, from the server's end to the device's, still while
@@ -433,23 +435,14 @@ const framed = (
       const b =
         wire ?? (message === undefined ? undefined : around(message.at));
       if (b === undefined) return null;
-      return frame(
-        pad(b, FOLLOW_PAD_PX),
-        anchors,
-        viewport,
-        notes,
-        FOLLOW_MAX_SCALE,
-      );
+      return frame(pad(b, FOLLOW_PAD_PX), anchors, viewport, notes);
     }
     case "close":
-    case "split":
-    case "table": {
+    case "split": {
       const b = pans(shot, anchors, viewport)
         ? (panBoxes(shot, anchors)[0] ?? null)
         : union(groupBoxes(shot, anchors));
-      return b === null
-        ? null
-        : frame(b, anchors, viewport, notes && shot.framing !== "table");
+      return b === null ? null : frame(b, anchors, viewport, notes);
     }
   }
 };
@@ -768,7 +761,8 @@ export const litOf = (
 };
 
 // How many times sharper than the page a basin draws at `scale`: 1 up to the
-// plane's own size, then in half steps to MAX_SCALE.
+// plane's own size, then the next half step, held at MAX_SCALE (no close-up
+// is closer).
 export const densityFor = (scale: number): number =>
   Number.isFinite(scale) && scale > 1
     ? Math.min(MAX_SCALE, Math.ceil(scale * 2) / 2)

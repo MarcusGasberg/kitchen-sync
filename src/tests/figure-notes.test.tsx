@@ -155,10 +155,131 @@ describe("placeNotes", () => {
     expect(
       run([["text:D:0", box(SHARE + 1, 305, SHARE + 40, 315)]])?.leader,
     ).not.toBeNull();
-    for (const placed of [run([["text:C:0", box(615, 305, 640, 315)]])]) {
-      expect(placed?.pin).toEqual({ x: 610, y: 310 });
-      expect(placed?.at).not.toBeNull();
-    }
+    const dotted = run([["text:C:0", box(615, 305, 640, 315)]]);
+    expect(dotted?.pin).toEqual({ x: 610, y: 310 });
+    expect(dotted?.at).not.toBeNull();
+  });
+
+  // A ring sits in its basin: its run out of that basin is its own water.
+  it("keeps a ring's leader across its own basin, and drops it across another's", () => {
+    const ring = note({ kind: "ring", where: "C", itemId: "1" }, "Lands.");
+    const withBasins = (extra: ReadonlyArray<[string, Box]>): Anchors => ({
+      ...ANCHORS,
+      boxes: new Map([
+        ...ANCHORS.boxes,
+        ["basin:C", box(440, 220, 620, 300)],
+        ...extra,
+      ]),
+    });
+    const [own] = placeNotes([ring], withBasins([]), IDENTITY, WIDE);
+    expect(own?.leader).toEqual([
+      { x: 524, y: 242 },
+      { x: SHARE + EDGE_PX - 6, y: 242 },
+    ]);
+    const [other] = placeNotes(
+      [ring],
+      withBasins([["basin:D", box(630, 230, 650, 260)]]),
+      IDENTITY,
+      WIDE,
+    );
+    expect(other?.leader).toBeNull();
+    expect(other?.pin).toEqual({ x: 524, y: 242 });
+  });
+
+  // Two level notes closer than a note's height: the first keeps its
+  // subject's height, the second drops to the stack under it.
+  it("stacks a level note that would overlap the one above it", () => {
+    const anchors: Anchors = {
+      ...ANCHORS,
+      boxes: new Map([...ANCHORS.boxes, ["row:C:2", box(450, 315, 610, 335)]]),
+    };
+    const placed = placeNotes(
+      [
+        note({ kind: "row", where: "C", itemId: "1" }, "First."),
+        note({ kind: "row", where: "C", itemId: "2" }, "Second."),
+      ],
+      anchors,
+      IDENTITY,
+      WIDE,
+    );
+    const first = only(placed, "First.");
+    const second = only(placed, "Second.");
+    expect(first.leader).not.toBeNull();
+    expect(first.at?.top).toBeCloseTo(310 - LINE_PX / 2);
+    expect(second.leader).toBeNull();
+    expect(second.at?.top).toBeGreaterThanOrEqual(
+      (first.at?.top ?? 0) + LINE_PX + NOTE_GAP_PX,
+    );
+  });
+
+  // A dotted note that must sit above a level one near the strip's top has
+  // no room there: the level one joins the stack, and nothing overlaps.
+  it("stacks a level note when the gap above it is too short for the notes it holds", () => {
+    const high = { x: 500, y: 580, scale: 1 };
+    const placed = placeNotes(
+      [
+        note({ kind: "row", where: "B", itemId: "1" }, "B."),
+        note({ kind: "row", where: "C", itemId: "1" }, "C."),
+      ],
+      ANCHORS,
+      high,
+      WIDE,
+    );
+    const [b, c] = [only(placed, "B."), only(placed, "C.")];
+    expect(b.leader).toBeNull();
+    expect(c.leader).toBeNull();
+    expect(c.at?.top).toBeGreaterThanOrEqual(
+      (b.at?.top ?? 0) + LINE_PX + NOTE_GAP_PX,
+    );
+    expect(b.at?.top).toBeGreaterThanOrEqual(EDGE_PX);
+  });
+
+  describe("a container's dot", () => {
+    const header = box(20, 20, 640, 44);
+    const withHeader: Anchors = {
+      ...ANCHORS,
+      boxes: new Map([...ANCHORS.boxes, ["header:server", header]]),
+    };
+    const room = { kind: "room", top: 424, left: 40, right: 960 } as const;
+
+    it("sits at the end of the server's header line", () => {
+      const [placed] = placeNotes(
+        [note({ kind: "server" }, "The server is at v6.")],
+        withHeader,
+        IDENTITY,
+        WIDE,
+        room,
+      );
+      expect(placed?.pin).toEqual({ x: 640, y: 32 });
+      expect(placed?.leader).toBeNull();
+    });
+
+    it("falls back to a device's pane edge when its header was not measured", () => {
+      const [placed] = placeNotes(
+        [note({ kind: "device", client: "B" }, "B is behind.")],
+        ANCHORS,
+        IDENTITY,
+        WIDE,
+        room,
+      );
+      expect(placed?.pin).toEqual({ x: 410, y: 390 });
+    });
+
+    it("is not drawn for the light table, beside the subjects or under them", () => {
+      const basins: Anchors = {
+        ...ANCHORS,
+        boxes: new Map([...ANCHORS.boxes, ["basins", box(20, 220, 620, 300)]]),
+      };
+      const table = note({ kind: "basins" }, "Every basin shows one pattern.");
+      for (const viewport of [WIDE, { width: 400, height: 700 }]) {
+        const [placed] = placeNotes([table], basins, IDENTITY, viewport);
+        expect(placed?.pin).toBeNull();
+        expect(placed?.leader).toBeNull();
+        expect(placed?.text).toBe("Every basin shows one pattern.");
+      }
+      const [roomed] = placeNotes([table], basins, IDENTITY, WIDE, room);
+      expect(roomed?.pin).toBeNull();
+    });
   });
 
   it("never draws a leader across a container other than its subject's own", () => {

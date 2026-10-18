@@ -82,8 +82,19 @@ export const rect = (
     toJSON: () => ({}),
   }) as DOMRect;
 
+// A pane's header (the first `<header>` in its place) as the stage measures
+// it, `header:<place>`; any other element has no such key.
+const paneHeaderOf = (element: HTMLElement): string | undefined => {
+  if (element.tagName !== "HEADER") return undefined;
+  const place = element.closest<HTMLElement>("[data-place]");
+  return place?.querySelector("header") === element
+    ? `header:${place.dataset.place}`
+    : undefined;
+};
+
 // Lays a stage out by hand, as jsdom does not: each anchor (`data-anchor`, or
-// a device's client name, else `data-anchor-key`) measures as its box, anything else as a 900 × 800
+// a device's client name, else `data-anchor-key`, else a pane header's
+// `header:<place>`) measures as its box, anything else as a 900 × 800
 // stage. Returns the restore.
 export const stubLayout = (boxes: ReadonlyMap<string, DOMRect>) => {
   const measured = vi
@@ -93,7 +104,9 @@ export const stubLayout = (boxes: ReadonlyMap<string, DOMRect>) => {
         this instanceof HTMLElement
           ? this.dataset.anchor === "device"
             ? this.dataset.client
-            : (this.dataset.anchor ?? this.dataset.anchorKey)
+            : (this.dataset.anchor ??
+              this.dataset.anchorKey ??
+              paneHeaderOf(this))
           : undefined;
       return (
         (anchor === undefined ? undefined : boxes.get(anchor)) ??

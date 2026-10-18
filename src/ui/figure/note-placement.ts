@@ -1,4 +1,9 @@
-import { type Framing, type Note, subjectKey } from "#/lib/director/shots";
+import {
+  type Framing,
+  type Note,
+  SERVER,
+  subjectKey,
+} from "#/lib/director/shots";
 import type { Point } from "#/ui/marbling/operations";
 import {
   type Anchors,
@@ -181,7 +186,27 @@ interface Target {
   // the server, the light table, a message) rather than a row or a ring.
   readonly box: Box | null;
   readonly container: boolean;
+  // A device's or the server's pane header on screen, when measured.
+  readonly header: Box | null;
 }
+
+// The pane header a note on a device or the server ends at, by its key.
+const headerKeyOf = (on: Note["on"]): string | null =>
+  on.kind === "server"
+    ? `header:${SERVER}`
+    : on.kind === "device"
+      ? `header:${on.client}`
+      : null;
+
+// What a subject's own leader may cross: the subject itself; a row's or a
+// ring's own basin (a ring sits in its water); a pane's own header.
+const ownOf = (on: Note["on"]): ReadonlySet<string> => {
+  const own = new Set([subjectKey(on)]);
+  if (on.kind === "row" || on.kind === "ring") own.add(`basin:${on.where}`);
+  const header = headerKeyOf(on);
+  if (header !== null) own.add(header);
+  return own;
+};
 
 export const placeNotes = (
   notes: ReadonlyArray<Note>,
@@ -194,26 +219,36 @@ export const placeNotes = (
   const share = viewport.width * (1 - NOTE_SHARE);
   const targets: ReadonlyArray<Target> = notes.map((note, index) => {
     const b = boxOf(note.on, anchors);
+    const key = headerKeyOf(note.on);
+    const header = key === null ? undefined : anchors.boxes.get(key);
     return {
       note,
       index,
       box: b === null ? null : onScreen(b, view, viewport),
       container: note.on.kind !== "row" && note.on.kind !== "ring",
+      header: header === undefined ? null : onScreen(header, view, viewport),
     };
   });
-  // The subject's end, facing the notes: a row's or a ring's right edge at
-  // its middle; a container's right edge, level with what shows of it.
-  const endOf = ({ box: b, container }: Target): Point | null => {
+  // Beside, an end under the notes' share sits where the framed subjects
+  // end instead.
+  const facing = (x: number) => (beside ? Math.min(x, share - MARGIN_PX) : x);
+  // The subject's end, facing the notes:
+  // - a row's or a ring's right edge at its middle;
+  // - a device's or the server's pane header's right edge at its middle,
+  //   beside its version, or without a measured header the pane's right
+  //   edge, level with what shows of it;
+  // - none for the light table: its words name every basin in view;
+  // - another container's right edge, level with what shows of it.
+  const endOf = ({ note, box: b, container, header }: Target): Point | null => {
+    if (note.on.kind === "basins") return null;
+    if (header !== null) {
+      return { x: facing(header.right), y: (header.top + header.bottom) / 2 };
+    }
     if (b === null) return null;
     if (!container) return { x: b.right, y: (b.top + b.bottom) / 2 };
     const top = clamp(b.top, 0, viewport.height);
     const bottom = clamp(b.bottom, 0, viewport.height);
-    return {
-      // Beside, a container that runs under the notes ends where the
-      // framed subjects do.
-      x: beside ? Math.min(b.right, share - MARGIN_PX) : b.right,
-      y: (top + bottom) / 2,
-    };
+    return { x: facing(b.right), y: (top + bottom) / 2 };
   };
   // A subject's end shows a dot only inside the window, less its feather.
   const shown = (p: Point | null): Point | null =>
@@ -271,6 +306,7 @@ export const placeNotes = (
       ([key]) =>
         key.startsWith("row:") ||
         key.startsWith("text:") ||
+        key.startsWith("header:") ||
         key.startsWith("basin:"),
     )
     .map(([key, b]) => [key, onScreen(b, view, viewport)] as const);
@@ -284,9 +320,9 @@ export const placeNotes = (
     if (top < strip.top || top + (heights[i] ?? 0) > strip.bottom) {
       return false;
     }
-    const own = subjectKey(target.note.on);
+    const own = ownOf(target.note.on);
     return obstacles.every(
-      ([key, b]) => key === own || !crosses(end.y, end.x, into, b, share),
+      ([key, b]) => own.has(key) || !crosses(end.y, end.x, into, b, share),
     );
   });
   const wanted = ordered.map((target) => {
