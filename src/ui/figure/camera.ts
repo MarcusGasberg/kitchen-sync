@@ -227,6 +227,12 @@ export const zoomPath = (
   to: View,
   viewport: Size,
 ): ((t: number) => View) => {
+  // A viewport or view with no usable size has no path to draw: it goes to
+  // its target at once, never to NaN.
+  const usable = (n: number): boolean => Number.isFinite(n) && n > 0;
+  if (!usable(viewport.width) || !usable(from.scale) || !usable(to.scale)) {
+    return () => to;
+  }
   const w0 = viewport.width / from.scale;
   const w1 = viewport.width / to.scale;
   const dx = to.x - from.x;
@@ -243,8 +249,9 @@ export const zoomPath = (
   const d1 = Math.sqrt(d2);
   const b0 = (w1 * w1 - w0 * w0 + RHO ** 4 * d2) / (2 * w0 * RHO ** 2 * d1);
   const b1 = (w1 * w1 - w0 * w0 - RHO ** 4 * d2) / (2 * w1 * RHO ** 2 * d1);
-  const r0 = Math.log(Math.sqrt(b0 * b0 + 1) - b0);
-  const r1 = Math.log(Math.sqrt(b1 * b1 + 1) - b1);
+  // log(sqrt(b * b + 1) - b) is -asinh(b), which does not cancel for a large b.
+  const r0 = -Math.asinh(b0);
+  const r1 = -Math.asinh(b1);
   const s = (r1 - r0) / RHO;
   return (t) => {
     const at = t * s;

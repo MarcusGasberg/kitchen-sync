@@ -224,6 +224,50 @@ describe("moving", () => {
     expect(zoom(0.5).scale).toBeLessThan(2);
   });
 
+  it("goes straight to its target when a view or the viewport has no usable size", () => {
+    const from: View = { x: 0, y: 0, scale: 1 };
+    const to: View = { x: 10, y: 20, scale: 2 };
+    const badTo: View = { x: 10, y: 20, scale: 0 };
+    const degenerate: Array<[ReturnType<typeof zoomPath>, View]> = [
+      [zoomPath(from, to, { width: 0, height: 600 }), to],
+      [zoomPath({ x: 0, y: 0, scale: 0 }, to, viewport), to],
+      [zoomPath({ x: 0, y: 0, scale: Number.NaN }, to, viewport), to],
+      [zoomPath(from, badTo, viewport), badTo],
+    ];
+    for (const [path, target] of degenerate) {
+      const mid = path(0.5);
+      expect(Number.isFinite(mid.x)).toBe(true);
+      expect(Number.isFinite(mid.y)).toBe(true);
+      expect(Number.isFinite(mid.scale)).toBe(true);
+      expect(mid).toEqual(target);
+    }
+  });
+
+  it("stays finite on a tiny pan between different scales, both ways", () => {
+    // Zooming out (2 to 1) is the direction whose b0 is large and positive,
+    // where the naive log form cancels to zero (about 1e-6 plane px); zooming
+    // in is the mirror. 1e-4 is the pan the review named.
+    for (const pan of [1e-4, 1e-6]) {
+      for (const [fromScale, toScale] of [
+        [1, 2],
+        [2, 1],
+      ] as const) {
+        const to: View = { x: pan, y: 0, scale: toScale };
+        const tiny = zoomPath({ x: 0, y: 0, scale: fromScale }, to, viewport);
+        for (const t of [0, 0.5, 1]) {
+          const v = tiny(t);
+          expect(Number.isFinite(v.x)).toBe(true);
+          expect(Number.isFinite(v.y)).toBe(true);
+          expect(Number.isFinite(v.scale)).toBe(true);
+        }
+        // The end lands on the target to well under a micro-pixel; the
+        // position of a pan this small is below what the screen can show.
+        expect(Math.abs(tiny(1).x - pan)).toBeLessThan(1e-5);
+        expect(tiny(1).scale).toBeCloseTo(toScale, 9);
+      }
+    }
+  });
+
   const onA = shot({
     framing: "close",
     subjects: [{ kind: "device", client: "A" }],
