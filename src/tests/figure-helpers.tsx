@@ -83,7 +83,7 @@ export const rect = (
   }) as DOMRect;
 
 // Lays a stage out by hand, as jsdom does not: each anchor (`data-anchor`, or
-// a device's client name) measures as its box, anything else as a 900 × 800
+// a device's client name, else `data-anchor-key`) measures as its box, anything else as a 900 × 800
 // stage. Returns the restore.
 export const stubLayout = (boxes: ReadonlyMap<string, DOMRect>) => {
   const measured = vi
@@ -93,7 +93,7 @@ export const stubLayout = (boxes: ReadonlyMap<string, DOMRect>) => {
         this instanceof HTMLElement
           ? this.dataset.anchor === "device"
             ? this.dataset.client
-            : this.dataset.anchor
+            : (this.dataset.anchor ?? this.dataset.anchorKey)
           : undefined;
       return (
         (anchor === undefined ? undefined : boxes.get(anchor)) ??

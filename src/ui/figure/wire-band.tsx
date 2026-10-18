@@ -9,6 +9,9 @@ interface WireBandProps {
   readonly wires: ReadonlyArray<Wire>;
   readonly flights: ReadonlyArray<Placed>;
   readonly lost: ReadonlyArray<Placed>;
+  // The containers a shot is about (`litOf`): a wire whose `wire:<client>` is
+  // not among them dims, with its messages. Null lights every wire.
+  readonly lit?: ReadonlySet<string> | null;
 }
 
 // Pixels between a message's dot and its label.
@@ -43,7 +46,10 @@ export function WireBand({
   wires,
   flights,
   lost,
+  lit = null,
 }: WireBandProps) {
+  const dim = (client: string) =>
+    lit !== null && !lit.has(`wire:${client}`) ? "" : undefined;
   return (
     <svg
       className={styles.band}
@@ -56,6 +62,7 @@ export function WireBand({
         <line
           key={wire.client}
           className={styles.wire}
+          data-dim={dim(wire.client)}
           x1={wire.server.x}
           y1={wire.server.y}
           x2={wire.device.x}
@@ -68,6 +75,7 @@ export function WireBand({
           className={styles.message}
           data-kind={placed.message.kind}
           data-held={placed.held ? "" : undefined}
+          data-dim={dim(placed.message.client)}
         >
           <circle cx={placed.x} cy={placed.y} r={4} />
           <Label

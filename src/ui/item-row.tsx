@@ -44,6 +44,7 @@ export function ItemRow({
   return (
     <li
       className={styles.row}
+      data-item={item.id}
       data-sync={sync.kind}
       data-checked={item.checked}
       data-readonly={onCheck === undefined}

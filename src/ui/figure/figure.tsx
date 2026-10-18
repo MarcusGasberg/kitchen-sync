@@ -11,6 +11,7 @@ import {
 } from "react";
 import { frameAt, lostAt } from "#/lib/sandbox/frame";
 import type { Scene } from "#/lib/sandbox/scene";
+import type { ClientName } from "#/lib/sandbox/trace";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
@@ -30,7 +31,7 @@ import { BreakingControls } from "./breaking-controls";
 import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PaceControls, PlayerControls } from "./player-controls";
-import { Stage } from "./stage";
+import { type Cue, Stage } from "./stage";
 import { makeStageView, mostRows } from "./stage-view";
 import { usePlayer } from "./use-player";
 
@@ -100,6 +101,12 @@ function FigureBody({
     host,
   });
   const stageOf = useMemo(() => makeStageView(), []);
+  // Free play: the device the reader asked to see up close.
+  const [focus, setFocus] = useState<ClientName | null>(null);
+  const inFreePlay = view?.mode === "free";
+  useEffect(() => {
+    if (!inFreePlay) setFocus(null);
+  }, [inFreePlay]);
   // One scale for every basin, taken once from the fullest list in the
   // recorded scene and kept for the figure's life: however many items a
   // reader adds or removes, no basin jumps, and a device that is behind is
@@ -225,6 +232,18 @@ function FigureBody({
         ? (view.caption ?? FREE_PLAY)
         : view.caption;
 
+  const cue: Cue =
+    view !== null &&
+    view.mode === "scene" &&
+    view.cut !== null &&
+    view.shot !== null
+      ? {
+          kind: "shot",
+          cut: view.cut,
+          cursor: { shot: view.shot, offset: view.offset },
+        }
+      : { kind: "free", focus };
+
   return (
     <figure
       ref={element}
@@ -283,6 +302,9 @@ function FigureBody({
             settle={!view.jumped}
             live={view.mode === "free"}
             scale={scale ?? 1}
+            cue={cue}
+            reduced={reduced}
+            onFocus={setFocus}
             onIntent={(client, intent) =>
               run(player.act(applyIntent(client, intent)))
             }

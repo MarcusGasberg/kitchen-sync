@@ -1,36 +1,62 @@
-/* The server's pane, the wire band (the gap), then the devices. The wires are
-   drawn over all of it by the band's SVG. A container, so the server's row
-   lays itself out by the stage's own width, not the viewport's. */
-.stage {
-  container: stage / inline-size;
+/* The camera's window on the world: a fixed shape that clips the plane.
+   Nothing is drawn on it, so its edges are the page's. 16:10 from 45rem,
+   4:5 on a phone, never taller than most of the screen. */
+.viewport {
   position: relative;
-  display: grid;
-  gap: calc(var(--space-7) + var(--space-6));
-  min-width: 0;
+  overflow: hidden;
+  inline-size: 100%;
+  aspect-ratio: 16 / 10;
+  max-block-size: 80svh;
 }
 
-/* The server's pane. Its header is Pane's own. */
+@media (max-width: 44.99rem) {
+  .viewport {
+    aspect-ratio: 4 / 5;
+    max-block-size: 75svh;
+  }
+}
+
+/* The world plane: laid out once, at the app's own density, at every screen
+   size, and placed by the camera's one transform. A container, so the
+   server's row lays itself out by the plane's own width: at least 47rem, so
+   its basin always sits beside its list. */
+.plane {
+  container: stage / inline-size;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  transform-origin: 0 0;
+  display: grid;
+  gap: calc(var(--space-7) + var(--space-6));
+  inline-size: max(
+    47rem,
+    calc(var(--clients) * 20rem + (var(--clients) - 1) * var(--space-6))
+  );
+  padding: var(--space-6);
+}
+
+/* Free play's camera glides to a device and back; a scene's moves are drawn
+   frame by frame from its cut. */
+.gliding {
+  transition: transform 600ms var(--ease-out);
+}
+
+.moving {
+  will-change: transform;
+}
+
 .server {
   min-width: 0;
 }
 
-/* The list, open as text, then the basin under it, whose foot is the pane's
-   foot and the band's top. */
 .serverBody {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
 }
 
-/* A stage wide enough for the list beside the basin, both from the row's top:
-   the list takes room for its two compact columns (two 10rem ones and their
-   gap) and the basin the rest, at least 23rem (47rem less the list's 22rem
-   and the 2rem between). That keeps a 1280 px desktop's composition, its
-   basin about as tall as the scene's list; at 1440 px the basin runs taller.
-   Narrower, the list stays above a full-width basin, whatever the viewport.
-   A list that runs past the basin's foot (a narrow beside-layout, or a
-   reader's adds) moves the band's top down to its own foot, and the wires
-   leave from under the basin there (`layWires`), so none crosses it. */
+/* The basin first, its compact list in a 22rem column beside it, both from
+   the row's top. */
 @container stage (min-width: 47rem) {
   .serverBody {
     grid-template-columns: minmax(0, 1fr) 22rem;
@@ -53,29 +79,57 @@
   min-width: 0;
 }
 
-/* One row of devices, however many: past the width they scroll sideways. */
+/* One row of devices, however many: each the width of a phone's list. */
 .devices {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(14rem, 1fr);
+  grid-template-columns: repeat(var(--clients), 20rem);
   gap: var(--space-6);
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory;
-  padding-bottom: var(--space-2);
+  align-items: start;
 }
 
 .device {
+  position: relative;
   min-width: 0;
-  scroll-snap-align: start;
 }
 
-/* A phone: a strip to swipe, the next device's edge in view. A set width
-   gives each list its inline-size container something to measure. */
-@media (max-width: 44.99rem) {
-  .devices {
-    grid-auto-columns: min(85%, 22rem);
-    gap: var(--space-5);
+/* The spotlight: what a shot is not about steps back. */
+.server,
+.device {
+  transition: opacity var(--motion-state) var(--ease-out);
+}
+
+[data-dim] {
+  opacity: 0.35;
+}
+
+/* Free play on a small screen: the whole pane is one button that shows its
+   device up close. Its focus ring keeps its 2 px on screen at any scale. */
+.show {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.show:focus-visible {
+  outline: calc(2px / var(--camera-scale, 1)) solid var(--text);
+  outline-offset: calc(var(--space-2) / var(--camera-scale, 1));
+}
+
+.back {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-end: var(--space-4);
+  z-index: 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gliding,
+  .server,
+  .device {
+    transition: none;
   }
 }

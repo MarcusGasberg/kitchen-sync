@@ -83,3 +83,13 @@
     text-shadow: none;
   }
 }
+
+/* An item's rings, for a figure's camera and notes: an invisible square on
+   the item's landmark, never a target. */
+.anchor {
+  position: absolute;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  translate: -50% -50%;
+  pointer-events: none;
+}

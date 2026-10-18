@@ -7,6 +7,10 @@ import { webglRenderer } from "./webgl";
 // How long a change takes to settle. tokens.css's --settle.
 export const SETTLE_MS = 900;
 
+// No basin's canvas grows past this many pixels a side, however close the
+// camera comes: the GPU draws sixteen samples a pixel when still.
+export const MAX_CANVAS_PX = 2048;
+
 // Everything a basin needs from the browser, so a test can stand in for it.
 export interface BasinHost {
   // A renderer for the canvas, and how many canvas pixels to give each CSS
@@ -182,6 +186,12 @@ export interface MountedBasin {
     ops: ReadonlyArray<Operation>,
     options?: { readonly settle?: boolean },
   ) => void;
+  // Draws `density` times sharper than the page asks (a camera's close-up),
+  // within MAX_CANVAS_PX a side.
+  readonly setDensity: (density: number) => void;
+  // A basin out of view keeps its pattern but draws nothing until back in
+  // view, when it draws the latest at once.
+  readonly setActive: (active: boolean) => void;
   readonly unmount: () => void;
 }
 
@@ -208,10 +218,12 @@ export const mountBasin = (
   // How many canvas pixels each edge fades over, measured with the box so no
   // frame of a settle reads the layout.
   let feather = 0;
+  let density = 1;
+  let active = true;
 
   const draw = () => {
     frame = null;
-    if (made === null) return;
+    if (made === null || !active) return;
     const now = settler.at(host.now());
     // A still frame is drawn fine: a settle's last, a resize, a re-ink.
     made.renderer.draw(now.ops, tones, { fine: !now.moving, feather });
@@ -223,12 +235,15 @@ export const mountBasin = (
   const resize = () => {
     if (made === null) return;
     const cssWidth = canvas.clientWidth;
-    feather = basinFeather(cssWidth, made.pixelRatio);
-    const width = Math.max(1, Math.round(cssWidth * made.pixelRatio));
-    const height = Math.max(
-      1,
-      Math.round(canvas.clientHeight * made.pixelRatio),
+    const cssHeight = canvas.clientHeight;
+    const ratio = Math.min(
+      made.pixelRatio * density,
+      MAX_CANVAS_PX / Math.max(1, cssWidth),
+      MAX_CANVAS_PX / Math.max(1, cssHeight),
     );
+    feather = basinFeather(cssWidth, ratio);
+    const width = Math.max(1, Math.round(cssWidth * ratio));
+    const height = Math.max(1, Math.round(cssHeight * ratio));
     if (canvas.width === width && canvas.height === height) return;
     canvas.width = width;
     canvas.height = height;
@@ -269,6 +284,19 @@ export const mountBasin = (
         settle && made?.settles === true && !(motion?.matches ?? false),
       );
       redraw();
+    },
+    setDensity: (next) => {
+      const value = Number.isFinite(next) && next > 0 ? next : 1;
+      if (value === density) return;
+      density = value;
+      resize();
+    },
+    setActive: (next) => {
+      if (next === active) return;
+      active = next;
+      if (frame !== null) host.cancelFrame(frame);
+      frame = null;
+      if (active) draw();
     },
     unmount: () => {
       if (frame !== null) host.cancelFrame(frame);

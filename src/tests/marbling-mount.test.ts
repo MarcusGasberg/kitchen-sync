@@ -4,6 +4,7 @@ import {
   basinRenderer,
   createSharedGpu,
   forcedColors,
+  MAX_CANVAS_PX,
   mountBasin,
   SETTLE_MS,
 } from "#/ui/marbling/mount";
@@ -405,6 +406,35 @@ describe("mountBasin", () => {
     basin.unmount();
     expect(fake.waiting()).toBe(0);
     expect(fake.renderer.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("draws sharper at a higher density, never past MAX_CANVAS_PX a side", () => {
+    const fake = fakeHost();
+    const canvas = canvasOf(400, 160);
+    const basin = mountBasin(canvas, fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    expect([canvas.width, canvas.height]).toEqual([800, 320]);
+    basin.setDensity(2);
+    expect([canvas.width, canvas.height]).toEqual([1600, 640]);
+    basin.setDensity(4);
+    expect(canvas.width).toBe(MAX_CANVAS_PX);
+    expect(canvas.height).toBe(Math.round(160 * (MAX_CANVAS_PX / 400)));
+  });
+
+  it("draws nothing while out of view, then the latest pattern", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    const drawn = fake.draws.length;
+    basin.setActive(false);
+    basin.show([drop("a"), drop("b")], { settle: false });
+    fake.frame();
+    expect(fake.draws.length).toBe(drawn);
+    basin.setActive(true);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
   });
 });
 

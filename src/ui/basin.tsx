@@ -3,7 +3,12 @@ import type { GroceryItem } from "#/domain/grocery-item";
 import styles from "./basin.module.css";
 import { browserHost, type MountedBasin, mountBasin } from "./marbling/mount";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "./marbling/operations";
-import { labelBoxFor, labelSpotsOf, patternOf } from "./marbling/pattern";
+import {
+  labelBoxFor,
+  labelSpotsOf,
+  landmarksOf,
+  patternOf,
+} from "./marbling/pattern";
 
 // A basin's counts in words, as "10 items, 1 in fresh ink": items, not the
 // outbox's changes, which the status line counts as waiting.
@@ -44,6 +49,15 @@ interface BasinProps {
   // figure sets one scale for all its basins. Keep it for the basin's life:
   // a new scale redraws every drop.
   readonly scale?: number;
+  // How many times sharper than the page it draws: a figure's camera sets it
+  // in a close-up (`densityFor`).
+  readonly density?: number;
+  // False while out of the camera's view: the basin keeps its pattern and
+  // draws nothing.
+  readonly active?: boolean;
+  // A figure's world: marks each item's rings with an anchor the camera can
+  // frame and a note can point at (`ring:<place>:<item id>`).
+  readonly ringAnchors?: string;
 }
 
 // A device's basin: its list's pattern on water, the same on every device
@@ -56,6 +70,9 @@ export function Basin({
   settle = true,
   labels,
   scale = 1,
+  density = 1,
+  active = true,
+  ringAnchors,
 }: BasinProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const mounted = useRef<MountedBasin | null>(null);
@@ -77,6 +94,23 @@ export function Basin({
   useEffect(() => {
     mounted.current?.show(ops, { settle });
   }, [ops, settle]);
+
+  useEffect(() => {
+    mounted.current?.setDensity(density);
+  }, [density]);
+
+  useEffect(() => {
+    mounted.current?.setActive(active);
+  }, [active]);
+
+  // Where each item's rings sit once every later drop has pushed them.
+  const rings = useMemo(
+    () =>
+      ringAnchors === undefined
+        ? []
+        : [...landmarksOf(ops, new Set(items.map((item) => item.id)))],
+    [ops, items, ringAnchors],
+  );
 
   // A labelled basin knows its width, so it places each label where a label
   // of that size finds clear water.
@@ -117,6 +151,7 @@ export function Basin({
         className === undefined ? styles.basin : `${styles.basin} ${className}`
       }
       role="img"
+      data-active={active ? undefined : "false"}
       aria-label={describeBasin(label, items, waiting)}
     >
       <canvas ref={canvas} className={styles.canvas} />
@@ -132,6 +167,18 @@ export function Basin({
         >
           {labels?.get(id)}
         </span>
+      ))}
+      {rings.map(([id, point]) => (
+        <span
+          key={`ring:${id}`}
+          className={styles.anchor}
+          data-anchor-key={`ring:${ringAnchors}:${id}`}
+          aria-hidden="true"
+          style={{
+            left: `${(point.x / WORLD_WIDTH) * 100}%`,
+            top: `${(point.y / WORLD_HEIGHT) * 100}%`,
+          }}
+        />
       ))}
     </div>
   );

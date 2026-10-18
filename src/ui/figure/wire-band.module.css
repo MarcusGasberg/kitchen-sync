@@ -64,3 +64,8 @@
     stroke: Canvas;
   }
 }
+
+/* The spotlight: a wire a shot is not about steps back with its messages. */
+[data-dim] {
+  opacity: 0.35;
+}

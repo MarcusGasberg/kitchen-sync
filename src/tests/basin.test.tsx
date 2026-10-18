@@ -94,6 +94,31 @@ describe("Basin", () => {
       expect(ring).toBeGreaterThan(core.radius);
     }
   });
+
+  it("marks each item's rings for the camera, and says when it is out of view", () => {
+    const { container } = render(
+      <Basin
+        items={[milk, eggs]}
+        label="A's list"
+        ringAnchors="A"
+        active={false}
+      />,
+    );
+    const keys = [
+      ...container.querySelectorAll<HTMLElement>("[data-anchor-key]"),
+    ].map((span) => span.dataset.anchorKey);
+    expect(keys.sort()).toEqual(
+      [`ring:A:${eggs.id}`, `ring:A:${milk.id}`].sort(),
+    );
+    for (const span of container.querySelectorAll<HTMLElement>(
+      "[data-anchor-key]",
+    )) {
+      expect(span.getAttribute("aria-hidden")).toBe("true");
+    }
+    expect(
+      container.querySelector("[role='img']")?.getAttribute("data-active"),
+    ).toBe("false");
+  });
 });
 
 describe("describeBasin", () => {

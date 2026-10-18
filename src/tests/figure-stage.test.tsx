@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import type { Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
-import { Stage } from "#/ui/figure/stage";
+import { type Cue, Stage } from "#/ui/figure/stage";
 import { makeStageView } from "#/ui/figure/stage-view";
 import { rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
@@ -23,6 +24,42 @@ const snapshot = () =>
 
 const noop = () => {};
 
+const FREE: Cue = { kind: "free", focus: null };
+
+const closeOn = (client: string): Cue => {
+  const shot: Shot = {
+    framing: "close",
+    subjects: [{ kind: "device", client }],
+    from: 0,
+    to: 0,
+    rate: 0,
+    screen: 1000,
+    through: 0,
+    enact: null,
+    notes: [],
+    move: false,
+    opening: false,
+    step: 0,
+  };
+  return {
+    kind: "shot",
+    cut: {
+      shots: [shot],
+      steps: [{ label: "Test.", first: 0, end: 1, startedAt: 0, endedAt: 0 }],
+    },
+    cursor: { shot: 0, offset: 0 },
+  };
+};
+
+// The scale in a plane's transform, or null with none.
+const scaleOf = (container: HTMLElement) => {
+  const transform =
+    container.querySelector<HTMLElement>("[data-anchor='plane']")?.style
+      .transform ?? "";
+  const found = /scale\(([^)]+)\)/.exec(transform);
+  return found === null ? null : Number(found[1]);
+};
+
 describe("Stage", () => {
   it("shows the server and every device, read-only during a scene", async () => {
     const view = makeStageView()(await snapshot(), new Map());
@@ -34,6 +71,9 @@ describe("Stage", () => {
         settle
         scale={1}
         live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
         onIntent={noop}
         onAdd={noop}
         onRetry={noop}
@@ -67,6 +107,9 @@ describe("Stage", () => {
         settle
         scale={1}
         live
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
         onIntent={onIntent}
         onAdd={onAdd}
         onRetry={noop}
@@ -101,6 +144,9 @@ describe("Stage", () => {
         settle
         scale={1}
         live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
         onIntent={noop}
         onAdd={noop}
         onRetry={noop}
@@ -125,11 +171,10 @@ describe("Stage", () => {
     ).toBe(true);
   });
 
-  // Nothing on the server's list is ever a target, and nothing on a device's
-  // until the hand-over: in a scene every list is compact; in free play the
-  // devices' lists take the app's rows and targets, the server's stays
-  // compact.
-  it("sets device lists compact in a scene and regular in free play", async () => {
+  // Nothing on the server's list is ever a target: it stays compact, in two
+  // columns. A device's list is the app's own in a close-up: regular rows,
+  // read-only in a scene and taking checks in free play.
+  it("keeps the server's list compact and every device's regular", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     const stage = (live: boolean) => (
       <Stage
@@ -139,6 +184,9 @@ describe("Stage", () => {
         settle
         scale={1}
         live={live}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
         onIntent={noop}
         onAdd={noop}
         onRetry={noop}
@@ -150,12 +198,11 @@ describe("Stage", () => {
         .map((row) => row.dataset.density);
     const { rerender } = render(stage(false));
     expect(density("Server")).toEqual(["compact"]);
-    expect(density("A")).toEqual(["compact"]);
-    expect(density("B")).toEqual(["compact"]);
+    expect(density("A")).toEqual(["regular"]);
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     rerender(stage(true));
     expect(density("Server")).toEqual(["compact"]);
     expect(density("A")).toEqual(["regular"]);
-    expect(density("B")).toEqual(["regular"]);
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
 
@@ -171,6 +218,9 @@ describe("Stage", () => {
         settle
         scale={1}
         live={live}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
         onIntent={noop}
         onAdd={noop}
         onRetry={noop}
@@ -203,6 +253,9 @@ describe("Stage", () => {
           settle
           scale={1}
           live={false}
+          cue={FREE}
+          reduced={false}
+          onFocus={noop}
           onIntent={noop}
           onAdd={noop}
           onRetry={noop}
@@ -276,5 +329,146 @@ describe("Stage", () => {
         expect(inside, `${x}, ${y}`).toBe(false);
       }
     }
+  });
+
+  // A world laid out by hand: a 1000 x 600 viewport on a 1200 x 900 plane.
+  const LAYOUT = new Map([
+    ["viewport", rect(0, 0, 1000, 600)],
+    ["plane", rect(0, 0, 1200, 900)],
+    ["server-basin", rect(40, 40, 700, 300)],
+    ["server-list", rect(740, 40, 1160, 260)],
+    ["server", rect(40, 40, 1160, 300)],
+    ["devices", rect(40, 400, 1160, 860)],
+    ["A", rect(40, 400, 360, 860)],
+    // Far enough right that A's close-up does not reach it.
+    ["B", rect(760, 400, 1080, 860)],
+    ["basin:A", rect(40, 430, 360, 558)],
+    ["basin:B", rect(760, 430, 1080, 558)],
+  ]);
+
+  const staged = async (
+    cue: Cue,
+    props: {
+      live?: boolean;
+      layout?: ReadonlyMap<string, DOMRect>;
+      onFocus?: (c: string | null) => void;
+    } = {},
+  ) => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(props.layout ?? LAYOUT);
+    const result = render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={props.live ?? false}
+        cue={cue}
+        reduced={false}
+        onFocus={props.onFocus ?? noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    return { ...result, restore };
+  };
+
+  it("places the world by the camera: wide in free play, close on a shot's device", async () => {
+    const wide = await staged(FREE);
+    const wideScale = scaleOf(wide.container);
+    wide.restore();
+    wide.unmount();
+    expect(wideScale).not.toBeNull();
+    expect(wideScale ?? 2).toBeLessThanOrEqual(1);
+    const close = await staged(closeOn("A"));
+    const closeScale = scaleOf(close.container);
+    close.restore();
+    expect(closeScale ?? 0).toBeGreaterThan(wideScale ?? 0);
+    expect(closeScale ?? 3).toBeLessThanOrEqual(2);
+  });
+
+  it("dims what a close-up is not about, and stops drawing basins out of view", async () => {
+    const { container, restore } = await staged(closeOn("A"));
+    restore();
+    const box = (key: string) =>
+      container.querySelector<HTMLElement>(`[data-anchor-key='${key}']`);
+    expect(box("device:A")?.hasAttribute("data-dim")).toBe(false);
+    expect(box("device:B")?.hasAttribute("data-dim")).toBe(true);
+    expect(box("server")?.hasAttribute("data-dim")).toBe(true);
+    // B's basin sits right of A's close-up.
+    expect(
+      box("basin:B")
+        ?.querySelector("[role='img']")
+        ?.getAttribute("data-active"),
+    ).toBe("false");
+    expect(
+      box("basin:A")
+        ?.querySelector("[role='img']")
+        ?.getAttribute("data-active"),
+    ).toBeNull();
+  });
+
+  it("offers to show each device up close in free play when its rows are small, and back", async () => {
+    const onFocus = vi.fn();
+    const phone = new Map([...LAYOUT, ["viewport", rect(0, 0, 360, 450)]]);
+    const { restore, rerender, unmount } = await staged(FREE, {
+      live: true,
+      layout: phone,
+      onFocus,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show A up close" }));
+    expect(onFocus).toHaveBeenCalledWith("A");
+    const view = makeStageView()(await snapshot(), new Map());
+    rerender(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live
+        cue={{ kind: "free", focus: "A" }}
+        reduced={false}
+        onFocus={onFocus}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    // Focus went into A, not to the page.
+    expect(
+      screen
+        .getByRole("region", { name: "A" })
+        .contains(document.activeElement),
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "All devices" }));
+    expect(onFocus).toHaveBeenLastCalledWith(null);
+    restore();
+    unmount();
+  });
+
+  it("leaves the plane untransformed until it is measured", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const { container } = render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    // jsdom lays nothing out: every box is 0 x 0.
+    expect(scaleOf(container)).toBeNull();
+    expect(screen.getByRole("region", { name: "A" })).toBeTruthy();
   });
 });
