@@ -250,7 +250,7 @@ describe("placeNotes", () => {
         WIDE,
         room,
       );
-      expect(placed?.pin).toEqual({ x: 640, y: 32 });
+      expect(placed?.pin).toEqual({ x: 646, y: 32 });
       expect(placed?.leader).toBeNull();
     });
 

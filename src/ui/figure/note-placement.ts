@@ -39,6 +39,8 @@ export const CHAR_PX = 7.4;
 export const NOTE_GAP_PX = 10;
 // The gap between a note and the end of its leader.
 const LEADER_GAP_PX = 6;
+// The room a dot keeps from the end of a pane header's text.
+const HEADER_GAP_PX = 6;
 // The stage's lens fades the window's edges over this (`--feather`, the
 // 1.5rem space token): a dot there or past them would float on nothing, so
 // it is dropped, and beside the subjects its leader with it.
@@ -234,15 +236,18 @@ export const placeNotes = (
   const facing = (x: number) => (beside ? Math.min(x, share - MARGIN_PX) : x);
   // The subject's end, facing the notes:
   // - a row's or a ring's right edge at its middle;
-  // - a device's or the server's pane header's right edge at its middle,
-  //   beside its version, or without a measured header the pane's right
+  // - just past a device's or the server's pane header's right edge, at its
+  //   middle, beside its version, or without a measured header the pane's right
   //   edge, level with what shows of it;
   // - none for the light table: its words name every basin in view;
   // - another container's right edge, level with what shows of it.
   const endOf = ({ note, box: b, container, header }: Target): Point | null => {
     if (note.on.kind === "basins") return null;
     if (header !== null) {
-      return { x: facing(header.right), y: (header.top + header.bottom) / 2 };
+      return {
+        x: facing(header.right + HEADER_GAP_PX),
+        y: (header.top + header.bottom) / 2,
+      };
     }
     if (b === null) return null;
     if (!container) return { x: b.right, y: (b.top + b.bottom) / 2 };
