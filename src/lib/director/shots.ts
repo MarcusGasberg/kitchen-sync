@@ -15,7 +15,13 @@ export type Subject =
   | { readonly kind: "outbox"; readonly client: ClientName }
   | { readonly kind: "row"; readonly where: Place; readonly itemId: string }
   | { readonly kind: "ring"; readonly where: Place; readonly itemId: string }
-  | { readonly kind: "message"; readonly messageId: number }
+  | {
+      readonly kind: "message";
+      readonly messageId: number;
+      // The device whose wire it rides: a follow frames the wire, so two
+      // messages on one wire share a frame.
+      readonly client: ClientName;
+    }
   | { readonly kind: "server" }
   | { readonly kind: "basins" };
 

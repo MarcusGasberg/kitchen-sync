@@ -618,4 +618,67 @@ describe("compile, hand-built", () => {
       decisionNote("A", [2], "rejected", "too long"),
     ]);
   });
+
+  it.effect("keeps one frame along one wire, from message to message", () =>
+    Effect.gen(function* () {
+      // One phone: its push, the poke and ack back, its pull and the response
+      // all ride A's wire, one after another.
+      const alone: Scene = {
+        id: "test-director-one-wire",
+        world: {
+          clients: ["A"],
+          seed: "director-one-wire",
+          latency: "800 millis",
+        },
+        beats: [
+          {
+            caption: "A pulls the empty list.",
+            run: () => Effect.void,
+            until: ({ since }) => since.some((e) => e._tag === "Reconciled"),
+          },
+          {
+            caption: "A adds milk.",
+            run: adds("A", "Milk"),
+            until: ({ since }) => since.some((e) => e._tag === "Converged"),
+          },
+        ],
+      };
+      const cut = compile(yield* runHeadless(alone), alone);
+      const wiresOf = (shot: Shot | undefined) =>
+        [
+          ...new Set(
+            (shot?.subjects ?? []).flatMap((s) =>
+              s.kind === "message" ? [s.client] : [],
+            ),
+          ),
+        ].sort();
+      // Two follows in a row on different messages: the case this pins.
+      expect(
+        cut.shots.some((shot, i) => {
+          const next = cut.shots[i + 1];
+          const first = shot.subjects[0];
+          const second = next?.subjects[0];
+          return (
+            shot.framing === "follow" &&
+            next?.framing === "follow" &&
+            first?.kind === "message" &&
+            second?.kind === "message" &&
+            first.messageId !== second.messageId
+          );
+        }),
+      ).toBe(true);
+      // No move between follows on one wire.
+      for (const [i, shot] of cut.shots.entries()) {
+        if (!shot.move || shot.framing !== "follow") continue;
+        const before = cut.shots[i - 1];
+        if (before?.framing !== "follow") continue;
+        expect(wiresOf(before)).not.toEqual(wiresOf(cut.shots[i + 1]));
+      }
+      for (const shot of cut.shots) {
+        for (const subject of shot.subjects) {
+          if (subject.kind === "message") expect(subject.client).toBe("A");
+        }
+      }
+    }),
+  );
 });

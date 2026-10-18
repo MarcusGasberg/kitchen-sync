@@ -10,6 +10,7 @@ import type {
 import type {
   Classification,
   Entry,
+  Message,
   Timeline,
   TraceEvent,
 } from "#/lib/sandbox/trace";
@@ -85,9 +86,11 @@ const device = (client: string, ...inside: ReadonlyArray<Subject>): Found => ({
   subjects: [{ kind: "device", client }, ...inside],
 });
 
-const wire = (messageId: number): Found => ({
-  spot: { kind: "wire", messageId },
-  subjects: [{ kind: "message", messageId }],
+const wire = (message: Message): Found => ({
+  spot: { kind: "wire", messageId: message.id },
+  subjects: [
+    { kind: "message", messageId: message.id, client: message.client },
+  ],
 });
 
 const TABLE: Found = {
@@ -159,7 +162,7 @@ const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
     case "Held":
     case "Released":
     case "Abandoned":
-      return wire(event.message.id);
+      return wire(event.message);
     case "Reconciled": {
       const after = entry.snapshot.clients.get(event.client);
       if (after === undefined) return null;
@@ -187,7 +190,7 @@ const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
 
 // An event a beat features though the rules fold it.
 const featured = (event: TraceEvent): Found => {
-  if ("message" in event) return wire(event.message.id);
+  if ("message" in event) return wire(event.message);
   if ("client" in event) {
     return device(event.client, { kind: "outbox", client: event.client });
   }
@@ -377,6 +380,7 @@ const flights = (
   const subjects: ReadonlyArray<Subject> = moving.map((m) => ({
     kind: "message",
     messageId: m.id,
+    client: m.client,
   }));
   const follow = (a: number, b: number, rate: number): Shot => ({
     ...base,
@@ -712,20 +716,34 @@ const directedShots = (
   return shots;
 };
 
-// What makes a frame: the framing and its containers. Rows, rings and
-// outboxes inside a container only place its notes, so an add's typing and
-// its landing share one close-up.
-const CONTAINERS = new Set<Subject["kind"]>([
-  "device",
-  "server",
-  "message",
-  "basins",
-]);
+// What makes a frame: the framing and its containers. A message stands for
+// its wire, so a follow that passes from one message to the next on one wire
+// keeps its frame; rows, rings and outboxes inside a container only place
+// its notes, so an add's typing and its landing share one close-up.
+const containerKey = (subject: Subject): string | null => {
+  switch (subject.kind) {
+    case "message":
+      return `wire:${subject.client}`;
+    case "device":
+    case "server":
+    case "basins":
+      return subjectKey(subject);
+    case "outbox":
+    case "row":
+    case "ring":
+      return null;
+  }
+};
 
 const frameKey = (shot: Shot): string =>
-  `${shot.framing}|${shot.subjects
-    .filter((s) => CONTAINERS.has(s.kind))
-    .map(subjectKey)
+  `${shot.framing}|${[
+    ...new Set(
+      shot.subjects.flatMap((s) => {
+        const key = containerKey(s);
+        return key === null ? [] : [key];
+      }),
+    ),
+  ]
     .sort()
     .join(",")}`;
 
