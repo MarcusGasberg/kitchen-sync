@@ -735,7 +735,9 @@ const containerKey = (subject: Subject): string | null => {
   }
 };
 
-const frameKey = (shot: Shot): string =>
+// The camera reads it too: the shots of one frame run share the notes'
+// share.
+export const frameKey = (shot: Pick<Shot, "framing" | "subjects">): string =>
   `${shot.framing}|${[
     ...new Set(
       shot.subjects.flatMap((s) => {

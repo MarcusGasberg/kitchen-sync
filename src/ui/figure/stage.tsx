@@ -50,7 +50,7 @@ export type Cue =
   | { readonly kind: "free"; readonly focus: ClientName | null };
 
 // Below this scale a device's rows are too small to use: in free play each
-// device offers to be shown up close.
+// device offers to be shown up close (as it does when its pane is cut off).
 export const FOCUS_BELOW = 0.75;
 
 interface StageProps {
@@ -272,11 +272,25 @@ export function Stage({
   const dim = (key: string) => (lit !== null && !lit.has(key) ? "" : undefined);
 
   const focused = cue.kind === "free" ? cue.focus : null;
+  // Each device offers to be shown up close while resting wide leaves its
+  // rows too small or its pane cut off: wide frames the band of basins, so
+  // the lists and add fields under them are reached through a close-up.
+  const resting = ready ? wideView(anchors, size) : null;
+  const restingBox = resting === null ? null : visibleBox(resting, size);
   const offerShow =
     live &&
     cue.kind === "free" &&
-    ready &&
-    wideView(anchors, size).scale < FOCUS_BELOW;
+    resting !== null &&
+    restingBox !== null &&
+    (resting.scale < FOCUS_BELOW ||
+      [...measured.boxes].some(
+        ([key, pane]) =>
+          key.startsWith("device:") &&
+          (pane.left < restingBox.left ||
+            pane.top < restingBox.top ||
+            pane.right > restingBox.right ||
+            pane.bottom > restingBox.bottom),
+      ));
 
   // Focus never drops to the page: shown up close, a device takes it on its
   // first field or control; back to all, the device it was on takes it back.

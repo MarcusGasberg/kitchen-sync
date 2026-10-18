@@ -1,3 +1,4 @@
+import { frameKey } from "#/lib/director/compile";
 import {
   type Cut,
   SERVER,
@@ -354,15 +355,23 @@ const groupBoxes = (
 const pans = (shot: Pick<Shot, "framing">, viewport: Size): boolean =>
   shot.framing === "split" && !besideIn(viewport);
 
-// A shot's view, or null when none of its subjects was measured. A split on
-// a narrow viewport frames its first device's subjects here; `cameraAt` pans
-// it across the rest.
+// A shot's view, or null when none of its subjects was measured, keeping the
+// notes' share when it has notes. A split on a narrow viewport frames its
+// first device's subjects here; `cameraAt` pans it across the rest, and
+// gives every shot of a frame run the share any of them needs.
 export const frameFor = (
   shot: Pick<Shot, "framing" | "subjects" | "notes">,
   anchors: Anchors,
   viewport: Size,
+): View | null => framed(shot, shot.notes.length > 0, anchors, viewport);
+
+// A shot's view, with or without the notes' share.
+const framed = (
+  shot: Pick<Shot, "framing" | "subjects">,
+  notes: boolean,
+  anchors: Anchors,
+  viewport: Size,
 ): View | null => {
-  const notes = shot.notes.length > 0;
   switch (shot.framing) {
     case "wide":
       return wideView(anchors, viewport, notes);
@@ -416,19 +425,21 @@ const along = (
   });
 };
 
-// A held shot's view at `offset` into it: its frame, or for a split on a
-// narrow viewport, the device whose share of the hold it is in, moving there
-// over that share's first PAN_SHARE (at once under reduced motion).
+// A held shot's view at `offset` into it, with or without the notes' share:
+// its frame, or for a split on a narrow viewport, the device whose share of
+// the hold it is in, moving there over that share's first PAN_SHARE (at once
+// under reduced motion).
 const heldAt = (
   shot: Shot,
+  notes: boolean,
   offset: number,
   anchors: Anchors,
   viewport: Size,
   reduced: boolean,
 ): View | null => {
-  if (!pans(shot, viewport)) return frameFor(shot, anchors, viewport);
+  if (!pans(shot, viewport)) return framed(shot, notes, anchors, viewport);
   const views = groupBoxes(shot, anchors).map((b) =>
-    frame(b, anchors, viewport, shot.notes.length > 0),
+    frame(b, anchors, viewport, notes),
   );
   const last = views.length - 1;
   if (last < 0) return null;
@@ -506,16 +517,83 @@ const sameView = (a: View, b: View): boolean =>
   Math.abs(a.y - b.y) <= 0.5 &&
   Math.abs(a.scale - b.scale) <= 0.001;
 
+// Which shots of a cut frame with the notes' share. A frame run is a
+// maximal sequence of consecutive shots that are not moves and share the
+// director's frame (`frameKey`); a move belongs to the run it leads into.
+// Every shot of a run keeps the share when any of them has notes, so a move
+// into a noted hold ends on the hold's view and an add acted out before its
+// noted hold is framed beside the same share. Kept per cut.
+const sharing = new WeakMap<Cut, ReadonlyArray<boolean>>();
+const sharesOf = (cut: Cut): ReadonlyArray<boolean> => {
+  const known = sharing.get(cut);
+  if (known !== undefined) return known;
+  const { shots } = cut;
+  const flags = shots.map(() => false);
+  let start = 0;
+  while (start < shots.length) {
+    const first = shots[start];
+    if (first === undefined || first.move) {
+      start++;
+      continue;
+    }
+    const key = frameKey(first);
+    let end = start;
+    while (
+      end + 1 < shots.length &&
+      shots[end + 1]?.move === false &&
+      frameKey(shots[end + 1] as Shot) === key
+    ) {
+      end++;
+    }
+    const noted = shots
+      .slice(start, end + 1)
+      .some((shot) => shot.notes.length > 0);
+    for (let i = start; i <= end; i++) flags[i] = noted;
+    // The move into this run, when one leads into it.
+    if (shots[start - 1]?.move === true) flags[start - 1] = noted;
+    start = end + 1;
+  }
+  sharing.set(cut, flags);
+  return flags;
+};
+
+// Shot `index`'s view at `offset` into it, framed with its run's share. A
+// step's opening is drawn at the view the shot before it ended on, whatever
+// its own framing says: paused there, the camera shows the frame the reader
+// last saw, and the move after it starts from there. The first step's
+// opening, with no shot before it, takes its own frame. A move's view is the
+// frame it moves to.
+const viewOf = (
+  cut: Cut,
+  index: number,
+  offset: number,
+  anchors: Anchors,
+  viewport: Size,
+  reduced: boolean,
+): View | null => {
+  const shot = cut.shots[index];
+  if (shot === undefined) return null;
+  const before = cut.shots[index - 1];
+  if (shot.opening && before !== undefined) {
+    return viewOf(cut, index - 1, before.screen, anchors, viewport, false);
+  }
+  const notes = sharesOf(cut)[index] === true;
+  return shot.move
+    ? framed(shot, notes, anchors, viewport)
+    : heldAt(shot, notes, offset, anchors, viewport, reduced);
+};
+
 // The view at the cursor. A shot holds its frame (a split on a narrow
-// viewport pans across its devices). After a shot that shares its frame but
-// not its view, it first eases there over EASE_MILLIS (or its own length),
-// so nothing cuts inside one frame. The ease starts from `entry`, the view
-// drawn as the shot began, when the stage knows it: the shot before's view,
-// recomputed now, can differ from it, as an add's row lands and its pane
-// grows. A move runs from where the shot before it ended to its own frame,
-// eased and kept on the plane. Under reduced motion each is its own view at
-// once. Nothing measured keeps `fallback`, the last view drawn, or else goes
-// wide.
+// viewport pans across its devices), with the notes' share its frame run
+// needs. After a shot that shares its frame but not its view, it first eases
+// there over EASE_MILLIS (or its own length), so nothing cuts inside one
+// frame. The ease starts from `entry`, the view drawn as the shot began,
+// when the stage knows it: the shot before's view, recomputed now, can
+// differ from it, as an add's row lands and its pane grows. A step's opening
+// holds the view the step before ended on, with no ease. A move runs from
+// where the shot before it ended to its own frame, eased and kept on the
+// plane. Under reduced motion each is its own view at once. Nothing measured
+// keeps `fallback`, the last view drawn, or else goes wide.
 export const cameraAt = (
   cut: Cut,
   cursor: CutCursor,
@@ -528,20 +606,28 @@ export const cameraAt = (
   },
 ): View => {
   const rest = options.fallback ?? wideView(anchors, viewport);
-  const shot = cut.shots[cursor.shot];
+  const index = cursor.shot;
+  const shot = cut.shots[index];
   if (shot === undefined) return rest;
+  const before = cut.shots[index - 1];
+  // Where the shot before ended, as `cameraAt` recomputes it now.
+  const ended = () =>
+    before === undefined
+      ? null
+      : viewOf(cut, index - 1, before.screen, anchors, viewport, false);
   if (!shot.move) {
-    const view = heldAt(
-      shot,
+    const view = viewOf(
+      cut,
+      index,
       cursor.offset,
       anchors,
       viewport,
       options.reduced,
     );
     if (view === null) return rest;
-    const before = cut.shots[cursor.shot - 1];
     const span = Math.min(EASE_MILLIS, shot.screen);
     if (
+      shot.opening ||
       options.reduced ||
       before === undefined ||
       before.move ||
@@ -550,22 +636,15 @@ export const cameraAt = (
     ) {
       return view;
     }
-    const from =
-      options.entry ?? heldAt(before, before.screen, anchors, viewport, false);
+    const from = options.entry ?? ended();
     if (from === null || sameView(from, view)) return view;
     const t = easeInOut(Math.max(0, cursor.offset) / span);
     return along(from, view, t, anchors, viewport);
   }
-  const target = frameFor(shot, anchors, viewport) ?? rest;
+  const target =
+    viewOf(cut, index, 0, anchors, viewport, options.reduced) ?? rest;
   if (options.reduced || shot.screen <= 0) return target;
-  const previous = cut.shots[cursor.shot - 1];
-  const from =
-    previous === undefined
-      ? target
-      : ((previous.move
-          ? frameFor(previous, anchors, viewport)
-          : heldAt(previous, previous.screen, anchors, viewport, false)) ??
-        rest);
+  const from = before === undefined ? target : (ended() ?? rest);
   const t = easeInOut(Math.min(1, Math.max(0, cursor.offset / shot.screen)));
   return along(from, target, t, anchors, viewport);
 };

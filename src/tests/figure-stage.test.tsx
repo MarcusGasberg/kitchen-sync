@@ -473,6 +473,21 @@ describe("Stage", () => {
     unmount();
   });
 
+  // Wide frames the band of basins, so at 1000 × 600 the scale clears
+  // FOCUS_BELOW while the device panes run past the window's foot: their
+  // lists and add fields are out of frame, and only a close-up reaches them.
+  it("offers to show each device up close in free play whenever its pane is cut off", async () => {
+    const { restore, unmount } = await staged(FREE, { live: true });
+    restore();
+    expect(
+      screen.getByRole("button", { name: "Show A up close" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Show B up close" }),
+    ).toBeTruthy();
+    unmount();
+  });
+
   it("leaves the plane untransformed until it is measured", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     const { container } = render(

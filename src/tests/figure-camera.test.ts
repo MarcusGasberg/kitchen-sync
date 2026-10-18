@@ -692,8 +692,19 @@ describe("moving", () => {
         reduced,
         fallback: null,
       });
-    const from = frameFor(enact, DETAIL, viewport);
+    // The enactment shares its hold's frame run, so it keeps the notes'
+    // share too: their ease is only the row coming into the detail.
+    const from = frameFor({ ...enact, notes: hold.notes }, DETAIL, viewport);
     const to = frameFor(hold, DETAIL, viewport);
+
+    it("frames every shot of a run with the notes' share when any of them has notes", () => {
+      const cut: Cut = { shots: [enact, hold], steps: [] };
+      expect(at(cut, 0, 700)).toEqual(from);
+      expect(from).not.toEqual(frameFor(enact, DETAIL, viewport));
+      // A run without notes keeps none.
+      const bare: Cut = { shots: [enact, { ...hold, notes: [] }], steps: [] };
+      expect(at(bare, 0, 700)).toEqual(frameFor(enact, DETAIL, viewport));
+    });
 
     it("eases from the shot before's view to its own over EASE_MILLIS", () => {
       const cut: Cut = { shots: [enact, hold], steps: [] };
@@ -717,14 +728,22 @@ describe("moving", () => {
     });
 
     it("holds at once when the views are the same, and under reduced motion", () => {
-      const again: Cut = { shots: [enact, { ...enact }], steps: [] };
-      expect(at(again, 1, 0)).toEqual(from);
       const cut: Cut = { shots: [enact, hold], steps: [] };
+      const from = (shift: number) =>
+        cameraAt(cut, { shot: 1, offset: EASE_MILLIS / 2 }, DETAIL, viewport, {
+          reduced: false,
+          fallback: null,
+          entry: to === null ? null : { ...to, x: to.x + shift },
+        });
+      // A hair apart, within half a pixel: the hold's view, mid-ease.
+      expect(from(0.3)).toEqual(to);
+      // Further apart, it eases.
+      expect(from(4)).not.toEqual(to);
       expect(at(cut, 1, 0, true)).toEqual(to);
       expect(at(cut, 1, EASE_MILLIS / 2, true)).toEqual(to);
     });
 
-    it("does not ease a hold after a move: the move has brought it there", () => {
+    it("ends a move into a hold with notes on the hold's view", () => {
       const cut: Cut = {
         shots: [
           shot({
@@ -736,7 +755,54 @@ describe("moving", () => {
         ],
         steps: [],
       };
+      const end = at(cut, 1, 800);
+      expect(end.x).toBeCloseTo(to?.x ?? Number.NaN);
+      expect(end.y).toBeCloseTo(to?.y ?? Number.NaN);
+      expect(end.scale).toBeCloseTo(to?.scale ?? Number.NaN);
       expect(at(cut, 2, 0)).toEqual(to);
+    });
+
+    describe("a step's opening", () => {
+      // The step before ends on a hold with notes; the next step opens on
+      // its frame (no notes of its own), then moves on to the follow.
+      const opening = shot({
+        framing: "close",
+        subjects: PULLS.slice(0, 3),
+        opening: true,
+        screen: 3000,
+      });
+      const toFollow = shot({
+        framing: "close",
+        subjects: [{ kind: "device", client: "C" }],
+        move: true,
+        screen: 800,
+      });
+      const cut: Cut = {
+        shots: [enact, hold, opening, toFollow],
+        steps: [],
+      };
+
+      it("is drawn at the view the shot before it ended on, with no ease", () => {
+        for (const offset of [0, EASE_MILLIS / 2, 2000]) {
+          expect(at(cut, 2, offset)).toEqual(to);
+        }
+      });
+
+      it("hands that view to the move after it: Play from a paused opening moves by 0 px", () => {
+        const paused = at(cut, 2, 0);
+        const played = at(cut, 3, 0);
+        expect(played.x).toBeCloseTo(paused.x);
+        expect(played.y).toBeCloseTo(paused.y);
+        expect(played.scale).toBeCloseTo(paused.scale);
+      });
+
+      it("opens the first step wide", () => {
+        const first: Cut = {
+          shots: [shot({ framing: "wide", opening: true }), enact],
+          steps: [],
+        };
+        expect(at(first, 0, 0)).toEqual(wideView(DETAIL, viewport));
+      });
     });
 
     // The add's row lands as the hold begins, so the pane the enactment

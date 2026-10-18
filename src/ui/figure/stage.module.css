@@ -64,6 +64,20 @@
   mask-image: var(--across), var(--down), var(--share);
 }
 
+/* Forced colours keep every line whole to the window's edge: no feather.
+   The notes' share still fades, so their words keep their Canvas ground. */
+@media (forced-colors: active) {
+  .lens {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .lens[data-notes] {
+    -webkit-mask-image: var(--share);
+    mask-image: var(--share);
+  }
+}
+
 /* Under the window, never over the plane. During a scene on a narrow
    viewport it holds the hold's notes, and keeps two notes' lines however
    few there are, so the page holds still from hold to hold; in free play it
