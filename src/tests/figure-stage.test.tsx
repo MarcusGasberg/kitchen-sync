@@ -4,9 +4,9 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { Shot } from "#/lib/director/shots";
+import type { Cut, Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
-import { MARGIN_PX } from "#/ui/figure/camera";
+import { EASE_MILLIS, MARGIN_PX } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
@@ -626,6 +626,137 @@ describe("Stage", () => {
       true,
     );
     first.restore();
+  });
+
+  it("never glides under reduced motion", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(LAYOUT);
+    const stage = (cue: Cue) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={cue}
+        reduced
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const { container, rerender } = render(stage(FREE));
+    rerender(stage({ kind: "free", focus: "A" }));
+    const plane = container.querySelector<HTMLElement>("[data-anchor='plane']");
+    restore();
+    expect(plane?.style.transform).not.toBe("");
+    expect(plane?.classList.contains(stageStyles.gliding ?? "gliding")).toBe(
+      false,
+    );
+  });
+
+  // The plane is kept on the compositor whenever the camera moves: through
+  // an ease within a frame and a narrow window's pan, not only a move.
+  describe("while the camera moves", () => {
+    const movingIn = (container: HTMLElement) =>
+      container
+        .querySelector<HTMLElement>("[data-anchor='plane']")
+        ?.classList.contains(stageStyles.moving ?? "moving");
+    const stageAt = (
+      view: StageView,
+      cut: Cut,
+      shot: number,
+      offset: number,
+    ) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={{ kind: "shot", cut, cursor: { shot, offset } }}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const close = (fields: Partial<Shot>): Shot => ({
+      framing: "close",
+      subjects: [{ kind: "device", client: "A" }],
+      from: 0,
+      to: 0,
+      rate: 0,
+      screen: 1000,
+      through: 0,
+      enact: null,
+      notes: [],
+      move: false,
+      opening: false,
+      step: 0,
+      ...fields,
+    });
+
+    // A noted hold on B ends one step; the next opens on its view and
+    // plays on B with no notes, easing out of the notes' share. (B, at the
+    // plane's right edge, is framed elsewhere with the share than without.)
+    it("keeps the plane on the compositor through an ease, and not after it", async () => {
+      const onB = [{ kind: "device", client: "B" }] as const;
+      const cut: Cut = {
+        shots: [
+          close({
+            subjects: onB,
+            notes: [{ on: onB[0], text: "B acts." }],
+            step: 0,
+          }),
+          close({ subjects: onB, opening: true, step: 1 }),
+          close({ subjects: onB, rate: 1, step: 1 }),
+        ],
+        steps: [],
+      };
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(LAYOUT);
+      const { container, rerender } = render(stageAt(view, cut, 2, 0));
+      const easing = movingIn(container);
+      rerender(stageAt(view, cut, 2, EASE_MILLIS));
+      const eased = movingIn(container);
+      restore();
+      expect(easing).toBe(true);
+      expect(eased).toBe(false);
+    });
+
+    // A phone's split pans from A to B: it moves over the first 20% of B's
+    // half of the hold.
+    it("keeps the plane on the compositor through a pan's moving share, and not on either side", async () => {
+      const cut: Cut = {
+        shots: [
+          close({
+            framing: "split",
+            subjects: [
+              { kind: "device", client: "A" },
+              { kind: "device", client: "B" },
+            ],
+          }),
+        ],
+        steps: [],
+      };
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(
+        new Map([...LAYOUT, ["viewport", rect(0, 0, 360, 450)]]),
+      );
+      const { container, rerender } = render(stageAt(view, cut, 0, 300));
+      const onA = movingIn(container);
+      rerender(stageAt(view, cut, 0, 550));
+      const panning = movingIn(container);
+      rerender(stageAt(view, cut, 0, 800));
+      const onB = movingIn(container);
+      restore();
+      expect([onA, panning, onB]).toEqual([false, true, false]);
+    });
   });
 
   const NOTED: Shot["notes"] = [

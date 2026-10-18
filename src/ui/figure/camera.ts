@@ -505,6 +505,15 @@ const along = (
   });
 };
 
+// The camera at a cursor: its view, and whether it is moving there (through
+// a move, an ease within a frame, or a pan's moving share).
+export interface Framed {
+  readonly view: View;
+  readonly moving: boolean;
+}
+
+const still = (view: View): Framed => ({ view, moving: false });
+
 // A held shot's view at `offset` into it, for `notes` notes in its frame
 // run: its frame, or for a shot a narrow viewport pans across, the box whose
 // share of the hold it is in, moving there over that share's first
@@ -516,26 +525,29 @@ const heldAt = (
   anchors: Anchors,
   viewport: Size,
   reduced: boolean,
-): View | null => {
+): Framed | null => {
   if (!pans(shot, anchors, viewport)) {
-    return framed(shot, notes, anchors, viewport);
+    const view = framed(shot, notes, anchors, viewport);
+    return view === null ? null : still(view);
   }
   const views = panBoxes(shot, anchors).map((b) =>
     frame(b, anchors, viewport, notes > 0),
   );
+  const first = views[0];
+  if (first === undefined) return null;
   const last = views.length - 1;
-  if (last < 0) return null;
-  if (last === 0 || shot.screen <= 0) return views[0] ?? null;
+  if (last === 0 || shot.screen <= 0) return still(first);
   const share = shot.screen / views.length;
   const at = Math.min(shot.screen, Math.max(0, offset));
   const index = Math.min(last, Math.floor(at / share));
-  const view = views[index] ?? null;
+  const view = views[index] ?? first;
   const previous = views[index - 1];
   const into = (at - index * share) / (share * PAN_SHARE);
-  if (view === null || previous === undefined || reduced || into >= 1) {
-    return view;
-  }
-  return along(previous, view, easeInOut(into), anchors, viewport);
+  if (previous === undefined || reduced || into >= 1) return still(view);
+  return {
+    view: along(previous, view, easeInOut(into), anchors, viewport),
+    moving: true,
+  };
 };
 
 // Slow in, slow out.
@@ -658,53 +670,72 @@ const viewOf = (
   anchors: Anchors,
   viewport: Size,
   reduced: boolean,
-): View | null => {
+): Framed | null => {
   const shot = cut.shots[index];
   if (shot === undefined) return null;
   const before = cut.shots[index - 1];
   if (shot.opening && before !== undefined) {
-    return viewOf(cut, index - 1, before.screen, anchors, viewport, false);
+    const ended = viewOf(
+      cut,
+      index - 1,
+      before.screen,
+      anchors,
+      viewport,
+      false,
+    );
+    return ended === null ? null : still(ended.view);
   }
   const notes = runNotesOf(cut)[index] ?? 0;
-  return shot.move
-    ? framed(shot, notes, anchors, viewport)
-    : heldAt(shot, notes, offset, anchors, viewport, reduced);
+  if (!shot.move) {
+    return heldAt(shot, notes, offset, anchors, viewport, reduced);
+  }
+  const target = framed(shot, notes, anchors, viewport);
+  return target === null ? null : still(target);
 };
 
-// The view at the cursor. A shot holds its frame (a split on a narrow
-// viewport pans across its devices), with the notes' share, or the room
-// under a wide or a table frame, its frame run needs. After a shot that shares its frame but not its view, it first eases
-// there over EASE_MILLIS (or its own length), so nothing cuts inside one
-// frame. The ease starts from `entry`, the view drawn as the shot began,
-// when the stage knows it: the shot before's view, recomputed now, can
-// differ from it, as an add's row lands and its pane grows. A step's opening
-// holds the view the step before ended on, with no ease. A move runs from
-// where the shot before it ended to its own frame, eased and kept on the
-// plane. Under reduced motion each is its own view at once. Nothing measured
-// keeps `fallback`, the last view drawn, or else goes wide.
-export const cameraAt = (
+// How the camera reads a cut: under reduced motion or not; the last view
+// drawn, kept when nothing is measured; and the view drawn as the shot
+// began, when the camera arrived from the shot before.
+export interface CameraOptions {
+  readonly reduced: boolean;
+  readonly fallback: View | null;
+  readonly entry?: View | null;
+}
+
+// The view at the cursor, and whether the camera is moving there. A shot
+// holds its frame (a split on a narrow viewport pans across its devices),
+// with the notes' share, or the room under a wide or a table frame, its
+// frame run needs. After a shot that shares its frame but not its view, it
+// first eases there over EASE_MILLIS (or its own length), so nothing cuts
+// inside one frame. The ease starts from `entry`, the view drawn as the shot
+// began, when the stage knows it: the shot before's view, recomputed now,
+// can differ from it, as an add's row lands and its pane grows. A step's
+// opening holds the view the step before ended on, with no ease. A move runs
+// from where the shot before it ended to its own frame, eased and kept on
+// the plane. The camera moves through a move, an ease and a pan's moving
+// share, and is still otherwise. Under reduced motion each is its own view
+// at once, and nothing moves. Nothing measured keeps `fallback`, the last
+// view drawn, or else goes wide.
+export const framedAt = (
   cut: Cut,
   cursor: CutCursor,
   anchors: Anchors,
   viewport: Size,
-  options: {
-    readonly reduced: boolean;
-    readonly fallback: View | null;
-    readonly entry?: View | null;
-  },
-): View => {
-  const rest = options.fallback ?? wideView(anchors, viewport);
+  options: CameraOptions,
+): Framed => {
+  const rest = still(options.fallback ?? wideView(anchors, viewport));
   const index = cursor.shot;
   const shot = cut.shots[index];
   if (shot === undefined) return rest;
   const before = cut.shots[index - 1];
-  // Where the shot before ended, as `cameraAt` recomputes it now.
+  // Where the shot before ended, as `framedAt` recomputes it now.
   const ended = () =>
     before === undefined
       ? null
-      : viewOf(cut, index - 1, before.screen, anchors, viewport, false);
+      : (viewOf(cut, index - 1, before.screen, anchors, viewport, false)
+          ?.view ?? null);
   if (!shot.move) {
-    const view = viewOf(
+    const held = viewOf(
       cut,
       index,
       cursor.offset,
@@ -712,7 +743,7 @@ export const cameraAt = (
       viewport,
       options.reduced,
     );
-    if (view === null) return rest;
+    if (held === null) return rest;
     const span = Math.min(EASE_MILLIS, shot.screen);
     if (
       shot.opening ||
@@ -722,20 +753,30 @@ export const cameraAt = (
       span <= 0 ||
       cursor.offset >= span
     ) {
-      return view;
+      return held;
     }
     const from = options.entry ?? ended();
-    if (from === null || sameView(from, view)) return view;
+    if (from === null || sameView(from, held.view)) return held;
     const t = easeInOut(Math.max(0, cursor.offset) / span);
-    return along(from, view, t, anchors, viewport);
+    return { view: along(from, held.view, t, anchors, viewport), moving: true };
   }
   const target =
-    viewOf(cut, index, 0, anchors, viewport, options.reduced) ?? rest;
-  if (options.reduced || shot.screen <= 0) return target;
-  const from = before === undefined ? target : (ended() ?? rest);
+    viewOf(cut, index, 0, anchors, viewport, options.reduced)?.view ??
+    rest.view;
+  if (options.reduced || shot.screen <= 0) return still(target);
+  const from = before === undefined ? target : (ended() ?? rest.view);
   const t = easeInOut(Math.min(1, Math.max(0, cursor.offset / shot.screen)));
-  return along(from, target, t, anchors, viewport);
+  return { view: along(from, target, t, anchors, viewport), moving: true };
 };
+
+// The view at the cursor (`framedAt`).
+export const cameraAt = (
+  cut: Cut,
+  cursor: CutCursor,
+  anchors: Anchors,
+  viewport: Size,
+  options: CameraOptions,
+): View => framedAt(cut, cursor, anchors, viewport, options).view;
 
 // The CSS transform that puts `view` on screen (origin at the plane's top left).
 export const transformOf = (view: View, viewport: Size): string =>

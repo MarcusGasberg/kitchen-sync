@@ -21,18 +21,14 @@ import { StatusBand } from "#/ui/status-band";
 import {
   type Anchors,
   besideIn,
-  cameraAt,
-  densityFor,
   fitArea,
   frameBoxOf,
-  frameFor,
   intersects,
   litOf,
   MARGIN_PX,
   type MessageAnchor,
   type Size,
   transformOf,
-  type View,
   visibleBox,
   wideView,
 } from "./camera";
@@ -41,6 +37,7 @@ import { placeNotes, spotFor } from "./note-placement";
 import styles from "./stage.module.css";
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import type { StageView } from "./stage-view";
+import { useCamera } from "./use-camera";
 import { WireBand } from "./wire-band";
 import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
 
@@ -162,24 +159,6 @@ const messagesOf = (
   return anchors;
 };
 
-// Free play's view: the device a reader chose, close, or the whole world.
-const freeView = (
-  focus: ClientName | null,
-  anchors: Anchors,
-  size: Size,
-): View =>
-  (focus === null
-    ? null
-    : frameFor(
-        {
-          framing: "close",
-          subjects: [{ kind: "device", client: focus }],
-          notes: [],
-        },
-        anchors,
-        size,
-      )) ?? wideView(anchors, size);
-
 // One instant of a world, through the camera: the world plane (the server's
 // pane, the wire band, the devices in one row, laid out once at the app's own
 // density) moved and scaled by one transform to frame the cue's shot.
@@ -207,64 +186,15 @@ export function Stage({
     boxes: measured.boxes,
     messages: messagesOf(measured.wires, flying, gone),
   };
-  const ready = size.width > 0 && size.height > 0 && measured.size.width > 0;
-
-  // The last view drawn: a shot whose subjects are gone keeps it. With it,
-  // the shot it was drawn for.
-  const last = useRef<View | null>(null);
-  const lastShot = useRef<{
-    readonly cut: Cut;
-    readonly shot: number;
-  } | null>(null);
-  // The view drawn as the cue's shot began, kept while that shot plays, when
-  // the camera arrived from the shot before: a shot that eases from that one
-  // starts where the camera was, though the layout may have changed under it
-  // (an add's row lands and its pane grows). A seek is not an arrival, and
-  // eases from the shot before as `cameraAt` recomputes it.
-  const cutNow = cue.kind === "shot" ? cue.cut : null;
-  const shotNow = cue.kind === "shot" ? cue.cursor.shot : null;
-  const arriving =
-    cutNow !== null &&
-    shotNow !== null &&
-    lastShot.current?.cut === cutNow &&
-    lastShot.current.shot === shotNow - 1
-      ? last.current
-      : null;
-  const [entry, setEntry] = useState<{
-    readonly cut: Cut | null;
-    readonly shot: number | null;
-    readonly view: View | null;
-  }>({ cut: null, shot: null, view: null });
-  const entered = entry.cut === cutNow && entry.shot === shotNow;
-  if (!entered) setEntry({ cut: cutNow, shot: shotNow, view: arriving });
-  const camera: View | null = !ready
-    ? null
-    : cue.kind === "shot"
-      ? cameraAt(cue.cut, cue.cursor, anchors, size, {
-          reduced,
-          fallback: last.current,
-          entry: entered ? entry.view : arriving,
-        })
-      : freeView(cue.focus, anchors, size);
-  useEffect(() => {
-    if (camera === null) return;
-    last.current = camera;
-    lastShot.current =
-      cutNow === null || shotNow === null
-        ? null
-        : { cut: cutNow, shot: shotNow };
-  });
+  const {
+    view: camera,
+    moving,
+    density,
+    gliding,
+  } = useCamera(cue, anchors, size, reduced);
 
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
-  const moving = shot?.move === true;
   const lit = shot === undefined ? null : litOf(shot);
-  // Basins sharpen when the camera comes to rest, not through a move.
-  const held = useRef(1);
-  const density =
-    camera === null ? 1 : moving ? held.current : densityFor(camera.scale);
-  useEffect(() => {
-    held.current = density;
-  });
   const seen = camera === null ? null : visibleBox(camera, size);
   const inView = (key: string) => {
     const box = measured.boxes.get(key);
@@ -276,7 +206,7 @@ export function Stage({
   // Each device offers to be shown up close while resting wide leaves its
   // rows too small or its pane cut off: wide frames the band of basins, so
   // the lists and add fields under them are reached through a close-up.
-  const resting = ready ? wideView(anchors, size) : null;
+  const resting = camera === null ? null : wideView(anchors, size);
   const restingBox = resting === null ? null : visibleBox(resting, size);
   const offerShow =
     live &&
@@ -399,12 +329,8 @@ export function Stage({
             ref={plane}
             className={[
               styles.plane,
-              // Only once a view has been drawn: the first placement lands at
-              // once.
-              cue.kind === "free" && !reduced && last.current !== null
-                ? styles.gliding
-                : "",
-              moving && !reduced ? styles.moving : "",
+              gliding ? styles.gliding : "",
+              moving ? styles.moving : "",
             ].join(" ")}
             data-anchor="plane"
             style={

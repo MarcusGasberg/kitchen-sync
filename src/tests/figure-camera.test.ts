@@ -10,6 +10,7 @@ import {
   FOLLOW_PAD_PX,
   fitArea,
   frameBoxOf,
+  framedAt,
   frameFor,
   intersects,
   LINE_PX,
@@ -715,6 +716,24 @@ describe("framing", () => {
         expect(at({ shots: [server], steps: [] }, 0, 520, true)).toEqual(end);
       });
 
+      // The camera moves only over the first PAN_SHARE of the row's share
+      // of the hold: on the ring, and on the row once there, it is still.
+      it("says the camera moves only through a pan's moving share", () => {
+        const cut: Cut = { shots: [server], steps: [] };
+        const moving = (offset: number, reduced = false) =>
+          framedAt(cut, { shot: 0, offset }, DETAIL, phone, {
+            reduced,
+            fallback: null,
+          }).moving;
+        for (const offset of [0, 250, 499, 600, 800, 1000]) {
+          expect(moving(offset), `${offset}`).toBe(false);
+        }
+        for (const offset of [500, 550, 599]) {
+          expect(moving(offset), `${offset}`).toBe(true);
+        }
+        expect(moving(550, true)).toBe(false);
+      });
+
       it("is moved into on its ring, and keeps the union on a wide viewport", () => {
         const moving: Cut = {
           shots: [
@@ -881,6 +900,24 @@ describe("moving", () => {
     ).toEqual(b);
   });
 
+  it("says the camera moves through a move, and is still on the holds either side", () => {
+    const at = (shot: number, offset: number, reduced = false) =>
+      framedAt(CUT, { shot, offset }, ANCHORS, viewport, {
+        reduced,
+        fallback: null,
+      });
+    for (const offset of [0, 400, 799]) {
+      expect(at(1, offset).moving, `${offset}`).toBe(true);
+      expect(at(1, offset).view).toEqual(
+        cameraAt(CUT, { shot: 1, offset }, ANCHORS, viewport, options),
+      );
+    }
+    expect(at(0, 500).moving).toBe(false);
+    expect(at(2, 0).moving).toBe(false);
+    // Under reduced motion a move cuts: the camera is never in motion.
+    expect(at(1, 400, true).moving).toBe(false);
+  });
+
   it("keeps the last view when a shot's subjects are gone", () => {
     const gone = anchorsOf({});
     const last: View = { x: 1, y: 2, scale: 0.5 };
@@ -951,6 +988,21 @@ describe("moving", () => {
         steps: [],
       };
       expect(at(brief, 1, 200)).toEqual(to);
+    });
+
+    it("says the camera moves through the ease, and is still after it", () => {
+      const cut: Cut = { shots: [enact, hold], steps: [] };
+      const moving = (index: number, offset: number, reduced = false) =>
+        framedAt(cut, { shot: index, offset }, DETAIL, viewport, {
+          reduced,
+          fallback: null,
+        }).moving;
+      expect(moving(1, 0)).toBe(true);
+      expect(moving(1, EASE_MILLIS - 1)).toBe(true);
+      expect(moving(1, EASE_MILLIS)).toBe(false);
+      expect(moving(1, 2000)).toBe(false);
+      expect(moving(0, 700)).toBe(false);
+      expect(moving(1, 0, true)).toBe(false);
     });
 
     it("holds at once when the views are the same, and under reduced motion", () => {

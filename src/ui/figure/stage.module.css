@@ -129,6 +129,8 @@
   transition: transform 600ms var(--ease-out);
 }
 
+/* While a scene's camera moves (a move, an ease within a frame, a narrow
+   window's pan), the plane stays on the compositor. */
 .moving {
   will-change: transform;
 }

@@ -539,7 +539,7 @@
         "forcedColors": "CanvasText, no halo"
       },
       "camera": {
-        "density": "densityFor(scale): 1 up to scale 1, then 1.25 (the next half step, held at MAX_SCALE); held through a move, taken at rest",
+        "density": "densityFor(scale): 1 up to scale 1, then 1.25 (MAX_SCALE); held while the camera moves (a move, an ease within a frame, a narrow window's pan), taken at rest",
         "maxCanvasPx": 2048,
         "active": "out of the camera's view a basin stops drawing and keeps its pattern; back in view it draws the latest at once",
         "ringAnchors": "an invisible 1.5rem square per item at where its rings sit once every later drop has pushed them, keyed ring:<place>:<id>; aria-hidden, pointer-events none"
@@ -596,7 +596,7 @@
           "wideAndTable": "never take the share; their notes go in the room under the frame"
         },
         "spotlight": "close, split and follow: unlit panes 0.35 over --motion-state, unlit devices' wires 0.35 at once; a follow lights its wire, its device and the server; wide, table and free play dim nothing",
-        "density": "basins draw at densityFor(scale) at rest; a basin out of view stops drawing",
+        "density": "basins draw at densityFor(scale) at rest, held while the camera moves (framedAt's moving: a move, an ease, a pan's moving share), when the plane takes will-change: transform; a basin out of view stops drawing",
         "freePlay": {
           "rest": "wide; gliding 600ms --ease-out once a first view is drawn",
           "show": "while the wide view's scale is below 0.75 (FOCUS_BELOW) or a device's pane is partly out of view: a transparent button over each unshown device's pane, \"Show A up close\", cursor zoom-in, 6px corners, focus outline 2px at 0.5rem kept on screen (divided by --camera-scale)",
