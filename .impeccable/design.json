@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-17T18:50:14Z",
+  "generatedAt": "2026-10-18T17:38:57Z",
   "title": "Design System: Kitchen Sync",
   "extensions": {
     "colorMeta": {
@@ -311,6 +311,10 @@
         "displayName": "Note",
         "purpose": "A few words beside a code block's path: the reference panel's \"Not running in this figure\". The words of a choice (Then, Now) and Then's date take the same face and size, set solid (line height 1)."
       },
+      "stage-note": {
+        "displayName": "Stage Note",
+        "purpose": "A hold's notes on a figure's stage, beside what they name, in the room under a wide or light-table frame, or in the stage's foot: Commissioner 400 at 0.875rem (--text-sm), line height 1.45, text-wrap pretty, in --text. Never boxed, never haloed."
+      },
       "control": {
         "displayName": "Control",
         "purpose": "The row's Remove word."
@@ -422,6 +426,36 @@
         "name": "then-now-morph",
         "value": "900ms cubic-bezier(0.16, 1, 0.3, 1)",
         "purpose": "Then and Now from a 40rem panel: @shikijs/magic-move moves matching tokens and fades the rest out or in, at --settle's length on --ease-out's curve. Reduced motion replaces at once; below a 40rem panel the choice cuts between per-line drawings."
+      },
+      {
+        "name": "camera-move",
+        "value": "van Wijk-Nuij zoom path (rho = sqrt 2), ease-in-out cubic, over the move shot's screen length",
+        "purpose": "A figure's camera moving into a new frame, from where the shot before ended; a long pan arcs out and back in and never shows more past the plane's edges than its ends do. Reduced motion lands on the frame at once."
+      },
+      {
+        "name": "camera-ease",
+        "value": "400ms (EASE_MILLIS, or the shot's length where shorter), ease-in-out cubic, on the same path",
+        "purpose": "Between two views of one frame (an add acted out on a pane, then held on its new row beside a note), from the view drawn as the shot began. None into or within a step's opening, which holds the view the step before ended on."
+      },
+      {
+        "name": "camera-pan",
+        "value": "an equal share of the hold per box; the first 20% of each share (PAN_SHARE) moves there",
+        "purpose": "Below a 600px window: a split pans place to place, the server's close-up from its ring to its applied row. Reduced motion cuts."
+      },
+      {
+        "name": "free-glide",
+        "value": "transform 600ms var(--ease-out)",
+        "purpose": "Free play's camera gliding between wide and a device's close-up, once a first view has been drawn; none under reduced motion."
+      },
+      {
+        "name": "spotlight",
+        "value": "opacity 0.35; panes over var(--motion-state) var(--ease-out), wires at once",
+        "purpose": "In a close-up, split or follow, an unlit server or device pane, and a wire whose shot names neither it nor its device (with its messages and lost marks), step back. Wide, the light table and free play dim nothing."
+      },
+      {
+        "name": "note-draw",
+        "value": "leader 300ms var(--ease-out) (stroke-dashoffset 1 to 0); dot var(--motion-state); words var(--motion-state) after 120ms",
+        "purpose": "A hold's notes drawing in, afresh for each shot; reduced motion shows them at once."
       }
     ],
     "breakpoints": [
@@ -438,7 +472,7 @@
       {
         "name": "figure-phone",
         "value": "max-width: 44.99rem",
-        "purpose": "A figure's phone composition: a 2rem title, a 1rem row gap, playback's four buttons on one row, the devices a swipeable strip of min(85%, 22rem)."
+        "purpose": "A figure's phone composition: a 2rem title, a 1rem row gap, playback's four buttons on one row, and the stage's window at 4:5, at most 75svh. The world plane is the same as on a desktop."
       },
       {
         "name": "figure-wide",
@@ -448,7 +482,7 @@
       {
         "name": "stage-wide",
         "value": "47rem",
-        "purpose": "Container min-width on the stage (`container: stage / inline-size`): the server's compact list beside its basin, the basin at least 23rem. On a narrower stage, whatever the viewport, the list sits above a full-width basin."
+        "purpose": "Container min-width on the world plane (`container: stage / inline-size`): the server's compact list beside its basin, the basin first. The plane is never narrower than 47rem, so this always holds."
       },
       {
         "name": "figure-code-wide",
@@ -464,6 +498,16 @@
         "name": "then-and-now-wide",
         "value": "container min-width: 40rem",
         "purpose": "Then and Now's panel: from 40rem the magic-move morph shows and Then's date sits beside it on one line; narrower, per-line code with hanging indents, a cut between versions, and Then's date under it."
+      },
+      {
+        "name": "stage-window",
+        "value": "45rem",
+        "purpose": "Viewport min-width: the stage's window is 16:10, at most 80svh; below it 4:5, at most 75svh."
+      },
+      {
+        "name": "notes-beside",
+        "value": "600px window width",
+        "purpose": "The stage's window (not the screen): from 600px a hold's notes sit beside what they name in a 34% share, or under a wide or light-table frame; narrower, they go to the stage's foot and a split or the server's close-up pans."
       }
     ],
     "basin": {
@@ -493,6 +537,12 @@
         "box": "26 x 14 CSS px, 4px (--space-1) off its drop's outer ring",
         "placement": "just outside the outer ring on clear water: sides then corners, stepping out 0.04 world units up to 8 steps where rings press together; clearest spot wins; newest placed first, older labels give way; never overlapping",
         "forcedColors": "CanvasText, no halo"
+      },
+      "camera": {
+        "density": "densityFor(scale): 1 up to scale 1, then 1.25 (the next half step, held at MAX_SCALE); held through a move, taken at rest",
+        "maxCanvasPx": 2048,
+        "active": "out of the camera's view a basin stops drawing and keeps its pattern; back in view it draws the latest at once",
+        "ringAnchors": "an invisible 1.5rem square per item at where its rings sit once every later drop has pushed them, keyed ring:<place>:<id>; aria-hidden, pointer-events none"
       }
     },
     "figure": {
@@ -506,20 +556,57 @@
           "medium": "64rem to 80rem: the two columns as without code, then the code in a full-width row",
           "wide": "from 80rem: columns minmax(47rem, 3fr) minmax(0, 2fr), column gap 3rem; areas \"copy playback\" \"stage code\" \"pace code\" \"breaking code\"; playback aligned to the band's foot",
           "stickyCode": "position sticky, top 1.5rem (--space-5), max-block-size calc(100dvh - 2 * --space-5); the code scrolls inside it",
-          "stageFloor": "47rem, the server row's container threshold, so the server keeps its list beside its basin and A, B and C stay in the first view"
+          "stageFloor": "47rem, set before the camera as the server row's container threshold; the world plane now holds its own 47rem whatever the window's width"
         }
       },
       "stage": {
-        "order": "server row, wire band, device row",
-        "serverRowWide": "from a 47rem stage (container query): basin minmax(0, 1fr), at least 23rem, list 22rem (two compact 10rem columns), gap 2rem, top-aligned",
-        "serverRowNarrow": "below a 47rem stage, whatever the viewport: list above a full-width basin",
-        "deviceRow": "grid-auto-flow column, minmax(14rem, 1fr), gap 2rem, overflow-x auto, scroll-snap x mandatory",
-        "deviceRowPhone": "min(85%, 22rem), gap 1.5rem",
-        "focus": "2px --text outline, offset 0.5rem, 6px corners"
+        "camera": "a window on one world plane, placed by one transform: translate(window/2 - view * scale) scale(scale), origin at the plane's top left",
+        "window": {
+          "shape": "the stage's full width; aspect 16 / 10, max 80svh; below 45rem 4 / 5, max 75svh; overflow hidden, nothing drawn on it",
+          "feather": "24px (--space-5) on all four edges, a mask that fades the plane to the page; kept under forced colours",
+          "foot": "under the window, 0.75rem (--space-3) below it: a narrow window's notes for the whole scene (min-block-size two notes: 2 * 1.45 * --text-sm + --space-1), a wide window's when a wide or table hold's room is too short, free play's All devices (min-block-size --target, at the end)"
+        },
+        "plane": {
+          "layout": "laid out once at the app's own sizes, whatever the screen: padding 2rem; server row, 5rem wire band (--space-7 + --space-6), device row",
+          "width": "max(47rem, n * 20rem + (n - 1) * 2rem), content-box",
+          "deviceRow": "repeat(n, 20rem), gap 2rem, align start; no strip, no scroll",
+          "serverRow": "always basin minmax(0, 1fr) beside a 22rem compact list (two 10rem columns), gap 2rem, top-aligned"
+        },
+        "focus": "the stage group, named \"[title]: the world\": 2px --text outline, offset 0.5rem, 6px corners; Escape in free play returns a close-up to every device",
+        "view": {
+          "marginPx": 24,
+          "maxScale": 1.25,
+          "wideMaxScale": 1,
+          "clamp": "no view shows past the plane's edges; on an axis where the plane is the smaller, it is centred",
+          "fallback": "a shot whose subjects are gone keeps the last view drawn, else wide"
+        },
+        "framings": {
+          "wide": "the world's band of basins: the server's pane top to its basin's foot, the wire band, each device top to its basin's foot; the lists left out; never past 1, never beside notes",
+          "close": "a place's named rows and rings with its basin, padded 16 (DETAIL_PAD_PX); the server's rings padded 64 (SERVER_RING_PAD_PX) with its rows padded 16; else its containers (a pane, a wire)",
+          "split": "one close box per place, framed together; below a 600px window it pans place to place",
+          "follow": "the message's whole wire, padded 48 (FOLLOW_PAD_PX), held still while the message travels",
+          "table": "framed as wide, on the world's band; lights everything"
+        },
+        "moves": "van Wijk-Nuij path from where the shot before ended; a step's opening holds the view the step before ended on (the first step's takes its own frame); 400ms ease between two views of one frame; reduced motion lands at once",
+        "notesShare": {
+          "share": 0.34,
+          "fromWindowPx": 600,
+          "fade": "the plane fades out from 24px before the share to its start",
+          "frameRun": "consecutive shots of one step sharing a frame, not moves or openings, keep the share when any has notes; a move into the run takes its view; no run crosses a step",
+          "wideAndTable": "never take the share; their notes go in the room under the frame"
+        },
+        "spotlight": "close, split and follow: unlit panes 0.35 over --motion-state, unlit devices' wires 0.35 at once; a follow lights its wire, its device and the server; wide, table and free play dim nothing",
+        "density": "basins draw at densityFor(scale) at rest; a basin out of view stops drawing",
+        "freePlay": {
+          "rest": "wide; gliding 600ms --ease-out once a first view is drawn",
+          "show": "while the wide view's scale is below 0.75 (FOCUS_BELOW) or a device's pane is partly out of view: a transparent button over each unshown device's pane, \"Show A up close\", cursor zoom-in, 6px corners, focus outline 2px at 0.5rem kept on screen (divided by --camera-scale)",
+          "close": "a device's pane as a close-up; focus entering the pane frames it too; focus moves to its first field or control",
+          "back": "All devices (secondary, in the foot, at the end) or Escape; focus returns to the device's Show or first control; never to the page"
+        }
       },
       "wireBand": {
         "height": "5rem (--space-7 + --space-6)",
-        "wire": "1px --line, straight, from the band's top (the lower of the server basin's foot and its list's) across the basin's span to the device pane's top above its middle; each message's lane stops deviceInsetPx above the pane (label half-height 7 + halo 3 + gap 2), lane offset included, so no message, held message or lost mark sits on the pane's header",
+        "wire": "1px on screen at any camera scale (stroke-width calc(--rule / --camera-scale)), --line, straight, from the band's top (the lower of the server basin's foot and its list's) across the basin's span to the device pane's top above its middle; each message's lane stops deviceInsetPx above the pane (label half-height 7 + halo 3 + gap 2), lane offset included, so no message, held message or lost mark sits on the pane's header",
         "cornerInsetPx": 24,
         "lanePx": 6,
         "stackPx": 16,
@@ -531,25 +618,38 @@
         "otherDots": "--text-2",
         "held": "no fill, --text-2 stroke, dasharray 2 2, label \"… · held\"",
         "lost": "label only, \"… · lost\" in --text-3, fading over 600ms of world time",
-        "a11y": "aria-hidden, pointer-events none",
+        "a11y": "aria-hidden, pointer-events none; drawn over the whole world plane, measured when a row comes or goes and on a resize of the window or the plane, at most once a frame",
         "forcedColors": {
           "wire": "CanvasText",
           "dots": "CanvasText",
           "push": "Highlight",
           "labels": "CanvasText on a Canvas halo"
-        }
+        },
+        "scale": "dots, labels, lanes and insets are plane pixels and scale with the camera; the wire and a held ring's dashed stroke stay 1px on screen",
+        "dim": "a wire whose shot names neither it nor its device, with its messages and lost marks: opacity 0.35, no transition"
       },
       "density": {
         "compactRow": "--row-height-compact (2rem)",
-        "compactList": "groups 1rem apart, heads 0.25rem over rows; with columns={2} (the server's list only) columns: 10rem 2, column gap 1.5rem, a group never split",
-        "serverList": "always compact",
-        "deviceList": "compact while a scene plays, regular in free play; one column at any width"
+        "compactList": "groups 1rem apart, heads 0.25rem over rows; with columns={2} columns: 10rem 2, column gap 1.5rem, a group never split",
+        "serverList": "always compact, two columns",
+        "deviceList": "regular (2.875rem rows) in a scene (read-only) and in free play (checks and removals); one column; never compact"
       },
       "speeds": [
         "0.5×",
         "1×",
         "4×"
-      ]
+      ],
+      "notes": {
+        "type": "Stage Note: 400 --text-sm / 1.45 --font-text, text-wrap pretty, --text; no box, no halo",
+        "a11y": "aria-hidden; the caption is what a screen reader hears",
+        "when": "on a hold only, never through a move; redrawn for each shot",
+        "beside": "from a 600px window, for close, split and follow: a strip from the share's start + 16px (EDGE_PX), 16px from the window's top and foot, width min(288px, 34% of the window - 32px); ordered down the share by their subjects' ends; 10px apart (NOTE_GAP_PX)",
+        "leader": "straight and level, 1px (--rule) --ink-2, from the subject's end to 6px short of the words; only where the end shows, the words fit level, and the run touches no row, list heading, pane header or basin water but the subject's own, short of the share; otherwise the dot alone; a level note that would overlap or crowd a gap drops to a dot",
+        "room": "under a wide or table frame: stacked from 24px under the frame's foot, left-aligned with it, as wide as it within 16px of the window's sides, dots only; the plane fades over the 24px above; needs two lines (40px) a note plus gaps, else the foot",
+        "foot": "below a 600px window, or with no room: the words in the stage's foot, 0.25rem apart (--space-1), in their subjects' order; dots only",
+        "dot": "r 2.5px, --ink-2: a row's or ring's right edge at its middle; 6px past a pane header's end at its middle; another container's right edge; none for the light table; dropped within 24px (FEATHER_PX) of the window's edges",
+        "forcedColors": "leader and dot CanvasText; words CanvasText on Canvas"
+      }
     },
     "code": {
       "font": "Spline Sans Mono Variable 400, 0.8125rem (--text-code), line height 1.6, tab size 2; no line numbers",
@@ -683,9 +783,17 @@
       "name": "Wire Band",
       "kind": "custom",
       "refersTo": "wire-message",
-      "description": "The network between the server's basin and its devices: one straight hairline wire per device, requests on one side and replies on the other, a push in fresh ink, a held message a dashed ring, a lost one only its fading label. aria-hidden; never a target.",
-      "html": "<div class=\"ds-wires\"><div class=\"ds-wires-basin\"></div><svg class=\"ds-wires-band\" viewBox=\"0 0 420 140\" width=\"420\" height=\"140\" aria-hidden=\"true\"><line class=\"ds-wire\" x1=\"60\" y1=\"40\" x2=\"40\" y2=\"120\"/><line class=\"ds-wire\" x1=\"180\" y1=\"40\" x2=\"180\" y2=\"120\"/><line class=\"ds-wire\" x1=\"300\" y1=\"40\" x2=\"320\" y2=\"120\"/><g class=\"ds-wire-message\" data-kind=\"push\"><circle cx=\"36\" cy=\"108\" r=\"4\"/><text x=\"27\" y=\"108\" text-anchor=\"end\" dominant-baseline=\"middle\">#6</text></g><g class=\"ds-wire-lost\" style=\"opacity: 0.5\"><text x=\"66\" y=\"72\" dominant-baseline=\"middle\">v7 · lost</text></g><g class=\"ds-wire-message\"><circle cx=\"186\" cy=\"70\" r=\"4\"/><text x=\"195\" y=\"70\" dominant-baseline=\"middle\">poke v7</text></g><g class=\"ds-wire-message\"><circle cx=\"174\" cy=\"96\" r=\"4\"/><text x=\"165\" y=\"96\" text-anchor=\"end\" dominant-baseline=\"middle\">pull v6</text></g><g class=\"ds-wire-message\" data-held=\"\"><circle cx=\"307\" cy=\"46\" r=\"4\"/><text x=\"316\" y=\"46\" dominant-baseline=\"middle\">ack #5 · held</text></g></svg></div>",
-      "css": ".ds-wires { position: relative; width: 420px; height: 140px; } .ds-wires-basin { height: 40px; border-radius: 0 0 var(--radius-basin) var(--radius-basin); background: var(--water); box-shadow: inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)), inset 0 0 0 var(--rule) var(--line); } .ds-wires-band { position: absolute; inset: 0; overflow: visible; pointer-events: none; } .ds-wire { stroke: var(--line); stroke-width: 1; } .ds-wire-message circle { fill: var(--text-2); } .ds-wire-message[data-kind=\"push\"] circle { fill: var(--ink-fresh); } .ds-wire-message[data-held] circle { fill: none; stroke: var(--text-2); stroke-dasharray: 2 2; } .ds-wires-band text { fill: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); paint-order: stroke; stroke: var(--page); stroke-width: 3px; stroke-linejoin: round; } .ds-wire-lost text { fill: var(--text-3); } @media (forced-colors: active) { .ds-wire { stroke: CanvasText; } .ds-wire-message circle { fill: CanvasText; } .ds-wire-message[data-kind=\"push\"] circle { fill: Highlight; } .ds-wire-message[data-held] circle { fill: none; stroke: CanvasText; } .ds-wires-band text, .ds-wire-lost text { fill: CanvasText; stroke: Canvas; } }"
+      "description": "The network between the server's basin and its devices, drawn over the world plane: one straight hairline wire per device, requests on one side and replies on the other, a push in fresh ink, a held message a dashed ring, a lost one only its fading label; a wire the shot is not about steps back with its messages. aria-hidden; never a target.",
+      "html": "<div class=\"ds-wires\"><div class=\"ds-wires-basin\"></div><svg class=\"ds-wires-band\" viewBox=\"0 0 420 140\" width=\"420\" height=\"140\" aria-hidden=\"true\"><line class=\"ds-wire\" x1=\"60\" y1=\"40\" x2=\"40\" y2=\"120\"/><line class=\"ds-wire\" x1=\"180\" y1=\"40\" x2=\"180\" y2=\"120\"/><line class=\"ds-wire\" data-dim=\"\" x1=\"300\" y1=\"40\" x2=\"320\" y2=\"120\"/><g class=\"ds-wire-message\" data-kind=\"push\"><circle cx=\"36\" cy=\"108\" r=\"4\"/><text x=\"27\" y=\"108\" text-anchor=\"end\" dominant-baseline=\"middle\">#6</text></g><g class=\"ds-wire-lost\" style=\"opacity: 0.5\"><text x=\"66\" y=\"72\" dominant-baseline=\"middle\">v7 · lost</text></g><g class=\"ds-wire-message\"><circle cx=\"186\" cy=\"70\" r=\"4\"/><text x=\"195\" y=\"70\" dominant-baseline=\"middle\">poke v7</text></g><g class=\"ds-wire-message\"><circle cx=\"174\" cy=\"96\" r=\"4\"/><text x=\"165\" y=\"96\" text-anchor=\"end\" dominant-baseline=\"middle\">pull v6</text></g><g class=\"ds-wire-message\" data-held=\"\" data-dim=\"\"><circle cx=\"307\" cy=\"46\" r=\"4\"/><text x=\"316\" y=\"46\" dominant-baseline=\"middle\">ack #5 · held</text></g></svg></div>",
+      "css": ".ds-wires { position: relative; width: 420px; height: 140px; } .ds-wires-basin { height: 40px; border-radius: 0 0 var(--radius-basin) var(--radius-basin); background: var(--water); box-shadow: inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)), inset 0 0 0 var(--rule) var(--line); } .ds-wires-band { position: absolute; inset: 0; overflow: visible; pointer-events: none; } .ds-wire { stroke: var(--line); stroke-width: var(--rule); } .ds-wire-message circle { fill: var(--text-2); } .ds-wire-message[data-kind=\"push\"] circle { fill: var(--ink-fresh); } .ds-wire-message[data-held] circle { fill: none; stroke: var(--text-2); stroke-dasharray: 2 2; } .ds-wires-band text { fill: var(--text-2); font: 400 var(--text-xs) / 1 var(--font-mono); paint-order: stroke; stroke: var(--page); stroke-width: 3px; stroke-linejoin: round; } .ds-wire-lost text { fill: var(--text-3); } @media (forced-colors: active) { .ds-wire { stroke: CanvasText; } .ds-wire-message circle { fill: CanvasText; } .ds-wire-message[data-kind=\"push\"] circle { fill: Highlight; } .ds-wire-message[data-held] circle { fill: none; stroke: CanvasText; } .ds-wires-band text, .ds-wire-lost text { fill: CanvasText; stroke: Canvas; } } .ds-wires-band [data-dim] { opacity: 0.35; }"
+    },
+    {
+      "name": "Stage Notes",
+      "kind": "custom",
+      "refersTo": "stage-note",
+      "description": "A hold's note beside what it names, in the share of the window the camera keeps for notes: the plane fades out across the share's edge, and a straight, level ink-2 leader runs from a dot at the row's end into the words. Under a wide frame or on a narrow window the words sit below, and the subject keeps only its dot.",
+      "html": "<div class=\"ds-stage-window\"><div class=\"ds-stage-plane\"><ul class=\"ds-stage-rows\"><li class=\"ds-stage-row\"><span class=\"ds-stage-amount\">1</span> Butter</li><li class=\"ds-stage-row\"><span class=\"ds-stage-amount\">1</span> Oat milk</li></ul></div><svg class=\"ds-stage-leaders\" viewBox=\"0 0 480 200\" width=\"480\" height=\"200\" aria-hidden=\"true\"><polyline class=\"ds-stage-leader\" fill=\"none\" points=\"204,93 327,93\" pathLength=\"1\"/><circle class=\"ds-stage-dot\" cx=\"204\" cy=\"93\" r=\"2.5\"/></svg><p class=\"ds-stage-note\" style=\"left: 333px; top: 83px; width: 131px\">Oat milk shows on A at once. It waits in A's outbox as #6.</p></div>",
+      "css": ".ds-stage-window { position: relative; width: 480px; height: 200px; overflow: hidden; background: var(--page); } .ds-stage-plane { position: absolute; inset: 0; padding: 24px; -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 293px, transparent 317px), linear-gradient(to bottom, transparent, #000 24px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(to right, transparent, #000 24px, #000 293px, transparent 317px), linear-gradient(to bottom, transparent, #000 24px, #000 calc(100% - 24px), transparent); -webkit-mask-composite: source-in; mask-composite: intersect; } .ds-stage-rows { width: 180px; margin: 0; padding: 0; list-style: none; } .ds-stage-row { display: flex; align-items: center; gap: 0.25em; min-height: var(--row-height); border-top: var(--rule) solid var(--line); color: var(--text); font: 400 var(--text-md) / 1.5 var(--font-text); } .ds-stage-amount { font-weight: 600; } .ds-stage-leaders { position: absolute; inset: 0; overflow: visible; pointer-events: none; } .ds-stage-leader { stroke: var(--ink-2); stroke-width: var(--rule); stroke-dasharray: 1; animation: ds-stage-draw 300ms var(--ease-out) both; } .ds-stage-dot { fill: var(--ink-2); animation: ds-stage-appear var(--motion-state) var(--ease-out) both; } .ds-stage-note { position: absolute; margin: 0; color: var(--text); font: 400 var(--text-sm) / 1.45 var(--font-text); text-wrap: pretty; animation: ds-stage-appear var(--motion-state) var(--ease-out) 120ms both; } @keyframes ds-stage-draw { from { stroke-dashoffset: 1; } } @keyframes ds-stage-appear { from { opacity: 0; } } @media (prefers-reduced-motion: reduce) { .ds-stage-leader, .ds-stage-dot, .ds-stage-note { animation: none; } } @media (forced-colors: active) { .ds-stage-leader { stroke: CanvasText; } .ds-stage-dot { fill: CanvasText; } .ds-stage-note { color: CanvasText; background: Canvas; } }"
     },
     {
       "name": "Choice",
@@ -714,15 +822,15 @@
   ],
   "narrative": {
     "northStar": "The Ink Basin",
-    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop. Code is the engine's own source on the same margin, under a hairline and never in a card: one ink in tonal steps, wrapping at its measure, with the branch a figure's world last ran washed in water.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads the stage, a straight hairline wire runs from under it to every device, and each device's basin heads its pane. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
+    "overview": "One ink family on still water. Every colour but one is a dilution of the same indigo: indigo depth on paper-white water by day, mist on indigo water at night, with ink current, dilute ink and feathered grey between them. The single second hue is a vermilion seal, pressed only where a change was rejected or sync stopped. Day and night are each designed, both follow the system's setting, and any subtree can pin one (`data-theme=\"day\"` or `\"night\"`).\n\nThe list leads. Words, rows and controls sit on a still margin divided by 1 px hairlines, with no cards and no fills behind rows, set in a quiet humanist sans whose weight axis carries the hierarchy and a soft mono for every id and count. Density is a working phone list: 46 px rows, 44 px targets, one 45rem column on a desktop. Code is the engine's own source on the same margin, under a hairline and never in a card: one ink in tonal steps, wrapping at its measure, with the branch a figure's world last ran washed in water.\n\nThe signature is the basin: recessed water in which each device marbles its own list with exact, area-preserving marbling math. It is computed from the rows the device holds, never simulated and never random, so devices that agree show the same pattern line for line and a device that is behind visibly differs. In the app it is a 92 px badge beside the name that opens full size; in a figure the server's basin heads one world plane, a straight hairline wire runs from under it to every device, and each device's basin heads its pane, and the stage is a camera over that plane, framing what each moment of the scene is about. Every change settles into the water over 900 ms (in a figure, only while its world plays); otherwise the water is still. The world is not a toy, a cartoon, a poster, or a prop or costume of anything physical, and it is never light-only.",
     "keyCharacteristics": [
       "One indigo ink family in `light-dark()` pairs; a vermilion seal for a rejection or a stopped sync, and nothing else.",
       "Recessed water (18 px corners, an inset shade) against a still margin of 1 px hairlines; no cards.",
       "Commissioner by weight (300 titles, 400 body, 500 labels and controls, 600 emphasis); Spline Sans Mono for ids, versions and counts.",
       "Labels in small capitals tracked 0.18em; the app's name alone at 0.32em.",
       "Every state has a form and a word: rings, solid and dashed edges, and the state's own name.",
-      "Motion is 200 ms colour and edge changes plus 900 ms settles (a basin's change, newly lit code, a then-and-now morph); reduced motion cuts them all.",
-      "A figure keeps its words and controls in its left third and gives the stage the rest: the server's basin and list, a 5rem band of straight hairline wires, then the devices in a row. Given code, from 80rem it sets its words and playback in a band across the top and its code in a sticky column beside the stage.",
+      "Motion is 200 ms colour and edge changes, 900 ms settles (a basin's change, newly lit code, a then-and-now morph) and a figure's camera (its moves, a 400 ms ease within a frame, free play's 600 ms glide); reduced motion cuts them all.",
+      "A figure keeps its words and controls in its left third and gives the stage the rest: a camera's window over one world plane (the server's basin and list, a 5rem band of straight hairline wires, then the devices in one row), framing what each shot names, with its notes beside. Given code, from 80rem it sets its words and playback in a band across the top and its code in a sticky column beside the stage.",
       "Code in Spline Sans Mono at 0.8125rem, one ink in three tonal steps, wrapping at its measure on one shared edge; the branch that last ran washed in water behind a 1 px ink rule."
     ],
     "rules": [
@@ -783,7 +891,12 @@
       },
       {
         "name": "The Compact Read Rule",
-        "body": "A list nothing on which is a target sets its rows at 2rem (`--row-height-compact`) and its groups closer; the server's list in a figure, given room for two 10rem columns, also flows its groups in two, and a device's list keeps one. A list that takes a check or a remove keeps 2.875rem rows and its 44 px targets. In a figure the server's list is always compact, and a device's list is compact while a scene plays and regular in free play.",
+        "body": "The server's list in a figure, on which nothing is ever a target, sets its rows at 2rem (`--row-height-compact`) and its groups closer, and given room for two 10rem columns flows its groups in two. Every other list keeps 2.875rem rows: a device's list in a figure is regular while a scene plays (read-only) and in free play (taking checks and removals at 44 px), so the hand-over changes no row's box.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Plane Rule",
+        "body": "A figure's world is laid out once, at the app's own sizes, whatever the screen: no phone strip, no layout per breakpoint. The camera alone fits it to the window, by one transform, never enlarging it past 1.25 and never showing past its edges (on an axis where the plane is the smaller, it is centred).",
         "section": "layout"
       },
       {
@@ -803,7 +916,7 @@
       },
       {
         "name": "The Two Risers Rule",
-        "body": "Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes, badges, code blocks and a figure's stage and wires are flat.",
+        "body": "Only the docked form and the dialog cast a shadow. Rows, buttons, fields, bands, panes, badges, code blocks and a figure's stage, wires and notes are flat.",
         "section": "elevation"
       },
       {
@@ -813,7 +926,12 @@
       },
       {
         "name": "The Straight Wire Rule",
-        "body": "Each device has one straight hairline wire, from under the server's basin (its foot, or its list's where that runs lower) to the top of its pane. Requests ride one side of it and replies the other, every message with its label, and no message comes within 12 px of the pane, so no label sits on its header; the band is drawn over the stage, hidden from assistive technology and never a target, so it shows nothing the lists and the caption do not also say.",
+        "body": "Each device has one straight hairline wire, from under the server's basin (its foot, or its list's where that runs lower) to the top of its pane. Requests ride one side of it and replies the other, every message with its label, and no message comes within 12 px of the pane, so no label sits on its header; the band is drawn over the plane, hidden from assistive technology and never a target, so it shows nothing the lists and the caption do not also say.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Straight Leader Rule",
+        "body": "A stage note's leader runs straight and level from its subject's end into its words, or it is not drawn. Where that run would touch text (a row, a list heading, a pane header) or basin water other than the subject's own, the subject keeps only its dot and the words name it.",
         "section": "shapes"
       }
     ],
@@ -824,9 +942,11 @@
       "Do keep every target at 2.75rem or more, extending a hit area with a pseudo-element where the visible shape is smaller (the badge).",
       "Do keep state changes to colour and edge over 200 ms with `--ease-out`, and every basin change, newly lit code and a then-and-now morph to the 900 ms settle; let reduced motion, the CPU path and a figure's jumps show changes at once.",
       "Do keep Play or Pause the first focusable control of every figure, and its breaking controls set apart from playback by space.",
-      "Do set a list nothing on which is a target at the compact density, and any list that takes a check or a remove at the regular one.",
+      "Do set the server's list in a figure at the compact density, and every other list, a device's in a scene among them, at the regular one.",
+      "Do lay a figure's world out once, at the app's own sizes, and let its camera frame it by one transform: what the cut names, within a 24 px margin, never past 1.25 (a wide or light-table frame never past 1), never showing past the plane's edges, easing 400 ms between two views of one frame, holding the step before's view through an opening, and landing at once under reduced motion.",
+      "Do set a hold's notes beside what they name in the 34% share from a 600 px window, under a wide or light-table frame in the room it leaves, and otherwise in the stage's foot; tie each by a straight, level `--ink-2` leader only where that run touches no text or water, and by its dot alone otherwise.",
       "Do give every message on a wire its label, requests and replies on opposite sides of it, and a push's dot in fresh ink.",
-      "Do give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, a wire band in CanvasText with a push in Highlight, and the rings, the checked circle and the scrub bar's track, dot and ticks keep their fills with `forced-color-adjust: none` in CanvasText (the scrub bar GrayText while it waits).",
+      "Do give forced colours their own treatment: a basin draws in system colours (water Canvas, inks CanvasText, fresh ink Highlight) inside a CanvasText edge, a wire band in CanvasText with a push in Highlight, a stage note's leader and dot in CanvasText and its words on Canvas, the stage's window keeping its 24 px feather, and the rings, the checked circle and the scrub bar's track, dot and ticks keep their fills with `forced-color-adjust: none` in CanvasText (the scrub bar GrayText while it waits).",
       "Do set ids, versions, counts, file paths, the short state lines built on them and code in Spline Sans Mono, and everything else in Commissioner.",
       "Do colour code only through the `--code-*` aliases in `tokens.css`: names in `--text`, keywords and strings in `--text-2`, comments and punctuation in `--text-3`.",
       "Do wrap code at its block's measure with each line hanging from its own indentation, and keep every code block's text on one edge, `--space-3` in from its head and its rule.",
@@ -843,6 +963,8 @@
       "Don't set any text heavier than 600, or use small capitals as a kicker or eyebrow above a title or a section.",
       "Don't ship a value for one theme only; day and night are both designed.",
       "Don't put a target, or a fact the lists and the caption do not also say, on a figure's wire band.",
+      "Don't give a figure's world a layout per screen size, a strip to swipe, or a frame, fill or shadow on its window; the plane is one layout and the camera fits it.",
+      "Don't bend a note's leader round what is in its way, box a stage note, or put a halo behind its words.",
       "Don't change a figure's basin scale once it is set, or draw the app's badge at any scale but 1.",
       "Don't scroll code sideways, number its lines, box it in a card, or move the page to bring lit lines into view.",
       "Don't give code a hue: fresh ink and the seal never colour a token, and syntax has no palette of its own."
