@@ -1,7 +1,16 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Cut, Shot } from "#/lib/director/shots";
-import { type Anchors, densityFor, EASE_MILLIS } from "#/ui/figure/camera";
+import {
+  type Anchors,
+  DETAIL_PAD_PX,
+  densityFor,
+  EASE_MILLIS,
+  MARGIN_PX,
+  MAX_SCALE,
+  visibleBox,
+  wideView,
+} from "#/ui/figure/camera";
 import type { Cue } from "#/ui/figure/stage";
 import { useCamera } from "#/ui/figure/use-camera";
 import type { Box } from "#/ui/figure/wires";
@@ -13,8 +22,8 @@ const box = (
   bottom: number,
 ): Box => ({ left, top, right, bottom });
 
-// B's pane, its basin, a row and a ring in it; the server's ring and a row
-// of its list.
+// B's pane, its basin, a row and a ring in it; the server's basin, a ring in
+// it, its list beside it and a row of that list.
 const ANCHORS: Anchors = {
   plane: { width: 1200, height: 900 },
   boxes: new Map([
@@ -25,6 +34,7 @@ const ANCHORS: Anchors = {
     ["server", box(40, 40, 1160, 300)],
     ["basin:server", box(40, 40, 700, 300)],
     ["ring:server:1", box(300, 150, 324, 174)],
+    ["list:server", box(740, 40, 1160, 260)],
     ["row:server:1", box(740, 120, 1160, 152)],
   ]),
   messages: new Map(),
@@ -124,10 +134,67 @@ describe("useCamera", () => {
     expect(result.current.density).toBe(1);
   });
 
+  // The server's basin and its list side by side are as wide as the world,
+  // so free play shows each alone, as a close-up frames its details. On a
+  // phone each padded box's width sets the scale.
+  describe("a part of the server up close in free play", () => {
+    const parts = [
+      ["basin", box(40, 40, 700, 300)],
+      ["list", box(740, 40, 1160, 260)],
+    ] as const;
+    const shown = (part: "basin" | "list"): Cue => ({
+      kind: "free",
+      focus: { kind: "server", part },
+    });
+
+    it.each(parts)("frames the server's %s padded 16", (part, b) => {
+      const phone = { width: 360, height: 450 };
+      const view = camera(shown(part), phone).result.current.view;
+      const padded = box(
+        b.left - DETAIL_PAD_PX,
+        b.top - DETAIL_PAD_PX,
+        b.right + DETAIL_PAD_PX,
+        b.bottom + DETAIL_PAD_PX,
+      );
+      expect(view?.scale).toBeCloseTo(
+        (phone.width - 2 * MARGIN_PX) / (padded.right - padded.left),
+      );
+      const seen = view === null ? null : visibleBox(view, phone);
+      expect(seen?.left).toBeLessThanOrEqual(padded.left);
+      expect(seen?.top).toBeLessThanOrEqual(padded.top);
+      expect(seen?.right).toBeGreaterThanOrEqual(padded.right);
+      expect(seen?.bottom).toBeGreaterThanOrEqual(padded.bottom);
+    });
+
+    it.each(parts)("never frames the server's %s past the cap", (part) => {
+      const view = camera(shown(part), { width: 1000, height: 600 }).result
+        .current.view;
+      expect(view?.scale).toBe(MAX_SCALE);
+    });
+
+    it.each(
+      parts,
+    )("frames wide when the server's %s was not measured", (part) => {
+      const size = { width: 360, height: 450 };
+      const anchors: Anchors = {
+        ...ANCHORS,
+        boxes: new Map(
+          [...ANCHORS.boxes].filter(
+            ([key]) => key !== "basin:server" && key !== "list:server",
+          ),
+        ),
+      };
+      const { result } = renderHook(() =>
+        useCamera(shown(part), anchors, size, false),
+      );
+      expect(result.current.view).toEqual(wideView(anchors, size));
+    });
+  });
+
   it("glides free play only once a view was drawn, and never under reduced motion", () => {
     const size = { width: 1000, height: 600 };
     const free: Cue = { kind: "free", focus: null };
-    const shown: Cue = { kind: "free", focus: "B" };
+    const shown: Cue = { kind: "free", focus: { kind: "device", client: "B" } };
     const moving = camera(free, size);
     expect(moving.result.current.gliding).toBe(false);
     moving.rerender({ cue: shown, reduced: false });

@@ -86,19 +86,44 @@
   mask-image: var(--across), var(--down), var(--room);
 }
 
-/* Under the window, never over the plane. During a scene on a narrow
-   viewport it holds the hold's notes, and keeps two notes and the gap
-   between them (`--foot-min`, set by the stage) however few there are, so
-   the page holds still from hold to hold; in free play it holds the way back
-   to every device, its room kept while none is shown. */
-.foot[data-foot="notes"] {
+/* Under the window, never over the plane, and at least `--foot-min` tall (set
+   by the stage), so the controls under it hold still. During a scene on a
+   narrow viewport it holds the hold's notes, and keeps two notes and the gap
+   between them however few there are, so the page holds still from hold to
+   hold. In free play it keeps one control's height: resting wide, a quiet
+   line at its start says that zooming exists; with something shown up close,
+   the way back to every device sits at its end. */
+.foot {
   min-block-size: var(--foot-min);
 }
 
 .foot[data-foot="free"] {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  min-block-size: var(--target);
+}
+
+/* The hint: Stage Note type, quiet, where a phone's scene set its notes. */
+.hint {
+  margin: 0;
+  margin-inline-end: auto;
+  color: var(--text-3);
+  font: 400 var(--text-sm) / 1.45 var(--font-text);
+  text-wrap: pretty;
+}
+
+/* One of the hint's two wordings: tap where the pointer cannot hover, click
+   where it can. */
+@media (hover: none) {
+  .mouse {
+    display: none;
+  }
+}
+
+@media (hover: hover) {
+  .touch {
+    display: none;
+  }
 }
 
 /* The world plane: laid out once, at the app's own density, at every screen
@@ -164,8 +189,10 @@
   }
 }
 
+/* Each the box of its own Show in free play. */
 .serverList,
 .serverBasin {
+  position: relative;
   min-width: 0;
 }
 
@@ -193,10 +220,10 @@
   opacity: 0.35;
 }
 
-/* Free play, while resting wide leaves a device's rows too small to use
-   (under 0.75, FOCUS_BELOW) or its pane cut off: the whole pane is one
-   button that shows its device up close. Its focus ring keeps its 2 px on
-   screen at any scale. */
+/* Free play, while resting wide leaves the rows too small to use (under 0.75,
+   FOCUS_BELOW) or a pane cut off: each device's whole pane, and the server's
+   basin and its list each, is one button that shows it up close. Its focus
+   ring keeps its 2 px on screen at any scale. */
 .show {
   position: absolute;
   inset: 0;

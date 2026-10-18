@@ -3,13 +3,14 @@ import type { Cut } from "#/lib/director/shots";
 import {
   type Anchors,
   densityFor,
+  detailView,
   framedAt,
   frameFor,
   type Size,
   type View,
   wideView,
 } from "./camera";
-import type { Cue } from "./stage";
+import type { Cue, FreeFocus } from "./stage";
 
 // What the stage draws through the camera at a cue.
 export interface Camera {
@@ -28,24 +29,39 @@ export interface Camera {
   readonly gliding: boolean;
 }
 
-// Free play's view: what the reader chose to see up close, or the whole
-// world.
+// The box each part of the server is measured as.
+const SERVER_PARTS = {
+  basin: "basin:server",
+  list: "list:server",
+} as const;
+
+// Free play's view: what the reader chose to see up close (a device's pane as
+// a close-up frames it, or a part of the server as a close-up frames its
+// details), or, with nothing chosen or nothing measured, the whole world.
 const freeView = (
-  focus: Extract<Cue, { kind: "free" }>["focus"],
+  focus: FreeFocus | null,
   anchors: Anchors,
   size: Size,
-): View =>
-  (focus === null
-    ? null
-    : frameFor(
+): View => {
+  if (focus === null) return wideView(anchors, size);
+  if (focus.kind === "device") {
+    return (
+      frameFor(
         {
           framing: "close",
-          subjects: [{ kind: "device", client: focus }],
+          subjects: [{ kind: "device", client: focus.client }],
           notes: [],
         },
         anchors,
         size,
-      )) ?? wideView(anchors, size);
+      ) ?? wideView(anchors, size)
+    );
+  }
+  const part = anchors.boxes.get(SERVER_PARTS[focus.part]);
+  return part === undefined
+    ? wideView(anchors, size)
+    : detailView(part, anchors, size);
+};
 
 // The camera over the stage's plane at `cue`, with the bookkeeping its
 // views need across renders: the last view drawn (a shot whose subjects are

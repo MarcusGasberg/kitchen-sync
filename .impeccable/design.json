@@ -313,7 +313,7 @@
       },
       "stage-note": {
         "displayName": "Stage Note",
-        "purpose": "A hold's notes on a figure's stage, beside what they name, in the room under a wide or light-table frame, or in the stage's foot: Commissioner 400 at 0.875rem (--text-sm), line height 1.45, text-wrap pretty, in --text. Never boxed, never haloed."
+        "purpose": "A hold's notes on a figure's stage, beside what they name, in the room under a wide or light-table frame, or in the stage's foot: Commissioner 400 at 0.875rem (--text-sm), line height 1.45, text-wrap pretty, in --text. Never boxed, never haloed. Free play's hint in the stage's foot takes the same type in --text-3."
       },
       "control": {
         "displayName": "Control",
@@ -564,7 +564,7 @@
         "window": {
           "shape": "the stage's full width; aspect 16 / 10, max 80svh; below 45rem 4 / 5, max 75svh; overflow clip (after hidden, for browsers without clip), never a scroll container; nothing drawn on it",
           "feather": "24px (--space-5) on all four edges, a mask that fades the plane to the page; kept under forced colours",
-          "foot": "under the window, 0.75rem (--space-3) below it: a narrow window's notes for the whole scene (min-block-size two notes: 2 * 1.45 * --text-sm + --space-1), none in a wide window's scene, free play's All devices (min-block-size --target, at the end)"
+          "foot": "under the window, 0.75rem (--space-3) below it, min-block-size --foot-min (set by the stage): a narrow window's notes for the whole scene (two notes: 2 * 1.45 * --text-sm + --space-1), none in a wide window's scene; in free play one control's height (--target) whatever it holds, the hint at its start or All devices at its end, items centred"
         },
         "plane": {
           "layout": "laid out once at the app's own sizes, whatever the screen: padding 2rem; server row, 5rem wire band (--space-7 + --space-6), device row",
@@ -572,7 +572,7 @@
           "deviceRow": "repeat(n, 20rem), gap 2rem, align start; no strip, no scroll",
           "serverRow": "always basin minmax(0, 1fr) beside a 22rem compact list (two 10rem columns), gap 2rem, top-aligned"
         },
-        "focus": "the stage group, named \"[title]: the world\": 2px --text outline, offset 0.5rem, 6px corners; Escape in free play returns a close-up to every device",
+        "focus": "the stage group, named \"[title]: the world\": 2px --text outline, offset 0.5rem, 6px corners; Escape in free play returns a close-up (a device, or a part of the server) to every device",
         "view": {
           "marginPx": 24,
           "maxScale": 1.25,
@@ -599,9 +599,11 @@
         "density": "basins draw at densityFor(scale) at rest, held while the camera moves (framedAt's moving: a move, an ease, a pan's moving share), when the plane takes will-change: transform; a basin out of view stops drawing",
         "freePlay": {
           "rest": "wide; gliding 600ms --ease-out once a first view is drawn",
-          "show": "while the wide view's scale is below 0.75 (FOCUS_BELOW) or a device's pane is partly out of view: a transparent button over each unshown device's pane, \"Show A up close\", cursor zoom-in, 6px corners, focus outline 2px at 0.5rem kept on screen (divided by --camera-scale)",
+          "show": "while the wide view's scale is below 0.75 (FOCUS_BELOW) or a device's or the server's pane is partly out of view: a transparent button over each unshown device's pane, \"Show A up close\", and over the server's basin and its list each (position relative), \"Show the server's basin up close\" and \"Show the server's list up close\"; cursor zoom-in, 6px corners, focus outline 2px at 0.5rem kept on screen (divided by --camera-scale); a part's Show is gone while it is shown, the other part's stays",
           "close": "a device's pane as a close-up; focus entering the pane frames it too; focus moves to its first field or control",
-          "back": "All devices (secondary, in the foot, at the end) or Escape; focus returns to the device's Show or first control; never to the page"
+          "server": "its basin and its list side by side are as wide as the world, so each is shown alone: its box (basin:server, list:server) padded 16 (DETAIL_PAD_PX) under the 1.25 cap, wide while not measured; the server has no field, so focus moves to All devices",
+          "back": "All devices (secondary, in the foot, at the end) or Escape; focus returns to the Show of what was shown, else a device's first control, else (a part of the server) the figure's world group; never to the page",
+          "hint": "while resting wide with Show offered, one line at the foot's start in Stage Note type, --text-3: \"Tap the server or a phone to see it up close.\" under (hover: none), \"Click the server or a phone to see it up close.\" under (hover: hover); both written, CSS shows one (the other display: none), so assistive technology hears one; no icon, outline, hand or cursor graphic, nothing on the stage"
         }
       },
       "wireBand": {

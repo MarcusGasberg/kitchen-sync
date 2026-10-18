@@ -8,7 +8,7 @@ import type { Cut, Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
 import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
-import { type Cue, Stage } from "#/ui/figure/stage";
+import { type Cue, type FreeFocus, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
 import { FOOT_MIN } from "#/ui/figure/stage-notes";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
@@ -32,6 +32,8 @@ const snapshot = () =>
 const noop = () => {};
 
 const FREE: Cue = { kind: "free", focus: null };
+
+const onDevice = (client: string): FreeFocus => ({ kind: "device", client });
 
 const closeOn = (client: string, notes: Shot["notes"] = []): Cue => {
   const shot: Shot = {
@@ -363,7 +365,7 @@ describe("Stage", () => {
     props: {
       live?: boolean;
       layout?: ReadonlyMap<string, DOMRect>;
-      onFocus?: (c: string | null) => void;
+      onFocus?: (focus: FreeFocus | null) => void;
     } = {},
   ) => {
     const view = makeStageView()(await snapshot(), new Map());
@@ -463,7 +465,7 @@ describe("Stage", () => {
       onFocus,
     });
     fireEvent.click(screen.getByRole("button", { name: "Show A up close" }));
-    expect(onFocus).toHaveBeenCalledWith("A");
+    expect(onFocus).toHaveBeenCalledWith(onDevice("A"));
     const view = makeStageView()(await snapshot(), new Map());
     rerender(
       <Stage
@@ -473,7 +475,7 @@ describe("Stage", () => {
         settle
         scale={1}
         live
-        cue={{ kind: "free", focus: "A" }}
+        cue={{ kind: "free", focus: onDevice("A") }}
         reduced={false}
         onFocus={onFocus}
         onIntent={noop}
@@ -535,12 +537,18 @@ describe("Stage", () => {
     expect(screen.getByRole("region", { name: "A" })).toBeTruthy();
   });
 
-  // A host that holds the focus state, as the figure does.
+  // A host that holds the focus state, as the figure does, and names it.
+  const nameOf = (focus: FreeFocus | null) =>
+    focus === null
+      ? "none"
+      : focus.kind === "device"
+        ? focus.client
+        : `the server's ${focus.part}`;
   const Held = ({ view }: { view: StageView }) => {
-    const [focus, setFocus] = useState<string | null>(null);
+    const [focus, setFocus] = useState<FreeFocus | null>(null);
     return (
       <>
-        <output data-testid="focus">{focus ?? "none"}</output>
+        <output data-testid="focus">{nameOf(focus)}</output>
         <Stage
           view={view}
           flights={[]}
@@ -622,7 +630,7 @@ describe("Stage", () => {
     const view = makeStageView()(await snapshot(), new Map());
     const restore = stubLayout(LAYOUT);
     const onFocus = vi.fn();
-    const Figure = ({ focus }: { focus: string | null }) => {
+    const Figure = ({ focus }: { focus: FreeFocus | null }) => {
       const group = useRef<HTMLDivElement>(null);
       return (
         // biome-ignore lint/a11y/useSemanticElements: as the figure's world group
@@ -657,7 +665,7 @@ describe("Stage", () => {
     // Nothing is shown up close: Escape leaves the stage as it is.
     fireEvent.keyDown(world, { key: "Escape" });
     expect(onFocus).not.toHaveBeenCalled();
-    rerender(<Figure focus="A" />);
+    rerender(<Figure focus={onDevice("A")} />);
     fireEvent.keyDown(world, { key: "Escape" });
     restore();
     expect(onFocus).toHaveBeenCalledWith(null);
@@ -681,7 +689,7 @@ describe("Stage", () => {
         settle
         scale={1}
         live={false}
-        cue={{ kind: "free", focus: "A" }}
+        cue={{ kind: "free", focus: onDevice("A") }}
         reduced={false}
         onFocus={noop}
         onIntent={noop}
@@ -715,7 +723,7 @@ describe("Stage", () => {
       />
     );
     const { container, rerender } = render(stage(FREE));
-    rerender(stage({ kind: "free", focus: "A" }));
+    rerender(stage({ kind: "free", focus: onDevice("A") }));
     const plane = container.querySelector<HTMLElement>("[data-anchor='plane']");
     restore();
     expect(plane?.style.transform).not.toBe("");
@@ -1141,12 +1149,210 @@ describe("Stage", () => {
 
   it("keeps All devices in the foot, never over the plane", async () => {
     const { container, restore } = await staged(
-      { kind: "free", focus: "A" },
+      { kind: "free", focus: onDevice("A") },
       { live: true, layout: PHONE },
     );
     restore();
     const back = screen.getByRole("button", { name: "All devices" });
     expect(viewportIn(container)?.contains(back)).toBe(false);
     expect(container.contains(back)).toBe(true);
+  });
+
+  // The server's basin and its list side by side are as wide as the world:
+  // each offers to be shown up close on its own.
+  describe("the server up close in free play", () => {
+    const SHOW_BASIN = "Show the server's basin up close";
+    const SHOW_LIST = "Show the server's list up close";
+
+    it("offers to show the server's basin and its list up close", async () => {
+      const onFocus = vi.fn();
+      const { restore, unmount } = await staged(FREE, {
+        live: true,
+        layout: PHONE,
+        onFocus,
+      });
+      restore();
+      expect(screen.getByRole("button", { name: SHOW_LIST })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: SHOW_BASIN }));
+      expect(onFocus).toHaveBeenCalledWith({ kind: "server", part: "basin" });
+      unmount();
+    });
+
+    // The server has no field of its own: shown, focus waits on the way
+    // back, and back to all it returns to the part's Show.
+    it("shows the server's basin with focus on All devices, and goes back to its Show", async () => {
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(PHONE);
+      render(<Held view={view} />);
+      fireEvent.click(screen.getByRole("button", { name: SHOW_BASIN }));
+      expect(screen.getByTestId("focus").textContent).toBe(
+        "the server's basin",
+      );
+      // Its own Show is gone; the list's stays, to hop across.
+      expect(screen.queryByRole("button", { name: SHOW_BASIN })).toBeNull();
+      expect(screen.getByRole("button", { name: SHOW_LIST })).toBeTruthy();
+      const back = screen.getByRole("button", { name: "All devices" });
+      expect(document.activeElement).toBe(back);
+      fireEvent.click(back);
+      expect(screen.getByTestId("focus").textContent).toBe("none");
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: SHOW_BASIN }),
+      );
+      restore();
+    });
+
+    it("goes back from the server's list by Escape, to its Show", async () => {
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(PHONE);
+      render(<Held view={view} />);
+      fireEvent.click(screen.getByRole("button", { name: SHOW_LIST }));
+      expect(screen.getByTestId("focus").textContent).toBe("the server's list");
+      fireEvent.keyDown(screen.getByRole("button", { name: "All devices" }), {
+        key: "Escape",
+      });
+      expect(screen.getByTestId("focus").textContent).toBe("none");
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: SHOW_LIST }),
+      );
+      restore();
+    });
+
+    // A window that grows while a part is shown stops offering Show: with no
+    // field to take focus back, the figure's world group takes it, never the
+    // page.
+    it("goes back from a part of the server to the world group when its Show is gone", async () => {
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(
+        new Map([...LAYOUT, ["viewport", rect(0, 0, 1600, 1000)]]),
+      );
+      const Figure = () => {
+        const group = useRef<HTMLDivElement>(null);
+        const [focus, setFocus] = useState<FreeFocus | null>({
+          kind: "server",
+          part: "basin",
+        });
+        return (
+          // biome-ignore lint/a11y/useSemanticElements: as the figure's world group
+          <div
+            ref={group}
+            role="group"
+            aria-label="The world"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: as the figure's world group, which takes its keys
+            tabIndex={0}
+          >
+            <Stage
+              view={view}
+              flights={[]}
+              lost={[]}
+              settle
+              scale={1}
+              live
+              cue={{ kind: "free", focus }}
+              reduced={false}
+              group={group}
+              onFocus={setFocus}
+              onIntent={noop}
+              onAdd={noop}
+              onRetry={noop}
+            />
+          </div>
+        );
+      };
+      render(<Figure />);
+      expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
+      const back = screen.getByRole("button", { name: "All devices" });
+      act(() => back.focus());
+      fireEvent.click(back);
+      expect(document.activeElement).toBe(
+        screen.getByRole("group", { name: "The world" }),
+      );
+      restore();
+    });
+
+    // A layout no plane has (its devices short, beside a long server pane),
+    // to pin the server's own clause: at 1000 × 600 the wide view's scale
+    // clears FOCUS_BELOW and every device's pane is whole, but the server's
+    // runs past the window's foot.
+    it("offers Show when only the server's pane is cut off", async () => {
+      const { restore, unmount } = await staged(FREE, {
+        live: true,
+        layout: new Map([
+          ...LAYOUT,
+          ["server", rect(40, 40, 1160, 760)],
+          ["devices", rect(40, 400, 1180, 700)],
+          ["A", rect(40, 400, 360, 700)],
+          ["B", rect(860, 400, 1180, 700)],
+        ]),
+      });
+      restore();
+      expect(screen.getByRole("button", { name: SHOW_LIST })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: "Show A up close" }),
+      ).toBeTruthy();
+      unmount();
+    });
+  });
+
+  // While free play rests wide and offers Show, the foot says that zooming
+  // exists: one line for a touch screen and one for a mouse, of which CSS
+  // shows one (by the pointer's hover). It holds one control's height
+  // either way, so the controls under the stage stay put.
+  describe("the hint in the foot", () => {
+    const TAP = "Tap the server or a phone to see it up close.";
+    const CLICK = "Click the server or a phone to see it up close.";
+    const free = (view: StageView, focus: FreeFocus | null) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live
+        cue={{ kind: "free", focus }}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const footIn = (container: HTMLElement) =>
+      container.querySelector<HTMLElement>("[data-foot='free']");
+
+    it("hints that the server and the phones show up close while resting wide", async () => {
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(PHONE);
+      const { container, rerender } = render(free(view, null));
+      const foot = footIn(container);
+      expect(foot?.style.getPropertyValue("--foot-min")).toBe("var(--target)");
+      const touch = within(foot ?? container).getByText(TAP);
+      const mouse = within(foot ?? container).getByText(CLICK);
+      expect(touch.className).toBe(stageStyles.touch);
+      expect(mouse.className).toBe(stageStyles.mouse);
+      expect(touch.parentElement).toBe(mouse.parentElement);
+      // Shown up close, the foot holds All devices instead, as tall.
+      rerender(free(view, { kind: "server", part: "basin" }));
+      restore();
+      expect(screen.queryByText(TAP)).toBeNull();
+      expect(screen.queryByText(CLICK)).toBeNull();
+      expect(
+        within(foot ?? container).getByRole("button", { name: "All devices" }),
+      ).toBeTruthy();
+      expect(footIn(container)?.style.getPropertyValue("--foot-min")).toBe(
+        "var(--target)",
+      );
+    });
+
+    it("gives no hint where Show is not offered", async () => {
+      const view = makeStageView()(await snapshot(), new Map());
+      const restore = stubLayout(
+        new Map([...LAYOUT, ["viewport", rect(0, 0, 1600, 1000)]]),
+      );
+      const { container } = render(free(view, null));
+      restore();
+      expect(footIn(container)).toBeTruthy();
+      expect(screen.queryByText(TAP)).toBeNull();
+      expect(screen.queryByText(CLICK)).toBeNull();
+    });
   });
 });

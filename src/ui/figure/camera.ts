@@ -252,6 +252,12 @@ const bandOf = (anchors: Anchors): Box =>
 export const wideView = (anchors: Anchors, viewport: Size): View =>
   frame(bandOf(anchors), anchors, viewport, false, 1);
 
+// `b` up close as a close-up frames a place's details: padded DETAIL_PAD_PX,
+// never past MAX_SCALE, with no notes, and kept on the plane. Free play shows
+// a part of the server this way.
+export const detailView = (b: Box, anchors: Anchors, viewport: Size): View =>
+  frame(pad(b, DETAIL_PAD_PX), anchors, viewport, false);
+
 // Where the room under a wide or a table frame starts on screen: a margin
 // under the frame's foot.
 export const roomTop = (frame: Box, view: View, viewport: Size): number =>

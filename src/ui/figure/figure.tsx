@@ -11,7 +11,6 @@ import {
 } from "react";
 import { frameAt, lostAt } from "#/lib/sandbox/frame";
 import type { Scene } from "#/lib/sandbox/scene";
-import type { ClientName } from "#/lib/sandbox/trace";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
@@ -31,7 +30,7 @@ import { BreakingControls } from "./breaking-controls";
 import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PaceControls, PlayerControls } from "./player-controls";
-import { type Cue, Stage } from "./stage";
+import { type Cue, type FreeFocus, Stage } from "./stage";
 import { makeStageView, mostRows } from "./stage-view";
 import { usePlayer } from "./use-player";
 
@@ -101,8 +100,9 @@ function FigureBody({
     host,
   });
   const stageOf = useMemo(() => makeStageView(), []);
-  // Free play: the device the reader asked to see up close.
-  const [focus, setFocus] = useState<ClientName | null>(null);
+  // Free play: the device or the part of the server the reader asked to see
+  // up close.
+  const [focus, setFocus] = useState<FreeFocus | null>(null);
   const inFreePlay = view?.mode === "free";
   useEffect(() => {
     if (!inFreePlay) setFocus(null);

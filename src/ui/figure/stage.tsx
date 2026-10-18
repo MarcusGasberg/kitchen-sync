@@ -42,14 +42,41 @@ import { WireBand } from "./wire-band";
 import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
 
 // What the camera follows: a scene's cut at the playhead, or free play, where
-// it rests wide or on the device a reader chose.
+// it rests wide or on what the reader chose to see up close.
 export type Cue =
   | { readonly kind: "shot"; readonly cut: Cut; readonly cursor: CutCursor }
-  | { readonly kind: "free"; readonly focus: ClientName | null };
+  | { readonly kind: "free"; readonly focus: FreeFocus | null };
+
+// What free play shows up close: a device, or a part of the server. Its
+// basin and its list side by side are as wide as the world, so each is
+// shown alone.
+export type FreeFocus =
+  | { readonly kind: "device"; readonly client: ClientName }
+  | { readonly kind: "server"; readonly part: "basin" | "list" };
+
+// Whether free play shows `target` up close.
+const shows = (focus: FreeFocus | null, target: FreeFocus): boolean =>
+  focus !== null &&
+  (focus.kind === "device"
+    ? target.kind === "device" && target.client === focus.client
+    : target.kind === "server" && target.part === focus.part);
+
+const deviceFocus = (client: ClientName): FreeFocus => ({
+  kind: "device",
+  client,
+});
+const SERVER_BASIN: FreeFocus = { kind: "server", part: "basin" };
+const SERVER_LIST: FreeFocus = { kind: "server", part: "list" };
 
 // Below this scale a device's rows are too small to use: in free play each
-// device offers to be shown up close (as it does when its pane is cut off).
+// device and each part of the server offers to be shown up close (as it does
+// when a pane is cut off).
 export const FOCUS_BELOW = 0.75;
+
+// Free play's foot holds one control's height, whether it holds the hint or
+// All devices (a Button's least height), so the controls under the stage hold
+// still as the reader zooms in and out.
+const FREE_FOOT_MIN = "var(--target)";
 
 interface StageProps {
   readonly view: StageView;
@@ -66,8 +93,9 @@ interface StageProps {
   // The figure's world group around the stage, which a click on the stage's
   // background focuses: Escape on it goes back to every device too.
   readonly group?: RefObject<HTMLElement | null>;
-  // Free play: show a device up close, or every device (null).
-  readonly onFocus: (client: ClientName | null) => void;
+  // Free play: show a device or a part of the server up close, or every
+  // device (null).
+  readonly onFocus: (focus: FreeFocus | null) => void;
   readonly onIntent: (client: ClientName, intent: ListIntent) => void;
   readonly onAdd: (client: ClientName, name: string) => void;
   readonly onRetry: (client: ClientName) => void;
@@ -207,9 +235,10 @@ export function Stage({
   const dim = (key: string) => (lit !== null && !lit.has(key) ? "" : undefined);
 
   const focused = cue.kind === "free" ? cue.focus : null;
-  // Each device offers to be shown up close while resting wide leaves its
-  // rows too small or its pane cut off: wide frames the band of basins, so
-  // the lists and add fields under them are reached through a close-up.
+  // Each device and each part of the server offers to be shown up close
+  // while resting wide leaves the rows too small or a pane cut off: wide
+  // frames the band of basins, so the lists and add fields under them are
+  // reached through a close-up.
   const resting = camera === null ? null : wideView(anchors, size);
   const restingBox = resting === null ? null : visibleBox(resting, size);
   const offerShow =
@@ -220,44 +249,68 @@ export function Stage({
     (resting.scale < FOCUS_BELOW ||
       [...measured.boxes].some(
         ([key, pane]) =>
-          key.startsWith("device:") &&
+          (key === "server" || key.startsWith("device:")) &&
           (pane.left < restingBox.left ||
             pane.top < restingBox.top ||
             pane.right > restingBox.right ||
             pane.bottom > restingBox.bottom),
       ));
 
-  // Focus never drops to the page: shown up close, a device takes it on its
-  // first field or control; back to all, the device it was on takes it back.
+  // Focus never drops to the page. Shown up close, a device takes it on its
+  // first field or control; a part of the server, which has none, leaves it
+  // on the foot's All devices. Back to all, what was shown takes it back on
+  // its Show, or else a device on its first control and a part of the
+  // server on the figure's world group.
+  const footElement = useRef<HTMLDivElement>(null);
   const pending = useRef<{
-    readonly to: ClientName;
+    readonly to: FreeFocus;
     readonly back: boolean;
   } | null>(null);
   useEffect(() => {
     const wanted = pending.current;
     const world = plane.current;
     if (wanted === null || world === null) return;
-    if (wanted.back ? focused !== null : focused !== wanted.to) return;
-    const device = world.querySelector<HTMLElement>(
-      `[data-anchor='device'][data-client='${wanted.to}']`,
+    if (wanted.back ? focused !== null : !shows(focused, wanted.to)) return;
+    const { to } = wanted;
+    // What was shown: a device's pane, or the server part's box.
+    const shown = world.querySelector<HTMLElement>(
+      to.kind === "device"
+        ? `[data-anchor='device'][data-client='${to.client}']`
+        : `[data-anchor='server-${to.part}']`,
     );
     const target = wanted.back
-      ? (device?.querySelector<HTMLElement>("[data-show]") ??
-        device?.querySelector<HTMLElement>("input, button"))
-      : device?.querySelector<HTMLElement>("input, button:not([data-show])");
+      ? (shown?.querySelector<HTMLElement>("[data-show]") ??
+        (to.kind === "device"
+          ? shown?.querySelector<HTMLElement>("input, button")
+          : group?.current))
+      : to.kind === "device"
+        ? shown?.querySelector<HTMLElement>("input, button:not([data-show])")
+        : footElement.current?.querySelector<HTMLElement>("button");
     // Focus landing in the device must not frame it again: a back stays
     // pending until it has landed.
     target?.focus({ preventScroll: true });
     pending.current = null;
-  }, [focused]);
-  const show = (client: ClientName) => {
-    pending.current = { to: client, back: false };
-    onFocus(client);
+  }, [focused, group]);
+  const show = (target: FreeFocus) => {
+    pending.current = { to: target, back: false };
+    onFocus(target);
   };
   const back = () => {
     if (focused !== null) pending.current = { to: focused, back: true };
     onFocus(null);
   };
+  // Free play's Show: a transparent button over a device's pane or a part of
+  // the server, offered while resting wide, and gone while that is shown.
+  const showButton = (target: FreeFocus, label: string) =>
+    offerShow && !shows(focused, target) ? (
+      <button
+        type="button"
+        className={styles.show}
+        data-show=""
+        aria-label={label}
+        onClick={() => show(target)}
+      />
+    ) : null;
   // Escape goes back to every device: in the stage, and on the figure's
   // world group around it (its own keys, not those that bubble out of the
   // stage).
@@ -376,6 +429,7 @@ export function Stage({
                     role="group"
                     aria-label="The server's items"
                     data-anchor="server-list"
+                    data-anchor-key="list:server"
                   >
                     <GroceryList
                       groups={server.list.groups}
@@ -384,6 +438,7 @@ export function Stage({
                       density="compact"
                       columns={2}
                     />
+                    {showButton(SERVER_LIST, "Show the server's list up close")}
                   </div>
                   <div
                     className={styles.serverBasin}
@@ -400,6 +455,10 @@ export function Stage({
                       active={inView("basin:server")}
                       ringAnchors="server"
                     />
+                    {showButton(
+                      SERVER_BASIN,
+                      "Show the server's basin up close",
+                    )}
                   </div>
                 </div>
               </Pane>
@@ -417,14 +476,16 @@ export function Stage({
                   data-place={device.name}
                   data-dim={dim(`device:${device.name}`)}
                   onFocus={
-                    live && cue.kind === "free" && focused !== device.name
+                    live &&
+                    cue.kind === "free" &&
+                    !shows(focused, deviceFocus(device.name))
                       ? (event) => {
                           if (
                             pending.current?.back !== true &&
                             event.target instanceof HTMLElement &&
                             event.target.dataset.show === undefined
                           ) {
-                            onFocus(device.name);
+                            onFocus(deviceFocus(device.name));
                           }
                         }
                       : undefined
@@ -479,14 +540,9 @@ export function Stage({
                       />
                     )}
                   </Pane>
-                  {offerShow && focused !== device.name && (
-                    <button
-                      type="button"
-                      className={styles.show}
-                      data-show=""
-                      aria-label={`Show ${device.name} up close`}
-                      onClick={() => show(device.name)}
-                    />
+                  {showButton(
+                    deviceFocus(device.name),
+                    `Show ${device.name} up close`,
                   )}
                 </div>
               ))}
@@ -508,12 +564,13 @@ export function Stage({
       </div>
       {foot !== null && (
         <div
+          ref={footElement}
           className={styles.foot}
           data-foot={foot}
           style={
-            foot === "notes"
-              ? ({ "--foot-min": FOOT_MIN } as CSSProperties)
-              : undefined
+            {
+              "--foot-min": foot === "notes" ? FOOT_MIN : FREE_FOOT_MIN,
+            } as CSSProperties
           }
         >
           {foot === "notes" && spot?.kind === "foot" && (
@@ -523,6 +580,19 @@ export function Stage({
             <Button kind="secondary" onClick={back}>
               All devices
             </Button>
+          )}
+          {/* Resting wide, that zooming exists: in words for a touch screen
+              and for a mouse, of which CSS shows one by whether the pointer
+              can hover, so assistive technology hears one. */}
+          {foot === "free" && focused === null && offerShow && (
+            <p className={styles.hint}>
+              <span className={styles.touch}>
+                Tap the server or a phone to see it up close.
+              </span>
+              <span className={styles.mouse}>
+                Click the server or a phone to see it up close.
+              </span>
+            </p>
           )}
         </div>
       )}
