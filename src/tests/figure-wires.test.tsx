@@ -347,6 +347,83 @@ describe("WireBand", () => {
     expect(a?.hasAttribute("data-dim")).toBe(false);
     expect(b?.hasAttribute("data-dim")).toBe(true);
   });
+
+  // [x1, y1, x2, y2] of each line a band draws.
+  const linesOf = (container: HTMLElement) =>
+    [...container.querySelectorAll("line")].map((line) =>
+      ["x1", "y1", "x2", "y2"].map((name) => Number(line.getAttribute(name))),
+    );
+
+  // An offline device's wire stops short of it: the last 40% of its length
+  // toward the device is not drawn, and a network enactment opens or closes
+  // that gap.
+  it("draws an offline wire open at its device end, as far as its gap", () => {
+    const drawn = (gap: number) => {
+      const { container, unmount } = render(
+        <WireBand
+          width={200}
+          height={120}
+          wires={[wire]}
+          flights={[]}
+          lost={[]}
+          gaps={new Map([["A", gap]])}
+        />,
+      );
+      const [line] = linesOf(container);
+      unmount();
+      return line ?? [];
+    };
+    // The plumb wire from (100, 0) to (100, 80).
+    const expected: ReadonlyArray<readonly [number, ReadonlyArray<number>]> = [
+      [1, [100, 0, 100, 48]],
+      [0.5, [100, 0, 100, 64]],
+      [0, [100, 0, 100, 80]],
+    ];
+    for (const [gap, ends] of expected) {
+      for (const [at, value] of drawn(gap).entries()) {
+        expect(value).toBeCloseTo(ends[at] ?? Number.NaN);
+      }
+    }
+  });
+
+  it("draws a whole wire for a device it has no gap for", () => {
+    const { container } = render(
+      <WireBand
+        width={200}
+        height={120}
+        wires={[wire]}
+        flights={[]}
+        lost={[]}
+        gaps={new Map([["B", 1]])}
+      />,
+    );
+    expect(linesOf(container)).toEqual([[100, 0, 100, 80]]);
+  });
+
+  // A rule a scene arms is written at its wire's middle, in the second ink,
+  // and steps back with its wire.
+  it("writes an armed rule on its wire, dimmed with it", () => {
+    const { container } = render(
+      <WireBand
+        width={200}
+        height={120}
+        wires={[wire]}
+        flights={[]}
+        lost={[]}
+        armed={{ client: "A", text: "next ack: dropped", shown: 0.5 }}
+        lit={new Set(["device:B"])}
+      />,
+    );
+    const text = [...container.querySelectorAll("text")].find(
+      (found) => found.textContent === "next ack: dropped",
+    );
+    expect(text).toBeTruthy();
+    expect(Number(text?.getAttribute("x"))).toBeGreaterThan(100);
+    expect(Number(text?.getAttribute("y"))).toBe(40);
+    expect(text?.style.opacity).toBe("0.5");
+    // Dimmed by its group, so the dim and the fade multiply.
+    expect(text?.parentElement?.hasAttribute("data-dim")).toBe(true);
+  });
 });
 
 describe("rippleOf", () => {

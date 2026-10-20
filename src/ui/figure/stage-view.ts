@@ -25,6 +25,9 @@ export interface DeviceView {
   readonly waiting: ReadonlyMap<string, number>;
   readonly list: ListView;
   readonly status: SyncStatus;
+  // Whether the world's network has it offline. A stopped sync outranks
+  // offline in `status`, but its wire is cut all the same.
+  readonly offline: boolean;
   // Its version, or null while it is still connecting and has none.
   readonly version: number | null;
   // Its state after the version, as "synced" or "1 pending · 1 acked".
@@ -188,15 +191,15 @@ export const makeStageView = () => {
     return {
       server: server.view,
       devices: [...snapshot.clients].map(([name, state]) => {
-        const status = syncStatus(state, {
-          offline: snapshot.offline.has(name),
-        });
+        const offline = snapshot.offline.has(name);
+        const status = syncStatus(state, { offline });
         return {
           name,
           clientId: clientIds.get(name),
           ...partsOf(state),
           ghosts: ghostsFor(snapshot, name, state, serverKey),
           status,
+          offline,
           version: status.kind === "connecting" ? null : state.appliedVersion,
           words: deviceWords(status),
           line: deviceLine(state, status),

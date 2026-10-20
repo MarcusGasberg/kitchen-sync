@@ -39,6 +39,31 @@ const snapshot = () =>
     ),
   );
 
+// As `snapshot`, and then A goes offline.
+const offlineSnapshot = () =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const world = yield* World;
+      yield* world.clock.advance("1 second");
+      yield* world.client("A").apply(yield* add(world, "Milk"));
+      yield* world.clock.advance("1 second");
+      yield* world.net.offline("A", true);
+      return yield* world.snapshot;
+    }).pipe(
+      Effect.provide(World.layer({ clients: ["A", "B"], seed: "stage-ui" })),
+    ),
+  );
+
+// The layout the wire tests set, as the scene does at 1440 px: the server's
+// basin with its list beside it, and A and B in the device row.
+const WIRED = new Map([
+  ["server-basin", rect(0, 60, 600, 300)],
+  ["server-list", rect(630, 60, 900, 200)],
+  ["devices", rect(0, 380, 900, 700)],
+  ["A", rect(0, 380, 280, 700)],
+  ["B", rect(320, 380, 600, 700)],
+]);
+
 // B is offline while A adds six rows across three categories, and one with
 // none: B has all six to come.
 const SIX: ReadonlyArray<readonly [string, Category | undefined]> = [
@@ -1735,6 +1760,132 @@ describe("Stage", () => {
     expect(stackOf("A")?.style.transform).toBe("");
     expect(container.querySelector("[data-stacked]")).toBeNull();
     restore();
+  });
+
+  // An offline device's wire is open at its device end, as state, in free
+  // play too; a device going offline opens its wire as it acts it out.
+  it("opens an offline device's wire, and one going offline as it goes", async () => {
+    const view = makeStageView()(await offlineSnapshot(), new Map());
+    const restore = stubLayout(WIRED);
+    try {
+      const { container } = render(
+        <Stage
+          view={view}
+          flights={[]}
+          lost={[]}
+          settle
+          scale={1}
+          live={false}
+          cue={FREE}
+          reduced={false}
+          marks={{
+            ...NO_MARKS,
+            acting: { kind: "network", client: "B", offline: true, gap: 0.5 },
+          }}
+          onFocus={noop}
+          onIntent={noop}
+          onAdd={noop}
+          onRetry={noop}
+        />,
+      );
+      const lines = [...container.querySelectorAll("line")].map((line) =>
+        ["x1", "y1", "x2", "y2"].map((name) => Number(line.getAttribute(name))),
+      );
+      // Each wire's server end, as the wire tests lay it: along the basin's
+      // foot less 24 px a corner, where its device's middle sits.
+      const from = (middle: number) => 24 + (552 * middle) / 900;
+      // A's open by 40% of its length, B's by half of that.
+      const expected = [
+        [from(140), 300, from(140) + (140 - from(140)) * 0.6, 300 + 80 * 0.6],
+        [from(460), 300, from(460) + (460 - from(460)) * 0.8, 300 + 80 * 0.8],
+      ];
+      expect(lines).toHaveLength(2);
+      for (const [index, line] of lines.entries()) {
+        for (const [at, value] of line.entries()) {
+          expect(value).toBeCloseTo(expected[index]?.[at] ?? Number.NaN);
+        }
+      }
+    } finally {
+      restore();
+    }
+  });
+
+  // A device acts out a retry on its own band's Retry, a reload by dipping
+  // its whole pane, and an armed rule in words on its wire.
+  it("acts out a retry, a reload and an armed rule in the device's own pane and wire", async () => {
+    const base = makeStageView()(await snapshot(), new Map());
+    const view: StageView = {
+      ...base,
+      devices: base.devices.map((device) =>
+        device.name === "A"
+          ? {
+              ...device,
+              status: {
+                kind: "stopped",
+                loop: "push",
+                reason: "HTTP 400",
+                waiting: 1,
+              },
+            }
+          : device,
+      ),
+    };
+    const stage = (acting: Acting) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        marks={{ ...NO_MARKS, acting }}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const restore = stubLayout(WIRED);
+    try {
+      const { container, rerender } = render(
+        stage({ kind: "retry", client: "A", touch: 0.3 }),
+      );
+      const a = screen.getByRole("region", { name: "A" });
+      // A scene's Retry is a replica no reader can press.
+      expect(within(a).queryByRole("button", { name: "Retry" })).toBeNull();
+      expect(a.querySelector("[data-replay] [data-touch]")).not.toBeNull();
+
+      rerender(stage({ kind: "reload", client: "B", dip: 0.5 }));
+      const device = (name: string) =>
+        container.querySelector<HTMLElement>(
+          `[data-anchor='device'][data-client='${name}']`,
+        );
+      expect(Number(device("B")?.style.getPropertyValue("--dip"))).toBeCloseTo(
+        1 - 0.65 * 0.5,
+      );
+      expect(device("B")?.hasAttribute("data-reloading")).toBe(true);
+      expect(device("A")?.style.getPropertyValue("--dip")).toBe("");
+      expect(device("A")?.hasAttribute("data-reloading")).toBe(false);
+
+      rerender(
+        stage({
+          kind: "arm",
+          client: "A",
+          rule: "drop",
+          message: "ack",
+          shown: 1,
+        }),
+      );
+      // The wire band's own svg: a scene row's inert cross (Task 3) is an
+      // svg too, and comes first in the plane.
+      expect(
+        container.querySelector("[data-anchor='plane'] > svg")?.textContent,
+      ).toContain("next ack: dropped");
+    } finally {
+      restore();
+    }
   });
 });
 

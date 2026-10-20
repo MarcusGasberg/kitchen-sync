@@ -1,4 +1,5 @@
 import { LOST_MARK_MILLIS } from "#/lib/sandbox/frame";
+import type { ClientName } from "#/lib/sandbox/trace";
 import styles from "./wire-band.module.css";
 import { type Placed, rippleOf, type Wire } from "./wires";
 
@@ -12,6 +13,16 @@ interface WireBandProps {
   // The containers a shot is about (`litOf`): a wire whose `wire:<client>` is
   // not among them dims, with its messages. Null lights every wire.
   readonly lit?: ReadonlySet<string> | null;
+  // How open each device's wire is at its device end, 0 whole to 1 open: an
+  // offline device's is open, and a network enactment opens or closes it.
+  readonly gaps?: ReadonlyMap<ClientName, number>;
+  // A network rule a scene's device arms, written on its wire as it draws
+  // in (`shown`, 0–1).
+  readonly armed?: {
+    readonly client: ClientName;
+    readonly text: string;
+    readonly shown: number;
+  } | null;
   // The followed message whose card is open (`open`, 0→1): the card's first
   // line says what its label does, so the label gives way to it.
   readonly card?: { readonly messageId: number; readonly open: number } | null;
@@ -23,6 +34,11 @@ interface WireBandProps {
 
 // Pixels between a message's dot and its label.
 const LABEL_GAP = 9;
+
+// How much of an open wire's length, toward its device, is not drawn.
+export const GAP_SHARE = 0.4;
+
+const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 
 function Label({
   placed,
@@ -57,6 +73,8 @@ export function WireBand({
   flights,
   lost,
   lit = null,
+  gaps,
+  armed = null,
   card = null,
   ripple = null,
   reduced = false,
@@ -68,6 +86,20 @@ export function WireBand({
     lit !== null && !lit.has(`wire:${client}`) && !lit.has(`device:${client}`)
       ? ""
       : undefined;
+  // Where a wire's drawn length ends: at its device, or short of it by its
+  // gap's share.
+  const endOf = (wire: Wire) => {
+    const open = GAP_SHARE * clamp01(gaps?.get(wire.client) ?? 0);
+    return open === 0
+      ? wire.device
+      : {
+          x: wire.server.x + (wire.device.x - wire.server.x) * (1 - open),
+          y: wire.server.y + (wire.device.y - wire.server.y) * (1 - open),
+        };
+  };
+  const armedWire = armed
+    ? wires.find((wire) => wire.client === armed.client)
+    : undefined;
   return (
     <svg
       className={styles.band}
@@ -95,17 +127,21 @@ export function WireBand({
           )}
         </svg>
       )}
-      {wires.map((wire) => (
-        <line
-          key={wire.client}
-          className={styles.wire}
-          data-dim={dim(wire.client)}
-          x1={wire.server.x}
-          y1={wire.server.y}
-          x2={wire.device.x}
-          y2={wire.device.y}
-        />
-      ))}
+      {wires.map((wire) => {
+        const end = endOf(wire);
+        return (
+          <line
+            key={wire.client}
+            className={styles.wire}
+            data-dim={dim(wire.client)}
+            data-gap={end === wire.device ? undefined : ""}
+            x1={wire.server.x}
+            y1={wire.server.y}
+            x2={end.x}
+            y2={end.y}
+          />
+        );
+      })}
       {flights.map((placed) => (
         <g
           key={placed.key}
@@ -140,6 +176,19 @@ export function WireBand({
           </g>
         </g>
       ))}
+      {armed && armedWire !== undefined && (
+        <g data-dim={dim(armed.client)}>
+          <text
+            className={styles.armed}
+            x={(armedWire.server.x + armedWire.device.x) / 2 + LABEL_GAP}
+            y={(armedWire.server.y + armedWire.device.y) / 2}
+            dominantBaseline="middle"
+            style={{ opacity: clamp01(armed.shown) }}
+          >
+            {armed.text}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }

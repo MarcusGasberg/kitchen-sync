@@ -282,6 +282,17 @@
   opacity: 0.35;
 }
 
+/* A reload's dip is drawn frame by frame from the clock: no transition
+   smooths it. A dimmed device dips from its dim. */
+.device[data-reloading] {
+  opacity: var(--dip);
+  transition: none;
+}
+
+.device[data-dim][data-reloading] {
+  opacity: calc(var(--dip) * 0.35);
+}
+
 /* Free play, while resting wide leaves the rows too small to use (under 0.75,
    FOCUS_BELOW) or a pane cut off: each device's whole pane, and the server's
    basin and its list each, is one button that shows it up close. Its focus

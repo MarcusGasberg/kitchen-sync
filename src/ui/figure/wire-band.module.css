@@ -53,6 +53,13 @@
   fill: var(--text-3);
 }
 
+/* A network rule a scene arms, written on its wire in the second ink, in
+   words: not an id, so not mono. */
+.band .armed {
+  fill: var(--ink-2);
+  font: 400 var(--text-sm) / 1 var(--font-text);
+}
+
 @media (forced-colors: active) {
   .wire {
     stroke: CanvasText;
@@ -79,6 +86,10 @@
   .lost text {
     fill: CanvasText;
     stroke: Canvas;
+  }
+
+  .band .armed {
+    fill: CanvasText;
   }
 }
 

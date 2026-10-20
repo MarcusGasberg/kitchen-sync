@@ -7,6 +7,7 @@ import { World } from "#/lib/sandbox/world";
 import {
   addItem,
   applyIntent,
+  armedWords,
   breakAction,
   breakLabel,
   offlineToggles,
@@ -101,4 +102,14 @@ describe("a reader's actions", () => {
       yield* player.close;
     }),
   );
+});
+
+describe("armedWords", () => {
+  it("words a network rule as its wire carries it", () => {
+    expect(armedWords("drop", "ack")).toBe("next ack: dropped");
+    expect(armedWords("hold", "push")).toBe("next push: held");
+    expect(armedWords("drop", "pullResponse")).toBe(
+      "next pull response: dropped",
+    );
+  });
 });

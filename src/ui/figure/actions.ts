@@ -76,6 +76,14 @@ export const breakLabel = (b: Break, offline: boolean): string => {
   return offline ? `Bring ${b.client} online` : `Take ${b.client} offline`;
 };
 
+// A network rule a scene arms, in the words its wire carries while the
+// device arms it: "next ack: dropped".
+export const armedWords = (
+  rule: "drop" | "hold",
+  message: MessageKind,
+): string =>
+  `next ${MESSAGE_NOUN[message]}: ${rule === "drop" ? "dropped" : "held"}`;
+
 export const breakAction =
   (b: Break, offline: boolean): Action =>
   (world) =>

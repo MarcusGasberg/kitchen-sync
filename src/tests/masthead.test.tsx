@@ -133,6 +133,33 @@ describe("Masthead", () => {
 });
 
 describe("StatusBand", () => {
+  // A scene's device acting out a retry: Retry as an inert replica, there to
+  // be touched, never one a reader could press.
+  it("shows a scene's Retry as an inert replica, touched as the device retries", () => {
+    const stopped = {
+      kind: "stopped",
+      loop: "push",
+      reason: "HTTP 400",
+      waiting: 1,
+    } as const;
+    const { container, rerender } = render(
+      <StatusBand status={stopped} touch={null} />,
+    );
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    const replica = container.querySelector<HTMLElement>("[data-replay]");
+    expect(replica?.getAttribute("aria-hidden")).toBe("true");
+    expect(replica?.hasAttribute("inert")).toBe(true);
+    expect(replica?.textContent).toBe("Retry");
+    expect(replica?.querySelector("[data-touch]")).toBeNull();
+
+    rerender(<StatusBand status={stopped} touch={0.3} />);
+    expect(
+      container
+        .querySelector<HTMLElement>("[data-replay] [data-touch]")
+        ?.style.getPropertyValue("--touch"),
+    ).toBe("0.3");
+  });
+
   it("draws nothing while synced or pending", () => {
     const { container } = render(
       <>

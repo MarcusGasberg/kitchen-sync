@@ -108,6 +108,27 @@ describe("makeStageView", () => {
         Effect.provide(World.layer({ clients: ["A", "B"], seed: "stage" })),
       ),
   );
+
+  // A stopped sync outranks offline in a device's status, but its wire is
+  // still cut: the view says which devices the network has offline.
+  it.effect("marks each device the network has offline", () =>
+    Effect.gen(function* () {
+      const world = yield* World;
+      yield* world.clock.advance("1 second");
+      yield* world.net.offline("B", true);
+      const view = makeStageView()(yield* world.snapshot, new Map());
+      expect(
+        view.devices.map((device) => [device.name, device.offline]),
+      ).toEqual([
+        ["A", false],
+        ["B", true],
+      ]);
+    }).pipe(
+      Effect.provide(
+        World.layer({ clients: ["A", "B"], seed: "stage-offline" }),
+      ),
+    ),
+  );
 });
 
 describe("a device's ghosts", () => {

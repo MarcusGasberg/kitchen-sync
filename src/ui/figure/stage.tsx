@@ -22,6 +22,7 @@ import { Pane } from "#/ui/pane";
 import { QuickAdd, type QuickAddReplay } from "#/ui/quick-add";
 import { StatusBand } from "#/ui/status-band";
 import { WaitingStrip } from "#/ui/waiting-strip";
+import { armedWords } from "./actions";
 import {
   type Anchors,
   besideIn,
@@ -216,6 +217,9 @@ const messagesOf = (
   return anchors;
 };
 
+// How far a reloading device dips: to 35% at its lowest.
+const RELOAD_DIP = 0.65;
+
 // A device's add field in a scene while it is not acting: empty, nothing
 // pressed.
 const IDLE: QuickAddReplay = {
@@ -261,6 +265,32 @@ export function Stage({
     acting?.kind === "tap" && acting.client === client && acting.touch !== null
       ? { itemId: acting.itemId, at: acting.at, progress: acting.touch }
       : null;
+  // The network acting. Each offline device's wire is open at its device
+  // end, and a network enactment opens or closes it; an armed rule is
+  // written on its wire.
+  const gaps = new Map<ClientName, number>();
+  for (const device of view.devices) {
+    if (device.offline) gaps.set(device.name, 1);
+  }
+  if (acting?.kind === "network") gaps.set(acting.client, acting.gap);
+  const armed =
+    acting?.kind === "arm"
+      ? {
+          client: acting.client,
+          text: armedWords(acting.rule, acting.message),
+          shown: acting.shown,
+        }
+      : null;
+  // A retry's touch on its device's Retry. Null for every other device in a
+  // scene, so each stopped band shows its inert Retry, as free play's.
+  const retryTouchOf = (client: ClientName) =>
+    acting?.kind === "retry" && acting.client === client ? acting.touch : null;
+  // A reloading device's pane dips and comes back. The dip is a custom
+  // property, so the CSS can multiply it by the spotlight's dim.
+  const dipOf = (client: ClientName): CSSProperties | undefined =>
+    acting?.kind === "reload" && acting.client === client && acting.dip > 0
+      ? ({ "--dip": 1 - RELOAD_DIP * acting.dip } as CSSProperties)
+      : undefined;
   const viewport = useRef<HTMLDivElement>(null);
   const plane = useRef<HTMLDivElement>(null);
   // Rows held while they go lay the plane out as the view does: it is
@@ -583,6 +613,10 @@ export function Stage({
                   data-anchor-key={`device:${device.name}`}
                   data-place={device.name}
                   data-dim={dim(`device:${device.name}`)}
+                  data-reloading={
+                    dipOf(device.name) === undefined ? undefined : ""
+                  }
+                  style={dipOf(device.name)}
                   onFocus={
                     live &&
                     cue.kind === "free" &&
@@ -653,6 +687,7 @@ export function Stage({
                       <StatusBand
                         status={device.status}
                         onRetry={live ? () => onRetry(device.name) : undefined}
+                        touch={live ? undefined : retryTouchOf(device.name)}
                       />
                     }
                   >
@@ -703,6 +738,8 @@ export function Stage({
               flights={flying}
               lost={gone}
               lit={lit}
+              gaps={gaps}
+              armed={armed}
               card={card}
               ripple={marks.ripple}
               reduced={reduced}
