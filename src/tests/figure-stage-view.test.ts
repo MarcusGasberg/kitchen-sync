@@ -228,11 +228,13 @@ describe("withRows", () => {
     });
   const bananas = row("Bananas", "Produce", 1);
   const rye = row("Rye bread", "Bakery", 2);
-  const spinach = row("Spinach", "Produce", 3);
 
   it("puts a row in its category at its order, and counts only rows that are there", () => {
+    // The engine renumbers later rows down when Kale (2) is removed, so
+    // Spinach has taken Kale's order.
     const kale = row("Kale", "Produce", 2);
-    const shown = withRows(listOf([bananas, rye, spinach]), [
+    const renumbered = row("Spinach", "Produce", 2);
+    const shown = withRows(listOf([bananas, rye, renumbered]), [
       { item: kale, presence: "leaving" },
     ]);
     expect(
@@ -247,6 +249,28 @@ describe("withRows", () => {
     ]);
     expect(shown.groups[0]?.rows[1]?.presence).toBe("leaving");
     expect(shown.groups[0]?.rows[0]?.presence).toBeUndefined();
+  });
+
+  it("fades the head of a group where it was, above the row that took its order", () => {
+    const yogurt = row("Greek yogurt", "Dairy", 1);
+    const butter = row("Butter", "Dairy", 1);
+    const shown = withRows(listOf([butter]), [
+      { item: yogurt, presence: "leaving" },
+    ]);
+    expect(shown.groups[0]?.rows.map((r) => r.item.name)).toEqual([
+      "Greek yogurt",
+      "Butter",
+    ]);
+  });
+
+  it("keeps a ghost after the rows of its own order", () => {
+    const shown = withRows(listOf([row("Kale", "Produce", 2)]), [
+      { item: row("Oat", "Produce", 2), presence: "ghost" },
+    ]);
+    expect(shown.groups[0]?.rows.map((r) => r.item.name)).toEqual([
+      "Kale",
+      "Oat",
+    ]);
   });
 
   it("makes a group for a row whose category the list lacks, in the app's order", () => {

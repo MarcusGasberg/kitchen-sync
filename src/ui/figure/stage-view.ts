@@ -216,8 +216,11 @@ export interface ExtraRow {
 }
 
 // A list with rows it does not hold set in their places: each in its
-// category's group, after every row of its order or less, a group made for
-// it in the app's category order if the list has none. A group's count of
+// category's group, a group made for it in the app's category order if the
+// list has none. A ghost goes after every row of its order or less. A
+// leaving row goes before every row of its order or more: removing an item
+// renumbers the later ones down by one, so the row that took its order is the
+// one that came after it. A group's count of
 // rows left is of the rows that are there.
 export const withRows = (
   list: ListView,
@@ -230,7 +233,11 @@ export const withRows = (
   for (const { item, presence } of extra) {
     const category = Option.getOrNull(item.category);
     const rows = rowsOf.get(category) ?? [];
-    const after = rows.findIndex((row) => row.item.order > item.order);
+    const after = rows.findIndex((row) =>
+      presence === "leaving"
+        ? row.item.order >= item.order
+        : row.item.order > item.order,
+    );
     rows.splice(after < 0 ? rows.length : after, 0, {
       item,
       sync: { kind: "synced" },
