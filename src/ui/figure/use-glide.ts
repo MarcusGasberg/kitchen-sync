@@ -46,17 +46,15 @@ export const glideAt = (
       );
 
 interface Glide {
-  // The jump it answers.
-  readonly key: string;
   // Where it starts: the view on screen as the jump landed; null for a jump
   // with nothing on screen yet, or under reduced motion, which cut.
   readonly from: View | null;
   readonly startedAt: number;
 }
 
-// The view to draw: `target`, except for JUMP_MILLIS after a jump the hook
-// has not seen (a new `jumpKey`), when it glides there from the view it last
-// returned. A target that moves under a glide (the cut playing on) is
+// The view to draw: `target`, except for JUMP_MILLIS after `jumpKey`
+// changes to a key (one seen before included), when it glides there from the
+// view it last returned. A target that moves under a glide (the cut playing on) is
 // followed; a new jump mid-glide starts from where the camera is.
 export const useGlide = (
   target: View | null,
@@ -83,7 +81,6 @@ export const useGlide = (
     if (jumpKey !== null) {
       const onScreen = drawn.current;
       setGlide({
-        key: jumpKey,
         // A jump that leaves the camera where it is has nowhere to glide.
         from:
           reduced ||

@@ -293,16 +293,18 @@ describe("useCamera", () => {
             jumpKey: props.jumpKey,
             clock,
           }),
-        { initialProps: { cue: at(played, 0, 500), jumpKey: null } as Props },
+        { initialProps: { cue: at(played, 2, 900), jumpKey: null } as Props },
       );
       rerender({ cue: at(played, 1, 0), jumpKey: "1" });
       await advance(250);
       rerender({ cue: at(played, 1, 250), jumpKey: null });
+      expect(result.current.jumping).toBe(true);
       const before = result.current.view?.scale ?? 0;
       rerender({ cue: at(played, 2, 0), jumpKey: null });
+      expect(result.current.jumping).toBe(true);
       const after = result.current.view?.scale ?? 0;
-      // Both are on the way from the wide view to the close one, which is
-      // larger; the shot change must not send the camera back toward it.
+      // A seek from B's pane (shot 2, late), so a glide runs; the shot
+      // change must not send the camera back toward where it set off.
       expect(after).toBeGreaterThanOrEqual(before - 1e-6);
     });
 
