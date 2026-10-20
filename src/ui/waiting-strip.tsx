@@ -29,8 +29,61 @@ export function WaitingStrip({
   label = "Outbox",
   looks,
 }: WaitingStripProps) {
-  const shown = changes.length > max ? changes.slice(0, max - 1) : changes;
-  const hidden = changes.length - shown.length;
+  // A slot going is no longer waiting: the most, and the count past it, are
+  // of the changes still waiting, and the ones going are drawn after them,
+  // so nothing moves when they go.
+  const isGoing = (change: WaitingChange) =>
+    (looks?.get(change.clientMutationId)?.gone ?? 0) > 0;
+  const waiting = changes.filter((change) => !isGoing(change));
+  const going = changes.filter(isGoing);
+  const kept = waiting.length > max ? waiting.slice(0, max - 1) : waiting;
+  const hidden = waiting.length - kept.length;
+  // Each run of the slots drawn is headed once by its word.
+  const shown = [...kept, ...going];
+  const slot = (change: WaitingChange, i: number) => {
+    const look = looks?.get(change.clientMutationId);
+    return (
+      <li
+        key={change.clientMutationId}
+        className={styles.change}
+        data-acked={change.acked}
+        data-look={look === undefined ? undefined : ""}
+        // A change a pull has confirmed is leaving: no longer waiting.
+        aria-hidden={look !== undefined && look.gone > 0 ? true : undefined}
+        style={
+          look === undefined
+            ? undefined
+            : ({
+                "--slot-entered": look.entered,
+                "--slot-acked": look.acked,
+                "--slot-gone": look.gone,
+              } as CSSProperties)
+        }
+      >
+        {(i === 0 || shown[i - 1]?.acked !== change.acked) && (
+          <span className={styles.word} aria-hidden="true">
+            {change.acked ? "acked" : "pending"}
+          </span>
+        )}
+        <span className={styles.ring} aria-hidden="true" />
+        {VERB[change.intent]} #{change.clientMutationId}
+        <span className="visually-hidden">
+          {change.acked ? ", acked" : ", pending"}
+        </span>
+        {look !== undefined && look.copy !== null && (
+          <span
+            className={styles.copy}
+            data-copy=""
+            aria-hidden="true"
+            style={{ "--slot-copy": look.copy } as CSSProperties}
+          >
+            <span className={styles.ring} />
+            {VERB[change.intent]} #{change.clientMutationId}
+          </span>
+        )}
+      </li>
+    );
+  };
   return (
     <div className={styles.line}>
       <ol
@@ -38,58 +91,14 @@ export function WaitingStrip({
         aria-label={label}
         data-looks={looks === undefined ? undefined : ""}
       >
-        {shown.map((change, i) => {
-          const look = looks?.get(change.clientMutationId);
-          return (
-            <li
-              key={change.clientMutationId}
-              className={styles.change}
-              data-acked={change.acked}
-              data-look={look === undefined ? undefined : ""}
-              // A change a pull has confirmed is leaving: no longer waiting.
-              aria-hidden={
-                look !== undefined && look.gone > 0 ? true : undefined
-              }
-              style={
-                look === undefined
-                  ? undefined
-                  : ({
-                      "--slot-entered": look.entered,
-                      "--slot-acked": look.acked,
-                      "--slot-gone": look.gone,
-                    } as CSSProperties)
-              }
-            >
-              {(i === 0 || shown[i - 1].acked !== change.acked) && (
-                <span className={styles.word} aria-hidden="true">
-                  {change.acked ? "acked" : "pending"}
-                </span>
-              )}
-              <span className={styles.ring} aria-hidden="true" />
-              {VERB[change.intent]} #{change.clientMutationId}
-              <span className="visually-hidden">
-                {change.acked ? ", acked" : ", pending"}
-              </span>
-              {look !== undefined && look.copy !== null && (
-                <span
-                  className={styles.copy}
-                  data-copy=""
-                  aria-hidden="true"
-                  style={{ "--slot-copy": look.copy } as CSSProperties}
-                >
-                  <span className={styles.ring} />
-                  {VERB[change.intent]} #{change.clientMutationId}
-                </span>
-              )}
-            </li>
-          );
-        })}
+        {kept.map(slot)}
         {hidden > 0 && (
           <li className={styles.more}>
             +{hidden}
             <span className="visually-hidden"> more</span>
           </li>
         )}
+        {going.map((change, i) => slot(change, kept.length + i))}
       </ol>
       {changes.length === 0 && (
         <p className={styles.nothing}>nothing waiting</p>

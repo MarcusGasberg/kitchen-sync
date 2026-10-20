@@ -34,9 +34,10 @@ const slots = (name = "Outbox") =>
 
 describe("WaitingStrip as a figure's tray", () => {
   it("draws each change by its look: dropping in, its ring filling, going", () => {
+    // In the tray's order: the changes waiting, then those going.
     render(
       <WaitingStrip
-        changes={[change(1, true), change(2)]}
+        changes={[change(2), change(1, true)]}
         looks={
           new Map([
             [1, look(1, { acked: 0.5, gone: 0.25 })],
@@ -45,7 +46,7 @@ describe("WaitingStrip as a figure's tray", () => {
         }
       />,
     );
-    const [first, second] = [
+    const [second, first] = [
       ...document.querySelectorAll<HTMLElement>("li[data-look]"),
     ];
     expect(first?.style.getPropertyValue("--slot-acked")).toBe("0.5");
@@ -86,6 +87,47 @@ describe("WaitingStrip as a figure's tray", () => {
     const items = slots();
     expect(items).toHaveLength(8);
     expect(items.at(-1)?.textContent).toBe("+5 more");
+  });
+
+  // A slot going is no longer waiting: the strip keeps to its most changes
+  // with those still waiting, and draws the ones going after them.
+  it("counts only the changes still waiting toward its most", () => {
+    const held = Array.from({ length: 8 }, (_, i) => change(i + 2));
+    const going = change(1, true);
+    const looks = new Map([
+      ...held.map(
+        (c) => [c.clientMutationId, look(c.clientMutationId)] as const,
+      ),
+      [1, look(1, { gone: 0.5 })] as const,
+    ]);
+    const drawn = (changes: ReadonlyArray<WaitingChange>) => {
+      const { container, unmount } = render(
+        <WaitingStrip changes={changes} looks={looks} />,
+      );
+      const items = [...container.querySelectorAll("li")].map((li) =>
+        li.hasAttribute("data-look")
+          ? `${li.getAttribute("aria-hidden") === "true" ? "going" : "held"} #${
+              li.textContent?.match(/#(\d+)/)?.[1]
+            }`
+          : li.textContent,
+      );
+      unmount();
+      return items;
+    };
+    expect(drawn([...held, going])).toEqual([
+      ...held.map((c) => `held #${c.clientMutationId}`),
+      "going #1",
+    ]);
+    // Past its most, the count is of those waiting, and the slot going is
+    // drawn after it, so nothing moves when it goes.
+    const twelve = Array.from({ length: 12 }, (_, i) => change(i + 2));
+    for (const c of twelve)
+      looks.set(c.clientMutationId, look(c.clientMutationId));
+    expect(drawn([...twelve, going])).toEqual([
+      ...twelve.slice(0, 7).map((c) => `held #${c.clientMutationId}`),
+      "+5 more",
+      "going #1",
+    ]);
   });
 
   it("is the app's still strip without looks, under the name it is given", () => {
