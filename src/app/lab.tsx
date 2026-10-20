@@ -1,4 +1,4 @@
-// Synthetic content only: two figures for the finish review's screenshots and
+// Synthetic content only: three figures for the finish review's screenshots and
 // for anyone working on the figure. Mounted by the development-only route in
 // src/routes/lab.tsx.
 import { CodePanel } from "#/ui/code/code-panel";
@@ -6,9 +6,9 @@ import { ThenAndNow } from "#/ui/code/then-and-now";
 import { Figure } from "#/ui/figure/figure";
 import styles from "./lab.module.css";
 import { HTTP_PUSH, PUSH_LOOP, PUSH_LOOP_HISTORY } from "./lab-code";
-import { DROP_SCENE, FREE_SCENE } from "./lab-scenes";
+import { CHECK_SCENE, DROP_SCENE, FREE_SCENE } from "./lab-scenes";
 
-export { DROP_SCENE, FREE_SCENE };
+export { CHECK_SCENE, DROP_SCENE, FREE_SCENE };
 
 export function Lab() {
   return (
@@ -24,6 +24,11 @@ export function Lab() {
         ]}
       />
       <Figure scene={FREE_SCENE} title="Three phones, one list" free />
+      {/* Third, so free play stays the second figure the captures address. */}
+      <Figure
+        scene={CHECK_SCENE}
+        title="A check is a stroke through the drop"
+      />
       <section className={styles.aside} aria-label="Code beside a post">
         <ThenAndNow
           title="The push loop, then and now"

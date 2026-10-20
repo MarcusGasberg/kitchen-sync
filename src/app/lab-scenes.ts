@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import type { Category } from "#/domain/grocery-item";
 import type { Scene } from "#/lib/sandbox/scene";
 import type { WorldHandle, WorldOptions } from "#/lib/sandbox/world";
-import { addItem } from "#/ui/figure/actions";
+import { addItem, applyIntent } from "#/ui/figure/actions";
 
 // Synthetic scenes for the development route: enough to see a figure play,
 // hand over and break. Part 1's real scenes are sub-project 4's.
@@ -28,6 +28,21 @@ const adds =
         addItem(client, name, { category })(world).pipe(Effect.orDie),
       { discard: true },
     );
+
+// `client` checks off the item it shows as `name`, as a reader's tap does.
+const checks = (client: string, name: string) => (world: WorldHandle) =>
+  Effect.gen(function* () {
+    const state = yield* world.client(client).state;
+    const item = [...state.items.values()].find((i) => i.name === name);
+    if (item === undefined) {
+      return yield* Effect.die(new Error(`${client} has no ${name}`));
+    }
+    yield* applyIntent(client, {
+      _tag: "SetItemChecked",
+      itemId: item.id,
+      checked: true,
+    })(world).pipe(Effect.orDie);
+  });
 
 // A short list in the app's own categories: rows enough that devices which
 // agree have lines to match, and a later drop rings to push.
@@ -77,4 +92,36 @@ export const FREE_SCENE: Scene = {
   id: "lab-free",
   world: { ...WORLD, seed: "lab-free" },
   beats: [setup],
+};
+
+// The drop scene's world and list, and a check instead of an add: B ticks
+// the bananas off, and the check travels as the add did.
+export const CHECK_SCENE: Scene = {
+  id: "lab-check",
+  world: WORLD,
+  beats: [
+    setup,
+    {
+      caption:
+        "B checks off the bananas. It strikes through on B at once, and waits in B's outbox.",
+      run: checks("B", "Bananas"),
+      until: ({ since }) =>
+        since.some(
+          (e) =>
+            e._tag === "Sent" &&
+            e.message.kind === "push" &&
+            e.message.client === "B",
+        ),
+    },
+    {
+      caption: "B's push reaches the server, which pokes every phone.",
+      run: () => Effect.void,
+      until: ({ since }) => since.some((e) => e._tag === "Poked"),
+    },
+    {
+      caption: "A and C pull the check. Every basin shows one pattern.",
+      run: () => Effect.void,
+      until: ({ since }) => since.some((e) => e._tag === "Converged"),
+    },
+  ],
 };
