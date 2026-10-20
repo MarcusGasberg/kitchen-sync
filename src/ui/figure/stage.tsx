@@ -106,6 +106,10 @@ interface StageProps {
   readonly scale: number;
   readonly cue: Cue;
   readonly reduced: boolean;
+  // In a scene, a key for the jump that put the playhead where it is (a
+  // step, a scrub, a restart); null while it plays. A new key glides the
+  // camera there from the view on screen.
+  readonly jumpKey?: string | null;
   // The code's note when the hold's first note tells the event the code lit
   // (`sharedMarkAt`): set over that note in fresh ink.
   readonly shared?: string | null;
@@ -244,6 +248,7 @@ export function Stage({
   scale,
   cue,
   reduced,
+  jumpKey = null,
   shared = null,
   marks = NO_MARKS,
   speed = 1,
@@ -326,12 +331,16 @@ export function Stage({
     boxes: measured.boxes,
     messages: messagesOf(measured.wires, flying, gone),
   };
+  // A jump glides the camera in a scene; free play has its own glide.
   const {
     view: camera,
     moving,
     density,
     gliding,
-  } = useCamera(cue, anchors, size, reduced);
+    jumping,
+  } = useCamera(cue, anchors, size, reduced, {
+    jumpKey: cue.kind === "shot" ? jumpKey : null,
+  });
 
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
   const lit = shot === undefined ? null : litOf(shot);
@@ -454,8 +463,13 @@ export function Stage({
   // room it leaves at the window's foot (kept tall enough for them), faded
   // the same way; on a narrow viewport, in the foot under the window.
   const beside = besideIn(size);
+  // They wait for a move, or a jump's glide, to land.
   const spot =
-    camera !== null && shot !== undefined && !shot.move && shot.notes.length > 0
+    camera !== null &&
+    shot !== undefined &&
+    !shot.move &&
+    !jumping &&
+    shot.notes.length > 0
       ? spotFor(
           shot.framing,
           shot.notes.length,

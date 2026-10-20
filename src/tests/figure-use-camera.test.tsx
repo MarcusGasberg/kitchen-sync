@@ -13,7 +13,9 @@ import {
 } from "#/ui/figure/camera";
 import type { Cue } from "#/ui/figure/stage";
 import { useCamera } from "#/ui/figure/use-camera";
+import { type GlideClock, glideAt, JUMP_MILLIS } from "#/ui/figure/use-glide";
 import type { Box } from "#/ui/figure/wires";
+import { fakeClock } from "./figure-helpers";
 
 const box = (
   left: number,
@@ -205,6 +207,87 @@ describe("useCamera", () => {
     expect(still.result.current.gliding).toBe(false);
   });
 
+  // A jump (Back, a scrub) from the world to B's detail, framed close past
+  // scale 1: the camera glides there from the view on screen.
+  describe("a jump", () => {
+    const size = { width: 600, height: 400 };
+    const cut: Cut = {
+      shots: [
+        shot({
+          subjects: [
+            { kind: "device", client: "B" },
+            { kind: "row", where: "B", itemId: "1" },
+            { kind: "ring", where: "B", itemId: "1" },
+          ],
+        }),
+        shot({ framing: "wide", move: true }),
+        shot({ framing: "wide" }),
+      ],
+      steps: [],
+    };
+    const wide = at(cut, 2, 500);
+    const close = at(cut, 0, 500);
+    interface Props {
+      readonly cue: Cue;
+      readonly jumpKey: string | null;
+    }
+    const jumped = (clock: GlideClock, reduced = false) => {
+      const initialProps: Props = { cue: wide, jumpKey: null };
+      return renderHook(
+        (props: Props) =>
+          useCamera(props.cue, ANCHORS, size, reduced, {
+            jumpKey: props.jumpKey,
+            clock,
+          }),
+        { initialProps },
+      );
+    };
+
+    it("glides from the view on screen, moving and holding the basins' density, then rests", async () => {
+      const { clock, advance } = fakeClock();
+      const { result, rerender } = jumped(clock);
+      const from = result.current.view;
+      const to = camera(close, size).result.current.view;
+      if (from === null || to === null) throw new Error("nothing framed");
+      expect(result.current.density).toBe(1);
+      rerender({ cue: close, jumpKey: "1" });
+      expect(result.current.view?.scale).toBeCloseTo(from.scale, 6);
+      expect(result.current).toMatchObject({
+        moving: true,
+        jumping: true,
+        density: 1,
+      });
+      await advance(JUMP_MILLIS / 2);
+      expect(result.current.view).toEqual(
+        glideAt(from, to, JUMP_MILLIS / 2, ANCHORS, size),
+      );
+      expect(result.current).toMatchObject({ moving: true, density: 1 });
+      await advance(JUMP_MILLIS / 2);
+      expect(result.current).toEqual({
+        view: to,
+        moving: false,
+        density: 1.25,
+        gliding: false,
+        jumping: false,
+      });
+    });
+
+    it("lands at once with no jump, and under reduced motion", () => {
+      const { clock } = fakeClock();
+      const played = jumped(clock);
+      played.rerender({ cue: close, jumpKey: null });
+      const still = jumped(clock, true);
+      still.rerender({ cue: close, jumpKey: "1" });
+      for (const { result } of [played, still]) {
+        expect(result.current).toMatchObject({
+          moving: false,
+          jumping: false,
+          density: 1.25,
+        });
+      }
+    });
+  });
+
   it("draws nothing until the window and the plane are measured", () => {
     const { result } = renderHook(() =>
       useCamera(
@@ -219,6 +302,7 @@ describe("useCamera", () => {
       moving: false,
       density: 1,
       gliding: false,
+      jumping: false,
     });
   });
 });

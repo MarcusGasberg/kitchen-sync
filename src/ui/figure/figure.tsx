@@ -332,6 +332,9 @@ function FigureBody({
             scale={scale ?? 1}
             cue={cue}
             reduced={reduced}
+            jumpKey={
+              view.mode === "scene" && view.jumped ? String(view.screen) : null
+            }
             shared={shared}
             speed={view.speed}
             // An ended scene lets its last drops finish settling.

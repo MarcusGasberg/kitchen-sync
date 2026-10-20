@@ -518,7 +518,7 @@ const framed = (
 
 // One step along the zoom path from `from` to `to` at eased `t`, kept on the
 // plane: a long pan's arc never shows more past its edges than its ends do.
-const along = (
+export const along = (
   from: View,
   to: View,
   t: number,

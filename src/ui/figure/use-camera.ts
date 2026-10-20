@@ -11,14 +11,15 @@ import {
   wideView,
 } from "./camera";
 import type { Cue, FreeFocus } from "./stage";
+import { type GlideClock, useGlide } from "./use-glide";
 
 // What the stage draws through the camera at a cue.
 export interface Camera {
   // The plane's view; null until the window and the plane are measured.
   readonly view: View | null;
   // Whether the camera is moving (a move, an ease within a frame, a pan's
-  // moving share): the plane is kept on the compositor, and the basins keep
-  // their density.
+  // moving share, a jump's glide): the plane is kept on the compositor, and
+  // the basins keep their density.
   readonly moving: boolean;
   // How many times sharper than the page the basins draw: taken at rest,
   // held while the camera moves.
@@ -27,6 +28,10 @@ export interface Camera {
   // first view has been drawn, so the first placement lands at once, and
   // never under reduced motion.
   readonly gliding: boolean;
+  // Whether a jump's glide carries the camera from the view on screen to
+  // where a step or a scrub landed (in a scene only): the camera is moving,
+  // and the stage's notes wait for it to land.
+  readonly jumping: boolean;
 }
 
 // The box each part of the server is measured as.
@@ -66,13 +71,20 @@ const freeView = (
 // The camera over the stage's plane at `cue`, with the bookkeeping its
 // views need across renders: the last view drawn (a shot whose subjects are
 // gone keeps it), the shot it was drawn for, the view drawn as the cue's
-// shot began, and the density held through motion.
+// shot began, and the density held through motion. A new `jumpKey` (a
+// step, a scrub, a restart) glides the view drawn there from the one on
+// screen (`useGlide`, on `clock`).
 export const useCamera = (
   cue: Cue,
   anchors: Anchors,
   size: Size,
   reduced: boolean,
+  options: {
+    readonly jumpKey?: string | null;
+    readonly clock?: GlideClock;
+  } = {},
 ): Camera => {
+  const { jumpKey = null, clock } = options;
   const ready = size.width > 0 && size.height > 0 && anchors.plane.width > 0;
 
   // The last view drawn, and the shot it was drawn for.
@@ -112,8 +124,18 @@ export const useCamera = (
           entry: entered ? entry.view : arriving,
         })
       : { view: freeView(cue.focus, anchors, size), moving: false };
-  const view = framed?.view ?? null;
-  const moving = framed?.moving === true;
+  // A jump glides from the view on screen to the one it landed on. The view
+  // drawn is the glided one: `last` keeps it, and the next shot eases from
+  // it.
+  const target = framed?.view ?? null;
+  const view = useGlide(target, jumpKey, {
+    anchors,
+    viewport: size,
+    reduced,
+    clock,
+  });
+  const jumping = view !== target;
+  const moving = framed?.moving === true || jumping;
   // Basins sharpen when the camera comes to rest, not while it moves.
   const held = useRef(1);
   const density =
@@ -130,5 +152,5 @@ export const useCamera = (
         : { cut: cutNow, shot: shotNow };
   });
 
-  return { view, moving, density, gliding };
+  return { view, moving, density, gliding, jumping };
 };

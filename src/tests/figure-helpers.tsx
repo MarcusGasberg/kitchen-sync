@@ -1,6 +1,7 @@
 import { act } from "@testing-library/react";
 import { vi } from "vitest";
 import type { FigureHost } from "#/ui/figure/figure-host";
+import type { GlideClock } from "#/ui/figure/use-glide";
 
 // A browser the test drives by hand: what shows, the reader's motion setting,
 // and when frames run. The hook's tests and the figure's share it.
@@ -61,6 +62,34 @@ export const fakeHost = (
         });
       }
     },
+  };
+};
+
+// A clock the test runs by hand: the time, and the frames waiting for it.
+// The glide's tests and the camera's share it.
+export const fakeClock = () => {
+  let time = 0;
+  let frames = new Map<number, () => void>();
+  let handle = 1;
+  const clock: GlideClock = {
+    now: () => time,
+    requestFrame: (callback) => {
+      frames.set(handle, callback);
+      return handle++;
+    },
+    cancelFrame: (h) => {
+      frames.delete(h);
+    },
+  };
+  return {
+    clock,
+    advance: (millis: number) =>
+      act(() => {
+        time += millis;
+        const due = frames;
+        frames = new Map();
+        for (const run of due.values()) run();
+      }),
   };
 };
 

@@ -128,6 +128,31 @@ const closeOn = (client: string, notes: Shot["notes"] = []): Cue => {
   };
 };
 
+// A held wide shot, as a step's opening after the light table is.
+const WIDE_SHOT: Cue = {
+  kind: "shot",
+  cut: {
+    shots: [
+      {
+        framing: "wide",
+        subjects: [],
+        from: 0,
+        to: 0,
+        rate: 0,
+        screen: 1000,
+        through: 0,
+        enact: null,
+        notes: [],
+        move: false,
+        opening: false,
+        step: 0,
+      },
+    ],
+    steps: [{ label: "Test.", first: 0, end: 1, startedAt: 0, endedAt: 0 }],
+  },
+  cursor: { shot: 0, offset: 0 },
+};
+
 // The scale in a plane's transform, or null with none.
 const scaleOf = (container: HTMLElement) => {
   const transform =
@@ -746,6 +771,50 @@ describe("Stage", () => {
     close.restore();
     expect(closeScale ?? 0).toBeGreaterThan(wideScale ?? 0);
     expect(closeScale ?? 3).toBeLessThanOrEqual(MAX_SCALE);
+  });
+
+  it("glides from the view on screen when a step or a scrub jumps, and holds the notes until it lands", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(LAYOUT);
+    const stage = (cue: Cue, jumpKey: string | null) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={cue}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+        jumpKey={jumpKey}
+      />
+    );
+    const { container, rerender, unmount } = render(stage(closeOn("A"), null));
+    const close = scaleOf(container) ?? 0;
+    // Play: the next shot's view at once.
+    rerender(stage(WIDE_SHOT, null));
+    const wide = scaleOf(container) ?? 0;
+    expect(wide).toBeLessThan(close);
+    // A jump back to the close-up: the camera sets off from the wide view,
+    // and the close-up's note waits for it to land.
+    rerender(
+      stage(
+        closeOn("A", [
+          { on: { kind: "device", client: "A" }, text: "Lands on A." },
+        ]),
+        "1",
+      ),
+    );
+    const leaving = scaleOf(container) ?? 0;
+    const words = container.textContent ?? "";
+    unmount();
+    restore();
+    expect(leaving).toBeCloseTo(wide, 2);
+    expect(words).not.toContain("Lands on A.");
   });
 
   it("sets the code's shared mark over the hold's first note", async () => {
