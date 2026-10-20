@@ -31,6 +31,7 @@ import {
   looksFor,
   NO_MARKS,
   rowLook,
+  STRIKE_MILLIS,
   slotLook,
   stageMarksAt,
 } from "#/ui/figure/stage-marks";
@@ -127,7 +128,13 @@ describe("rowLook", () => {
     });
   });
 
-  it("strikes a removed row at once and lets it go over LEAVE_MILLIS", () => {
+  it("draws a removed row's strike over STRIKE_MILLIS and lets it go over LEAVE_MILLIS", () => {
+    expect(rowLook("removed", 0, false).strike).toBe(0);
+    // Cubic ease-out: 1 − (1 − ½)³.
+    expect(rowLook("removed", STRIKE_MILLIS / 2, false).strike).toBeCloseTo(
+      0.875,
+    );
+    expect(rowLook("removed", STRIKE_MILLIS, false).strike).toBe(1);
     const going = rowLook("removed", 450, false);
     expect(going.strike).toBe(1);
     expect(going.leaving).toBeCloseTo(0.875);
