@@ -1,6 +1,9 @@
+import type { GroceryItem } from "#/domain/grocery-item";
 import {
   type ChangeKind,
   changesOf,
+  LEAVE_MILLIS,
+  leavingAt,
   WET_MILLIS,
   wetAt,
   wetKey,
@@ -30,6 +33,12 @@ export interface MarkInput {
 // A new row's ink spreading in from the start of its line.
 export const ROW_IN_MILLIS = 450;
 
+// A check soaking into its box, and then its strike drawing through the
+// name, starting as the soak is half done.
+export const SOAK_MILLIS = 600;
+export const STRIKE_FROM_MILLIS = 300;
+export const STRIKE_MILLIS = 400;
+
 // How a row's latest change stands.
 export interface RowLook {
   readonly kind: ChangeKind;
@@ -48,11 +57,15 @@ export interface RowLook {
 export interface StageMarks {
   // Each row's latest change while it is wet, by `wetKey(place, itemId)`.
   readonly rows: ReadonlyMap<string, RowLook>;
+  // The rows each place lost less than LEAVE_MILLIS ago, as they were: the
+  // stage holds them in their places while they go.
+  readonly leaving: ReadonlyMap<Place, ReadonlyArray<GroceryItem>>;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
 export const NO_MARKS: StageMarks = {
   rows: new Map(),
+  leaving: new Map(),
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -63,23 +76,46 @@ const wetness = (age: number, reduced: boolean): number => {
   return Math.min(1, Math.max(0, 1 - Math.max(0, age) / WET_MILLIS));
 };
 
-// A row's look `age` ms after its change landed. The box and the strike
-// stay as the change left them: full for a check, empty for an uncheck.
-// (The CSS reads them only for a check's own kinds.)
+// A row's look `age` ms after its change landed. A check soaks in, then
+// strikes through; an uncheck drains and retracts the same way; a removed
+// row is struck as it goes. The CSS reads soak and strike only for those
+// kinds: any other row draws its box and name as they are.
 export const rowLook = (
   kind: ChangeKind,
   age: number,
   reduced: boolean,
 ): RowLook => {
-  const done = kind === "unchecked" ? 0 : 1;
-  return {
+  const soaked = progress(age, SOAK_MILLIS, reduced);
+  // Under reduced motion the strike comes with the soak, not after it.
+  const struck = progress(
+    reduced ? age : age - STRIKE_FROM_MILLIS,
+    STRIKE_MILLIS,
+    reduced,
+  );
+  const look: RowLook = {
     kind,
-    inked: kind === "added" ? progress(age, ROW_IN_MILLIS, reduced) : 1,
-    soak: done,
-    strike: done,
+    inked: 1,
+    soak: 1,
+    strike: 1,
     wet: wetness(age, reduced),
     leaving: 0,
   };
+  switch (kind) {
+    case "added":
+      return { ...look, inked: progress(age, ROW_IN_MILLIS, reduced) };
+    case "checked":
+      return { ...look, soak: soaked, strike: struck };
+    case "unchecked":
+      return { ...look, soak: 1 - soaked, strike: 1 - struck };
+    case "removed":
+      return {
+        ...look,
+        strike: progress(age, STRIKE_MILLIS, reduced),
+        leaving: progress(age, LEAVE_MILLIS, reduced),
+      };
+    default:
+      return look;
+  }
 };
 
 // Every wet row's look.
@@ -91,9 +127,21 @@ const rowsAt = ({ timeline, index, ageOf, reduced }: MarkInput) => {
   return looks;
 };
 
+// Each place's rows that are going, in the order they went.
+const leavingOf = ({ timeline, index, ageOf }: MarkInput) => {
+  const byPlace = new Map<Place, Array<GroceryItem>>();
+  for (const { where, item } of leavingAt(timeline, index, ageOf)) {
+    const items = byPlace.get(where) ?? [];
+    items.push(item);
+    byPlace.set(where, items);
+  }
+  return byPlace;
+};
+
 // Every mark at a frame, each found by its own function from one input.
 export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
+  leaving: leavingOf(input),
 });
 
 // One place's row looks, by item id: what its list takes.

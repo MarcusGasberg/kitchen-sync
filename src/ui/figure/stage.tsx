@@ -5,16 +5,18 @@ import {
   useEffect,
   useEffectEvent,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
-import { type Cut, SERVER } from "#/lib/director/shots";
+import { type Cut, type Place, SERVER } from "#/lib/director/shots";
 import type { CutCursor } from "#/lib/director/timing";
 import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
 import type { ClientName } from "#/lib/sandbox/trace";
 import { Basin } from "#/ui/basin";
 import { Button } from "#/ui/button";
 import { GroceryList, type ListIntent } from "#/ui/grocery-list";
+import type { ListView } from "#/ui/list-view";
 import { Pane } from "#/ui/pane";
 import { QuickAdd } from "#/ui/quick-add";
 import { StatusBand } from "#/ui/status-band";
@@ -37,7 +39,7 @@ import { placeNotes, spotFor } from "./note-placement";
 import styles from "./stage.module.css";
 import { looksFor, NO_MARKS, type StageMarks } from "./stage-marks";
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
-import type { StageView } from "./stage-view";
+import { type StageView, withRows } from "./stage-view";
 import { useCamera } from "./use-camera";
 import { WireBand } from "./wire-band";
 import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
@@ -216,7 +218,22 @@ export function Stage({
 }: StageProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const plane = useRef<HTMLDivElement>(null);
-  const { measured, size } = useMeasure(viewport, plane, view);
+  // Rows held while they go lay the plane out as the view does: it is
+  // measured again when they come and go, not on every frame of their going.
+  const leavingKey = [...marks.leaving]
+    .map(([where, items]) => `${where}:${items.map((i) => i.id).join(",")}`)
+    .join(";");
+  const laidOut = useMemo(() => ({ view, leavingKey }), [view, leavingKey]);
+  const { measured, size } = useMeasure(viewport, plane, laidOut);
+  // A place's list with the rows it has just lost held in their places.
+  const listOf = (list: ListView, where: Place): ListView =>
+    withRows(
+      list,
+      (marks.leaving.get(where) ?? []).map((item) => ({
+        item,
+        presence: "leaving" as const,
+      })),
+    );
   const flying = placeFlights(measured.wires, flights);
   const gone = placeLost(measured.wires, lost);
   const anchors: Anchors = {
@@ -438,7 +455,7 @@ export function Stage({
                     data-anchor-key="list:server"
                   >
                     <GroceryList
-                      groups={server.list.groups}
+                      groups={listOf(server.list, SERVER).groups}
                       rejected={[]}
                       headingLevel={4}
                       density="compact"
@@ -528,7 +545,7 @@ export function Stage({
                         checks and removals from the hand-over. */}
                     {live ? (
                       <GroceryList
-                        groups={device.list.groups}
+                        groups={listOf(device.list, device.name).groups}
                         rejected={device.list.rejected}
                         headingLevel={4}
                         looks={looksFor(marks, device.name)}
@@ -536,7 +553,7 @@ export function Stage({
                       />
                     ) : (
                       <GroceryList
-                        groups={device.list.groups}
+                        groups={listOf(device.list, device.name).groups}
                         rejected={device.list.rejected}
                         headingLevel={4}
                         looks={looksFor(marks, device.name)}

@@ -1,7 +1,12 @@
-import type { GroceryItem } from "#/domain/grocery-item";
+import { Option } from "effect";
+import {
+  Categories,
+  type Category,
+  type GroceryItem,
+} from "#/domain/grocery-item";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
-import { type ListView, listView } from "#/ui/list-view";
+import { type Group, type ListView, listView, type Row } from "#/ui/list-view";
 import { waitingOf } from "#/ui/marbling/pattern";
 import { type SyncStatus, syncStatus } from "#/ui/sync-status";
 
@@ -158,4 +163,45 @@ export const makeStageView = () => {
       }),
     };
   };
+};
+
+// A row a figure sets into a list that does not hold it.
+export interface ExtraRow {
+  readonly item: GroceryItem;
+  readonly presence: NonNullable<Row["presence"]>;
+}
+
+// A list with rows it does not hold set in their places: each in its
+// category's group, after every row of its order or less, a group made for
+// it in the app's category order if the list has none. A group's count of
+// rows left is of the rows that are there.
+export const withRows = (
+  list: ListView,
+  extra: ReadonlyArray<ExtraRow>,
+): ListView => {
+  if (extra.length === 0) return list;
+  const rowsOf = new Map<Category | null, Array<Row>>(
+    list.groups.map((group) => [group.category, [...group.rows]]),
+  );
+  for (const { item, presence } of extra) {
+    const category = Option.getOrNull(item.category);
+    const rows = rowsOf.get(category) ?? [];
+    const after = rows.findIndex((row) => row.item.order > item.order);
+    rows.splice(after < 0 ? rows.length : after, 0, {
+      item,
+      sync: { kind: "synced" },
+      presence,
+    });
+    rowsOf.set(category, rows);
+  }
+  const order: ReadonlyArray<Category | null> = [...Categories, null];
+  const groups = order.flatMap((category): Array<Group> => {
+    const rows = rowsOf.get(category);
+    if (rows === undefined) return [];
+    const left = rows.filter(
+      (row) => row.presence === undefined && !row.item.checked,
+    ).length;
+    return [{ category, rows, left }];
+  });
+  return { ...list, groups };
 };

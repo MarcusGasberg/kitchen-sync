@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { Effect } from "effect";
+import { DateTime, Effect, Option } from "effect";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { GroceryItem } from "#/domain/grocery-item";
 import { wetKey } from "#/lib/director/marks";
 import type { Cut, Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
@@ -11,7 +12,7 @@ import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, type FreeFocus, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
-import { NO_MARKS, rowLook } from "#/ui/figure/stage-marks";
+import { NO_MARKS, rowLook, type StageMarks } from "#/ui/figure/stage-marks";
 import { FOOT_MIN } from "#/ui/figure/stage-notes";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
 import { rect, stubLayout } from "./figure-helpers";
@@ -139,6 +140,71 @@ describe("Stage", () => {
     expect(row("A")?.dataset.change).toBe("added");
     expect(row("B")?.dataset.change).toBeUndefined();
     expect(row("Server")?.dataset.change).toBeUndefined();
+  });
+
+  // A removed row holds its place while it goes, out of the accessibility
+  // tree. The plane is measured again once it has gone, not on every frame
+  // of its going.
+  it("holds a removed row in its place while it goes, and measures the plane again once it has gone", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const eggs = new GroceryItem({
+      id: crypto.randomUUID(),
+      name: "Eggs",
+      quantity: 1,
+      unit: Option.none(),
+      category: Option.none(),
+      createdAt: DateTime.makeUnsafe(0),
+      checked: false,
+      order: 5,
+      version: 1,
+    });
+    const going = (age: number): StageMarks => ({
+      ...NO_MARKS,
+      rows: new Map([[wetKey("A", eggs.id), rowLook("removed", age, false)]]),
+      leaving: new Map([["A", [eggs]]]),
+    });
+    const stage = (marks: StageMarks) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+        marks={marks}
+      />
+    );
+    const restore = stubLayout(LAYOUT);
+    const measures = () =>
+      vi.mocked(Element.prototype.getBoundingClientRect).mock.calls.length;
+    const { container, rerender } = render(stage(going(300)));
+    const held = container.querySelector<HTMLElement>(
+      "[data-anchor-key='device:A'] [data-presence='leaving']",
+    );
+    expect(held?.textContent).toContain("Eggs");
+    expect(held?.getAttribute("aria-hidden")).toBe("true");
+    expect(held?.dataset.change).toBe("removed");
+    expect(
+      container.querySelector(
+        "[data-anchor-key='device:B'] [data-presence='leaving']",
+      ),
+    ).toBeNull();
+    // Going on, frame by frame: the same rows, so the same layout.
+    const before = measures();
+    rerender(stage(going(600)));
+    expect(measures()).toBe(before);
+    // Gone: the layout changed, so the plane is measured again.
+    rerender(stage(NO_MARKS));
+    const after = measures();
+    restore();
+    expect(container.querySelector("[data-presence='leaving']")).toBeNull();
+    expect(after).toBeGreaterThan(before);
   });
 
   it("takes a reader's changes in free play, naming the device", async () => {

@@ -129,21 +129,29 @@ function GroupSection({
         <span className={styles.left}>{group.left} left</span>
       </header>
       <ul>
-        {group.rows.map(({ item, sync }) => (
+        {group.rows.map(({ item, sync, presence }) => (
           <ItemRow
             key={item.id}
             item={item}
             sync={sync}
             density={density}
             look={looks?.get(item.id)}
+            presence={presence}
+            // A row the list does not hold takes nothing.
             onCheck={
-              onIntent &&
-              ((checked) =>
-                onIntent({ _tag: "SetItemChecked", itemId: item.id, checked }))
+              onIntent && presence === undefined
+                ? (checked) =>
+                    onIntent({
+                      _tag: "SetItemChecked",
+                      itemId: item.id,
+                      checked,
+                    })
+                : undefined
             }
             onRemove={
-              onIntent &&
-              (() => onIntent({ _tag: "RemoveItem", itemId: item.id }))
+              onIntent && presence === undefined
+                ? () => onIntent({ _tag: "RemoveItem", itemId: item.id })
+                : undefined
             }
           />
         ))}

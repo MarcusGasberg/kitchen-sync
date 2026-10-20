@@ -20,6 +20,9 @@ export type RowSync =
 export interface Row {
   readonly item: GroceryItem;
   readonly sync: RowSync;
+  // A figure's row the list does not hold: one the device has not pulled
+  // yet (a ghost), or one just removed, held in its place while it goes.
+  readonly presence?: "ghost" | "leaving";
 }
 
 export interface Group {

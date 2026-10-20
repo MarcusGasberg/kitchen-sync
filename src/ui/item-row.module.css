@@ -221,3 +221,67 @@ label.label {
     forced-color-adjust: none;
   }
 }
+
+/* A check soaks in: ink fills the box from its centre (--row-soak, how full
+   it is) and a strike draws through the name from its start (--row-strike,
+   how much is drawn). An uncheck drains and retracts the same way, and a
+   removed row is struck as it goes. A row the figure is not marking keeps
+   the drawing above. */
+.row[data-change="checked"] .check,
+.row[data-change="unchecked"] .check {
+  border-color: color-mix(
+    in oklab,
+    var(--text) calc(var(--row-soak, 0) * 100%),
+    var(--edge)
+  );
+  background: radial-gradient(
+    circle closest-side,
+    var(--text) calc(var(--row-soak, 0) * 100%),
+    transparent calc(var(--row-soak, 0) * 100%)
+  );
+  transition: none;
+}
+
+.row[data-change="checked"] .what,
+.row[data-change="unchecked"] .what,
+.row[data-change="removed"] .what {
+  position: relative;
+  text-decoration: none;
+}
+
+.row[data-change="checked"] .what::after,
+.row[data-change="unchecked"] .what::after,
+.row[data-change="removed"] .what::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 55%;
+  height: var(--rule);
+  background: currentColor;
+  transform: scaleX(var(--row-strike, 0));
+  transform-origin: 0 50%;
+}
+
+/* A removed row holds its place while it goes (--row-leaving, 0 to 1): it
+   fades to the spotlight's 35%, struck, and the stage then drops it in one
+   step. Under reduced motion that struck, faded row is its still form. */
+.row[data-presence="leaving"] {
+  opacity: calc(1 - 0.65 * var(--row-leaving, 0));
+}
+
+@media (forced-colors: active) {
+  .row[data-change="checked"] .check,
+  .row[data-change="unchecked"] .check {
+    border-color: CanvasText;
+    background: radial-gradient(
+      circle closest-side,
+      CanvasText calc(var(--row-soak, 0) * 100%),
+      transparent calc(var(--row-soak, 0) * 100%)
+    );
+  }
+
+  .row[data-change] .what::after {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}

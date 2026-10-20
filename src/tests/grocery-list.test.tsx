@@ -181,6 +181,53 @@ describe("a row's look", () => {
       screen.getByText("Bread").closest("li")?.dataset.change,
     ).toBeUndefined();
   });
+
+  it("soaks a check in and strikes the name by its look", () => {
+    render(
+      <ul>
+        <ItemRow
+          item={item("Eggs", { checked: true })}
+          sync={{ kind: "synced" }}
+          look={rowLook("checked", 300, false)}
+        />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.dataset.change).toBe("checked");
+    expect(Number(row.style.getPropertyValue("--row-soak"))).toBeCloseTo(0.875);
+    expect(Number(row.style.getPropertyValue("--row-strike"))).toBe(0);
+  });
+
+  // A row going holds its place for the eye only: no target, nothing read.
+  it("holds a leaving row read-only and out of the accessibility tree", () => {
+    const eggs = item("Eggs");
+    const milk = item("Milk");
+    const { container } = render(
+      <GroceryList
+        groups={[
+          {
+            category: null,
+            rows: [
+              { item: eggs, sync: { kind: "synced" } },
+              { item: milk, sync: { kind: "synced" }, presence: "leaving" },
+            ],
+            left: 1,
+          },
+        ]}
+        rejected={[]}
+        onIntent={() => {}}
+      />,
+    );
+    const leaving = container.querySelector<HTMLElement>(
+      "[data-presence='leaving']",
+    );
+    expect(leaving?.textContent).toContain("Milk");
+    expect(leaving?.getAttribute("aria-hidden")).toBe("true");
+    expect(leaving?.dataset.readonly).toBe("true");
+    expect(leaving?.querySelector("input, button")).toBeNull();
+    // The row that is there keeps its controls.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+  });
 });
 
 describe("RejectedRow", () => {

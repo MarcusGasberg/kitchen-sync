@@ -1,6 +1,7 @@
 import { it } from "@effect/vitest";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, Option } from "effect";
 import { describe, expect } from "vitest";
+import { type Category, GroceryItem } from "#/domain/grocery-item";
 import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
 import { EMPTY_STATE } from "#/lib/store";
@@ -9,7 +10,9 @@ import {
   LABELLED,
   makeStageView,
   mostRows,
+  withRows,
 } from "#/ui/figure/stage-view";
+import { listView } from "#/ui/list-view";
 import { syncStatus } from "#/ui/sync-status";
 import { add } from "./sandbox-helpers";
 
@@ -107,4 +110,61 @@ describe("mostRows", () => {
         Effect.provide(World.layer({ clients: ["A", "B"], seed: "most" })),
       ),
   );
+});
+
+describe("withRows", () => {
+  const row = (name: string, category: Category, order: number) =>
+    new GroceryItem({
+      id: crypto.randomUUID(),
+      name,
+      quantity: 1,
+      unit: Option.none(),
+      category: Option.some(category),
+      createdAt: DateTime.makeUnsafe(0),
+      checked: false,
+      order,
+      version: 1,
+    });
+  const listOf = (items: ReadonlyArray<GroceryItem>) =>
+    listView({
+      ...EMPTY_STATE,
+      items: new Map(items.map((item) => [item.id, item])),
+    });
+  const bananas = row("Bananas", "Produce", 1);
+  const rye = row("Rye bread", "Bakery", 2);
+  const spinach = row("Spinach", "Produce", 3);
+
+  it("puts a row in its category at its order, and counts only rows that are there", () => {
+    const kale = row("Kale", "Produce", 2);
+    const shown = withRows(listOf([bananas, rye, spinach]), [
+      { item: kale, presence: "leaving" },
+    ]);
+    expect(
+      shown.groups.map((g) => [
+        g.category,
+        g.rows.map((r) => r.item.name),
+        g.left,
+      ]),
+    ).toEqual([
+      ["Produce", ["Bananas", "Kale", "Spinach"], 2],
+      ["Bakery", ["Rye bread"], 1],
+    ]);
+    expect(shown.groups[0]?.rows[1]?.presence).toBe("leaving");
+    expect(shown.groups[0]?.rows[0]?.presence).toBeUndefined();
+  });
+
+  it("makes a group for a row whose category the list lacks, in the app's order", () => {
+    const shown = withRows(listOf([rye]), [
+      { item: row("Oat milk", "Dairy", 4), presence: "ghost" },
+    ]);
+    expect(shown.groups.map((g) => [g.category, g.left])).toEqual([
+      ["Dairy", 0],
+      ["Bakery", 1],
+    ]);
+  });
+
+  it("returns the list itself when there is nothing to add", () => {
+    const list = listOf([rye]);
+    expect(withRows(list, [])).toBe(list);
+  });
 });

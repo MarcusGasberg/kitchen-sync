@@ -6,6 +6,7 @@ import type {
   Timeline,
   WorldSnapshot,
 } from "#/lib/sandbox/trace";
+import type { AgeOf } from "./reveal";
 import { type Place, SERVER } from "./shots";
 
 // What changed where: marks a stage draws from the trace itself, whatever
@@ -220,6 +221,44 @@ export const wetAt = (
     }
   }
   return wet;
+};
+
+// How long a removed row holds its place while it goes, in screen
+// milliseconds at 1×.
+export const LEAVE_MILLIS = 900;
+
+export interface Leaving {
+  readonly where: Place;
+  // The row as its place held it before it went.
+  readonly item: GroceryItem;
+  readonly age: number;
+}
+
+// The rows removed less than LEAVE_MILLIS ago with the frame at entry
+// `index` shown, oldest first. A change's entry is the first to show it, so
+// the entry before still holds the row. Newer changes are younger, so the
+// walk back stops at the first one LEAVE_MILLIS old.
+export const leavingAt = (
+  timeline: Timeline,
+  index: number,
+  ageOf: AgeOf,
+): ReadonlyArray<Leaving> => {
+  const changes = changesOf(timeline);
+  const leaving: Array<Leaving> = [];
+  for (let i = changes.length - 1; i >= 0; i--) {
+    const change = changes[i];
+    if (change === undefined || change.index > index) continue;
+    const age = ageOf(change.index);
+    if (age >= LEAVE_MILLIS) break;
+    if (change.kind !== "removed" || age < 0) continue;
+    const before = timeline.entries[change.index - 1]?.snapshot;
+    const item =
+      change.where === SERVER
+        ? before?.server.items.find((row) => row.id === change.itemId)
+        : before?.clients.get(change.where)?.items.get(change.itemId);
+    if (item !== undefined) leaving.push({ where: change.where, item, age });
+  }
+  return leaving.reverse();
 };
 
 // The server's rows a device has not pulled yet, drawn as ghosts ("not here

@@ -2,7 +2,7 @@ import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
 import { compile } from "#/lib/director/compile";
-import { changesOf, wetKey } from "#/lib/director/marks";
+import { changesOf, LEAVE_MILLIS, wetKey } from "#/lib/director/marks";
 import { sceneAges } from "#/lib/director/reveal";
 import type { Cut } from "#/lib/director/shots";
 import {
@@ -20,7 +20,7 @@ import {
   rowLook,
   stageMarksAt,
 } from "#/ui/figure/stage-marks";
-import { OAT_SCENE } from "./director-helpers";
+import { OAT_SCENE, REMOVE_FIRST_SCENE } from "./director-helpers";
 
 // The marks at a cursor, as a figure computes them for its frame.
 const marksAt = (
@@ -86,6 +86,46 @@ describe("rowLook", () => {
     expect(rowLook("added", 2999, true).wet).toBe(1);
     expect(rowLook("added", 3000, true).wet).toBe(0);
   });
+
+  it("soaks a check into its box, then strikes the name; an uncheck drains", () => {
+    expect(rowLook("checked", 0, false)).toMatchObject({ soak: 0, strike: 0 });
+    const soaking = rowLook("checked", 300, false);
+    expect(soaking.soak).toBeCloseTo(0.875);
+    expect(soaking.strike).toBe(0);
+    const striking = rowLook("checked", 600, false);
+    expect(striking.soak).toBe(1);
+    expect(striking.strike).toBeCloseTo(1 - 0.25 ** 3);
+    expect(rowLook("checked", 700, false)).toMatchObject({
+      soak: 1,
+      strike: 1,
+    });
+    const draining = rowLook("unchecked", 300, false);
+    expect(draining.soak).toBeCloseTo(0.125);
+    expect(draining.strike).toBe(1);
+    expect(rowLook("unchecked", 700, false)).toMatchObject({
+      soak: 0,
+      strike: 0,
+    });
+  });
+
+  it("strikes a removed row at once and lets it go over LEAVE_MILLIS", () => {
+    const going = rowLook("removed", 450, false);
+    expect(going.strike).toBe(1);
+    expect(going.leaving).toBeCloseTo(0.875);
+    expect(rowLook("removed", LEAVE_MILLIS, false).leaving).toBe(1);
+  });
+
+  it("checks and goes at once under reduced motion", () => {
+    expect(rowLook("checked", 0, true)).toMatchObject({ soak: 1, strike: 1 });
+    expect(rowLook("unchecked", 0, true)).toMatchObject({
+      soak: 0,
+      strike: 0,
+    });
+    expect(rowLook("removed", 0, true)).toMatchObject({
+      strike: 1,
+      leaving: 1,
+    });
+  });
 });
 
 describe("stageMarksAt", () => {
@@ -125,6 +165,40 @@ describe("stageMarksAt", () => {
         sightOf(cut, timeline, oat.index, -1),
       );
       expect(before.rows.has(key)).toBe(false);
+    }),
+  );
+
+  it.effect("holds A's removed bananas in place while they go, struck", () =>
+    Effect.gen(function* () {
+      const result = yield* runHeadless(REMOVE_FIRST_SCENE);
+      const cut = compile(result, REMOVE_FIRST_SCENE);
+      const { timeline } = result;
+      const removed = changesOf(timeline).find(
+        (c) => c.where === "A" && c.kind === "removed",
+      );
+      if (removed === undefined) throw new Error("A removes nothing.");
+      const key = wetKey("A", removed.itemId);
+
+      const going = marksAt(
+        cut,
+        timeline,
+        sightOf(cut, timeline, removed.index, 450),
+      );
+      expect(going.leaving.get("A")?.map((item) => item.name)).toEqual([
+        "Bananas",
+      ]);
+      expect(going.rows.get(key)).toMatchObject({
+        kind: "removed",
+        strike: 1,
+      });
+      expect(going.rows.get(key)?.leaving).toBeCloseTo(0.875);
+
+      const gone = marksAt(
+        cut,
+        timeline,
+        sightOf(cut, timeline, removed.index, LEAVE_MILLIS + 1),
+      );
+      expect(gone.leaving.get("A")).toBeUndefined();
     }),
   );
 });

@@ -8,6 +8,8 @@ import {
   diffItems,
   entryBeforeUpdate,
   ghostsOf,
+  LEAVE_MILLIS,
+  leavingAt,
   WET_MILLIS,
   wetAt,
   wetKey,
@@ -165,4 +167,38 @@ describe("wetAt", () => {
     const later = wetAt(changes, 6, (index) => (6 - index) * 4000);
     expect([...later.keys()]).toEqual([wetKey("server", "y")]);
   });
+});
+
+describe("leavingAt", () => {
+  it.effect("holds a removed row, as it was, for LEAVE_MILLIS", () =>
+    Effect.gen(function* () {
+      const { timeline } = yield* runHeadless(REMOVE_FIRST_SCENE);
+      const changes = changesOf(timeline);
+      const onA = changes.find((c) => c.where === "A" && c.kind === "removed");
+      if (onA === undefined) throw new Error("A removes nothing.");
+      // A's removal seen `age` ms ago; every change before it long ago.
+      const leaving = (index: number, age: number) =>
+        leavingAt(timeline, index, (at) =>
+          at === index ? age : Number.POSITIVE_INFINITY,
+        ).map((l) => [l.where, l.item.name, l.item.checked, l.age]);
+
+      expect(leaving(onA.index, 0)).toEqual([["A", "Bananas", false, 0]]);
+      expect(leaving(onA.index, LEAVE_MILLIS - 1)).toEqual([
+        ["A", "Bananas", false, LEAVE_MILLIS - 1],
+      ]);
+      expect(leaving(onA.index, LEAVE_MILLIS)).toEqual([]);
+      // Not seen yet: not going yet.
+      expect(leaving(onA.index, -1)).toEqual([]);
+
+      // The server's row goes when the server removes it.
+      const onServer = changes.find(
+        (c) => c.where === "server" && c.kind === "removed",
+      );
+      if (onServer === undefined)
+        throw new Error("The server removes nothing.");
+      expect(leaving(onServer.index, 0)).toEqual([
+        ["server", "Bananas", false, 0],
+      ]);
+    }),
+  );
 });

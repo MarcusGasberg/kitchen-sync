@@ -4,7 +4,7 @@ import type { GroceryItem } from "#/domain/grocery-item";
 import type { RowLook } from "#/ui/figure/stage-marks";
 import { VERB } from "./intent-words";
 import styles from "./item-row.module.css";
-import type { RowSync } from "./list-view";
+import type { Row, RowSync } from "./list-view";
 
 // "2 l": a row's quantity and unit, set bold before its name.
 const amount = (item: GroceryItem) =>
@@ -28,6 +28,9 @@ interface ItemRowProps {
   // How a figure draws the row's latest change on its clock: wet, its ink
   // spreading in. Absent, the row is drawn as it is, as the app draws it.
   readonly look?: RowLook;
+  // A figure's row the list does not hold (`Row.presence`): read-only, and a
+  // row that is going is hidden from the accessibility tree.
+  readonly presence?: Row["presence"];
 }
 
 // A look as the custom properties the row's CSS draws it by.
@@ -51,6 +54,7 @@ export function ItemRow({
   onRemove,
   density = "regular",
   look,
+  presence,
 }: ItemRowProps) {
   const text = (
     <span className={styles.what}>
@@ -66,6 +70,8 @@ export function ItemRow({
       data-readonly={onCheck === undefined}
       data-density={density}
       data-change={look?.kind}
+      data-presence={presence}
+      aria-hidden={presence === "leaving" || undefined}
       style={look === undefined ? undefined : lookStyle(look)}
     >
       {onCheck ? (
