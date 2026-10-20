@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { it } from "@effect/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { DateTime, Effect, Option } from "effect";
@@ -560,5 +562,55 @@ describe("a ghost row", () => {
     expect(
       screen.queryByRole("button", { name: "Remove Rye bread" }),
     ).toBeNull();
+  });
+
+  // A ghost keeps a remove column in a device's list, scene or free play,
+  // with the cross hidden: the box is the same either side of the hand-over,
+  // and the row offers no removal the device could not make.
+  it("keeps a hidden remove column in a device's list, in a scene and in free play", () => {
+    const bread = item("Rye bread");
+    const list = withRows(viewOf([]), [{ item: bread, presence: "ghost" }]);
+    const drawn = (props: {
+      inertControls?: boolean;
+      onIntent?: () => void;
+    }) => {
+      const { container, unmount } = render(
+        <GroceryList groups={list.groups} rejected={[]} {...props} />,
+      );
+      const row = container.querySelector<HTMLElement>("li[data-item]");
+      const replica = row?.querySelector<HTMLElement>("[data-inert]");
+      const look = {
+        controls: row?.dataset.controls,
+        readonly: row?.dataset.readonly,
+        hidden: replica?.getAttribute("aria-hidden"),
+        buttons: container.querySelectorAll("button").length,
+        reachable: container.querySelectorAll("a, input, button").length,
+      };
+      unmount();
+      return look;
+    };
+    const scene = drawn({ inertControls: true });
+    const free = drawn({ onIntent: () => {} });
+    expect(scene).toEqual({
+      controls: "inert",
+      readonly: "true",
+      hidden: "true",
+      buttons: 0,
+      reachable: 0,
+    });
+    expect(free).toEqual(scene);
+    // The server's list (no intents, no replicas) keeps its compact grid.
+    expect(drawn({}).controls).toBeUndefined();
+  });
+
+  // jsdom draws no styles, so the cross's hiding is pinned where it is written.
+  it("hides the cross, and keeps its column", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/ui/item-row.module.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.row\[data-presence="ghost"\] \.remove\[data-inert\] \{[^}]*visibility: hidden;/,
+    );
   });
 });

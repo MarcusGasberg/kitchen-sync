@@ -160,7 +160,12 @@ function GroupSection({
                 ? { at: touch.at, progress: touch.progress }
                 : undefined
             }
-            inertControls={inertControls}
+            // A ghost in a device's list, a scene's or free play's, keeps the
+            // remove column (its cross hidden), so its box is the same on
+            // both sides of the hand-over.
+            inertControls={
+              inertControls || (presence === "ghost" && onIntent !== undefined)
+            }
             // A row the list does not hold takes nothing.
             onCheck={
               onIntent && presence === undefined

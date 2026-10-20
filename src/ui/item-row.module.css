@@ -341,6 +341,12 @@ label.label {
   border-color: var(--ink-3);
 }
 
+/* It keeps the remove column, so its box is the live row's, and hides the
+   cross: the device could never make that removal. */
+.row[data-presence="ghost"] .remove[data-inert] {
+  visibility: hidden;
+}
+
 .ghost {
   color: var(--text-3);
   font: 400 var(--text-xs) / 1.25 var(--font-text);
