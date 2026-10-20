@@ -34,7 +34,7 @@ export function DeviceStatus({
         {version !== null && (
           <>
             v<Odometer value={version} roll={roll} />
-            {" · "}
+            {shown !== null && " · "}
           </>
         )}
         {shown}

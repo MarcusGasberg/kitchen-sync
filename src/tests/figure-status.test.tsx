@@ -109,6 +109,30 @@ describe("DeviceStatus", () => {
     expect(spoken(container)).toBe("v5 · 1 acked · 1 behind");
   });
 
+  // What a sighted reader sees: everything but the visually hidden line.
+  const drawn = (container: HTMLElement) => {
+    const copy = container.cloneNode(true) as HTMLElement;
+    for (const node of copy.querySelectorAll(".visually-hidden")) node.remove();
+    return copy.textContent;
+  };
+
+  it("draws one separator before the tag, and none doubled", () => {
+    const behind = { versions: 1, shown: 1 };
+    const synced = render(
+      <DeviceStatus version={5} words="synced" behind={behind} />,
+    );
+    expect(drawn(synced.container)).toBe("v5 · 1 behind");
+    synced.unmount();
+    const acked = render(
+      <DeviceStatus version={5} words="1 acked" behind={behind} />,
+    );
+    expect(drawn(acked.container)).toBe("v5 · 1 acked · 1 behind");
+    acked.unmount();
+    const plain = render(<DeviceStatus version={5} words="synced" />);
+    expect(drawn(plain.container)).toBe("v5 · synced");
+    expect(drawn(plain.container)).not.toContain("· ·");
+  });
+
   it("says only its words while connecting, and nothing of behind unless told", () => {
     const { container } = render(
       <DeviceStatus version={null} words="connecting" />,
