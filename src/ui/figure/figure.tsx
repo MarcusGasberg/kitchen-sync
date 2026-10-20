@@ -326,7 +326,8 @@ function FigureBody({
             cue={cue}
             reduced={reduced}
             speed={view.speed}
-            playing={view.playing}
+            // An ended scene lets its last drops finish settling.
+            playing={view.playing || view.ended}
             marks={marks}
             group={world}
             onFocus={setFocus}
