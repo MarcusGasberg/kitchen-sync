@@ -87,12 +87,26 @@ describe("DeviceStatus", () => {
         behind={{ versions: 1, shown: 0.5 }}
       />,
     );
-    expect(screen.getByText("v7 · synced").className).toBe("visually-hidden");
-    const tag = screen.getByText("1 behind");
+    expect(screen.getByText("v7 · 1 behind").className).toBe("visually-hidden");
+    const tag = screen.getByText("1 behind").parentElement as HTMLElement;
     expect(tag.style.opacity).toBe("0.5");
-    expect(spoken(container)).toBe("v7 · synced1 behind");
+    // The separator fades in with the tag, and "synced" gives way to it.
+    expect(tag.textContent).toBe(" · 1 behind");
+    expect(spoken(container)).toBe("v7 · 1 behind");
+    expect(container.textContent).not.toMatch(/synced/);
     // The rolling digit is drawn, hidden from a screen reader.
     expect(container.querySelector("[data-rolling]")).not.toBeNull();
+  });
+
+  it("keeps words other than synced beside the tag, joined with a separator", () => {
+    const { container } = render(
+      <DeviceStatus
+        version={5}
+        words="1 acked"
+        behind={{ versions: 1, shown: 1 }}
+      />,
+    );
+    expect(spoken(container)).toBe("v5 · 1 acked · 1 behind");
   });
 
   it("says only its words while connecting, and nothing of behind unless told", () => {

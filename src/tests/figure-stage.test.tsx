@@ -327,7 +327,7 @@ describe("Stage", () => {
       />,
     );
     const b = screen.getByRole("region", { name: "B" });
-    expect(within(b).getByText("1 behind")).toBeTruthy();
+    expect(within(b).getByText("v1 · 1 behind")).toBeTruthy();
     expect(
       within(screen.getByRole("region", { name: "A" })).queryByText(/behind/),
     ).toBeNull();

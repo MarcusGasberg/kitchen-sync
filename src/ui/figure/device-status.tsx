@@ -14,14 +14,19 @@ interface DeviceStatusProps {
 // A pane's state line as a figure draws it: the version rolling on as it
 // changes, the state's words, and, from the poke that tells a device until
 // the pull that catches it up, a fresh-ink tag saying how far behind it is.
-// Screen readers read the plain line, then the tag.
+// "Behind" takes the place of "synced", never sits beside it. Screen readers
+// read the one plain line, tag included.
 export function DeviceStatus({
   version,
   words,
   roll,
   behind,
 }: DeviceStatusProps) {
-  const line = version === null ? words : `v${version} · ${words}`;
+  const shown = behind !== undefined && words === "synced" ? null : words;
+  const tag = behind === undefined ? null : `${behind.versions} behind`;
+  const line = [version === null ? null : `v${version}`, shown, tag]
+    .filter((part) => part !== null)
+    .join(" · ");
   return (
     <span className={styles.status}>
       <span className="visually-hidden">{line}</span>
@@ -32,11 +37,16 @@ export function DeviceStatus({
             {" · "}
           </>
         )}
-        {words}
+        {shown}
       </span>
       {behind !== undefined && (
-        <span className={styles.behind} style={{ opacity: behind.shown }}>
-          {behind.versions} behind
+        <span
+          className={styles.tag}
+          aria-hidden="true"
+          style={{ opacity: behind.shown }}
+        >
+          {(version !== null || shown !== null) && " · "}
+          <span className={styles.behind}>{tag}</span>
         </span>
       )}
     </span>

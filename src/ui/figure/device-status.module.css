@@ -23,9 +23,14 @@
   transform: translateY(calc(var(--roll, 0) * -1lh));
 }
 
+/* The tag fades in whole, separator and all; the separator keeps the line's
+   own colour, and only the words after it are fresh ink. */
+.tag {
+  color: var(--text-2);
+}
+
 /* Behind: the one fresh-ink word in the line, from the poke to the pull. */
 .behind {
-  margin-inline-start: var(--space-2);
   color: var(--ink-fresh);
 }
 
