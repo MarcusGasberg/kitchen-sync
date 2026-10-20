@@ -9,9 +9,17 @@ import {
   useRef,
   useState,
 } from "react";
-import { freeAges, sceneAges } from "#/lib/director/reveal";
+import {
+  type AgeOf,
+  type FreeOpening,
+  freeAges,
+  freeOpening,
+  sceneAges,
+} from "#/lib/director/reveal";
 import { frameAt, lostAt } from "#/lib/sandbox/frame";
+import type { Player } from "#/lib/sandbox/player";
 import type { Scene } from "#/lib/sandbox/scene";
+import type { Timeline } from "#/lib/sandbox/trace";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
@@ -64,6 +72,14 @@ export interface FigureProps {
 }
 
 const FREE_PLAY = "Your turn: change a list, or break the network.";
+
+// Free play's opening once the reader has gone back before it: from then on
+// they watch the world's history arrive on the world's clock, the way
+// forward again included.
+const REWOUND: FreeOpening = {
+  openedAt: Number.NEGATIVE_INFINITY,
+  ageAt: () => null,
+};
 
 // Keys a control handles itself, and code a keyboard scrolls: the figure's
 // own keys leave them alone.
@@ -150,6 +166,51 @@ function FigureBody({
   );
   const offered = breaks ?? offlineToggles(scene.world.clients);
 
+  // Where the playhead is in the scene's cut; null in free play, which is
+  // not shot.
+  const playhead =
+    view !== null &&
+    view.mode === "scene" &&
+    view.cut !== null &&
+    view.shot !== null
+      ? { cut: view.cut, cursor: { shot: view.shot, offset: view.offset } }
+      : null;
+  // The vocabulary's clock: the cut's screen time in a scene, the world's
+  // own time in free play. It carries on across the hand-over: free play
+  // opens on the ages of the reader's last frame of the scene (`watched`),
+  // or, in a figure that opens free, on a world at rest, and keeps that
+  // opening until the figure is back in a scene, restarts, or the reader
+  // goes back before it.
+  const sceneAgeOf =
+    view === null || playhead === null
+      ? null
+      : sceneAges(playhead.cut, view.timeline, playhead.cursor);
+  const watched = useRef<{
+    readonly timeline: Timeline;
+    readonly ageOf: AgeOf;
+  } | null>(null);
+  const opened = useRef<FreeOpening | null>(null);
+  const opening =
+    view === null || view.mode !== "free"
+      ? null
+      : opened.current === null
+        ? free === true || watched.current === null
+          ? freeOpening(view.timeline, null, view.at)
+          : freeOpening(
+              watched.current.timeline,
+              watched.current.ageOf,
+              view.at,
+            )
+        : view.at < opened.current.openedAt
+          ? REWOUND
+          : opened.current;
+  useEffect(() => {
+    opened.current = opening;
+    if (view !== null && sceneAgeOf !== null) {
+      watched.current = { timeline: view.timeline, ageOf: sceneAgeOf };
+    }
+  });
+
   // A hand-over the reader asked for takes away the control they pressed
   // (Your turn) or disables it while the fork builds (a breaking control),
   // and a browser can drop focus to the page with it. Once the world is in
@@ -188,6 +249,11 @@ function FigureBody({
     handingOver.current = true;
     run(effect);
   };
+  // A restart opens free play afresh, however far back the reader had gone.
+  const restart = (restarting: Player) => {
+    opened.current = null;
+    run(restarting.restart);
+  };
 
   // A defect in a playing world stops the figure in place. This is the same
   // `<figure>` as the one below, so React keeps its element and the host goes
@@ -195,7 +261,7 @@ function FigureBody({
   if (view !== null && view.failure !== null && player !== null) {
     return (
       <figure ref={element} className={styles.stopped} aria-label={title}>
-        <Stopped message={view.failure} onRestart={() => run(player.restart)} />
+        <Stopped message={view.failure} onRestart={() => restart(player)} />
       </figure>
     );
   }
@@ -235,15 +301,6 @@ function FigureBody({
         ? (view.caption ?? FREE_PLAY)
         : view.caption;
 
-  // Where the playhead is in the scene's cut; null in free play, which is
-  // not shot.
-  const playhead =
-    view !== null &&
-    view.mode === "scene" &&
-    view.cut !== null &&
-    view.shot !== null
-      ? { cut: view.cut, cursor: { shot: view.shot, offset: view.offset } }
-      : null;
   const cue: Cue =
     playhead !== null
       ? { kind: "shot", ...playhead }
@@ -254,8 +311,7 @@ function FigureBody({
     playhead !== null && timeline !== undefined
       ? sharedMarkAt(playhead.cut, playhead.cursor, timeline, lit)
       : null;
-  // The vocabulary's marks at this frame, on the reveal clock: the cut's
-  // screen time in a scene, the world's own time in free play.
+  // The vocabulary's marks at this frame, on the reveal clock.
   const marks =
     view === null || frame === null
       ? NO_MARKS
@@ -263,10 +319,7 @@ function FigureBody({
           timeline: view.timeline,
           index: frame.index,
           snapshot: frame.snapshot,
-          ageOf:
-            playhead === null
-              ? freeAges(view.timeline, view.at)
-              : sceneAges(playhead.cut, view.timeline, playhead.cursor),
+          ageOf: sceneAgeOf ?? freeAges(view.timeline, view.at, opening),
           reduced,
           cut: playhead?.cut ?? null,
           cursor: playhead?.cursor ?? null,
@@ -302,7 +355,7 @@ function FigureBody({
             onPause={() => run(player.pause)}
             onPrevious={() => run(player.previous)}
             onNext={() => run(player.next)}
-            onRestart={() => run(player.restart)}
+            onRestart={() => restart(player)}
             onScrub={(at) => run(player.scrub(at))}
           />
         )}

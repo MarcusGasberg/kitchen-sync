@@ -1,4 +1,4 @@
-import type { Timeline } from "#/lib/sandbox/trace";
+import type { Timeline, TraceEvent } from "#/lib/sandbox/trace";
 import type { Cut } from "./shots";
 import { type CutCursor, revealedAt, screenOf } from "./timing";
 
@@ -51,14 +51,70 @@ export const sceneAges = (
   };
 };
 
+// The seam between the two clocks. Free play opens at a world instant, and
+// on the world's clock everything that happened there is 0 ms old, however
+// long the reader has watched it. So free play remembers where it opened,
+// and how old each entry it opened on already was to the reader.
+export interface FreeOpening {
+  // The world instant free play opened at.
+  readonly openedAt: number;
+  // How old the entry of `event` was to the reader there; null for one free
+  // play did not open on (the reader's own change, or anything after).
+  readonly ageAt: (event: TraceEvent) => number | null;
+}
+
+// Free play opening at `openedAt` on what `timeline` recorded. Each entry
+// it held by then keeps the age `ageOf` gave it, the scene's at the
+// reader's last frame of it, found by its `seq`: a fork replays the
+// recording, so it numbers the same events the same. One the cut had not
+// shown yet is new at the opening. A figure that opens free has no scene
+// ages (`ageOf` null): the reader watched none of it arrive, so all of it is
+// Infinity old.
+export const freeOpening = (
+  timeline: Timeline,
+  ageOf: AgeOf | null,
+  openedAt: number,
+): FreeOpening => {
+  const bySeq = new Map<number, number>();
+  for (const [index, entry] of timeline.entries.entries()) {
+    if (entry.event.at <= openedAt) bySeq.set(entry.event.seq, index);
+  }
+  return {
+    openedAt,
+    ageAt: (event) => {
+      // The recording's entry of that seq, if it is this one: a change the
+      // reader makes at the opening takes the seq of something later.
+      const index = bySeq.get(event.seq);
+      const recorded =
+        index === undefined ? undefined : timeline.entries[index];
+      if (index === undefined || recorded?.event.at !== event.at) return null;
+      return ageOf === null
+        ? Number.POSITIVE_INFINITY
+        : Math.max(0, ageOf(index));
+    },
+  };
+};
+
 // In free play, which is not shot: the world's time since the entry
 // happened. A quiet wait run fast dries its marks fast, and nothing happened
-// in it.
+// in it. From free play's opening on, an entry it opened on ages on from the
+// age it had there, so the hand-over replays nothing; before the opening,
+// where the reader goes back into the world's history, by the world's time.
 export const freeAges =
-  (timeline: Timeline, at: number): AgeOf =>
+  (timeline: Timeline, at: number, opening: FreeOpening | null = null): AgeOf =>
   (index) => {
     const entry = timeline.entries[index];
-    return entry === undefined ? Number.POSITIVE_INFINITY : at - entry.event.at;
+    if (entry === undefined) return Number.POSITIVE_INFINITY;
+    const { event } = entry;
+    if (
+      opening !== null &&
+      at >= opening.openedAt &&
+      event.at <= opening.openedAt
+    ) {
+      const opened = opening.ageAt(event);
+      if (opened !== null) return opened + (at - opening.openedAt);
+    }
+    return at - event.at;
   };
 
 // How far a mark `millis` long has come at `age`: 0 before it starts, 1 once
