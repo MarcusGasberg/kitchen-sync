@@ -7,7 +7,6 @@ import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
 import { EMPTY_STATE } from "#/lib/store";
 import {
-  deviceLine,
   deviceWords,
   LABELLED,
   makeStageView,
@@ -19,21 +18,20 @@ import { syncStatus } from "#/ui/sync-status";
 import { OAT_SCENE } from "./director-helpers";
 import { add } from "./sandbox-helpers";
 
-describe("deviceLine", () => {
-  it("says a device's state in a few words, after its version", () => {
+describe("deviceWords", () => {
+  it("says a device's state in a few words", () => {
     const seeded = { ...EMPTY_STATE, seeded: true, appliedVersion: 7 };
-    const line = (offline = false, state = seeded) =>
-      deviceLine(state, syncStatus(state, { offline }));
-    expect(line(false, EMPTY_STATE)).toBe("connecting");
-    expect(line()).toBe("v7 · synced");
-    expect(line(true)).toBe("v7 · offline");
-    expect(deviceWords(syncStatus(seeded))).toBe("synced");
+    const words = (offline = false, state = seeded) =>
+      deviceWords(syncStatus(state, { offline }));
+    expect(words(false, EMPTY_STATE)).toBe("connecting");
+    expect(words()).toBe("synced");
+    expect(words(true)).toBe("offline");
   });
 });
 
 describe("a pane's version and words", () => {
   it.effect(
-    "split every line in two, and never say behind: the poke's tag does",
+    "give every pane its version and its words, and never say behind: the poke's tag does",
     () =>
       Effect.gen(function* () {
         const { timeline } = yield* runHeadless(OAT_SCENE);
@@ -41,16 +39,14 @@ describe("a pane's version and words", () => {
         for (const { snapshot } of timeline.entries) {
           const view = stage(snapshot, new Map());
           expect(view.server.version).toBe(snapshot.server.serverVersion);
-          expect(view.server.line).toBe(
-            `v${view.server.version} · ${view.server.words}`,
-          );
           for (const device of view.devices) {
-            expect(device.line).toBe(
-              device.version === null
-                ? device.words
-                : `v${device.version} · ${device.words}`,
+            const state = snapshot.clients.get(device.name);
+            expect(device.version).toBe(
+              device.status.kind === "connecting"
+                ? null
+                : state?.appliedVersion,
             );
-            expect(device.line).not.toMatch(/behind/);
+            expect(device.words).not.toMatch(/behind/);
           }
         }
       }),
@@ -78,7 +74,6 @@ describe("makeStageView", () => {
         const first = stage(before, ids);
         const second = stage(after, ids);
 
-        expect(first.server.line).toBe("v6 · 6 items");
         expect(first.server.version).toBe(6);
         expect(first.server.words).toBe("6 items");
         expect(first.server.labels.size).toBe(LABELLED);
@@ -93,14 +88,14 @@ describe("makeStageView", () => {
         const [a2, b2] = second.devices;
         expect(a1?.clientId).toBe(world.client("A").clientId);
         expect(b1?.clientId).toBeUndefined();
-        expect(a1?.line).toBe("v6 · synced");
         expect(a1?.version).toBe(6);
         expect(a1?.words).toBe("synced");
         // A did nothing between the two: the same arrays, so the same pattern.
         expect(a2?.items).toBe(a1?.items);
         expect(a2?.list).toBe(a1?.list);
         expect(b2?.items).not.toBe(b1?.items);
-        expect(b2?.line).toBe("v6 · offline · 1 waiting");
+        expect(b2?.version).toBe(6);
+        expect(b2?.words).toBe("offline · 1 waiting");
         expect(b2?.waiting.size).toBe(1);
         // The server did not change either.
         expect(second.server).toBe(first.server);

@@ -32,8 +32,6 @@ export interface DeviceView {
   readonly version: number | null;
   // Its state after the version, as "synced" or "1 pending · 1 acked".
   readonly words: string;
-  // Both, as "v7 · synced": what a screen reader reads.
-  readonly line: string;
 }
 
 export interface ServerPaneView {
@@ -42,8 +40,6 @@ export interface ServerPaneView {
   readonly version: number;
   // As "5 items".
   readonly words: string;
-  // Both, as "v7 · 5 items".
-  readonly line: string;
   // The newest items' versions, by item id, set on its basin.
   readonly labels: ReadonlyMap<string, string>;
 }
@@ -83,16 +79,6 @@ export const deviceWords = (status: SyncStatus): string => {
   }
 };
 
-// A device's state line: its version, then its words. A device still
-// connecting has no version to give.
-export const deviceLine = (
-  state: Pick<StoreState, "appliedVersion">,
-  status: SyncStatus,
-): string =>
-  status.kind === "connecting"
-    ? deviceWords(status)
-    : `v${state.appliedVersion} · ${deviceWords(status)}`;
-
 const serverPane = (
   version: number,
   items: ReadonlyArray<GroceryItem>,
@@ -106,7 +92,6 @@ const serverPane = (
   }),
   version,
   words: `${items.length} ${items.length === 1 ? "item" : "items"}`,
-  line: `v${version} · ${items.length} ${items.length === 1 ? "item" : "items"}`,
   labels: new Map(
     [...items]
       .sort((a, b) => b.version - a.version)
@@ -202,7 +187,6 @@ export const makeStageView = () => {
           offline,
           version: status.kind === "connecting" ? null : state.appliedVersion,
           words: deviceWords(status),
-          line: deviceLine(state, status),
         };
       }),
     };
