@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+import type { SlotLook } from "./figure/stage-marks";
 import { VERB } from "./intent-words";
 import type { WaitingChange } from "./list-view";
 import styles from "./waiting-strip.module.css";
@@ -8,6 +10,12 @@ export const WAITING_MAX = 8;
 interface WaitingStripProps {
   readonly changes: ReadonlyArray<WaitingChange>;
   readonly max?: number;
+  // The list's name: the app's one outbox, or a figure's device's.
+  readonly label?: string;
+  // A figure's tray: each change's slot by its id, dropping in, its ring
+  // half-filling on the ack, going once a pull confirms it, and sending a
+  // copy up the wire with each push. Without it, the app's strip, still.
+  readonly looks?: ReadonlyMap<number, SlotLook>;
 }
 
 // The outbox in words: every change this tab still holds for the server, in
@@ -18,30 +26,64 @@ interface WaitingStripProps {
 export function WaitingStrip({
   changes,
   max = WAITING_MAX,
+  label = "Outbox",
+  looks,
 }: WaitingStripProps) {
   const shown = changes.length > max ? changes.slice(0, max - 1) : changes;
   const hidden = changes.length - shown.length;
   return (
     <div className={styles.line}>
-      <ol className={styles.strip} aria-label="Outbox">
-        {shown.map((change, i) => (
-          <li
-            key={change.clientMutationId}
-            className={styles.change}
-            data-acked={change.acked}
-          >
-            {(i === 0 || shown[i - 1].acked !== change.acked) && (
-              <span className={styles.word} aria-hidden="true">
-                {change.acked ? "acked" : "pending"}
+      <ol
+        className={styles.strip}
+        aria-label={label}
+        data-looks={looks === undefined ? undefined : ""}
+      >
+        {shown.map((change, i) => {
+          const look = looks?.get(change.clientMutationId);
+          return (
+            <li
+              key={change.clientMutationId}
+              className={styles.change}
+              data-acked={change.acked}
+              data-look={look === undefined ? undefined : ""}
+              // A change a pull has confirmed is leaving: no longer waiting.
+              aria-hidden={
+                look !== undefined && look.gone > 0 ? true : undefined
+              }
+              style={
+                look === undefined
+                  ? undefined
+                  : ({
+                      "--slot-entered": look.entered,
+                      "--slot-acked": look.acked,
+                      "--slot-gone": look.gone,
+                    } as CSSProperties)
+              }
+            >
+              {(i === 0 || shown[i - 1].acked !== change.acked) && (
+                <span className={styles.word} aria-hidden="true">
+                  {change.acked ? "acked" : "pending"}
+                </span>
+              )}
+              <span className={styles.ring} aria-hidden="true" />
+              {VERB[change.intent]} #{change.clientMutationId}
+              <span className="visually-hidden">
+                {change.acked ? ", acked" : ", pending"}
               </span>
-            )}
-            <span className={styles.ring} aria-hidden="true" />
-            {VERB[change.intent]} #{change.clientMutationId}
-            <span className="visually-hidden">
-              {change.acked ? ", acked" : ", pending"}
-            </span>
-          </li>
-        ))}
+              {look !== undefined && look.copy !== null && (
+                <span
+                  className={styles.copy}
+                  data-copy=""
+                  aria-hidden="true"
+                  style={{ "--slot-copy": look.copy } as CSSProperties}
+                >
+                  <span className={styles.ring} />
+                  {VERB[change.intent]} #{change.clientMutationId}
+                </span>
+              )}
+            </li>
+          );
+        })}
         {hidden > 0 && (
           <li className={styles.more}>
             +{hidden}

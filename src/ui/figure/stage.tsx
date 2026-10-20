@@ -16,10 +16,11 @@ import type { ClientName } from "#/lib/sandbox/trace";
 import { Basin } from "#/ui/basin";
 import { Button } from "#/ui/button";
 import { GroceryList, type ListIntent } from "#/ui/grocery-list";
-import type { ListView } from "#/ui/list-view";
+import type { ListView, WaitingChange } from "#/ui/list-view";
 import { Pane } from "#/ui/pane";
 import { QuickAdd, type QuickAddReplay } from "#/ui/quick-add";
 import { StatusBand } from "#/ui/status-band";
+import { WaitingStrip } from "#/ui/waiting-strip";
 import {
   type Anchors,
   besideIn,
@@ -37,7 +38,12 @@ import {
 import { type Measured, measureWorld, sameMeasure } from "./measure";
 import { placeNotes, spotFor } from "./note-placement";
 import styles from "./stage.module.css";
-import { looksFor, NO_MARKS, type StageMarks } from "./stage-marks";
+import {
+  looksFor,
+  NO_MARKS,
+  type SlotLook,
+  type StageMarks,
+} from "./stage-marks";
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import { type StageView, withRows } from "./stage-view";
 import { useCamera } from "./use-camera";
@@ -543,6 +549,13 @@ export function Stage({
                     level={3}
                     title={device.name}
                     clientId={device.clientId}
+                    tray={
+                      <Tray
+                        client={device.name}
+                        waiting={device.list.waiting}
+                        slots={marks.trays.get(device.name)}
+                      />
+                    }
                     status={device.line}
                     basin={
                       <div data-anchor-key={`basin:${device.name}`}>
@@ -649,6 +662,33 @@ export function Stage({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// A device's outbox as its tray: the app's own strip under its header, the
+// anchor a shot's outbox names. With the clock's slots it moves (a scene, free
+// play); without, it is the outbox as the snapshot holds it.
+function Tray({
+  client,
+  waiting,
+  slots,
+}: {
+  readonly client: ClientName;
+  readonly waiting: ReadonlyArray<WaitingChange>;
+  readonly slots: ReadonlyArray<SlotLook> | undefined;
+}) {
+  return (
+    <div className={styles.tray} data-anchor-key={`outbox:${client}`}>
+      <WaitingStrip
+        label={`${client}'s outbox`}
+        changes={slots === undefined ? waiting : slots.map((s) => s.change)}
+        looks={
+          slots === undefined
+            ? undefined
+            : new Map(slots.map((s) => [s.change.clientMutationId, s]))
+        }
+      />
     </div>
   );
 }

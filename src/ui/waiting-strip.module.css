@@ -81,8 +81,42 @@
   border-radius: 50%;
 }
 
+/* Acked: the ring half filled. In a figure's tray it fills as the ack lands
+   (--slot-acked, 0→1); in the app it is filled. */
 .change[data-acked="true"] .ring {
-  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  background: linear-gradient(
+    90deg,
+    currentColor calc(var(--slot-acked, 1) * 50%),
+    transparent calc(var(--slot-acked, 1) * 50%)
+  );
+}
+
+/* A figure's tray keeps room above its line, inside the strip's scroll box,
+   for a copy rising toward the wire; the line itself does not move. */
+.strip[data-looks] {
+  padding-block-start: var(--space-4);
+  margin-block-start: calc(-1 * var(--space-4));
+}
+
+/* A slot drops in from just above, and fades as a pull confirms it. */
+.change[data-look] {
+  position: relative;
+  opacity: calc(var(--slot-entered) * (1 - var(--slot-gone)));
+  translate: 0 calc((1 - var(--slot-entered)) * -1 * var(--space-2));
+}
+
+/* A push's copy of the slot, in fresh ink, rising toward the wire, where the
+   message's dot takes over, and fading as it goes. */
+.copy {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ink-fresh);
+  white-space: nowrap;
+  opacity: calc(1 - var(--slot-copy));
+  translate: 0 calc(var(--slot-copy) * -1 * var(--space-4));
 }
 
 .more {
@@ -104,6 +138,14 @@
   }
 
   .change[data-acked="true"] .ring {
-    background: linear-gradient(90deg, CanvasText 50%, transparent 50%);
+    background: linear-gradient(
+      90deg,
+      CanvasText calc(var(--slot-acked, 1) * 50%),
+      transparent calc(var(--slot-acked, 1) * 50%)
+    );
+  }
+
+  .copy {
+    color: CanvasText;
   }
 }

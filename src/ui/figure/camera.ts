@@ -318,9 +318,9 @@ const groupsOf = (
 };
 
 // What a close-up frames of one place's subjects: what they name, not the
-// whole device. Its rows and rings with its basin, padded; for the server, its
-// rings (padded 64, standing for its basin) with its rows. With no row or ring
-// measured, its containers; with none of those, nothing.
+// whole device. Its rows, rings and tray with its basin, padded; for the
+// server, its rings (padded 64, standing for its basin) with its rows. With
+// no row or ring measured, its containers; with none of those, nothing.
 const groupBox = (
   subjects: ReadonlyArray<Subject>,
   anchors: Anchors,
@@ -336,6 +336,12 @@ const groupBox = (
     details.filter((s) => s.kind === "ring"),
     anchors,
   );
+  // The outbox the shot names, as the device's tray: the change that waits
+  // in it is seen there.
+  const trays = measured(
+    subjects.filter((s) => s.kind === "outbox"),
+    anchors,
+  );
   const place = details[0]?.where;
   if (place !== undefined && rows.length + rings.length > 0) {
     if (place === SERVER && rings.length > 0) {
@@ -349,6 +355,7 @@ const groupBox = (
       ...(basin === undefined ? [] : [basin]),
       ...rows,
       ...rings,
+      ...trays,
     ]);
     return all === null ? null : pad(all, DETAIL_PAD_PX);
   }

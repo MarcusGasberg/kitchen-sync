@@ -13,7 +13,12 @@ import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, type FreeFocus, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
-import { NO_MARKS, rowLook, type StageMarks } from "#/ui/figure/stage-marks";
+import {
+  NO_MARKS,
+  rowLook,
+  type SlotLook,
+  type StageMarks,
+} from "#/ui/figure/stage-marks";
 import { FOOT_MIN } from "#/ui/figure/stage-notes";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
 import { rect, stubLayout } from "./figure-helpers";
@@ -1526,5 +1531,67 @@ describe("Stage", () => {
       expect(screen.queryByText(TAP)).toBeNull();
       expect(screen.queryByText(CLICK)).toBeNull();
     });
+  });
+});
+
+describe("the outbox tray", () => {
+  const stageWith = async (marks = NO_MARKS) => {
+    const view = makeStageView()(await snapshot(), new Map());
+    return render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+        marks={marks}
+      />,
+    );
+  };
+
+  it("puts each device's outbox under its header, as the anchor a shot's outbox names", async () => {
+    const { container } = await stageWith();
+    const tray = container.querySelector<HTMLElement>(
+      "[data-anchor-key='outbox:A']",
+    );
+    expect(tray).not.toBeNull();
+    const pane = container.querySelector(
+      "[data-anchor-key='device:A'] section",
+    );
+    // The header, then the tray, then the basin.
+    expect(pane?.children[1]).toBe(tray);
+    expect(
+      within(tray as HTMLElement).getByRole("list", { name: "A's outbox" }),
+    ).toBeTruthy();
+  });
+
+  it("draws a device's slots by their looks", async () => {
+    const look: SlotLook = {
+      change: { clientMutationId: 7, intent: "AddItem", acked: false },
+      entered: 0.5,
+      acked: 0,
+      gone: 0,
+      copy: 0.25,
+    };
+    const { container } = await stageWith({
+      ...NO_MARKS,
+      trays: new Map([["A", [look]]]),
+    });
+    const slot = container.querySelector<HTMLElement>(
+      "[data-anchor-key='outbox:A'] li[data-look]",
+    );
+    expect(slot?.style.getPropertyValue("--slot-entered")).toBe("0.5");
+    expect(slot?.querySelector("[data-copy]")).not.toBeNull();
+    // B has no looks: its outbox as the snapshot holds it.
+    expect(
+      container.querySelector("[data-anchor-key='outbox:B'] li[data-look]"),
+    ).toBeNull();
   });
 });

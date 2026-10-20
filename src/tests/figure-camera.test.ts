@@ -232,6 +232,30 @@ describe("framing", () => {
     expect(pane?.scale).toBeCloseTo(Math.min((1000 - 48) / 320, 552 / 460));
   });
 
+  it("frames the outbox a close-up names with its basin, rows and rings", () => {
+    // B's tray, under its header and over its basin.
+    const OUTBOX_B = box(400, 400, 720, 424);
+    const view = frameFor(
+      shot({
+        framing: "close",
+        subjects: [...PULLS.slice(0, 3), { kind: "outbox", client: "B" }],
+      }),
+      anchorsOf({
+        ...Object.fromEntries(DETAIL.boxes),
+        "outbox:B": OUTBOX_B,
+      }),
+      viewport,
+    );
+    const framed = pad(
+      unionOf(OUTBOX_B, BASIN_B, ROW_B, RING_B),
+      DETAIL_PAD_PX,
+    );
+    const centre =
+      view === null ? null : project(view, viewport, centreOf(framed));
+    expect(centre?.x).toBeCloseTo(500);
+    expect(centre?.y).toBeCloseTo(300);
+  });
+
   it("frames the server's close-up on its ring, padded 64, with its row", () => {
     const view = frameFor(
       shot({

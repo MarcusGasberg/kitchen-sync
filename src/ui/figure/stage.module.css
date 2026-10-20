@@ -209,6 +209,12 @@
   min-width: 0;
 }
 
+/* A device's outbox tray, under its header: one line, which scrolls before
+   it widens the column. */
+.tray {
+  min-width: 0;
+}
+
 /* The spotlight: what a shot is not about steps back. */
 .server,
 .device {

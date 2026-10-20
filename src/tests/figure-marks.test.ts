@@ -7,6 +7,12 @@ import {
   TYPE_START_MILLIS,
 } from "#/lib/director/compile";
 import { changesOf, LEAVE_MILLIS, wetKey } from "#/lib/director/marks";
+import {
+  COPY_MILLIS,
+  GONE_MILLIS,
+  SLOT_MILLIS,
+  type Slot,
+} from "#/lib/director/outbox";
 import { sceneAges } from "#/lib/director/reveal";
 import type { Cut } from "#/lib/director/shots";
 import {
@@ -22,9 +28,15 @@ import {
   looksFor,
   NO_MARKS,
   rowLook,
+  slotLook,
   stageMarksAt,
 } from "#/ui/figure/stage-marks";
-import { MILK_SCENE, OAT_SCENE, REMOVE_FIRST_SCENE } from "./director-helpers";
+import {
+  lastEntryWhere,
+  MILK_SCENE,
+  OAT_SCENE,
+  REMOVE_FIRST_SCENE,
+} from "./director-helpers";
 
 // The marks at a cursor, as a figure computes them for its frame.
 const marksAt = (
@@ -291,6 +303,95 @@ describe("stageMarksAt: the device acting", () => {
           cursor: null,
         }).acting,
       ).toBeNull();
+    }),
+  );
+});
+
+const slot = (fields: Partial<Slot>): Slot => ({
+  clientMutationId: 3,
+  intent: "AddItem",
+  acked: false,
+  age: Number.POSITIVE_INFINITY,
+  ackedAge: null,
+  goneAge: null,
+  sentAge: null,
+  ...fields,
+});
+
+describe("the outbox tray's looks", () => {
+  it("drops a slot in, half-fills its ring on the ack, and lets it go", () => {
+    expect(slotLook(slot({ age: 0 }), false).entered).toBe(0);
+    expect(slotLook(slot({ age: SLOT_MILLIS }), false).entered).toBe(1);
+    const acking = slotLook(
+      slot({ acked: true, ackedAge: SLOT_MILLIS / 2 }),
+      false,
+    );
+    expect(acking.acked).toBeCloseTo(1 - 0.5 ** 3);
+    expect(acking.change).toEqual({
+      clientMutationId: 3,
+      intent: "AddItem",
+      acked: true,
+    });
+    expect(slotLook(slot({}), false).acked).toBe(0);
+    expect(slotLook(slot({ goneAge: 0 }), false).gone).toBe(0);
+    expect(slotLook(slot({ goneAge: GONE_MILLIS }), false).gone).toBe(1);
+  });
+
+  it("sends a copy up once the slot is in, and none under reduced motion", () => {
+    // Sent in the instant it entered: the copy waits for the slot to land.
+    expect(slotLook(slot({ age: 100, sentAge: 100 }), false).copy).toBeNull();
+    const rising = slotLook(
+      slot({ age: SLOT_MILLIS + 200, sentAge: SLOT_MILLIS + 200 }),
+      false,
+    ).copy;
+    expect(rising).toBeGreaterThan(0);
+    expect(rising).toBeLessThan(1);
+    // Sent long after it entered: the copy leaves with the push.
+    expect(slotLook(slot({ sentAge: 0 }), false).copy).toBe(0);
+    expect(slotLook(slot({ sentAge: COPY_MILLIS }), false).copy).toBeNull();
+    expect(
+      slotLook(
+        slot({ age: SLOT_MILLIS + 200, sentAge: SLOT_MILLIS + 200 }),
+        true,
+      ).copy,
+    ).toBeNull();
+  });
+
+  it("arrives at once under reduced motion", () => {
+    const still = slotLook(slot({ age: 0, ackedAge: 0, acked: true }), true);
+    expect(still.entered).toBe(1);
+    expect(still.acked).toBe(1);
+    expect(slotLook(slot({ goneAge: 0 }), true).gone).toBe(1);
+  });
+
+  it.effect("puts oat milk's change in A's tray at the add's hold", () =>
+    Effect.gen(function* () {
+      const result = yield* runHeadless(OAT_SCENE);
+      const cut = compile(result, OAT_SCENE);
+      const { timeline } = result;
+      const applied = lastEntryWhere(
+        timeline,
+        (e) => e._tag === "Applied" && e.client === "A",
+      );
+      if (applied.entry.event._tag !== "Applied") {
+        throw new Error("not an apply");
+      }
+      const id = applied.entry.event.clientMutationId;
+      // The first shot that shows the add.
+      const shot = cut.shots.findIndex((s) => s.through >= applied.index);
+      const landing = marksAt(cut, timeline, { shot, offset: 0 });
+      expect(
+        landing.trays.get("A")?.map((look) => look.change.clientMutationId),
+      ).toEqual([id]);
+      expect(landing.trays.get("A")?.[0]?.entered).toBe(0);
+      expect(landing.trays.get("B")).toEqual([]);
+      const landed = marksAt(cut, timeline, {
+        shot,
+        offset: SLOT_MILLIS + 200,
+      }).trays.get("A")?.[0];
+      expect(landed?.entered).toBe(1);
+      // A's push left in the same instant: its copy rises once the slot is in.
+      expect(landed?.copy).toBeGreaterThan(0);
     }),
   );
 });

@@ -9,10 +9,18 @@ import {
   wetAt,
   wetKey,
 } from "#/lib/director/marks";
+import {
+  COPY_MILLIS,
+  GONE_MILLIS,
+  SLOT_MILLIS,
+  type Slot,
+  slotsAt,
+} from "#/lib/director/outbox";
 import { type AgeOf, progress } from "#/lib/director/reveal";
 import type { Cut, Place } from "#/lib/director/shots";
 import type { CutCursor } from "#/lib/director/timing";
-import type { Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
+import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
+import type { WaitingChange } from "#/ui/list-view";
 
 // The vocabulary's looks: how each mark on a figure's stage stands at a
 // frame, as progress from 0 to 1 on the reveal clock (`AgeOf`). The figure
@@ -55,6 +63,19 @@ export interface RowLook {
   readonly leaving: number;
 }
 
+// A slot in a device's outbox tray, as the tray draws it.
+export interface SlotLook {
+  readonly change: WaitingChange;
+  // 0→1: dropping in.
+  readonly entered: number;
+  // 0→1: the ring half-filling as the ack lands.
+  readonly acked: number;
+  // 0→1: leaving, once a pull has confirmed it.
+  readonly gone: number;
+  // 0→1: a push's copy of it rising to the wire; null when none is.
+  readonly copy: number | null;
+}
+
 export interface StageMarks {
   // Each row's latest change while it is wet, by `wetKey(place, itemId)`.
   readonly rows: ReadonlyMap<string, RowLook>;
@@ -63,6 +84,8 @@ export interface StageMarks {
   readonly leaving: ReadonlyMap<Place, ReadonlyArray<GroceryItem>>;
   // The device acting out the shot's input, in its own controls.
   readonly acting: Acting | null;
+  // Each device's outbox tray, its slots in id order, then those leaving.
+  readonly trays: ReadonlyMap<ClientName, ReadonlyArray<SlotLook>>;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
@@ -70,6 +93,7 @@ export const NO_MARKS: StageMarks = {
   rows: new Map(),
   leaving: new Map(),
   acting: null,
+  trays: new Map(),
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -142,6 +166,53 @@ const leavingOf = ({ timeline, index, ageOf }: MarkInput) => {
   return byPlace;
 };
 
+// How a slot looks: dropping in, its ring half-filling on the ack, going once
+// a pull confirms it, and a copy rising to the wire with each push that
+// carries it. A change pushed in the instant it entered sends its copy once
+// its slot is in. Reduced motion sends no copy: the message's dot on the
+// wire says it.
+export const slotLook = (slot: Slot, reduced: boolean): SlotLook => {
+  const copyAge =
+    slot.sentAge === null
+      ? null
+      : Math.min(slot.sentAge, slot.age - SLOT_MILLIS);
+  return {
+    change: {
+      clientMutationId: slot.clientMutationId,
+      intent: slot.intent,
+      acked: slot.acked,
+    },
+    entered: progress(slot.age, SLOT_MILLIS, reduced),
+    acked:
+      slot.ackedAge === null
+        ? 0
+        : progress(slot.ackedAge, SLOT_MILLIS, reduced),
+    gone:
+      slot.goneAge === null ? 0 : progress(slot.goneAge, GONE_MILLIS, reduced),
+    copy:
+      reduced || copyAge === null || copyAge < 0 || copyAge >= COPY_MILLIS
+        ? null
+        : progress(copyAge, COPY_MILLIS, false),
+  };
+};
+
+// Every device's tray at the frame, in a scene or in free play.
+const traysAt = ({
+  timeline,
+  index,
+  snapshot,
+  ageOf,
+  reduced,
+}: MarkInput): ReadonlyMap<ClientName, ReadonlyArray<SlotLook>> =>
+  new Map(
+    [...snapshot.clients.keys()].map((client) => [
+      client,
+      slotsAt(timeline, index, ageOf, client).map((slot) =>
+        slotLook(slot, reduced),
+      ),
+    ]),
+  );
+
 // What the shot under the cursor acts out, at its offset: only a scene's
 // enactments act. Free play's changes are the reader's own.
 const actingOf = ({ cut, cursor, reduced }: MarkInput): Acting | null => {
@@ -155,6 +226,7 @@ export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
   leaving: leavingOf(input),
   acting: actingOf(input),
+  trays: traysAt(input),
 });
 
 // One place's row looks, by item id: what its list takes.
