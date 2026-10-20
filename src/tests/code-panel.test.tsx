@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "#/lib/sandbox/trace";
@@ -247,5 +249,23 @@ describe("CodePanel", () => {
       lightUp(true);
       expect(box).not.toHaveBeenCalled();
     });
+  });
+});
+
+// jsdom has no forced-colours mode, so the rule is pinned where it is written.
+describe("CodePanel under forced colours", () => {
+  it("draws lit lines in the system's mark colours, with no backplate", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/ui/code/code-panel.module.css"),
+      "utf8",
+    );
+    const forced = /@media \(forced-colors: active\) \{([\s\S]*)\n\}/.exec(
+      css,
+    )?.[1];
+    expect(forced).toMatch(/\.lit \{[^}]*forced-color-adjust: none;/);
+    expect(forced).toMatch(/\.lit \{[^}]*background: Mark;/);
+    expect(forced).toMatch(/\.lit \{[^}]*color: MarkText;/);
+    expect(forced).toMatch(/border-inline-start-color: MarkText;/);
+    expect(forced).toMatch(/\.lit \* \{[^}]*color: MarkText;/);
   });
 });

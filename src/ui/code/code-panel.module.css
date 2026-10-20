@@ -43,3 +43,20 @@
     background-color: transparent;
   }
 }
+
+/* Forced colours: the lit lines take the system's mark colours. Taking the
+   forced-colour backplate away stops it drawing Canvas behind text the
+   browser would otherwise leave as MarkText on black; the tokens inside take
+   MarkText, so nothing shows its own colour on Mark. */
+@media (forced-colors: active) {
+  .lit {
+    forced-color-adjust: none;
+    background: Mark;
+    color: MarkText;
+    border-inline-start-color: MarkText;
+  }
+
+  .lit * {
+    color: MarkText;
+  }
+}
