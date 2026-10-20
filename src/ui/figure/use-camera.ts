@@ -124,9 +124,10 @@ export const useCamera = (
           entry: entered ? entry.view : arriving,
         })
       : { view: freeView(cue.focus, anchors, size), moving: false };
-  // A jump glides from the view on screen to the one it landed on. The view
-  // drawn is the glided one: `last` keeps it, and the next shot eases from
-  // it.
+  // A jump glides from the view on screen to the one it landed on. The
+  // glide is a layer over the framed view: `last` keeps the framed one, so
+  // the next shot eases from where the camera is going, not from a point
+  // along the glide.
   const target = framed?.view ?? null;
   const view = useGlide(target, jumpKey, {
     anchors,
@@ -145,7 +146,7 @@ export const useCamera = (
   useEffect(() => {
     held.current = density;
     if (view === null) return;
-    last.current = view;
+    last.current = target;
     lastShot.current =
       cutNow === null || shotNow === null
         ? null

@@ -639,7 +639,7 @@ export const zoomPath = (
 
 // Whether two views are one on screen: within half a pixel and a thousandth
 // of scale.
-const sameView = (a: View, b: View): boolean =>
+export const sameView = (a: View, b: View): boolean =>
   Math.abs(a.x - b.x) <= 0.5 &&
   Math.abs(a.y - b.y) <= 0.5 &&
   Math.abs(a.scale - b.scale) <= 0.001;

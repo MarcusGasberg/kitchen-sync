@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { type Anchors, along, easeInOut, type Size, type View } from "./camera";
+import {
+  type Anchors,
+  along,
+  easeInOut,
+  type Size,
+  sameView,
+  type View,
+} from "./camera";
 
 // A jump (a step, a scrub, a restart, Play at the end) glides the camera
 // from the view on screen to the one it landed on, along the zoom path, so
@@ -65,14 +72,29 @@ export const useGlide = (
   // The view last drawn.
   const drawn = useRef<View | null>(null);
   const [glide, setGlide] = useState<Glide | null>(null);
+  // The key last rendered: a glide starts when it changes to a key, so the
+  // same instant jumped to twice (the player clears the key between) glides
+  // twice, and a re-render with the key unchanged does not.
+  const [seen, setSeen] = useState<string | null>(null);
   const [, setFrame] = useState(0);
-  if (jumpKey !== null && jumpKey !== glide?.key) {
+  if (jumpKey !== seen) {
     // Set while rendering: React renders again at once with it.
-    setGlide({
-      key: jumpKey,
-      from: reduced || target === null ? null : drawn.current,
-      startedAt: clock.now(),
-    });
+    setSeen(jumpKey);
+    if (jumpKey !== null) {
+      const onScreen = drawn.current;
+      setGlide({
+        key: jumpKey,
+        // A jump that leaves the camera where it is has nowhere to glide.
+        from:
+          reduced ||
+          target === null ||
+          onScreen === null ||
+          sameView(onScreen, target)
+            ? null
+            : onScreen,
+        startedAt: clock.now(),
+      });
+    }
   }
   const from = glide?.from ?? null;
   const elapsed = glide === null ? JUMP_MILLIS : clock.now() - glide.startedAt;

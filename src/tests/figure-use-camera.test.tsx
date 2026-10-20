@@ -272,6 +272,47 @@ describe("useCamera", () => {
       });
     });
 
+    it("does not step back when the cut plays into an easing shot mid-glide", async () => {
+      const detail = [
+        { kind: "device", client: "B" },
+        { kind: "row", where: "B", itemId: "1" },
+        { kind: "ring", where: "B", itemId: "1" },
+      ] as Shot["subjects"];
+      const played: Cut = {
+        shots: [
+          shot({ framing: "wide" }),
+          shot({ subjects: detail, screen: 300 }),
+          shot({ subjects: [{ kind: "device", client: "B" }] }),
+        ],
+        steps: [],
+      };
+      const { clock, advance } = fakeClock();
+      const { result, rerender } = renderHook(
+        (props: Props) =>
+          useCamera(props.cue, ANCHORS, size, false, {
+            jumpKey: props.jumpKey,
+            clock,
+          }),
+        { initialProps: { cue: at(played, 0, 500), jumpKey: null } as Props },
+      );
+      rerender({ cue: at(played, 1, 0), jumpKey: "1" });
+      await advance(250);
+      rerender({ cue: at(played, 1, 250), jumpKey: null });
+      const before = result.current.view?.scale ?? 0;
+      rerender({ cue: at(played, 2, 0), jumpKey: null });
+      const after = result.current.view?.scale ?? 0;
+      // Both are on the way from the wide view to the close one, which is
+      // larger; the shot change must not send the camera back toward it.
+      expect(after).toBeGreaterThanOrEqual(before - 1e-6);
+    });
+
+    it("does not jump when the view on screen is the one it lands on", () => {
+      const { clock } = fakeClock();
+      const { result, rerender } = jumped(clock);
+      rerender({ cue: at(cut, 2, 900), jumpKey: "1" });
+      expect(result.current).toMatchObject({ moving: false, jumping: false });
+    });
+
     it("lands at once with no jump, and under reduced motion", () => {
       const { clock } = fakeClock();
       const played = jumped(clock);

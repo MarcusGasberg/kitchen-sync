@@ -98,6 +98,26 @@ describe("useGlide", () => {
     expect(result.current).toBe(FROM);
   });
 
+  it("glides again when the same key comes back after a tick cleared it", async () => {
+    const { clock, advance } = fakeClock();
+    const { result, rerender } = glide(clock, { target: FROM, jumpKey: null });
+    rerender({ target: TO, jumpKey: "1" });
+    await advance(JUMP_MILLIS);
+    rerender({ target: TO, jumpKey: null });
+    rerender({ target: FROM, jumpKey: "1" });
+    expectView(result.current, TO);
+    await advance(JUMP_MILLIS);
+    expect(result.current).toBe(FROM);
+  });
+
+  it("does not glide a jump onto the view already on screen", () => {
+    const { clock } = fakeClock();
+    const { result, rerender } = glide(clock, { target: FROM, jumpKey: null });
+    const same = { ...FROM };
+    rerender({ target: same, jumpKey: "1" });
+    expect(result.current).toBe(same);
+  });
+
   it("starts a jump mid-glide from where the camera is", async () => {
     const { clock, advance } = fakeClock();
     const { result, rerender } = glide(clock, { target: FROM, jumpKey: null });
