@@ -29,6 +29,7 @@ import {
   litOf,
   MARGIN_PX,
   type MessageAnchor,
+  project,
   type Size,
   shareFrom,
   transformOf,
@@ -36,6 +37,7 @@ import {
   wideView,
 } from "./camera";
 import { type Measured, measureWorld, sameMeasure } from "./measure";
+import { MessageCard } from "./message-card";
 import { placeNotes, spotFor } from "./note-placement";
 import styles from "./stage.module.css";
 import {
@@ -404,6 +406,17 @@ export function Stage({
       ? []
       : placeNotes(shot.notes, anchors, camera, size, { spot });
   const fade = spot?.kind === "beside";
+  // A followed message's card, beside its dot on screen, over the window and
+  // not on the plane, so the camera's scale never touches its words.
+  const card = marks.card;
+  const carded =
+    card === null
+      ? undefined
+      : flying.find((p) => p.message.id === card.messageId);
+  const cardAt =
+    camera === null || carded === undefined
+      ? null
+      : project(camera, size, { x: carded.x, y: carded.y });
   const room = spot?.kind === "room" ? spot : null;
   const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
   // The foot under the window: a narrow viewport's notes for the whole
@@ -621,11 +634,21 @@ export function Stage({
               flights={flying}
               lost={gone}
               lit={lit}
+              card={card}
             />
           </div>
         </div>
         {placed.length > 0 && (
           <StageNotes key={noteKey} placed={placed} viewport={size} />
+        )}
+        {card !== null && carded !== undefined && cardAt !== null && (
+          <MessageCard
+            lines={card.lines}
+            at={cardAt}
+            side={carded.side}
+            open={card.open}
+            viewport={size}
+          />
         )}
       </div>
       {foot !== null && (

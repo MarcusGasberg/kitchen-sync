@@ -12,6 +12,9 @@ interface WireBandProps {
   // The containers a shot is about (`litOf`): a wire whose `wire:<client>` is
   // not among them dims, with its messages. Null lights every wire.
   readonly lit?: ReadonlySet<string> | null;
+  // The followed message whose card is open (`open`, 0→1): the card's first
+  // line says what its label does, so the label gives way to it.
+  readonly card?: { readonly messageId: number; readonly open: number } | null;
 }
 
 // Pixels between a message's dot and its label.
@@ -20,9 +23,11 @@ const LABEL_GAP = 9;
 function Label({
   placed,
   text,
+  opacity,
 }: {
   readonly placed: Placed;
   readonly text: string;
+  readonly opacity?: number;
 }) {
   const start = placed.side === "start";
   return (
@@ -31,6 +36,7 @@ function Label({
       y={placed.y}
       textAnchor={start ? "end" : "start"}
       dominantBaseline="middle"
+      opacity={opacity}
     >
       {text}
     </text>
@@ -47,6 +53,7 @@ export function WireBand({
   flights,
   lost,
   lit = null,
+  card = null,
 }: WireBandProps) {
   // A wire stays lit when the shot is about it or about its device: `lit`
   // holds containers' keys (`containerOf`), and a lit device lights its wire.
@@ -88,6 +95,11 @@ export function WireBand({
               placed.held
                 ? `${placed.message.label} · held`
                 : placed.message.label
+            }
+            opacity={
+              card !== null && card.messageId === placed.message.id
+                ? 1 - card.open
+                : undefined
             }
           />
         </g>

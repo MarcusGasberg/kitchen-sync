@@ -16,9 +16,10 @@ import {
   type Slot,
   slotsAt,
 } from "#/lib/director/outbox";
+import { payloadOf } from "#/lib/director/payload";
 import { type AgeOf, progress } from "#/lib/director/reveal";
-import type { Cut, Place } from "#/lib/director/shots";
-import type { CutCursor } from "#/lib/director/timing";
+import type { Cut, Place, Shot } from "#/lib/director/shots";
+import { type CutCursor, screenOf } from "#/lib/director/timing";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { WaitingChange } from "#/ui/list-view";
 
@@ -76,6 +77,19 @@ export interface SlotLook {
   readonly copy: number | null;
 }
 
+// Screen milliseconds at 1×: a followed message's card opens out of its dot
+// as the camera takes the message up, and closes back into it as it lands.
+export const CARD_OPEN_MILLIS = 240;
+export const CARD_CLOSE_MILLIS = 200;
+
+// What a followed message carries (`payloadOf`), and how far its card is
+// open, 0→1.
+export interface CardLook {
+  readonly messageId: number;
+  readonly lines: ReadonlyArray<string>;
+  readonly open: number;
+}
+
 export interface StageMarks {
   // Each row's latest change while it is wet, by `wetKey(place, itemId)`.
   readonly rows: ReadonlyMap<string, RowLook>;
@@ -86,6 +100,9 @@ export interface StageMarks {
   readonly acting: Acting | null;
   // Each device's outbox tray, its slots in id order, then those leaving.
   readonly trays: ReadonlyMap<ClientName, ReadonlyArray<SlotLook>>;
+  // The card of the message a follow is on; null in any other shot, and in
+  // free play.
+  readonly card: CardLook | null;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
@@ -94,6 +111,7 @@ export const NO_MARKS: StageMarks = {
   leaving: new Map(),
   acting: null,
   trays: new Map(),
+  card: null,
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -221,12 +239,60 @@ const actingOf = ({ cut, cursor, reduced }: MarkInput): Acting | null => {
   return enact === null ? null : actingAt(enact, cursor.offset, reduced);
 };
 
+// Whether a shot follows message `id` along its wire, after the move into it.
+const follows = (shot: Shot | undefined, id: number): boolean =>
+  shot !== undefined &&
+  shot.framing === "follow" &&
+  !shot.move &&
+  shot.subjects.some((s) => s.kind === "message" && s.messageId === id);
+
+// The card of the message a follow is on, while it is on the wire. It opens
+// over the first CARD_OPEN_MILLIS of the run of shots that follow it and
+// closes over the run's last CARD_CLOSE_MILLIS, as it lands. It keeps the
+// run's time, not the message's: the cut reveals a push in the instant it is
+// sent, often seconds before the camera takes it up. Reduced motion opens it,
+// still, for the whole run.
+const cardAt = ({
+  timeline,
+  snapshot,
+  cut,
+  cursor,
+  reduced,
+}: MarkInput): CardLook | null => {
+  if (cut === null || cursor === null) return null;
+  const shot = cut.shots[cursor.shot];
+  const subject = shot?.subjects.find((s) => s.kind === "message");
+  if (
+    subject === undefined ||
+    subject.kind !== "message" ||
+    !follows(shot, subject.messageId)
+  ) {
+    return null;
+  }
+  const message = snapshot.messages.find((m) => m.id === subject.messageId);
+  if (message === undefined) return null;
+  let first = cursor.shot;
+  while (follows(cut.shots[first - 1], message.id)) first -= 1;
+  let last = cursor.shot;
+  while (follows(cut.shots[last + 1], message.id)) last += 1;
+  const now = screenOf(cut, cursor);
+  const since = now - screenOf(cut, { shot: first, offset: 0 });
+  const until =
+    screenOf(cut, { shot: last, offset: cut.shots[last]?.screen ?? 0 }) - now;
+  const open = reduced
+    ? 1
+    : progress(since, CARD_OPEN_MILLIS, false) *
+      (1 - progress(CARD_CLOSE_MILLIS - until, CARD_CLOSE_MILLIS, false));
+  return { messageId: message.id, lines: payloadOf(message, timeline), open };
+};
+
 // Every mark at a frame, each found by its own function from one input.
 export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
   leaving: leavingOf(input),
   acting: actingOf(input),
   trays: traysAt(input),
+  card: cardAt(input),
 });
 
 // One place's row looks, by item id: what its list takes.

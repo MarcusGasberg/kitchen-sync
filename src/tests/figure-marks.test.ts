@@ -13,8 +13,9 @@ import {
   SLOT_MILLIS,
   type Slot,
 } from "#/lib/director/outbox";
+import { payloadOf } from "#/lib/director/payload";
 import { sceneAges } from "#/lib/director/reveal";
-import type { Cut } from "#/lib/director/shots";
+import type { Cut, Shot } from "#/lib/director/shots";
 import {
   advance,
   type CutCursor,
@@ -25,6 +26,8 @@ import {
 import { runHeadless } from "#/lib/sandbox/scene";
 import type { Timeline } from "#/lib/sandbox/trace";
 import {
+  CARD_CLOSE_MILLIS,
+  CARD_OPEN_MILLIS,
   looksFor,
   NO_MARKS,
   rowLook,
@@ -393,5 +396,79 @@ describe("the outbox tray's looks", () => {
       // A's push left in the same instant: its copy rises once the slot is in.
       expect(landed?.copy).toBeGreaterThan(0);
     }),
+  );
+});
+
+describe("a followed message's card", () => {
+  it.effect(
+    "opens A's push as the camera takes it up, and closes it as it lands",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(OAT_SCENE);
+        const cut = compile(result, OAT_SCENE);
+        const { timeline } = result;
+        const applied = lastEntryWhere(
+          timeline,
+          (e) => e._tag === "Applied" && e.client === "A",
+        );
+        if (applied.entry.event._tag !== "Applied") {
+          throw new Error("not an apply");
+        }
+        const sent = lastEntryWhere(
+          timeline,
+          (e) =>
+            e._tag === "Sent" &&
+            e.message.kind === "push" &&
+            e.message.client === "A",
+        );
+        if (sent.entry.event._tag !== "Sent") throw new Error("not a send");
+        const { message } = sent.entry.event;
+        // The run of shots that follow the push, after the move into it.
+        const onIt = (shot: Shot | undefined) =>
+          shot !== undefined &&
+          shot.framing === "follow" &&
+          !shot.move &&
+          shot.subjects.some(
+            (s) => s.kind === "message" && s.messageId === message.id,
+          );
+        const first = cut.shots.findIndex(onIt);
+        let last = first;
+        while (onIt(cut.shots[last + 1])) last += 1;
+        const card = (cursor: CutCursor, reduced = false) =>
+          marksAt(cut, timeline, cursor, reduced).card;
+
+        const opening = card({ shot: first, offset: 0 });
+        expect(opening?.messageId).toBe(message.id);
+        expect(opening?.lines).toEqual(payloadOf(message, timeline));
+        expect(opening?.lines).toContain(
+          `#${applied.entry.event.clientMutationId} add Oat milk`,
+        );
+        expect(opening?.open).toBe(0);
+        expect(card({ shot: first, offset: CARD_OPEN_MILLIS })?.open).toBe(1);
+        const end = cut.shots[last]?.screen ?? 0;
+        const closing = card({
+          shot: last,
+          offset: end - CARD_CLOSE_MILLIS / 2,
+        })?.open;
+        expect(closing).toBeGreaterThan(0);
+        expect(closing).toBeLessThan(1);
+        // The move into the follow, and the shot after it, show none.
+        expect(card({ shot: first - 1, offset: 0 })).toBeNull();
+        expect(card({ shot: last + 1, offset: 0 })).toBeNull();
+        // Under reduced motion it is open, still, for the whole follow.
+        expect(card({ shot: first, offset: 0 }, true)?.open).toBe(1);
+        // Free play is not shot: no card.
+        expect(
+          stageMarksAt({
+            timeline,
+            index: sent.index,
+            snapshot: sent.entry.snapshot,
+            ageOf: () => Number.POSITIVE_INFINITY,
+            reduced: false,
+            cut: null,
+            cursor: null,
+          }).card,
+        ).toBeNull();
+      }),
   );
 });
