@@ -18,6 +18,7 @@ import { CHAR_PX, EDGE_PX, NOTE_MAX_PX } from "#/ui/figure/note-placement";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import { type CardLook, NO_MARKS } from "#/ui/figure/stage-marks";
 import { makeStageView } from "#/ui/figure/stage-view";
+import { DEVICE_INSET_PX } from "#/ui/figure/wires";
 import { adds, entryWhere } from "./director-helpers";
 import { rect, stubLayout } from "./figure-helpers";
 
@@ -25,6 +26,19 @@ const LINES = ["push #3", "#3 add Oat milk", "base v2"];
 const VIEWPORT = { width: 1000, height: 600 };
 
 describe("placeCard", () => {
+  it("keeps its foot above a floor, riding up the wire past it", () => {
+    const height = LINES.length * LINE_PX + 2 * CARD_INSET_PX;
+    const at = { x: 400, y: 300 };
+    const free = placeCard(at, "end", LINES, VIEWPORT);
+    expect(free.top).toBe(300 - height / 2);
+    // A floor above the centred foot lifts the card to rest on it.
+    const floored = placeCard(at, "end", LINES, VIEWPORT, 290);
+    expect(floored.top).toBe(290 - height);
+    expect(floored.origin.y).toBe(300 - floored.top);
+    // A floor below the card's foot changes nothing.
+    expect(placeCard(at, "end", LINES, VIEWPORT, 500)).toEqual(free);
+  });
+
   it("sits beside its dot on its label's side, centred on the dot's height", () => {
     const end = placeCard({ x: 400, y: 300 }, "end", LINES, VIEWPORT);
     expect(end.left).toBe(400 + CARD_GAP_PX);
@@ -190,13 +204,17 @@ describe("the stage's card", () => {
       ),
     );
   const noop = () => {};
-  const staged = async (card: CardLook | null) => {
+  const staged = async (
+    card: CardLook | null,
+    progress = 0.5,
+    layout = LAYOUT,
+  ) => {
     const view = makeStageView()(await world(), new Map());
-    const restore = stubLayout(LAYOUT);
+    const restore = stubLayout(layout);
     const result = render(
       <Stage
         view={view}
-        flights={[{ message, progress: 0.5 }]}
+        flights={[{ message, progress }]}
         lost={[]}
         settle
         scale={1}
@@ -233,6 +251,34 @@ describe("the stage's card", () => {
     expect(container.querySelector("svg text")?.getAttribute("opacity")).toBe(
       "0",
     );
+  });
+
+  it("keeps the card's foot above the followed device's pane, near the pane", async () => {
+    const lines = ["push #1", "#1 add Milk", "base v0"];
+    // The panes close under the server, so the dot ends a few pixels above.
+    const close = new Map(LAYOUT)
+      .set("A", rect(40, 330, 360, 790))
+      .set("B", rect(860, 330, 1180, 790))
+      .set("devices", rect(40, 330, 1180, 790));
+    const { container } = await staged(
+      { messageId: 7, lines, open: 1 },
+      0.98,
+      close,
+    );
+    const card = container.querySelector<HTMLElement>("[data-card]");
+    const plane = container.querySelector<HTMLElement>("[data-anchor='plane']");
+    const moved =
+      /translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([-\d.]+)\)/.exec(
+        plane?.style.transform ?? "",
+      );
+    const [ty, scale] = [Number(moved?.[2]), Number(moved?.[3])];
+    // A's pane top (330 on the plane) as drawn, less the device inset.
+    const floor = 330 * scale + ty - DEVICE_INSET_PX * scale;
+    const foot =
+      Number.parseFloat(card?.style.top ?? "") +
+      lines.length * LINE_PX +
+      2 * CARD_INSET_PX;
+    expect(foot).toBeLessThanOrEqual(floor + 0.001);
   });
 
   it("draws no card, and the label whole, while no message is opened", async () => {

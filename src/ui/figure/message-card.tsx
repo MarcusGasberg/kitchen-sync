@@ -24,12 +24,15 @@ const clamp = (value: number, low: number, high: number) =>
 // Where a message's card sits on screen: beside its dot on its label's side,
 // as wide as its longest line (within a note's width), centred on the dot's
 // height, and kept EDGE_PX inside the window. Sized by estimate, as notes
-// are, so it is placed in one pass.
+// are, so it is placed in one pass. A `floor` (a screen y, such as a device
+// pane's top) is a line its foot never crosses: the card rides up the wire
+// above it, and centres on the dot again once there is room.
 export const placeCard = (
   at: Point,
   side: "start" | "end",
   lines: ReadonlyArray<string>,
   viewport: Size,
+  floor?: number,
 ): CardPlace => {
   const longest = Math.max(0, ...lines.map((line) => line.length));
   const width = Math.min(NOTE_MAX_PX, longest * CHAR_PX + 2 * CARD_INSET_PX);
@@ -37,11 +40,13 @@ export const placeCard = (
   const wanted =
     side === "end" ? at.x + CARD_GAP_PX : at.x - CARD_GAP_PX - width;
   const left = clamp(wanted, EDGE_PX, viewport.width - EDGE_PX - width);
-  const top = clamp(
+  const windowed = clamp(
     at.y - height / 2,
     EDGE_PX,
     viewport.height - EDGE_PX - height,
   );
+  const top =
+    floor === undefined ? windowed : Math.min(windowed, floor - height);
   return {
     left,
     top,
@@ -61,6 +66,8 @@ interface MessageCardProps {
   // 0→1: opening out of the dot, or closing back into it.
   readonly open: number;
   readonly viewport: Size;
+  // A screen y the card stays above: the followed device's pane top.
+  readonly floor?: number;
 }
 
 // What a followed message carries, opened out of its dot beside it: its name,
@@ -72,8 +79,9 @@ export function MessageCard({
   side,
   open,
   viewport,
+  floor,
 }: MessageCardProps) {
-  const place = placeCard(at, side, lines, viewport);
+  const place = placeCard(at, side, lines, viewport, floor);
   const [head, ...rest] = lines;
   return (
     <div

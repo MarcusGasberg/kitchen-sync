@@ -55,7 +55,13 @@ import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import { type StageView, withRows } from "./stage-view";
 import { useCamera } from "./use-camera";
 import { WireBand } from "./wire-band";
-import { type Placed, placeFlights, placeLost, type Wire } from "./wires";
+import {
+  DEVICE_INSET_PX,
+  type Placed,
+  placeFlights,
+  placeLost,
+  type Wire,
+} from "./wires";
 
 // What the camera follows: a scene's cut at the playhead, or free play, where
 // it rests wide or on what the reader chose to see up close.
@@ -497,6 +503,17 @@ export function Stage({
     camera === null || carded === undefined
       ? null
       : project(camera, size, { x: carded.x, y: carded.y });
+  // The card's foot stays DEVICE_INSET_PX (as drawn) above the followed
+  // device's pane, so it never rests on the pane's header.
+  const paneBox =
+    carded === undefined
+      ? undefined
+      : measured.boxes.get(`device:${carded.message.client}`);
+  const cardFloor =
+    camera === null || paneBox === undefined
+      ? undefined
+      : project(camera, size, { x: paneBox.left, y: paneBox.top }).y -
+        DEVICE_INSET_PX * camera.scale;
   const room = spot?.kind === "room" ? spot : null;
   const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
   // The foot under the window: a narrow viewport's notes for the whole
@@ -790,6 +807,7 @@ export function Stage({
             side={carded.side}
             open={card.open}
             viewport={size}
+            floor={cardFloor}
           />
         )}
       </div>
