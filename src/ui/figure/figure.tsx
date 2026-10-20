@@ -31,6 +31,7 @@ import { BreakingControls } from "./breaking-controls";
 import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PaceControls, PlayerControls } from "./player-controls";
+import { sharedMarkAt } from "./shared-mark";
 import { type Cue, type FreeFocus, Stage } from "./stage";
 import { NO_MARKS, stageMarksAt } from "./stage-marks";
 import { makeStageView, mostRows } from "./stage-view";
@@ -247,6 +248,12 @@ function FigureBody({
     playhead !== null
       ? { kind: "shot", ...playhead }
       : { kind: "free", focus: inFreePlay ? focus : null };
+  // The code's lit event, when the hold on the stage tells it too: the two
+  // share its mark.
+  const shared =
+    playhead !== null && timeline !== undefined
+      ? sharedMarkAt(playhead.cut, playhead.cursor, timeline, lit)
+      : null;
   // The vocabulary's marks at this frame, on the reveal clock: the cut's
   // screen time in a scene, the world's own time in free play.
   const marks =
@@ -325,6 +332,7 @@ function FigureBody({
             scale={scale ?? 1}
             cue={cue}
             reduced={reduced}
+            shared={shared}
             speed={view.speed}
             // An ended scene lets its last drops finish settling.
             playing={view.playing || view.ended}
@@ -372,6 +380,7 @@ function FigureBody({
             title={code.title}
             snippet={code.snippet}
             lit={lit}
+            shared={shared !== null}
             motion={!reduced && view !== null && !view.jumped}
           />
         </div>

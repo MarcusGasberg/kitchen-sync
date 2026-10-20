@@ -10,6 +10,12 @@
   font: 400 var(--text-xs) / 1.2 var(--font-mono);
 }
 
+/* The event a note on the stage tells too: the mark they share, in fresh
+   ink in both. */
+.note[data-shared] {
+  color: var(--ink-fresh);
+}
+
 .lines {
   display: block;
 }

@@ -76,6 +76,19 @@ describe("CodePanel", () => {
     expect(screen.getByText("A · #3–#5")).toBeTruthy();
   });
 
+  it("sets its note in the stage's shared mark when a stage note tells the event too", () => {
+    const { rerender } = render(
+      <CodePanel title="The engine" snippet={SNIPPET} lit={sent(1)} shared />,
+    );
+    expect(screen.getByText("A · #3–#5").hasAttribute("data-shared")).toBe(
+      true,
+    );
+    rerender(<CodePanel title="The engine" snippet={SNIPPET} lit={sent(1)} />);
+    expect(screen.getByText("A · #3–#5").hasAttribute("data-shared")).toBe(
+      false,
+    );
+  });
+
   it("lights nothing when nothing has run", () => {
     render(<CodePanel title="The engine" snippet={SNIPPET} lit={null} />);
     expect(marked()).toBeNull();

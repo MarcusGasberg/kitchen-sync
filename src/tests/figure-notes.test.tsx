@@ -23,7 +23,7 @@ import {
   placeNotes,
   spotFor,
 } from "#/ui/figure/note-placement";
-import { StageNotes } from "#/ui/figure/stage-notes";
+import { FootNotes, StageNotes } from "#/ui/figure/stage-notes";
 import type { Box } from "#/ui/figure/wires";
 import type { Point } from "#/ui/marbling/operations";
 import {
@@ -617,6 +617,34 @@ describe("placeNotes", () => {
     expect(placed?.pin).toBeNull();
     expect(placed?.text).toBe("Gone.");
   });
+
+  // C's two rows sit closer than a note's height: the first note is level
+  // with its row, the second stacks under it. The first carries the mark's
+  // line, so the second sits a line lower, beside the subjects and in the
+  // room under a wide frame alike; the first stays where it was.
+  it("counts the note that carries the shared mark a line taller", () => {
+    const anchors: Anchors = {
+      ...ANCHORS,
+      boxes: new Map([...ANCHORS.boxes, ["row:C:2", box(450, 315, 610, 335)]]),
+    };
+    const notes = [
+      note({ kind: "row", where: "C", itemId: "1" }, "First."),
+      note({ kind: "row", where: "C", itemId: "2" }, "Second."),
+    ];
+    const room = { kind: "room", top: 420, left: 40, right: 960 } as const;
+    for (const spot of [{ kind: "beside" } as const, room]) {
+      const plain = placeNotes(notes, anchors, IDENTITY, WIDE, { spot });
+      const marked = placeNotes(notes, anchors, IDENTITY, WIDE, {
+        spot,
+        marked: 0,
+      });
+      expect(
+        (only(marked, "Second.").at?.top ?? 0) -
+          (only(plain, "Second.").at?.top ?? 0),
+      ).toBe(LINE_PX);
+      expect(only(marked, "First.")).toEqual(only(plain, "First."));
+    }
+  });
 });
 
 describe("StageNotes", () => {
@@ -650,5 +678,42 @@ describe("StageNotes", () => {
     expect(container.textContent).not.toContain("Shows on C at once.");
     expect(container.querySelectorAll("polyline")).toHaveLength(0);
     expect(container.querySelectorAll("circle")).toHaveLength(1);
+  });
+
+  it("sets the shared mark over the first note only", () => {
+    const placed = placeNotes(
+      [
+        note({ kind: "row", where: "B", itemId: "1" }, "Shows on B."),
+        note({ kind: "row", where: "C", itemId: "1" }, "Shows on C."),
+      ],
+      ANCHORS,
+      IDENTITY,
+      WIDE,
+      { marked: 0 },
+    );
+    const { container } = render(
+      <StageNotes placed={placed} viewport={WIDE} mark="A · #6" />,
+    );
+    const marks = container.querySelectorAll("p > span");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]?.textContent).toBe("A · #6");
+    expect(marks[0]?.parentElement?.textContent).toBe("A · #6Shows on B.");
+  });
+
+  it("sets the shared mark over the first note in the foot", () => {
+    const placed = placeNotes(
+      [
+        note({ kind: "row", where: "B", itemId: "1" }, "Shows on B."),
+        note({ kind: "row", where: "C", itemId: "1" }, "Shows on C."),
+      ],
+      ANCHORS,
+      IDENTITY,
+      { width: 400, height: 700 },
+    );
+    const { container } = render(<FootNotes placed={placed} mark="A · #6" />);
+    const words = [...container.querySelectorAll("p")].map(
+      (p) => p.textContent,
+    );
+    expect(words).toEqual(["A · #6Shows on B.", "Shows on C."]);
   });
 });

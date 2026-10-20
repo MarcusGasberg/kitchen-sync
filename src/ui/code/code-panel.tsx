@@ -25,6 +25,9 @@ interface CodePanelProps {
   // Whether a change of lit lines moves: they settle in, and the code scrolls
   // to them smoothly. False for a jump and under reduced motion.
   readonly motion?: boolean;
+  // Whether a note on the stage tells the lit event too (`sharedMarkAt`):
+  // the code's note then takes the fresh ink they share.
+  readonly shared?: boolean;
 }
 
 interface Numbered {
@@ -64,6 +67,8 @@ export const CodePanel = memo(function CodePanel({
   lit = null,
   running = true,
   motion = false,
+  // `shared` (the prop) is named apart from the `shared` stylesheet above.
+  shared: sharesMark = false,
 }: CodePanelProps) {
   const titleId = useId();
   const scroller = useRef<HTMLPreElement>(null);
@@ -115,7 +120,11 @@ export const CodePanel = memo(function CodePanel({
         {!running && (
           <p className={styles.reference}>Not running in this figure</p>
         )}
-        {shown !== null && <p className={styles.note}>{noteOf(shown.event)}</p>}
+        {shown !== null && (
+          <p className={styles.note} data-shared={sharesMark ? "" : undefined}>
+            {noteOf(shown.event)}
+          </p>
+        )}
       </CodeHead>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: code wider or taller than its column scrolls, and a keyboard scrolls it */}
       <pre ref={scroller} className={shared.code} tabIndex={0}>

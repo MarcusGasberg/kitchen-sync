@@ -106,6 +106,9 @@ interface StageProps {
   readonly scale: number;
   readonly cue: Cue;
   readonly reduced: boolean;
+  // The code's note when the hold's first note tells the event the code lit
+  // (`sharedMarkAt`): set over that note in fresh ink.
+  readonly shared?: string | null;
   // The vocabulary's marks at this frame (`stageMarksAt`): how each changed
   // row, and later each tray, status and basin, looks on the reveal clock.
   // Without them the world is drawn plain.
@@ -241,6 +244,7 @@ export function Stage({
   scale,
   cue,
   reduced,
+  shared = null,
   marks = NO_MARKS,
   speed = 1,
   playing = true,
@@ -463,7 +467,10 @@ export function Stage({
   const placed =
     spot === null || camera === null || shot === undefined
       ? []
-      : placeNotes(shot.notes, anchors, camera, size, { spot });
+      : placeNotes(shot.notes, anchors, camera, size, {
+          spot,
+          marked: shared === null ? null : 0,
+        });
   const fade = spot?.kind === "beside";
   // A followed message's card, beside its dot on screen, over the window and
   // not on the plane, so the camera's scale never touches its words.
@@ -755,7 +762,12 @@ export function Stage({
           </span>
         )}
         {placed.length > 0 && (
-          <StageNotes key={noteKey} placed={placed} viewport={size} />
+          <StageNotes
+            key={noteKey}
+            placed={placed}
+            viewport={size}
+            mark={shared}
+          />
         )}
         {card !== null && carded !== undefined && cardAt !== null && (
           <MessageCard
@@ -779,7 +791,7 @@ export function Stage({
           }
         >
           {foot === "notes" && spot?.kind === "foot" && (
-            <FootNotes key={noteKey} placed={placed} />
+            <FootNotes key={noteKey} placed={placed} mark={shared} />
           )}
           {foot === "free" && focused !== null && (
             <Button kind="secondary" onClick={back}>

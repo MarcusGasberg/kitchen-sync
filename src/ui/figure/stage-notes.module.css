@@ -42,6 +42,14 @@
   position: absolute;
 }
 
+/* The code's note for the event this note tells, "A · #6", over its words:
+   the one mark the code and the stage share, in fresh ink in both. */
+.mark {
+  display: block;
+  color: var(--ink-fresh);
+  font: 400 var(--text-xs) / 1.45 var(--font-mono);
+}
+
 .foot {
   display: grid;
   gap: var(--space-1);
@@ -81,5 +89,9 @@
   .footNote {
     color: CanvasText;
     background: Canvas;
+  }
+
+  .mark {
+    color: CanvasText;
   }
 }

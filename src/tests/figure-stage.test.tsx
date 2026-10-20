@@ -748,6 +748,39 @@ describe("Stage", () => {
     expect(closeScale ?? 3).toBeLessThanOrEqual(MAX_SCALE);
   });
 
+  it("sets the code's shared mark over the hold's first note", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(LAYOUT);
+    const { container, unmount } = render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={closeOn("A", [
+          { on: { kind: "device", client: "A" }, text: "Shows on A at once." },
+        ])}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+        shared="A · #6"
+      />,
+    );
+    const marks = [...container.querySelectorAll("p > span")].filter(
+      (span) => span.textContent === "A · #6",
+    );
+    unmount();
+    restore();
+    expect(marks).toHaveLength(1);
+    expect(marks[0]?.parentElement?.textContent).toBe(
+      "A · #6Shows on A at once.",
+    );
+  });
+
   it("dims what a close-up is not about, and stops drawing basins out of view", async () => {
     const { container, restore } = await staged(closeOn("A"));
     restore();

@@ -228,9 +228,12 @@ const ownOf = (on: Note["on"]): ReadonlySet<string> => {
 };
 
 // How a shot's notes are placed: where they go (`spotFor`); by default beside
-// the subjects on a wide viewport, in the foot on a narrow one.
+// the subjects on a wide viewport, in the foot on a narrow one. `marked`: the
+// note (by its index in `notes`) that carries the shared mark, a mono line
+// over its words, which it is counted a line taller for.
 export interface NoteOptions {
   readonly spot?: NoteSpot;
+  readonly marked?: number | null;
 }
 
 export const placeNotes = (
@@ -240,10 +243,15 @@ export const placeNotes = (
   viewport: Size,
   {
     spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
+    marked = null,
   }: NoteOptions = {},
 ): ReadonlyArray<PlacedNote> => {
   const beside = spot.kind === "beside";
   const share = shareFrom(viewport);
+  // A note's height at `width`: a line taller for the one that carries the
+  // shared mark over its words.
+  const heightFor = ({ note, index }: Target, width: number) =>
+    heightOf(note.text, width) + (index === marked ? LINE_PX : 0);
   const targets: ReadonlyArray<Target> = notes.map((note, index) => {
     const b = boxOf(note.on, anchors);
     const key = headerKeyOf(note.on);
@@ -316,7 +324,7 @@ export const placeNotes = (
     let top = spot.top;
     return ordered.map((target) => {
       const placed = dotted(target, { left: spot.left, top, width });
-      top += heightOf(target.note.text, width) + NOTE_GAP_PX;
+      top += heightFor(target, width) + NOTE_GAP_PX;
       return placed;
     });
   }
@@ -328,7 +336,7 @@ export const placeNotes = (
     bottom: viewport.height - EDGE_PX,
   };
   const into = strip.left - LEADER_GAP_PX;
-  const heights = ordered.map(({ note }) => heightOf(note.text, strip.width));
+  const heights = ordered.map((target) => heightFor(target, strip.width));
   // What a leader may not touch, on screen: text (each row, list heading and
   // pane header) and basin water.
   const obstacles = [...anchors.boxes]
