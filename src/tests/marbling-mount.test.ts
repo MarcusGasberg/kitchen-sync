@@ -638,4 +638,82 @@ describe("forcedColors", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("settles a change over the length it is given", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("a"), drop("b")], { millis: 2 * SETTLE_MS });
+    fake.frame();
+    fake.advance(SETTLE_MS);
+    fake.frame();
+    const half = radiusOf(fake.draws.at(-1) ?? [], "b") ?? 0;
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(0.1);
+    expect(fake.waiting()).toBe(1);
+
+    fake.advance(SETTLE_MS);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+    expect(fake.waiting()).toBe(0);
+  });
+
+  it("holds a settle where it was while paused, drawn fine, and carries it on after", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    fake.advance(SETTLE_MS / 4);
+    fake.frame();
+    const quarter = radiusOf(fake.draws.at(-1) ?? [], "b");
+
+    basin.setPaused(true);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(quarter);
+    expect(fake.fine.at(-1)).toBe(true);
+    const drawn = fake.draws.length;
+    fake.advance(2_000);
+    fake.frame();
+    expect(fake.draws).toHaveLength(drawn);
+    expect(fake.waiting()).toBe(0);
+
+    basin.setPaused(false);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(quarter);
+    // Three quarters of the settle were left when it paused.
+    fake.advance(SETTLE_MS / 2);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBeLessThan(0.1);
+    fake.advance(SETTLE_MS / 4);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+    expect(fake.waiting()).toBe(0);
+  });
+
+  it("lands a change shown while paused at once", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    basin.setPaused(true);
+    fake.frame();
+    basin.show([drop("a"), drop("b")]);
+    fake.frame();
+    expect(radiusOf(fake.draws.at(-1) ?? [], "b")).toBe(0.1);
+    expect(fake.waiting()).toBe(0);
+  });
+
+  it("draws nothing more when told to pause or play as it already is", () => {
+    const fake = fakeHost();
+    const basin = mountBasin(canvasOf(400, 160), fake.host);
+    basin.show([drop("a")]);
+    fake.frame();
+    const drawn = fake.draws.length;
+    basin.setPaused(false);
+    fake.frame();
+    expect(fake.draws).toHaveLength(drawn);
+  });
 });

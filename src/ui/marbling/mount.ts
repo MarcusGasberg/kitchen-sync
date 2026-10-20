@@ -179,12 +179,13 @@ const samePattern = (
 ) => a.length === b.length && a.every((op, i) => sameOperation(op, b[i]));
 
 export interface MountedBasin {
-  // Shows a new pattern. The change settles in unless motion is reduced, the
-  // renderer cannot settle at frame rate, or `settle` is false (a scrub shows
-  // its instant at once).
+  // Shows a new pattern. The change settles in over `millis` (SETTLE_MS
+  // unless given) unless motion is reduced, the renderer cannot settle at
+  // frame rate, the basin is paused, or `settle` is false (a scrub shows its
+  // instant at once).
   readonly show: (
     ops: ReadonlyArray<Operation>,
-    options?: { readonly settle?: boolean },
+    options?: { readonly settle?: boolean; readonly millis?: number },
   ) => void;
   // Draws `density` times sharper than the page asks (a camera's close-up),
   // within MAX_CANVAS_PX a side.
@@ -192,6 +193,10 @@ export interface MountedBasin {
   // A basin out of view keeps its pattern but draws nothing until back in
   // view, when it draws the latest at once.
   readonly setActive: (active: boolean) => void;
+  // While its figure is paused a settle holds where it was, drawn fine, and
+  // carries on from there once it plays again. A change shown while paused
+  // lands at once: nothing would carry it in.
+  readonly setPaused: (paused: boolean) => void;
   readonly unmount: () => void;
 }
 
@@ -222,14 +227,21 @@ export const mountBasin = (
   let active = true;
   // Whether a resize waits for the basin to come back into view.
   let unsized = false;
+  // The settle's clock: the host's, stopped while paused and carried on from
+  // there after, so a pause holds every drop where it was.
+  let pausedAt: number | null = null;
+  let lag = 0;
+  const clock = () => pausedAt ?? host.now() - lag;
 
   const draw = () => {
     frame = null;
     if (made === null || !active) return;
-    const now = settler.at(host.now());
-    // A still frame is drawn fine: a settle's last, a resize, a re-ink.
-    made.renderer.draw(now.ops, tones, { fine: !now.moving, feather });
-    if (now.moving) frame = host.requestFrame(draw);
+    const now = settler.at(clock());
+    // A still frame is drawn fine: a settle's last, a paused one, a resize,
+    // a re-ink.
+    const still = !now.moving || pausedAt !== null;
+    made.renderer.draw(now.ops, tones, { fine: still, feather });
+    if (!still) frame = host.requestFrame(draw);
   };
   const redraw = () => {
     if (made !== null && frame === null) frame = host.requestFrame(draw);
@@ -283,7 +295,7 @@ export const mountBasin = (
       if (
         shown &&
         samePattern(ops, next) &&
-        (settle || !settler.moving(host.now()))
+        (settle || !settler.moving(clock()))
       ) {
         return;
       }
@@ -291,8 +303,12 @@ export const mountBasin = (
       ops = next;
       settler.see(
         next,
-        host.now(),
-        settle && made?.settles === true && !(motion?.matches ?? false),
+        clock(),
+        settle &&
+          pausedAt === null &&
+          made?.settles === true &&
+          !(motion?.matches ?? false),
+        options.millis,
       );
       redraw();
     },
@@ -314,6 +330,21 @@ export const mountBasin = (
         if (resize()) return;
       }
       draw();
+    },
+    setPaused: (next) => {
+      if (next === (pausedAt !== null)) return;
+      if (next) {
+        pausedAt = clock();
+      } else {
+        // The clock reads on from where it stopped.
+        lag = host.now() - (pausedAt ?? host.now());
+        pausedAt = null;
+      }
+      // Paused, one fine frame at the instant it stopped; playing again, the
+      // settle runs on from there.
+      if (frame !== null) host.cancelFrame(frame);
+      frame = null;
+      redraw();
     },
     unmount: () => {
       if (frame !== null) host.cancelFrame(frame);

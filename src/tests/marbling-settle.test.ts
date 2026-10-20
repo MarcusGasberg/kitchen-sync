@@ -272,4 +272,41 @@ describe("a change to a list", () => {
       true,
     );
   });
+
+  it("settles a change over its own length when given one", () => {
+    const slow = createSettler(DURATION);
+    slow.see([drop("a")], 0, true);
+    slow.see([drop("a"), drop("b")], 100, true, 2 * DURATION);
+    const usual = createSettler(DURATION);
+    usual.see([drop("a")], 0, true);
+    usual.see([drop("a"), drop("b")], 100, true);
+    // Twice as long: at DURATION it is where the usual settle is halfway.
+    expect(radiusOf(slow.at(100 + DURATION).ops, "b")).toBe(
+      radiusOf(usual.at(100 + DURATION / 2).ops, "b"),
+    );
+    expect(slow.at(100 + DURATION).moving).toBe(true);
+    expect(slow.at(100 + 2 * DURATION)).toEqual({
+      ops: [drop("a"), drop("b")],
+      moving: false,
+    });
+  });
+
+  it("keeps each change's own length when another lands during it", () => {
+    const settler = createSettler(DURATION);
+    settler.see([drop("a")], 0, true);
+    settler.see([drop("a"), drop("b")], 0, true, 2 * DURATION);
+    settler.see([drop("a"), drop("b"), drop("c")], 100, true);
+    // c, at the usual length, is in; b, at twice it, still settles.
+    expect(radiusOf(settler.at(100 + DURATION).ops, "c")).toBe(0.1);
+    expect(radiusOf(settler.at(100 + DURATION).ops, "b")).toBeLessThan(0.1);
+    expect(settler.at(2 * DURATION).moving).toBe(false);
+  });
+
+  it("settles at its own duration when given a length that is no length", () => {
+    const settler = createSettler(DURATION);
+    settler.see([drop("a")], 0, true);
+    settler.see([drop("a"), drop("b")], 0, true, 0);
+    expect(settler.at(DURATION / 2).moving).toBe(true);
+    expect(settler.at(DURATION).moving).toBe(false);
+  });
 });

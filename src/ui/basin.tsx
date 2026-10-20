@@ -63,6 +63,11 @@ interface BasinProps {
   // (`ghostsOf`). Each gets a dashed ring where its drop will land. Memoise
   // it on the state it comes from, as `waiting`.
   readonly ghosts?: ReadonlyArray<GroceryItem>;
+  // How long its next change settles, in milliseconds: SETTLE_MS unless a
+  // figure stretches a close-up's settle or plays at another speed.
+  readonly settleMillis?: number;
+  // True while its figure is paused: a settle holds still where it was.
+  readonly paused?: boolean;
 }
 
 // A device's basin: its list's pattern on water, the same on every device
@@ -79,6 +84,8 @@ export function Basin({
   active = true,
   ringAnchors,
   ghosts,
+  settleMillis,
+  paused = false,
 }: BasinProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const mounted = useRef<MountedBasin | null>(null);
@@ -97,9 +104,14 @@ export function Basin({
     };
   }, []);
 
+  // A new length alone shows the same pattern again, which changes nothing.
   useEffect(() => {
-    mounted.current?.show(ops, { settle });
-  }, [ops, settle]);
+    mounted.current?.show(ops, { settle, millis: settleMillis });
+  }, [ops, settle, settleMillis]);
+
+  useEffect(() => {
+    mounted.current?.setPaused(paused);
+  }, [paused]);
 
   useEffect(() => {
     mounted.current?.setDensity(density);

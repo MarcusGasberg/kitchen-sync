@@ -65,13 +65,14 @@ export const commonRun = (
 };
 
 // One operation on the water and how far in it is: its weight runs from
-// `from` to `to` (1 all there, 0 not at all) over the settle that began at
-// `start`.
+// `from` to `to` (1 all there, 0 not at all) over the `millis` of the settle
+// that began at `start`.
 interface Entry {
   readonly op: Operation;
   readonly start: number;
   readonly from: number;
   readonly to: 0 | 1;
+  readonly millis: number;
 }
 
 const still = (op: Operation): Entry => ({
@@ -79,6 +80,7 @@ const still = (op: Operation): Entry => ({
   start: -Infinity,
   from: 1,
   to: 1,
+  millis: 0,
 });
 
 // Takes a basin from one pattern to the next without a jump. What both share
@@ -87,28 +89,38 @@ const still = (op: Operation): Entry => ({
 // lands in its new one. Area flows from the old to the new, so the first
 // frame of a change draws the picture already on the water and the last draws
 // the new one. A change during a settle carries on from wherever each
-// operation had got to.
+// operation had got to, each at its own length.
 export const createSettler = (duration: number) => {
   let entries: Array<Entry> = [];
   let primed = false;
 
   const weightAt = (entry: Entry, now: number) => {
-    const t = (now - entry.start) / duration;
+    const t = entry.millis > 0 ? (now - entry.start) / entry.millis : 1;
     return t >= 1
       ? entry.to
       : entry.from + (entry.to - entry.from) * easeOut(t);
   };
+  const settling = (entry: Entry, now: number) =>
+    now - entry.start < entry.millis;
 
   return {
-    // Heads for `next`. On the first call, and without `animate` (reduced
-    // motion, a renderer too slow to settle, a scrub), the water shows it at
-    // once.
-    see: (next: ReadonlyArray<Operation>, now: number, animate: boolean) => {
+    // Heads for `next` over `millis`, the settler's own duration unless
+    // given: a figure stretches a close-up's settle, and its speed scales
+    // every one. On the first call, and without `animate` (reduced motion, a
+    // renderer too slow to settle, a scrub, a paused figure), the water shows
+    // it at once.
+    see: (
+      next: ReadonlyArray<Operation>,
+      now: number,
+      animate: boolean,
+      millis: number = duration,
+    ) => {
       if (!primed || !animate) {
         entries = next.map(still);
         primed = true;
         return;
       }
+      const length = Number.isFinite(millis) && millis > 0 ? millis : duration;
       const heading = entries.filter((entry) => entry.to === 1);
       const stays = new Map<number, number>(
         commonRun(
@@ -121,7 +133,13 @@ export const createSettler = (duration: number) => {
       let arrived = 0;
       const arriveBefore = (end: number) => {
         while (arrived < end) {
-          merged.push({ op: next[arrived], start: now, from: 0, to: 1 });
+          merged.push({
+            op: next[arrived],
+            start: now,
+            from: 0,
+            to: 1,
+            millis: length,
+          });
           arrived += 1;
         }
       };
@@ -135,7 +153,13 @@ export const createSettler = (duration: number) => {
         if (target === undefined) {
           const weight = weightAt(entry, now);
           if (weight > 0) {
-            merged.push({ op: entry.op, start: now, from: weight, to: 0 });
+            merged.push({
+              op: entry.op,
+              start: now,
+              from: weight,
+              to: 0,
+              millis: length,
+            });
           }
           continue;
         }
@@ -147,8 +171,7 @@ export const createSettler = (duration: number) => {
       entries = merged;
     },
     // Whether anything is still settling at `now`.
-    moving: (now: number) =>
-      entries.some((entry) => now - entry.start < duration),
+    moving: (now: number) => entries.some((entry) => settling(entry, now)),
     // The pattern as far as it has settled at `now`, and whether anything is
     // still moving. An operation still to land is drawn at weight 0, which
     // changes nothing.
@@ -156,7 +179,7 @@ export const createSettler = (duration: number) => {
       let moving = false;
       const ops: Array<Operation> = [];
       for (const entry of entries) {
-        if (now - entry.start < duration) moving = true;
+        if (settling(entry, now)) moving = true;
         const weight = weightAt(entry, now);
         if (entry.to === 0 && weight <= 0) continue;
         ops.push(weight >= 1 ? entry.op : partway(entry.op, weight));
