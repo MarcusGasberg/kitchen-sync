@@ -79,6 +79,33 @@ export const layWires = (
   });
 };
 
+// Where a poke ripples from and how far: from the middle of the wires'
+// server ends out to the farthest device end, held above `floor`, the
+// devices' tops, so its rings run down the band and never across a pane.
+export interface Ripple {
+  readonly at: Point;
+  readonly reach: number;
+  readonly floor: number;
+}
+
+export const rippleOf = (wires: ReadonlyArray<Wire>): Ripple | null => {
+  if (wires.length === 0) return null;
+  const at = {
+    x: wires.reduce((sum, wire) => sum + wire.server.x, 0) / wires.length,
+    y: wires.reduce((sum, wire) => sum + wire.server.y, 0) / wires.length,
+  };
+  let reach = 0;
+  let floor = Number.POSITIVE_INFINITY;
+  for (const wire of wires) {
+    reach = Math.max(
+      reach,
+      Math.hypot(wire.device.x - at.x, wire.device.y - at.y),
+    );
+    floor = Math.min(floor, wire.device.y);
+  }
+  return { at, reach, floor };
+};
+
 // Requests rise this far to one side of a wire and replies fall as far to the
 // other, so a push and the pull response passing it never sit on each other.
 export const LANE_PX = 6;

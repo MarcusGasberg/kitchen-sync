@@ -2,11 +2,13 @@ import { it } from "@effect/vitest";
 import { DateTime, Effect, Option } from "effect";
 import { describe, expect } from "vitest";
 import { type Category, GroceryItem } from "#/domain/grocery-item";
+import { runHeadless } from "#/lib/sandbox/scene";
 import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
 import { EMPTY_STATE } from "#/lib/store";
 import {
   deviceLine,
+  deviceWords,
   LABELLED,
   makeStageView,
   mostRows,
@@ -14,18 +16,45 @@ import {
 } from "#/ui/figure/stage-view";
 import { listView } from "#/ui/list-view";
 import { syncStatus } from "#/ui/sync-status";
+import { OAT_SCENE } from "./director-helpers";
 import { add } from "./sandbox-helpers";
 
 describe("deviceLine", () => {
-  it("says a device's state in a few words, with its version", () => {
+  it("says a device's state in a few words, after its version", () => {
     const seeded = { ...EMPTY_STATE, seeded: true, appliedVersion: 7 };
-    const line = (offline = false, server = 7, state = seeded) =>
-      deviceLine(state, syncStatus(state, { offline }), server);
-    expect(line(false, 7, EMPTY_STATE)).toBe("connecting");
+    const line = (offline = false, state = seeded) =>
+      deviceLine(state, syncStatus(state, { offline }));
+    expect(line(false, EMPTY_STATE)).toBe("connecting");
     expect(line()).toBe("v7 · synced");
-    expect(line(false, 9)).toBe("v7 · 2 behind");
     expect(line(true)).toBe("v7 · offline");
+    expect(deviceWords(syncStatus(seeded))).toBe("synced");
   });
+});
+
+describe("a pane's version and words", () => {
+  it.effect(
+    "split every line in two, and never say behind: the poke's tag does",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(OAT_SCENE);
+        const stage = makeStageView();
+        for (const { snapshot } of timeline.entries) {
+          const view = stage(snapshot, new Map());
+          expect(view.server.version).toBe(snapshot.server.serverVersion);
+          expect(view.server.line).toBe(
+            `v${view.server.version} · ${view.server.words}`,
+          );
+          for (const device of view.devices) {
+            expect(device.line).toBe(
+              device.version === null
+                ? device.words
+                : `v${device.version} · ${device.words}`,
+            );
+            expect(device.line).not.toMatch(/behind/);
+          }
+        }
+      }),
+  );
 });
 
 describe("makeStageView", () => {
@@ -50,6 +79,8 @@ describe("makeStageView", () => {
         const second = stage(after, ids);
 
         expect(first.server.line).toBe("v6 · 6 items");
+        expect(first.server.version).toBe(6);
+        expect(first.server.words).toBe("6 items");
         expect(first.server.labels.size).toBe(LABELLED);
         expect([...first.server.labels.values()]).toEqual([
           "v6",
@@ -63,6 +94,8 @@ describe("makeStageView", () => {
         expect(a1?.clientId).toBe(world.client("A").clientId);
         expect(b1?.clientId).toBeUndefined();
         expect(a1?.line).toBe("v6 · synced");
+        expect(a1?.version).toBe(6);
+        expect(a1?.words).toBe("synced");
         // A did nothing between the two: the same arrays, so the same pattern.
         expect(a2?.items).toBe(a1?.items);
         expect(a2?.list).toBe(a1?.list);

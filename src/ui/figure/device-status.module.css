@@ -1,0 +1,36 @@
+/* A pane's state line in a figure. The pane sets its face: mono, the
+   second text colour. */
+.status {
+  white-space: nowrap;
+}
+
+.odometer {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A rolling digit: a window one line tall onto a reel of the old digit over
+   the new, moved up by the roll's progress. */
+.column {
+  display: inline-block;
+  height: 1lh;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.reel {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(var(--roll, 0) * -1lh));
+}
+
+/* Behind: the one fresh-ink word in the line, from the poke to the pull. */
+.behind {
+  margin-inline-start: var(--space-2);
+  color: var(--ink-fresh);
+}
+
+@media (forced-colors: active) {
+  .behind {
+    color: CanvasText;
+  }
+}

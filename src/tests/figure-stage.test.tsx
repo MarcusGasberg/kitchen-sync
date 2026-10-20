@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GroceryItem } from "#/domain/grocery-item";
 import type { Acting } from "#/lib/director/acting";
 import { wetKey } from "#/lib/director/marks";
-import type { Cut, Shot } from "#/lib/director/shots";
+import { type Cut, SERVER, type Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
 import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
@@ -175,6 +175,42 @@ describe("Stage", () => {
     expect(within(a).getByText(/Milk/)).toBeTruthy();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("rolls a version and tags a device behind, as its marks say", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const marks: StageMarks = {
+      ...NO_MARKS,
+      behind: new Map([["B", { versions: 1, shown: 1 }]]),
+      rolls: new Map([[SERVER, { from: 0, to: 1, progress: 0.5 }]]),
+    };
+    render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        marks={marks}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    const b = screen.getByRole("region", { name: "B" });
+    expect(within(b).getByText("1 behind")).toBeTruthy();
+    expect(
+      within(screen.getByRole("region", { name: "A" })).queryByText(/behind/),
+    ).toBeNull();
+    const server = screen.getByRole("region", { name: "Server" });
+    const column = server.querySelector<HTMLElement>("[data-rolling]");
+    expect(column?.style.getPropertyValue("--roll")).toBe("0.5");
+    // A screen reader still reads the plain line.
+    expect(within(server).getByText("v1 · 1 item")).toBeTruthy();
   });
 
   // The marks key a row by place: A's milk is marked, B's copy of the same

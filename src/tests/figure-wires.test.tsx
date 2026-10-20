@@ -11,6 +11,7 @@ import {
   placeFlights,
   placeLost,
   placeMessage,
+  rippleOf,
   STACK_PX,
   type Wire,
 } from "#/ui/figure/wires";
@@ -345,5 +346,80 @@ describe("WireBand", () => {
     const [a, b] = [...container.querySelectorAll("line")];
     expect(a?.hasAttribute("data-dim")).toBe(false);
     expect(b?.hasAttribute("data-dim")).toBe(true);
+  });
+});
+
+describe("rippleOf", () => {
+  const wires: ReadonlyArray<Wire> = [
+    { client: "A", server: { x: 80, y: 100 }, device: { x: 40, y: 200 } },
+    { client: "B", server: { x: 120, y: 100 }, device: { x: 160, y: 200 } },
+  ];
+
+  it("ripples from the middle of the wires' server ends, out to the farthest device", () => {
+    expect(rippleOf(wires)).toEqual({
+      at: { x: 100, y: 100 },
+      reach: Math.hypot(60, 100),
+      floor: 200,
+    });
+    expect(rippleOf([])).toBeNull();
+  });
+
+  it("draws two rings in the band only, fading as they grow", () => {
+    const { container } = render(
+      <WireBand
+        width={200}
+        height={240}
+        wires={wires}
+        flights={[]}
+        lost={[]}
+        ripple={0.5}
+      />,
+    );
+    const band = container.querySelector<SVGSVGElement>("svg[data-ripple]");
+    // Held to the band: from the server ends down to the devices' tops.
+    expect(band?.getAttribute("y")).toBe("100");
+    expect(band?.getAttribute("height")).toBe("100");
+    expect(band?.style.opacity).toBe("0.5");
+    const radii = [...(band?.querySelectorAll("circle") ?? [])].map((circle) =>
+      Number(circle.getAttribute("r")),
+    );
+    const reach = Math.hypot(60, 100);
+    expect(radii[0]).toBeCloseTo(0.5 * reach);
+    expect(radii[1]).toBeCloseTo(0.5 * reach * 0.6);
+    expect(band?.closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("draws one still ring at its full reach under reduced motion", () => {
+    const { container } = render(
+      <WireBand
+        width={200}
+        height={240}
+        wires={wires}
+        flights={[]}
+        lost={[]}
+        ripple={1}
+        reduced
+      />,
+    );
+    const band = container.querySelector<SVGSVGElement>("svg[data-ripple]");
+    expect(band?.style.opacity).toBe("0.5");
+    const circles = [...(band?.querySelectorAll("circle") ?? [])];
+    expect(circles).toHaveLength(1);
+    expect(Number(circles[0]?.getAttribute("r"))).toBeCloseTo(
+      Math.hypot(60, 100),
+    );
+  });
+
+  it("draws no ripple without one", () => {
+    const { container } = render(
+      <WireBand
+        width={200}
+        height={240}
+        wires={wires}
+        flights={[]}
+        lost={[]}
+      />,
+    );
+    expect(container.querySelector("[data-ripple]")).toBeNull();
   });
 });

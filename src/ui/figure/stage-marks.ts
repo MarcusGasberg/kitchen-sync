@@ -20,6 +20,14 @@ import { payloadOf } from "#/lib/director/payload";
 import { type AgeOf, progress } from "#/lib/director/reveal";
 import type { Cut, Place, Shot } from "#/lib/director/shots";
 import { type CutCursor, screenOf } from "#/lib/director/timing";
+import {
+  BEHIND_IN_MILLIS,
+  behindAt,
+  RIPPLE_MILLIS,
+  ROLL_MILLIS,
+  rippleAt,
+  rollsAt,
+} from "#/lib/director/versions";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { WaitingChange } from "#/ui/list-view";
 
@@ -90,6 +98,20 @@ export interface CardLook {
   readonly open: number;
 }
 
+// A version rolling on: from, to, and how far the digits have turned.
+export interface RollLook {
+  readonly from: number;
+  readonly to: number;
+  readonly progress: number;
+}
+
+// A device behind the server, from the poke that told it until its pull.
+export interface BehindLook {
+  readonly versions: number;
+  // 0→1 the tag fading in.
+  readonly shown: number;
+}
+
 export interface StageMarks {
   // Each row's latest change while it is wet, by `wetKey(place, itemId)`.
   readonly rows: ReadonlyMap<string, RowLook>;
@@ -103,6 +125,10 @@ export interface StageMarks {
   // The card of the message a follow is on; null in any other shot, and in
   // free play.
   readonly card: CardLook | null;
+  // The poke's ripple, 0→1, while it runs.
+  readonly ripple: number | null;
+  readonly behind: ReadonlyMap<ClientName, BehindLook>;
+  readonly rolls: ReadonlyMap<Place, RollLook>;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
@@ -112,6 +138,9 @@ export const NO_MARKS: StageMarks = {
   acting: null,
   trays: new Map(),
   card: null,
+  ripple: null,
+  behind: new Map(),
+  rolls: new Map(),
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -286,6 +315,52 @@ const cardAt = ({
   return { messageId: message.id, lines: payloadOf(message, timeline), open };
 };
 
+// The poke's ripple, 0→1, while it runs. Under reduced motion it is 1 for
+// as long as it runs: the wire band draws its still form, one ring at its
+// full reach.
+const rippleLook = ({
+  timeline,
+  index,
+  ageOf,
+  reduced,
+}: MarkInput): number | null => {
+  const age = rippleAt(timeline, index, ageOf);
+  return age === null ? null : progress(age, RIPPLE_MILLIS, reduced);
+};
+
+const behindLooks = ({
+  timeline,
+  index,
+  ageOf,
+  reduced,
+}: MarkInput): ReadonlyMap<ClientName, BehindLook> => {
+  const looks = new Map<ClientName, BehindLook>();
+  for (const [client, { versions, age }] of behindAt(timeline, index, ageOf)) {
+    looks.set(client, {
+      versions,
+      shown: progress(age, BEHIND_IN_MILLIS, reduced),
+    });
+  }
+  return looks;
+};
+
+const rollLooks = ({
+  timeline,
+  index,
+  ageOf,
+  reduced,
+}: MarkInput): ReadonlyMap<Place, RollLook> => {
+  const looks = new Map<Place, RollLook>();
+  for (const [where, { from, to, age }] of rollsAt(timeline, index, ageOf)) {
+    looks.set(where, {
+      from,
+      to,
+      progress: progress(age, ROLL_MILLIS, reduced),
+    });
+  }
+  return looks;
+};
+
 // Every mark at a frame, each found by its own function from one input.
 export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
@@ -293,6 +368,9 @@ export const stageMarksAt = (input: MarkInput): StageMarks => ({
   acting: actingOf(input),
   trays: traysAt(input),
   card: cardAt(input),
+  ripple: rippleLook(input),
+  behind: behindLooks(input),
+  rolls: rollLooks(input),
 });
 
 // One place's row looks, by item id: what its list takes.

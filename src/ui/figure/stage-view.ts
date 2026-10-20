@@ -21,14 +21,21 @@ export interface DeviceView {
   readonly waiting: ReadonlyMap<string, number>;
   readonly list: ListView;
   readonly status: SyncStatus;
-  // Its state in a few words, as "v7 · 2 behind".
+  // Its version, or null while it is still connecting and has none.
+  readonly version: number | null;
+  // Its state after the version, as "synced" or "1 pending · 1 acked".
+  readonly words: string;
+  // Both, as "v7 · synced": what a screen reader reads.
   readonly line: string;
 }
 
 export interface ServerPaneView {
   readonly items: ReadonlyArray<GroceryItem>;
   readonly list: ListView;
-  // As "v7 · 5 items".
+  readonly version: number;
+  // As "5 items".
+  readonly words: string;
+  // Both, as "v7 · 5 items".
   readonly line: string;
   // The newest items' versions, by item id, set on its basin.
   readonly labels: ReadonlyMap<string, string>;
@@ -42,40 +49,42 @@ export interface StageView {
 // How many of the server's newest items its basin labels with a version.
 export const LABELLED = 5;
 
-const withWaiting = (line: string, waiting: number) =>
-  waiting === 0 ? line : `${line} · ${waiting} waiting`;
+const withWaiting = (word: string, waiting: number) =>
+  waiting === 0 ? word : `${word} · ${waiting} waiting`;
 
-// A device's state line: its version, then its state. A synced device whose
-// version trails the server's says how far behind it is, until it pulls.
-export const deviceLine = (
-  state: Pick<StoreState, "appliedVersion">,
-  status: SyncStatus,
-  serverVersion: number,
-): string => {
-  const version = `v${state.appliedVersion}`;
+// What a device's state line says after its version. Behind is the poke's
+// to say (`behindAt`), from the moment one reaches the device: a synced
+// device is synced, whatever the server holds.
+export const deviceWords = (status: SyncStatus): string => {
   switch (status.kind) {
     case "connecting":
       return "connecting";
-    case "synced": {
-      const behind = serverVersion - state.appliedVersion;
-      return behind > 0
-        ? `${version} · ${behind} behind`
-        : `${version} · synced`;
-    }
+    case "synced":
+      return "synced";
     case "pending": {
-      const parts = [version];
+      const parts: Array<string> = [];
       if (status.pending > 0) parts.push(`${status.pending} pending`);
       if (status.acked > 0) parts.push(`${status.acked} acked`);
       return parts.join(" · ");
     }
     case "offline":
-      return withWaiting(`${version} · offline`, status.waiting);
+      return withWaiting("offline", status.waiting);
     case "retrying":
-      return withWaiting(`${version} · retrying`, status.waiting);
+      return withWaiting("retrying", status.waiting);
     case "stopped":
-      return withWaiting(`${version} · sync stopped`, status.waiting);
+      return withWaiting("sync stopped", status.waiting);
   }
 };
+
+// A device's state line: its version, then its words. A device still
+// connecting has no version to give.
+export const deviceLine = (
+  state: Pick<StoreState, "appliedVersion">,
+  status: SyncStatus,
+): string =>
+  status.kind === "connecting"
+    ? deviceWords(status)
+    : `v${state.appliedVersion} · ${deviceWords(status)}`;
 
 const serverPane = (
   version: number,
@@ -88,6 +97,8 @@ const serverPane = (
     ackedThrough: 0,
     rejected: [],
   }),
+  version,
+  words: `${items.length} ${items.length === 1 ? "item" : "items"}`,
   line: `v${version} · ${items.length} ${items.length === 1 ? "item" : "items"}`,
   labels: new Map(
     [...items]
@@ -158,7 +169,9 @@ export const makeStageView = () => {
           clientId: clientIds.get(name),
           ...partsOf(state),
           status,
-          line: deviceLine(state, status, serverVersion),
+          version: status.kind === "connecting" ? null : state.appliedVersion,
+          words: deviceWords(status),
+          line: deviceLine(state, status),
         };
       }),
     };

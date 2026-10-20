@@ -6,8 +6,9 @@ interface PaneProps {
   readonly title: string;
   // The client's mark, after its state.
   readonly clientId?: string;
-  // The device's state in a few words, as "v7 · synced".
-  readonly status?: string;
+  // The device's state in a few words, as "v7 · synced": a string, or a
+  // figure's `DeviceStatus`, whose version rolls.
+  readonly status?: ReactNode;
   // The device's outbox tray, under its header: a figure's.
   readonly tray?: ReactNode;
   // The device's `Basin`, above its list.

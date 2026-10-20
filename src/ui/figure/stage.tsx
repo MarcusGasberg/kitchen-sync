@@ -36,6 +36,7 @@ import {
   visibleBox,
   wideView,
 } from "./camera";
+import { DeviceStatus } from "./device-status";
 import { type Measured, measureWorld, sameMeasure } from "./measure";
 import { MessageCard } from "./message-card";
 import { placeNotes, spotFor } from "./note-placement";
@@ -487,7 +488,17 @@ export function Stage({
               data-place="server"
               data-dim={dim("server")}
             >
-              <Pane level={3} title="Server" status={server.line}>
+              <Pane
+                level={3}
+                title="Server"
+                status={
+                  <DeviceStatus
+                    version={server.version}
+                    words={server.words}
+                    roll={marks.rolls.get(SERVER)}
+                  />
+                }
+              >
                 <div className={styles.serverBody}>
                   {/* biome-ignore lint/a11y/useSemanticElements: a group of the list's sections, not a form's fields */}
                   <div
@@ -569,7 +580,14 @@ export function Stage({
                         slots={marks.trays.get(device.name)}
                       />
                     }
-                    status={device.line}
+                    status={
+                      <DeviceStatus
+                        version={device.version}
+                        words={device.words}
+                        roll={marks.rolls.get(device.name)}
+                        behind={marks.behind.get(device.name)}
+                      />
+                    }
                     basin={
                       <div data-anchor-key={`basin:${device.name}`}>
                         <Basin
@@ -635,6 +653,8 @@ export function Stage({
               lost={gone}
               lit={lit}
               card={card}
+              ripple={marks.ripple}
+              reduced={reduced}
             />
           </div>
         </div>

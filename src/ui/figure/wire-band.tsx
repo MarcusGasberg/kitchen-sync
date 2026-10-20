@@ -1,6 +1,6 @@
 import { LOST_MARK_MILLIS } from "#/lib/sandbox/frame";
 import styles from "./wire-band.module.css";
-import type { Placed, Wire } from "./wires";
+import { type Placed, rippleOf, type Wire } from "./wires";
 
 interface WireBandProps {
   // The stage's box, in pixels.
@@ -15,6 +15,10 @@ interface WireBandProps {
   // The followed message whose card is open (`open`, 0→1): the card's first
   // line says what its label does, so the label gives way to it.
   readonly card?: { readonly messageId: number; readonly open: number } | null;
+  // The poke's ripple, 0→1, while it runs (`StageMarks.ripple`).
+  readonly ripple?: number | null;
+  // Reduced motion: the ripple's still form, one ring at its full reach.
+  readonly reduced?: boolean;
 }
 
 // Pixels between a message's dot and its label.
@@ -54,7 +58,10 @@ export function WireBand({
   lost,
   lit = null,
   card = null,
+  ripple = null,
+  reduced = false,
 }: WireBandProps) {
+  const ripples = ripple === null ? null : rippleOf(wires);
   // A wire stays lit when the shot is about it or about its device: `lit`
   // holds containers' keys (`containerOf`), and a lit device lights its wire.
   const dim = (client: string) =>
@@ -69,6 +76,25 @@ export function WireBand({
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
     >
+      {ripple !== null && ripples !== null && ripples.floor > ripples.at.y && (
+        // The poke's news running down every wire: two rings from the wires'
+        // origin, held to the band between the server and the devices.
+        <svg
+          className={styles.ripple}
+          data-ripple=""
+          aria-hidden="true"
+          x={0}
+          y={ripples.at.y}
+          width={width}
+          height={ripples.floor - ripples.at.y}
+          style={{ opacity: reduced ? 0.5 : 1 - ripple }}
+        >
+          <circle cx={ripples.at.x} cy={0} r={ripple * ripples.reach} />
+          {!reduced && (
+            <circle cx={ripples.at.x} cy={0} r={ripple * ripples.reach * 0.6} />
+          )}
+        </svg>
+      )}
       {wires.map((wire) => (
         <line
           key={wire.client}
