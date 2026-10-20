@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { freeAges, sceneAges } from "#/lib/director/reveal";
 import { frameAt, lostAt } from "#/lib/sandbox/frame";
 import type { Scene } from "#/lib/sandbox/scene";
 import { Band } from "#/ui/band";
@@ -31,6 +32,7 @@ import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PaceControls, PlayerControls } from "./player-controls";
 import { type Cue, type FreeFocus, Stage } from "./stage";
+import { NO_MARKS, stageMarksAt } from "./stage-marks";
 import { makeStageView, mostRows } from "./stage-view";
 import { usePlayer } from "./use-player";
 
@@ -232,17 +234,36 @@ function FigureBody({
         ? (view.caption ?? FREE_PLAY)
         : view.caption;
 
-  const cue: Cue =
+  // Where the playhead is in the scene's cut; null in free play, which is
+  // not shot.
+  const playhead =
     view !== null &&
     view.mode === "scene" &&
     view.cut !== null &&
     view.shot !== null
-      ? {
-          kind: "shot",
-          cut: view.cut,
-          cursor: { shot: view.shot, offset: view.offset },
-        }
+      ? { cut: view.cut, cursor: { shot: view.shot, offset: view.offset } }
+      : null;
+  const cue: Cue =
+    playhead !== null
+      ? { kind: "shot", ...playhead }
       : { kind: "free", focus: inFreePlay ? focus : null };
+  // The vocabulary's marks at this frame, on the reveal clock: the cut's
+  // screen time in a scene, the world's own time in free play.
+  const marks =
+    view === null || frame === null
+      ? NO_MARKS
+      : stageMarksAt({
+          timeline: view.timeline,
+          index: frame.index,
+          snapshot: frame.snapshot,
+          ageOf:
+            playhead === null
+              ? freeAges(view.timeline, view.at)
+              : sceneAges(playhead.cut, view.timeline, playhead.cursor),
+          reduced,
+          cut: playhead?.cut ?? null,
+          cursor: playhead?.cursor ?? null,
+        });
 
   return (
     <figure
@@ -304,6 +325,7 @@ function FigureBody({
             scale={scale ?? 1}
             cue={cue}
             reduced={reduced}
+            marks={marks}
             group={world}
             onFocus={setFocus}
             onIntent={(client, intent) =>

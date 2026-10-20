@@ -4,12 +4,14 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Effect } from "effect";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { wetKey } from "#/lib/director/marks";
 import type { Cut, Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
 import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, type FreeFocus, Stage } from "#/ui/figure/stage";
 import stageStyles from "#/ui/figure/stage.module.css";
+import { NO_MARKS, rowLook } from "#/ui/figure/stage-marks";
 import { FOOT_MIN } from "#/ui/figure/stage-notes";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
 import { rect, stubLayout } from "./figure-helpers";
@@ -102,6 +104,41 @@ describe("Stage", () => {
     expect(within(a).getByText(/Milk/)).toBeTruthy();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  // The marks key a row by place: A's milk is marked, B's copy of the same
+  // item and the server's are not.
+  it("draws a row's look where the marks put it", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const milk = view.devices[0]?.items[0];
+    if (milk === undefined) throw new Error("A has no milk.");
+    render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+        marks={{
+          ...NO_MARKS,
+          rows: new Map([[wetKey("A", milk.id), rowLook("added", 0, false)]]),
+        }}
+      />,
+    );
+    const row = (name: string) =>
+      within(screen.getByRole("region", { name }))
+        .getByText(/Milk/)
+        .closest("li");
+    expect(row("A")?.dataset.change).toBe("added");
+    expect(row("B")?.dataset.change).toBeUndefined();
+    expect(row("Server")?.dataset.change).toBeUndefined();
   });
 
   it("takes a reader's changes in free play, naming the device", async () => {

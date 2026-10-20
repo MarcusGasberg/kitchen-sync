@@ -5,6 +5,7 @@ import { describe, expect, vi } from "vitest";
 import { type Category, GroceryItem } from "#/domain/grocery-item";
 import { World } from "#/lib/sandbox/world";
 import { EMPTY_STATE } from "#/lib/store";
+import { rowLook } from "#/ui/figure/stage-marks";
 import { GroceryList, stamp } from "#/ui/grocery-list";
 import { ItemRow } from "#/ui/item-row";
 import { listView } from "#/ui/list-view";
@@ -124,6 +125,61 @@ describe("ItemRow", () => {
     expect(row.dataset.checked).toBe("true");
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(row.textContent).toContain("(checked)");
+  });
+});
+
+describe("a row's look", () => {
+  const milk = item("Oat milk");
+
+  it("lands wet: a changed row carries its look as custom properties", () => {
+    render(
+      <ul>
+        <ItemRow
+          item={milk}
+          sync={{ kind: "synced" }}
+          look={rowLook("added", 1500, false)}
+        />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.dataset.change).toBe("added");
+    expect(Number(row.style.getPropertyValue("--row-wet"))).toBeCloseTo(0.5);
+    expect(Number(row.style.getPropertyValue("--row-inked"))).toBe(1);
+  });
+
+  it("draws a row with no look as the app draws it", () => {
+    render(
+      <ul>
+        <ItemRow item={milk} sync={{ kind: "synced" }} />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect([...row.attributes].map((a) => a.name).sort()).toEqual([
+      "class",
+      "data-checked",
+      "data-density",
+      "data-item",
+      "data-readonly",
+      "data-sync",
+    ]);
+  });
+
+  it("gives each row of a list its own look, by item id", () => {
+    const eggs = item("Eggs");
+    const bread = item("Bread");
+    render(
+      <GroceryList
+        groups={viewOf([eggs, bread]).groups}
+        rejected={[]}
+        looks={new Map([[eggs.id, rowLook("edited", 0, false)]])}
+      />,
+    );
+    expect(screen.getByText("Eggs").closest("li")?.dataset.change).toBe(
+      "edited",
+    );
+    expect(
+      screen.getByText("Bread").closest("li")?.dataset.change,
+    ).toBeUndefined();
   });
 });
 

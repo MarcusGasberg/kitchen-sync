@@ -192,6 +192,8 @@ export interface Wet {
   readonly kind: ChangeKind;
   // 1 as it lands, falling to 0 as it dries.
   readonly wetness: number;
+  // Screen milliseconds since a reader saw it land: what a look runs on.
+  readonly age: number;
 }
 
 export const wetKey = (where: Place, itemId: string): string =>
@@ -214,7 +216,7 @@ export const wetAt = (
     if (age >= WET_MILLIS) break;
     const key = wetKey(change.where, change.itemId);
     if (!wet.has(key)) {
-      wet.set(key, { kind: change.kind, wetness: 1 - age / WET_MILLIS });
+      wet.set(key, { kind: change.kind, wetness: 1 - age / WET_MILLIS, age });
     }
   }
   return wet;

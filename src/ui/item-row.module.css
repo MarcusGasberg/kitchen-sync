@@ -185,3 +185,39 @@ label.label {
     background: linear-gradient(90deg, CanvasText 50%, transparent 50%);
   }
 }
+
+/* A figure draws a row's latest change on its own clock (a `RowLook`): a
+   wash of fresh ink that dries (--row-wet, 1 to 0) and, for a new row, its
+   ink spreading in from the start of the line (--row-inked, 0 to 1). The
+   stage sets both every frame, so nothing here transitions: a pause holds
+   the look and a seek lands on its own. A new row takes its full height at
+   once; only its ink moves. */
+.row[data-change] {
+  background-color: color-mix(
+    in oklab,
+    var(--ink-fresh) calc(var(--row-wet, 0) * 14%),
+    transparent
+  );
+}
+
+.row[data-change="added"] {
+  clip-path: inset(0 calc((1 - var(--row-inked, 1)) * 100%) 0 0);
+}
+
+/* High Contrast drops the wash: a row is marked only while it is wet, and
+   keeps a rule at its start in the system's text colour for that long. */
+@media (forced-colors: active) {
+  .row[data-change] {
+    position: relative;
+  }
+
+  .row[data-change]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--rule);
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}

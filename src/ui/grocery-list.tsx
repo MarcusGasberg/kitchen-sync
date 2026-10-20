@@ -2,6 +2,7 @@ import type { DateTime } from "effect";
 import { type ReactNode, useId } from "react";
 import type { MutationIntent } from "#/domain/mutation";
 import type { Rejection } from "#/lib/store";
+import type { RowLook } from "#/ui/figure/stage-marks";
 import styles from "./grocery-list.module.css";
 import { type Density, ItemRow } from "./item-row";
 import type { Group } from "./list-view";
@@ -28,6 +29,8 @@ interface ListBase {
   // Category heads sit under the page's h1 in the app, under a pane's h2 in
   // the specimen, and under a figure's panes (h3) in a figure.
   readonly headingLevel?: 2 | 3 | 4;
+  // A figure's marks: each changed row's look, by item id.
+  readonly looks?: ReadonlyMap<string, RowLook>;
 }
 
 // A compact list takes no intents: with no targets on it, its rows can drop
@@ -61,6 +64,7 @@ export function GroceryList({
   rejected,
   onIntent,
   onDismiss,
+  looks,
   empty = "Nothing on the list yet.",
   headingLevel = 2,
   density = "regular",
@@ -91,6 +95,7 @@ export function GroceryList({
             onIntent={onIntent}
             headingLevel={headingLevel}
             density={density}
+            looks={looks}
           />
         ))
       )}
@@ -103,6 +108,7 @@ interface GroupSectionProps {
   readonly onIntent: ((intent: ListIntent) => void) | undefined;
   readonly headingLevel: 2 | 3 | 4;
   readonly density: Density;
+  readonly looks: ReadonlyMap<string, RowLook> | undefined;
 }
 
 function GroupSection({
@@ -110,6 +116,7 @@ function GroupSection({
   onIntent,
   headingLevel,
   density,
+  looks,
 }: GroupSectionProps) {
   const id = useId();
   const Heading = headingLevel === 4 ? "h4" : headingLevel === 3 ? "h3" : "h2";
@@ -128,6 +135,7 @@ function GroupSection({
             item={item}
             sync={sync}
             density={density}
+            look={looks?.get(item.id)}
             onCheck={
               onIntent &&
               ((checked) =>

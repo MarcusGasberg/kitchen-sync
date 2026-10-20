@@ -1,5 +1,7 @@
 import { Option } from "effect";
+import type { CSSProperties } from "react";
 import type { GroceryItem } from "#/domain/grocery-item";
+import type { RowLook } from "#/ui/figure/stage-marks";
 import { VERB } from "./intent-words";
 import styles from "./item-row.module.css";
 import type { RowSync } from "./list-view";
@@ -23,7 +25,20 @@ interface ItemRowProps {
   // "compact" drops the target's height: only for a read-only row, as in a
   // compact GroceryList, which takes no intents.
   readonly density?: Density;
+  // How a figure draws the row's latest change on its clock: wet, its ink
+  // spreading in. Absent, the row is drawn as it is, as the app draws it.
+  readonly look?: RowLook;
 }
+
+// A look as the custom properties the row's CSS draws it by.
+const lookStyle = (look: RowLook): CSSProperties =>
+  ({
+    "--row-inked": look.inked,
+    "--row-soak": look.soak,
+    "--row-strike": look.strike,
+    "--row-wet": look.wet,
+    "--row-leaving": look.leaving,
+  }) as CSSProperties;
 
 // One grocery item. Its sync state changes form inside a fixed box, so the
 // row never changes size when a change lands: pending is a hollow ring with
@@ -35,6 +50,7 @@ export function ItemRow({
   onCheck,
   onRemove,
   density = "regular",
+  look,
 }: ItemRowProps) {
   const text = (
     <span className={styles.what}>
@@ -49,6 +65,8 @@ export function ItemRow({
       data-checked={item.checked}
       data-readonly={onCheck === undefined}
       data-density={density}
+      data-change={look?.kind}
+      style={look === undefined ? undefined : lookStyle(look)}
     >
       {onCheck ? (
         <label className={styles.label}>

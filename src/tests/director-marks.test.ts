@@ -145,16 +145,18 @@ describe("wetAt", () => {
     { index: 6, where: "server", itemId: "y", kind: "added" },
   ];
 
-  it("keeps each row's latest change, wetter the newer", () => {
+  it("keeps each row's latest change, wetter the newer, with its age", () => {
     const wet = wetAt(changes, 6, (index) => (6 - index) * 1000);
     expect(wet.get(wetKey("server", "y"))).toEqual({
       kind: "added",
       wetness: 1,
+      age: 0,
     });
     expect(wet.get(wetKey("A", "x"))?.kind).toBe("checked");
     expect(wet.get(wetKey("A", "x"))?.wetness).toBeCloseTo(
       1 - 1000 / WET_MILLIS,
     );
+    expect(wet.get(wetKey("A", "x"))?.age).toBe(1000);
   });
 
   it("ignores changes past the entry shown, and dry ones", () => {

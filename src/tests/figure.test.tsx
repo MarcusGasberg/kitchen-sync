@@ -298,6 +298,28 @@ describe("Figure", () => {
     await within(screen.getByRole("region", { name: /^B/ })).findByText(/Eggs/);
   });
 
+  // Free play runs the marks on the world's own clock: a reader's add lands
+  // wet on the device they added it to.
+  it("lands a reader's new row wet in free play", async () => {
+    const host = fakeHost({ reduced: true });
+    render(<Figure scene={scene} title="Wet" host={host.host} />);
+    await shown(host);
+    fireEvent.click(screen.getByRole("button", { name: "Your turn" }));
+    const field = await screen.findByRole("textbox", {
+      name: "Add to B's list",
+    });
+    fireEvent.change(field, { target: { value: "Eggs" } });
+    fireEvent.click(
+      within(screen.getByRole("region", { name: /^B/ })).getByRole("button", {
+        name: "Add",
+      }),
+    );
+    const eggs = await within(
+      screen.getByRole("region", { name: /^B/ }),
+    ).findByText(/Eggs/);
+    expect(eggs.closest("li")?.dataset.change).toBe("added");
+  });
+
   // Under reduced motion a message does not travel: it sits at its sender
   // for the first half of its flight.
   it("keeps a message at its sender under reduced motion", async () => {

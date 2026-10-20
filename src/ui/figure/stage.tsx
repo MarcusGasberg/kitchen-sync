@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Cut } from "#/lib/director/shots";
+import { type Cut, SERVER } from "#/lib/director/shots";
 import type { CutCursor } from "#/lib/director/timing";
 import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
 import type { ClientName } from "#/lib/sandbox/trace";
@@ -35,6 +35,7 @@ import {
 import { type Measured, measureWorld, sameMeasure } from "./measure";
 import { placeNotes, spotFor } from "./note-placement";
 import styles from "./stage.module.css";
+import { looksFor, NO_MARKS, type StageMarks } from "./stage-marks";
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import type { StageView } from "./stage-view";
 import { useCamera } from "./use-camera";
@@ -90,6 +91,10 @@ interface StageProps {
   readonly scale: number;
   readonly cue: Cue;
   readonly reduced: boolean;
+  // The vocabulary's marks at this frame (`stageMarksAt`): how each changed
+  // row, and later each tray, status and basin, looks on the reveal clock.
+  // Without them the world is drawn plain.
+  readonly marks?: StageMarks;
   // The figure's world group around the stage, which a click on the stage's
   // background focuses: Escape on it goes back to every device too.
   readonly group?: RefObject<HTMLElement | null>;
@@ -202,6 +207,7 @@ export function Stage({
   scale,
   cue,
   reduced,
+  marks = NO_MARKS,
   group,
   onFocus,
   onIntent,
@@ -437,6 +443,7 @@ export function Stage({
                       headingLevel={4}
                       density="compact"
                       columns={2}
+                      looks={looksFor(marks, SERVER)}
                     />
                     {showButton(SERVER_LIST, "Show the server's list up close")}
                   </div>
@@ -524,6 +531,7 @@ export function Stage({
                         groups={device.list.groups}
                         rejected={device.list.rejected}
                         headingLevel={4}
+                        looks={looksFor(marks, device.name)}
                         onIntent={(intent) => onIntent(device.name, intent)}
                       />
                     ) : (
@@ -531,6 +539,7 @@ export function Stage({
                         groups={device.list.groups}
                         rejected={device.list.rejected}
                         headingLevel={4}
+                        looks={looksFor(marks, device.name)}
                       />
                     )}
                     {live && (
