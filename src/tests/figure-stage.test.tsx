@@ -1643,6 +1643,52 @@ describe("Stage", () => {
       expect(screen.queryByText(CLICK)).toBeNull();
     });
   });
+
+  // A stage on the hand-laid layout, with the marks given.
+  const markedStage = (
+    view: StageView,
+    cue: Cue,
+    marks: StageMarks,
+    extra: { speed?: number; playing?: boolean } = {},
+  ) => (
+    <Stage
+      view={view}
+      flights={[]}
+      lost={[]}
+      settle
+      scale={1}
+      live={false}
+      cue={cue}
+      reduced={false}
+      marks={marks}
+      speed={extra.speed}
+      playing={extra.playing}
+      onFocus={noop}
+      onIntent={noop}
+      onAdd={noop}
+      onRetry={noop}
+    />
+  );
+
+  it("shows slow motion's rate in the window's corner, for the eye only, and nothing at 1×", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(LAYOUT);
+    const { container, rerender } = render(
+      markedStage(view, closeOn("A"), { ...NO_MARKS, rate: 0.25 }),
+    );
+    const tag = screen.getByText("0.25×");
+    expect(tag.getAttribute("aria-hidden")).toBe("true");
+    expect(
+      container.querySelector("[data-anchor='viewport']")?.contains(tag),
+    ).toBe(true);
+    // On the window, not on the plane the lens fades.
+    expect(container.querySelector("[data-anchor='lens']")?.contains(tag)).toBe(
+      false,
+    );
+    rerender(markedStage(view, closeOn("A"), NO_MARKS));
+    expect(screen.queryByText(/×$/)).toBeNull();
+    restore();
+  });
 });
 
 describe("the outbox tray", () => {

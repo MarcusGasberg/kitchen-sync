@@ -1,5 +1,6 @@
 import type { GroceryItem } from "#/domain/grocery-item";
 import { type Acting, actingAt } from "#/lib/director/acting";
+import { FOLLOW_RATE } from "#/lib/director/compile";
 import {
   type ChangeKind,
   changesOf,
@@ -30,6 +31,8 @@ import {
 } from "#/lib/director/versions";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { WaitingChange } from "#/ui/list-view";
+import { SETTLE_MS } from "#/ui/marbling/mount";
+import { litOf } from "./camera";
 
 // The vocabulary's looks: how each mark on a figure's stage stands at a
 // frame, as progress from 0 to 1 on the reveal clock (`AgeOf`). The figure
@@ -129,6 +132,10 @@ export interface StageMarks {
   readonly ripple: number | null;
   readonly behind: ReadonlyMap<ClientName, BehindLook>;
   readonly rolls: ReadonlyMap<Place, RollLook>;
+  // Slow motion's rate while the shot under the cursor plays between 0 and
+  // 1× (a follow at 0.5×, slowing to 0.25×); null at 1×, in a hold, a skip,
+  // or free play.
+  readonly rate: number | null;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
@@ -141,6 +148,7 @@ export const NO_MARKS: StageMarks = {
   ripple: null,
   behind: new Map(),
   rolls: new Map(),
+  rate: null,
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -361,6 +369,32 @@ const rollLooks = ({
   return looks;
 };
 
+// The rate a slow shot plays the world at, to show beside it.
+const rateAt = ({ cut, cursor }: MarkInput): number | null => {
+  const rate =
+    cut === null || cursor === null ? undefined : cut.shots[cursor.shot]?.rate;
+  return rate !== undefined && rate > 0 && rate < 1 ? rate : null;
+};
+
+// How long a basin's next change settles, in screen milliseconds. A basin a
+// close or split shot lights (`container` is its `litOf` key: `server` or
+// `device:<client>`) settles over SETTLE_MS / FOLLOW_RATE, so the drop shoves
+// the older rings visibly aside; any other over SETTLE_MS. The player's speed
+// scales both, as it scales the cut.
+export const settleMillisFor = (
+  shot: Shot | undefined,
+  container: string,
+  speed: number,
+): number => {
+  const lit =
+    shot !== undefined &&
+    !shot.move &&
+    (shot.framing === "close" || shot.framing === "split") &&
+    (litOf(shot)?.has(container) ?? false);
+  const millis = lit ? SETTLE_MS / FOLLOW_RATE : SETTLE_MS;
+  return millis / (Number.isFinite(speed) && speed > 0 ? speed : 1);
+};
+
 // Every mark at a frame, each found by its own function from one input.
 export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
@@ -371,6 +405,7 @@ export const stageMarksAt = (input: MarkInput): StageMarks => ({
   ripple: rippleLook(input),
   behind: behindLooks(input),
   rolls: rollLooks(input),
+  rate: rateAt(input),
 });
 
 // One place's row looks, by item id: what its list takes.

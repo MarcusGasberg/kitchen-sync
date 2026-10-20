@@ -47,6 +47,7 @@ import {
   NO_MARKS,
   type SlotLook,
   type StageMarks,
+  settleMillisFor,
 } from "./stage-marks";
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import { type StageView, withRows } from "./stage-view";
@@ -107,6 +108,13 @@ interface StageProps {
   // row, and later each tray, status and basin, looks on the reveal clock.
   // Without them the world is drawn plain.
   readonly marks?: StageMarks;
+  // The player's speed, which scales every basin's settle as it scales the
+  // cut; 1 unless given.
+  readonly speed?: number;
+  // False while the player is paused: in a scene, every basin's settle holds
+  // where it was. Free play's basins settle on, since a reader's own change
+  // lands in them while the world waits.
+  readonly playing?: boolean;
   // The figure's world group around the stage, which a click on the stage's
   // background focuses: Escape on it goes back to every device too.
   readonly group?: RefObject<HTMLElement | null>;
@@ -229,6 +237,8 @@ export function Stage({
   cue,
   reduced,
   marks = NO_MARKS,
+  speed = 1,
+  playing = true,
   group,
   onFocus,
   onIntent,
@@ -290,6 +300,7 @@ export function Stage({
 
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
   const lit = shot === undefined ? null : litOf(shot);
+  const paused = !playing && !live;
   const seen = camera === null ? null : visibleBox(camera, size);
   const inView = (key: string) => {
     const box = measured.boxes.get(key);
@@ -539,6 +550,8 @@ export function Stage({
                       density={density}
                       active={inView("basin:server")}
                       ringAnchors="server"
+                      settleMillis={settleMillisFor(shot, "server", speed)}
+                      paused={paused}
                     />
                     {showButton(
                       SERVER_BASIN,
@@ -606,6 +619,12 @@ export function Stage({
                           density={density}
                           active={inView(`basin:${device.name}`)}
                           ringAnchors={device.name}
+                          settleMillis={settleMillisFor(
+                            shot,
+                            `device:${device.name}`,
+                            speed,
+                          )}
+                          paused={paused}
                           ghosts={device.ghosts}
                         />
                       </div>
@@ -670,6 +689,14 @@ export function Stage({
             />
           </div>
         </div>
+        {/* Slow motion's rate, while the world plays slower than 1×. The
+            caption and the player's controls say the rest; this is for the
+            eye. */}
+        {marks.rate !== null && (
+          <span className={styles.rate} aria-hidden="true">
+            {`${marks.rate}×`}
+          </span>
+        )}
         {placed.length > 0 && (
           <StageNotes key={noteKey} placed={placed} viewport={size} />
         )}

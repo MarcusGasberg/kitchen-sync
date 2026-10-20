@@ -325,6 +325,8 @@ function FigureBody({
             scale={scale ?? 1}
             cue={cue}
             reduced={reduced}
+            speed={view.speed}
+            playing={view.playing}
             marks={marks}
             group={world}
             onFocus={setFocus}
