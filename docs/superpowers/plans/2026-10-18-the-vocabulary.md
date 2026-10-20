@@ -14,7 +14,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-17-the-director-design.md`, section "4. The vocabulary" (devices 1–11 and 14; 12, notes with leaders, was plan 2; 13, the transcript, is plan 4's, with the rail), and the reduced-motion and forced-colour lines of sections 3 and 6. `DESIGN.md` binds everything visual, and the surface brief `.impeccable/surfaces/src-routes-blog.md` is what the finish audits. This is plan 3 of the director's four.
 
-**Branch:** `blog-director`, after plan 2 (the world and its camera) finishes. Its first commit carries this plan. Nothing is pushed.
+**Branch:** `visual-blog-series`, after plan 2 (the world and its camera, head `cf9fc29`). The plan was committed at `eb53d2c`, before plan 2's last fixes, and reconciled with `cf9fc29` before any task ran. Nothing is pushed.
 
 ## Global Constraints
 
@@ -92,9 +92,9 @@ The user took the recommendations for every section of the spec ("just go with y
 - **Ghosts.** A device whose version trails the server's shows each server row it lacks (`ghostsOf`) in its list at the row's place: a dashed outline, the name in `--text-3`, and "not here yet" in the row's state slot. Its basin shows a dashed ring where that item's drop will land: the item's landmark and reach (`reachOf`) in the pattern it will have once pulled. The pull replaces the ghost with the row, whose ink spreads in, and the drop lands where the ring was. Ghost and leaving rows go through one merge (`withRows`).
 - **Slow motion** shows its rate: "0.5×" or "0.25×" in mono at the viewport's top-left corner, inside the feathered edge, while the shot's rate is between 0 and 1. It appears and goes with the shot, without fading.
 - **The drop shoves the pattern.** A basin that a close or split hold lights settles over `SETTLE_MS / FOLLOW_RATE` (1800 ms) instead of 900 ms (`settleMillisFor`), so the older rings visibly give way. (The spec stretches a settle by 1 / rate in slow motion; in the cut a change lands in a hold, whose rate is 0, so the follow's rate stands in for it.) Every settle is divided by the player's speed. In a scene every settle holds still while the player is paused, and a change shown while paused lands at once; free play's basins settle on, since a reader's own change lands in them while the world waits.
-- **The light table.** `boxOf({ kind: "basins" })` is the stack (`stackBox`): the largest device basin's size, centred on the middle of the device basins' union. So the camera's `table` framing fits the stack and its notes point there. After the move, the device basins slide to the stack over the shorter of 1400 ms and 60% of the table's holds (`TABLE_SLIDE_SHARE`, so a 1200 ms hold still ends stacked). They slide on an inner wrapper, so the measured anchors stay where the plane laid them out, and every device basin draws while on the table. Stacked, they blend `darken` by day and `lighten` at night (by `prefers-color-scheme`, with `[data-theme]` overrides), inside the devices' row (`isolation: isolate`), so identical patterns register as one and a pattern that disagrees shows doubled rings. Forced colours: no blend, each at 50%. They are apart again on the next shot that is not a table.
-- **The shared mark.** When a figure's code lights the event a hold's notes tell, the hold's first note carries the code note's words ("A · #6") as a mono line in fresh ink above its text, and the code panel's note turns fresh ink too. The lit event must be one of the hold's own entries: at its instant, past the `through` of every earlier shot at that instant with other notes. Enactments, moves and openings never share. `placeNotes` counts the marked note a line taller.
-- **Steps meet on a glide (the user chose it, 2026-10-18: "keep the glide").** A jump (a step, a scrub, a restart, Play at the end) glides the camera from the view it showed to the new shot's view over 500 ms along the zoom path, eased in and out, kept on the plane as a move is. The world shows the landed instant at once, and its marks take that instant's ages. While it glides, the notes wait and the basins keep their density. It draws over plan 2's camera, whose `cameraAt` eases into a shot that shares the frame of the one before. Reduced motion cuts.
+- **The light table.** The camera's `table` framing stays as plan 2 left it: exactly as wide, on the world's band of basins, which holds the stack (`stackBox`: the largest device basin's size, centred on the middle of the device basins' union). `boxOf` does not change, and a note on every basin still draws no dot. After the move, the device basins slide to the stack over the shorter of 1400 ms and 60% of the table's holds (`TABLE_SLIDE_SHARE`, so a 1200 ms hold still ends stacked). They slide on an inner wrapper, so the measured anchors stay where the plane laid them out, and every device basin draws while on the table. Stacked, they blend `darken` by day and `lighten` at night (by `prefers-color-scheme`, with `[data-theme]` overrides), inside the devices' row (`isolation: isolate`), so identical patterns register as one and a pattern that disagrees shows doubled rings. Forced colours: no blend, each at 50%. They are apart again on the next shot that is not a table.
+- **The shared mark.** When a figure's code lights the event a hold's notes tell, the hold's first note carries the code note's words ("A · #6") as a mono line in fresh ink above its text, and the code panel's note turns fresh ink too. The lit event must be one of the hold's own entries: at its instant, past the `through` of every earlier shot at that instant with other notes. Enactments, moves and openings never share. `placeNotes` counts the marked note a line taller, beside the subjects and in the room under a wide or a table frame (the camera's `roomFor` does not count it).
+- **Steps meet on a glide (the user chose it, 2026-10-18: "keep the glide").** A jump (a step, a scrub, a restart, Play at the end) glides the camera from the view it showed to the new shot's view over 500 ms along the zoom path, eased in and out, kept on the plane as a move is. The world shows the landed instant at once, and its marks take that instant's ages. While it glides, the notes wait and the basins keep their density. It draws over plan 2's camera, whose `framedAt` eases into a shot that shares the frame of the one before: `useCamera` passes its framed view through the glide, so the glided view is the one it draws and remembers, and it counts as moving while it glides (the plane on the compositor, the density held). The notes wait on `Camera.jumping` alone, since plan 2 keeps them through an ease within a frame and a narrow window's pan. Reduced motion cuts.
 - **Plan 4 keeps** the transcript (device 13), tasks, instant replay, the rail and scroll steps.
 
 ## File structure
@@ -124,11 +124,12 @@ The user took the recommendations for every section of the spec ("just go with y
 | `src/ui/figure/wires.ts` | `rippleOf` | 6 |
 | `src/ui/figure/wire-band.tsx`, `.module.css` | the label giving way to a card; the ripple; an offline wire's gap; the armed rule | 5, 6, 10 |
 | `src/ui/figure/actions.ts` | `armedWords` | 10 |
-| `src/ui/figure/camera.ts` | a close-up frames the tray it names; `stackBox`, `stackShiftOf`, the stack as `basins`; `along` exported | 4, 9, 12 |
-| `src/ui/figure/note-placement.ts` | `placeNotes`'s `marked` | 11 |
+| `src/ui/figure/camera.ts` | a close-up frames the tray it names; `stackBox`, `stackShiftOf`; `along` exported | 4, 9, 12 |
+| `src/ui/figure/note-placement.ts` | `NoteOptions.marked` | 11 |
 | `src/ui/figure/shared-mark.ts` (new) | `sharedMarkAt` | 11 |
 | `src/ui/figure/use-glide.ts` (new) | `glideAt`, `useGlide` | 12 |
-| `src/ui/figure/stage.tsx`, `.module.css` | threads marks; the tray; the overlay (card, rate tag); the table's slide; the network; the glide | 1–12 |
+| `src/ui/figure/use-camera.ts` | composes the glide: `options.jumpKey`, `options.clock`; `Camera.jumping`, and moving while it glides | 12 |
+| `src/ui/figure/stage.tsx`, `.module.css` | threads marks; the tray; the overlay (card, rate tag); the table's slide; the network; the jump key | 1–12 |
 | `src/ui/figure/stage-notes.tsx`, `.module.css` | the shared mark's line | 11 |
 | `src/ui/code/code-panel.tsx`, `code-panel.module.css` | `shared` | 11 |
 | `src/ui/figure/figure.tsx` | ages, marks, speed, playing, shared mark, jump key | 1, 8, 11, 12 |
@@ -291,8 +292,9 @@ export const stackBox: (anchors: Anchors) => Box | null;
 export const stackShiftOf: (anchors: Anchors, client: string) => Point | null;
 export const along: (from: View, to: View, t: number, anchors: Anchors, viewport: Size) => View;
 
-// src/ui/figure/note-placement.ts (change)
-export const placeNotes: (notes: ReadonlyArray<Note>, anchors: Anchors, view: View, viewport: Size, marked?: number | null) => ReadonlyArray<PlacedNote>;
+// src/ui/figure/note-placement.ts (change: `marked` joins `spot` in the options)
+export interface NoteOptions { readonly spot?: NoteSpot; readonly marked?: number | null }
+export const placeNotes: (notes: ReadonlyArray<Note>, anchors: Anchors, view: View, viewport: Size, options?: NoteOptions) => ReadonlyArray<PlacedNote>;
 
 // src/ui/figure/message-card.tsx
 export const CARD_GAP_PX = 12;
@@ -310,6 +312,11 @@ export const JUMP_MILLIS = 500;
 export interface GlideClock { readonly now: () => number; readonly requestFrame: (callback: () => void) => number; readonly cancelFrame: (handle: number) => void }
 export const glideAt: (from: View, to: View, elapsed: number, anchors: Anchors, viewport: Size) => View;
 export const useGlide: (target: View | null, jumpKey: string | null, options: { readonly anchors: Anchors; readonly viewport: Size; readonly reduced: boolean; readonly clock?: GlideClock }) => View | null;
+
+// src/ui/figure/use-camera.ts (change: the jump glide composed in)
+export const useCamera: (cue: Cue, anchors: Anchors, size: Size, reduced: boolean, options?: { readonly jumpKey?: string | null; readonly clock?: GlideClock }) => Camera;
+// Camera gains `jumping: boolean` (the glided view is not yet the framed one),
+// and `moving` is also true while it is.
 ```
 
 Each task adds its own fields to `StageMarks`, `NO_MARKS` and `stageMarksAt`; the type above is where it ends. The stage takes `marks?: StageMarks` (default `NO_MARKS`), so a stage test that passes none draws as before.
@@ -3355,6 +3362,22 @@ Then, inside `describe("Stage", …)`:
   });
 ```
 
+A scene's rows will draw their inert crosses, each a `path`, so the wire tests' check that the wires run straight must look in the wire band (the plane's own `svg`) only. In `wiresOver`, replace
+
+```tsx
+      expect(container.querySelector("polyline, path")).toBeNull();
+```
+
+with
+
+```tsx
+      // Straight: the wire band draws no polyline or path. A scene's rows
+      // draw their inert crosses as paths, in their panes.
+      const band = container.querySelector("[data-anchor='plane'] > svg");
+      expect(band).not.toBeNull();
+      expect(band?.querySelector("polyline, path")).toBeNull();
+```
+
 - [ ] **Step 16: Run it to verify it fails**
 
 Run: `npx vitest run --project unit src/tests/figure-stage.test.tsx`
@@ -3436,7 +3459,7 @@ with
 - [ ] **Step 18: Run the tests to verify they pass**
 
 Run: `npx vitest run --project unit src/tests/figure-stage.test.tsx src/tests/figure.test.tsx src/tests/lab.test.tsx`
-Expected: PASS. The scene's replica controls are `aria-hidden`, so no role query in the earlier tests finds them: "read-only during a scene" still finds no checkbox and no textbox.
+Expected: PASS. The scene's replica controls are `aria-hidden`, so no role query in the earlier tests finds them: "read-only during a scene" still finds no checkbox and no textbox. The wire tests find no path in the wire band: the rows' crosses are in their panes.
 
 - [ ] **Step 19: Check the whole tree**
 
@@ -4213,7 +4236,7 @@ Add to `src/tests/figure-camera.test.ts`, inside `describe("framing", …)`, aft
 - [ ] **Step 10: Run them to see them fail**
 
 Run: `npx vitest run --project unit src/tests/waiting-strip.test.tsx src/tests/figure-stage.test.tsx src/tests/figure-camera.test.ts`
-Expected: FAIL: the strip has no `data-look`, `data-copy` or `label` (no list named "A's outbox"); the stage has no `outbox:A` anchor; the close-up frames B's basin, rows and rings without the tray, so the tray's frame centre sits about 22 px above the viewport's middle (`centre.y` near 278, not 300).
+Expected: FAIL: the strip has no `data-look`, `data-copy` or `label` (no list named "A's outbox"); the stage has no `outbox:A` anchor; the close-up frames B's basin, rows and rings without the tray, so the tray's frame centre sits about 19 px above the viewport's middle (`centre.y` near 281, not 300).
 
 - [ ] **Step 11: Give the strip its looks**
 
@@ -4537,7 +4560,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `src/tests/figure-marks.test.ts`, `src/tests/figure-card.test.tsx` (new, self-contained); `src/tests/figure-wires.test.tsx` and `src/tests/figure-stage.test.tsx` run unchanged
 
 **Interfaces:**
-- Consumes: `payloadOf` (`payload.ts`); `screenOf` (`timing.ts`); `project` (`camera.ts`); the stage's placed flights (`Placed.side`); `CHAR_PX`, `EDGE_PX`, `LINE_PX`, `NOTE_MAX_PX` (`note-placement.ts`); Task 1's `progress` and `marksAt`; Task 4's `lastEntryWhere` import in `figure-marks.test.ts`.
+- Consumes: `payloadOf` (`payload.ts`); `screenOf` (`timing.ts`); `project` (`camera.ts`); the stage's placed flights (`Placed.side`); `CHAR_PX`, `EDGE_PX`, `NOTE_MAX_PX` (`note-placement.ts`) and `LINE_PX` (`camera.ts`); Task 1's `progress` and `marksAt`; Task 4's `lastEntryWhere` import in `figure-marks.test.ts`.
 - Produces: `CARD_OPEN_MILLIS`, `CARD_CLOSE_MILLIS`, `CardLook`, `StageMarks.card`; `CARD_GAP_PX`, `CARD_INSET_PX`, `CardPlace`, `placeCard`, `MessageCard`; `WireBand` `card`.
 
 **Behaviour:**
@@ -4747,18 +4770,14 @@ import type { Shot } from "#/lib/director/shots";
 import { runHeadless, type Scene } from "#/lib/sandbox/scene";
 import type { Message } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
+import { LINE_PX } from "#/ui/figure/camera";
 import {
   CARD_GAP_PX,
   CARD_INSET_PX,
   MessageCard,
   placeCard,
 } from "#/ui/figure/message-card";
-import {
-  CHAR_PX,
-  EDGE_PX,
-  LINE_PX,
-  NOTE_MAX_PX,
-} from "#/ui/figure/note-placement";
+import { CHAR_PX, EDGE_PX, NOTE_MAX_PX } from "#/ui/figure/note-placement";
 import { type Cue, Stage } from "#/ui/figure/stage";
 import { type CardLook, NO_MARKS } from "#/ui/figure/stage-marks";
 import { makeStageView } from "#/ui/figure/stage-view";
@@ -4999,9 +5018,9 @@ Create `src/ui/figure/message-card.tsx`:
 ```tsx
 import type { CSSProperties } from "react";
 import type { Point } from "#/ui/marbling/operations";
-import type { Size } from "./camera";
+import { LINE_PX, type Size } from "./camera";
 import styles from "./message-card.module.css";
-import { CHAR_PX, EDGE_PX, LINE_PX, NOTE_MAX_PX } from "./note-placement";
+import { CHAR_PX, EDGE_PX, NOTE_MAX_PX } from "./note-placement";
 
 // How far a card sits from its message's dot, on screen.
 export const CARD_GAP_PX = 12;
@@ -5212,7 +5231,7 @@ In `src/ui/figure/stage.tsx`:
 
 1. Add `project,` to the import from `"./camera"`, and add `import { MessageCard } from "./message-card";`.
 
-2. After `const fade = beside && placed.length > 0;`, add:
+2. After `const fade = spot?.kind === "beside";`, add:
 
 ```ts
   // A followed message's card, beside its dot on screen, over the window and
@@ -6424,7 +6443,7 @@ describe("the news in a scene's marks", () => {
 });
 ```
 
-In `src/tests/figure-stage.test.tsx`, add `SERVER` to the import from `#/lib/director/shots` (it imports `type Shot` from there), make sure `NO_MARKS` and `type StageMarks` are imported from `#/ui/figure/stage-marks` (Task 1 added that import), and add inside `describe("Stage", …)`:
+In `src/tests/figure-stage.test.tsx`, add `SERVER` to the import from `#/lib/director/shots`, which imports only types from there now (`import type { Cut, Shot } from "#/lib/director/shots";`), so it becomes `import { type Cut, SERVER, type Shot } from "#/lib/director/shots";`; make sure `NO_MARKS` and `type StageMarks` are imported from `#/ui/figure/stage-marks` (Task 1 added that import), and add inside `describe("Stage", …)`:
 
 ```tsx
   it("rolls a version and tags a device behind, as its marks say", async () => {
@@ -6646,6 +6665,8 @@ and give the `WireBand` the ripple, and whether it is still: after `card={card}`
               reduced={reduced}
 ```
 
+(Each status stays in its pane's `<header>`, which the stage measures as `header:<place>`, where a note on the pane ends: `DeviceStatus` is spans only, with no `<header>` of its own, so that box, and the note's dot past its end, stay where they were.)
+
 - [ ] **Step 20: Run them to see them pass**
 
 Run: `npx vitest run --project unit src/tests/figure-news.test.ts src/tests/figure-stage.test.tsx`
@@ -6687,7 +6708,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - `makeStageView` sets each device's `ghosts` from `ghostsOf(snapshot, name)`, the same array while the device's state and the server's rows and version are the same (an empty one shared).
 - The stage's `listOf` merges a device's ghosts and its leaving rows into its list in one `withRows`. A ghost row is read-only, its edge a 1 px dashed `--ink-3` outline, its check dashed, its words in `--text-3`, and "not here yet" in its state slot. Screen readers read "Oat milk, not here yet".
 - `Basin` with `ghosts` works out the pattern it will have (`patternOf` of its items and the ghosts), and for each ghost draws an `aria-hidden` dashed circle (1 px over the camera scale, `--ink-3`, dash 3 3) at its landmark with its reach as the radius, in an svg over the canvas. It adds no words to the basin's label.
-- The plane is measured again when ghosts come and go: they change only with the snapshot, and each snapshot is a new `StageView`, the stage's measure key.
+- The plane is measured again when ghosts come and go: they change only with the snapshot, and each snapshot is a new `StageView`, which the stage's measure key (Task 2's `laidOut`) holds. The measure reads a ghost row as a row (`row:<place>:<item>`) and a group made for one by its heading (`text:<place>:<n>`), so a note's leader keeps off them as off any row.
 
 **Tests:**
 - `reachOf` lands on the outer ring's edge for one item, and a later drop does not change it.
@@ -7267,7 +7288,7 @@ In the device's `Basin`, after `ringAnchors={device.name}`, add:
                           ghosts={device.ghosts}
 ```
 
-The plane is measured again whenever ghosts come or go: they change only with the snapshot, and each snapshot builds a new `StageView`, which is the stage's measure key.
+The plane is measured again whenever ghosts come or go: they change only with the snapshot, and each snapshot builds a new `StageView`, which the stage's measure key (Task 2's `laidOut`) holds. `measureWorld` then reads each ghost row as `row:<place>:<item>` and the heading of a group made for one as `text:<place>:<n>`, as it reads any row and heading.
 
 - [ ] **Step 12: Run them to see them pass**
 
@@ -7621,7 +7642,7 @@ export interface MountedBasin {
 }
 ```
 
-Then replace the whole `mountBasin` function with:
+Then replace the whole `mountBasin` function with (the out-of-view resize that waits, `unsized`, stays as it is):
 
 ```ts
 // Takes over a canvas and keeps it drawing a basin's pattern: at the box's
@@ -7649,6 +7670,8 @@ export const mountBasin = (
   let feather = 0;
   let density = 1;
   let active = true;
+  // Whether a resize waits for the basin to come back into view.
+  let unsized = false;
   // The settle's clock: the host's, stopped while paused and carried on from
   // there after, so a pause holds every drop where it was.
   let pausedAt: number | null = null;
@@ -7668,8 +7691,16 @@ export const mountBasin = (
   const redraw = () => {
     if (made !== null && frame === null) frame = host.requestFrame(draw);
   };
-  const resize = () => {
-    if (made === null) return;
+  // Sizes the canvas to its box at the density, and draws it at once if that
+  // changed it; true when it did. Out of view it waits until the basin is
+  // back: a resize clears the canvas, which would stay blank there while a
+  // camera's glide may still show it.
+  const resize = (): boolean => {
+    if (made === null) return false;
+    if (!active) {
+      unsized = true;
+      return false;
+    }
     const cssWidth = canvas.clientWidth;
     const cssHeight = canvas.clientHeight;
     const ratio = Math.min(
@@ -7680,13 +7711,14 @@ export const mountBasin = (
     feather = basinFeather(cssWidth, ratio);
     const width = Math.max(1, Math.round(cssWidth * ratio));
     const height = Math.max(1, Math.round(cssHeight * ratio));
-    if (canvas.width === width && canvas.height === height) return;
+    if (canvas.width === width && canvas.height === height) return false;
     canvas.width = width;
     canvas.height = height;
     // A resize clears the canvas: draw now, not next frame, so no frame
     // paints it empty.
     if (frame !== null) host.cancelFrame(frame);
     draw();
+    return true;
   };
   const retone = () => {
     tones = inks();
@@ -7736,7 +7768,13 @@ export const mountBasin = (
       active = next;
       if (frame !== null) host.cancelFrame(frame);
       frame = null;
-      if (active) draw();
+      if (!active) return;
+      // Back in view: sized to its box if that waited, which draws it.
+      if (unsized) {
+        unsized = false;
+        if (resize()) return;
+      }
+      draw();
     },
     setPaused: (next) => {
       if (next === (pausedAt !== null)) return;
@@ -8279,7 +8317,7 @@ In the viewport, right after the lens's closing `</div>` and before `{placed.len
         )}
 ```
 
-In `src/ui/figure/stage.module.css`, add after the `.lens[data-notes]` rule:
+In `src/ui/figure/stage.module.css`, add after the `.lens[data-room]` rule (the last of the lens's rules):
 
 ```css
 /* Slow motion's rate, in the window's top-left corner just inside its
@@ -8351,22 +8389,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `src/lib/director/table.ts`
-- Modify: `src/ui/figure/camera.ts` (`stackBox`, `stackShiftOf`; `boxOf` for `basins`), `src/ui/figure/stage-marks.ts` (`table`), `src/ui/figure/stage.tsx`, `src/ui/figure/stage.module.css`
+- Modify: `src/ui/figure/camera.ts` (`stackBox`, `stackShiftOf`), `src/ui/figure/stage-marks.ts` (`table`), `src/ui/figure/stage.tsx`, `src/ui/figure/stage.module.css`
 - Test: `src/tests/director-table.test.ts` (new), `src/tests/figure-camera.test.ts`, `src/tests/figure-marks-motion.test.ts`, `src/tests/figure-stage.test.tsx`; `src/tests/figure-notes.test.tsx` runs unchanged
 
 **Interfaces:**
-- Consumes: `Cut`, `CutCursor`; `Anchors`, `Box`, `boxOf`, `frameFor`, `union` (`camera.ts`); Task 8's test helpers (`marksOn`, `freeMarksOf`) and the stage's `paused`, `markedStage` test helper.
+- Consumes: `Cut`, `CutCursor`; `Anchors`, `Box`, `frameFor`, `union`, `visibleBox` (`camera.ts`); Task 8's test helpers (`marksOn`, `freeMarksOf`) and the stage's `paused`, `markedStage` test helper.
 - Produces: `TABLE_SLIDE_MILLIS`, `TABLE_SLIDE_SHARE`, `tableAt`; `stackBox(anchors)` (the largest device basin's size, centred on the middle of every `basin:<client>` box but the server's); `stackShiftOf(anchors, client)`; `StageMarks.table`.
 
 **Behaviour:**
 - `tableAt` is 0 off the table and through the move onto it; on the run of table holds after the move it is `progress(since the run began, min(TABLE_SLIDE_MILLIS, TABLE_SLIDE_SHARE × the run's length))`, so a short table still ends stacked; 0 again on the next shot that is not a table; 1 at once under reduced motion.
-- `boxOf({ kind: "basins" })` is the stack (falling back to the measured `basins` box), so `frameFor`'s table branch frames it with no change of its own, and a note on the basins points there.
+- The camera does not change: the table frames the world's band of basins, exactly as wide (`frameBoxOf`), and the stack lies inside it, so the camera holds still while the basins slide there. `boxOf` stays as it is, and a note on every basin still draws no dot.
 - In the stage, while `table > 0`, each device's basin slides on an inner wrapper (`.stack`, `data-stacked`) by `table × stackShiftOf(anchors, client)`, so the measured `basin:<client>` anchor stays where the plane laid it out, and it draws even out of view. Stacked, it sits over the device's other content and blends: `mix-blend-mode: darken` by day, `lighten` at night (`prefers-color-scheme`, with `[data-theme]` overrides); `.devices` takes `isolation: isolate`. Forced colours: no blend; each basin at 50% opacity, so a disagreement still doubles.
 - A basin's ring anchors slide with it (they are inside the wrapper).
 
 **Tests:**
 - `tableAt`: 0 off the table and through the move; rising from the first hold across the holds after it, 1 once the slide is done; 0 on the next step's opening; 1 at once reduced; a short table finishes within `TABLE_SLIDE_SHARE` of its hold; `OAT_SCENE` ends stacked.
-- `stackBox` from two basins and from basins of different sizes; `stackShiftOf` for each; null before a device's basin is measured; the table frames the stack and `boxOf` returns it.
+- `stackBox` from two basins and from basins of different sizes; `stackShiftOf` for each; null before a device's basin is measured; the table's frame, the world's band as wide frames it, holds the stack.
 - The marks stack after the move, at once under reduced motion, and never in free play.
 - The stage slides A's and B's basin wrappers halfway to the stack at `table` 0.5, marks them stacked, and puts them back without the table.
 
@@ -8579,19 +8617,26 @@ describe("the light table", () => {
     expect(stackBox(uneven)).toEqual(box(200, 100, 600, 260));
   });
 
-  it("frames the stack, not the row of basins, and its notes point there", () => {
-    expect(boxOf({ kind: "basins" }, DETAIL)).toEqual(box(580, 430, 900, 558));
-    expect(frameFor(TABLE, DETAIL, viewport)).toEqual({
-      x: 740,
-      y: 494,
-      scale: MAX_SCALE,
+  // The table frames the world's band, exactly as wide: the stack lies
+  // inside it, so the camera holds still while the basins slide there.
+  it("keeps the table's frame on the world's band, which holds the stack", () => {
+    const anchors = anchorsOf({
+      ...Object.fromEntries(DETAIL.boxes),
+      world: box(40, 40, 1160, 560),
     });
+    const stack = stackBox(anchors);
+    expect(stack).toEqual(box(580, 430, 900, 558));
+    for (const size of [viewport, { width: 390, height: 480 }]) {
+      const view = frameFor(TABLE, anchors, size);
+      expect(view).toEqual(frameFor(shot({ framing: "wide" }), anchors, size));
+      if (view === null || stack === null) return;
+      expect(inside(stack, visibleBox(view, size))).toBe(true);
+    }
   });
 
-  it("has no stack and no table frame before a device's basin is measured", () => {
+  it("has no stack before a device's basin is measured", () => {
     expect(stackBox(ANCHORS)).toBeNull();
-    expect(boxOf({ kind: "basins" }, ANCHORS)).toBeNull();
-    expect(frameFor(TABLE, ANCHORS, viewport)).toBeNull();
+    expect(stackShiftOf(ANCHORS, "A")).toBeNull();
   });
 });
 ```
@@ -8599,9 +8644,9 @@ describe("the light table", () => {
 - [ ] **Step 6: Run them to make sure they fail**
 
 Run: `npx vitest run --project unit src/tests/figure-camera.test.ts`
-Expected: FAIL: `stackBox is not a function` (and the table still frames the row of basins).
+Expected: FAIL: `stackBox is not a function`.
 
-- [ ] **Step 7: Frame the stack**
+- [ ] **Step 7: Find the stack**
 
 In `src/ui/figure/camera.ts`, add above `boxOf`:
 
@@ -8647,17 +8692,7 @@ export const stackShiftOf = (
 };
 ```
 
-In `boxOf`, add before its last line (`return anchors.boxes.get(subjectKey(subject)) ?? null;`):
-
-```ts
-  if (subject.kind === "basins") {
-    // The light table: where the devices' basins stack, not the row the
-    // plane laid them out in. The table frames it and its notes point at it.
-    return stackBox(anchors) ?? anchors.boxes.get("basins") ?? null;
-  }
-```
-
-`frameFor`'s table branch frames its subjects' boxes, so it frames the stack now with no change of its own.
+`boxOf` and `frameFor` stay as they are: the table frames the world's band of basins, exactly as wide (`frameBoxOf`), and the stack lies inside it, so the camera holds still while the basins slide there; a note on every basin draws no dot, so nothing points at the stack.
 
 - [ ] **Step 8: Run them to make sure they pass**
 
@@ -8936,9 +8971,10 @@ git add src/lib/director/table.ts src/ui/figure/camera.ts src/ui/figure/stage-ma
 ```bash
 git commit -m "feat(figure): the light table: at agreement the basins slide together and stack
 
-The camera frames the stack, the devices' basins slide to it after the
-move and blend (darken by day, lighten at night), so patterns that agree
-register as one and one that disagrees shows doubled rings.
+The table keeps its wide frame while the devices' basins slide to the
+stack after the move and blend (darken by day, lighten at night), so
+patterns that agree register as one and one that disagrees shows doubled
+rings.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -8957,8 +8993,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Behaviour:**
 - An offline device's wire (`DeviceView.offline`, from the network, since a stopped sync outranks offline in `status`) is drawn with a gap: the last `GAP_SHARE` (40%) of its length toward the device is not drawn. During a network enactment the gap opens (going offline) or closes (coming online) by `gap`. In free play the gap is state.
 - Retry: in a scene every stopped band's Retry is an inert replica (`aria-hidden`, `inert`, `data-replay`), and the retrying device's carries the touch ring. Free play and the app keep the reader's Retry.
-- Reload: the device's container's opacity dips to `1 − 0.65 × dip` (`data-reloading`), drawn frame by frame with no transition.
-- Arm: `WireBand` writes the rule's words (`armedWords`: "next ack: dropped", "next push: held", "next pull response: dropped") just right of the wire's midpoint, in `--ink-2`, Body Small, opacity `shown`, dimmed with its wire.
+- Reload: the device's container's opacity dips to `1 − 0.65 × dip` (`data-reloading`, the dip as a `--dip` custom property), drawn frame by frame with no transition. The CSS multiplies it by the spotlight's 35% when the device is also dimmed, since an inline opacity would override `[data-dim]`.
+- Arm: `WireBand` writes the rule's words (`armedWords`: "next ack: dropped", "next push: held", "next pull response: dropped") just right of the wire's midpoint, in `--ink-2`, Body Small, opacity `shown`, dimmed with its wire: a `<g data-dim>` holds the text, as it holds a lost message's label, so the dim and the fade multiply.
 - Reduced: the gap at its end state, the touch still, no dip (the reload's note says it), the words shown.
 
 **Tests:**
@@ -9062,7 +9098,8 @@ Add to `src/tests/figure-wires.test.tsx`, inside `describe("WireBand", …)`:
     expect(Number(text?.getAttribute("x"))).toBeGreaterThan(100);
     expect(Number(text?.getAttribute("y"))).toBe(40);
     expect(text?.style.opacity).toBe("0.5");
-    expect(text?.hasAttribute("data-dim")).toBe(true);
+    // Dimmed by its group, so the dim and the fade multiply.
+    expect(text?.parentElement?.hasAttribute("data-dim")).toBe(true);
   });
 ```
 
@@ -9143,7 +9180,7 @@ export const armedWords = (
 
 In `src/ui/figure/wire-band.tsx`:
 
-1. Change the trace import to bring in `ClientName`:
+1. After the frame import (`import { LOST_MARK_MILLIS } from "#/lib/sandbox/frame";`), add the trace import to bring in `ClientName`:
 
 ```tsx
 import type { ClientName } from "#/lib/sandbox/trace";
@@ -9216,16 +9253,17 @@ const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 
 ```tsx
       {armed && armedWire !== undefined && (
-        <text
-          className={styles.armed}
-          x={(armedWire.server.x + armedWire.device.x) / 2 + LABEL_GAP}
-          y={(armedWire.server.y + armedWire.device.y) / 2}
-          dominantBaseline="middle"
-          data-dim={dim(armed.client)}
-          style={{ opacity: clamp01(armed.shown) }}
-        >
-          {armed.text}
-        </text>
+        <g data-dim={dim(armed.client)}>
+          <text
+            className={styles.armed}
+            x={(armedWire.server.x + armedWire.device.x) / 2 + LABEL_GAP}
+            y={(armedWire.server.y + armedWire.device.y) / 2}
+            dominantBaseline="middle"
+            style={{ opacity: clamp01(armed.shown) }}
+          >
+            {armed.text}
+          </text>
+        </g>
       )}
 ```
 
@@ -9480,9 +9518,11 @@ Then, inside `describe("Stage", …)`:
         container.querySelector<HTMLElement>(
           `[data-anchor='device'][data-client='${name}']`,
         );
-      expect(Number(device("B")?.style.opacity)).toBeCloseTo(1 - 0.65 * 0.5);
+      expect(
+        Number(device("B")?.style.getPropertyValue("--dip")),
+      ).toBeCloseTo(1 - 0.65 * 0.5);
       expect(device("B")?.hasAttribute("data-reloading")).toBe(true);
-      expect(device("A")?.style.opacity).toBe("");
+      expect(device("A")?.style.getPropertyValue("--dip")).toBe("");
       expect(device("A")?.hasAttribute("data-reloading")).toBe(false);
 
       rerender(
@@ -9494,7 +9534,11 @@ Then, inside `describe("Stage", …)`:
           shown: 1,
         }),
       );
-      expect(container.querySelector("svg")?.textContent).toContain(
+      // The wire band's own svg: a scene row's inert cross (Task 3) is an
+      // svg too, and comes first in the plane.
+      expect(
+        container.querySelector("[data-anchor='plane'] > svg")?.textContent,
+      ).toContain(
         "next ack: dropped",
       );
     } finally {
@@ -9548,10 +9592,11 @@ const RELOAD_DIP = 0.65;
   // scene, so each stopped band shows its inert Retry, as free play's.
   const retryTouchOf = (client: ClientName) =>
     acting?.kind === "retry" && acting.client === client ? acting.touch : null;
-  // A reloading device's pane dips and comes back.
+  // A reloading device's pane dips and comes back. The dip is a custom
+  // property, so the CSS can multiply it by the spotlight's dim.
   const dipOf = (client: ClientName): CSSProperties | undefined =>
     acting?.kind === "reload" && acting.client === client && acting.dip > 0
-      ? { opacity: 1 - RELOAD_DIP * acting.dip }
+      ? ({ "--dip": 1 - RELOAD_DIP * acting.dip } as CSSProperties)
       : undefined;
 ```
 
@@ -9581,9 +9626,14 @@ In `src/ui/figure/stage.module.css`, after the `.server[data-dim], .device[data-
 
 ```css
 /* A reload's dip is drawn frame by frame from the clock: no transition
-   smooths it. */
+   smooths it. A dimmed device dips from its dim. */
 .device[data-reloading] {
+  opacity: var(--dip);
   transition: none;
+}
+
+.device[data-dim][data-reloading] {
+  opacity: calc(var(--dip) * 0.35);
 }
 ```
 
@@ -9617,22 +9667,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `src/ui/figure/shared-mark.ts`
-- Modify: `src/ui/figure/note-placement.ts` (`placeNotes`'s `marked`), `src/ui/figure/stage-notes.tsx`, `src/ui/figure/stage-notes.module.css`, `src/ui/figure/stage.tsx`, `src/ui/code/code-panel.tsx`, `src/ui/code/code-panel.module.css`, `src/ui/figure/figure.tsx`
+- Modify: `src/ui/figure/note-placement.ts` (`NoteOptions.marked`), `src/ui/figure/stage-notes.tsx`, `src/ui/figure/stage-notes.module.css`, `src/ui/figure/stage.tsx`, `src/ui/code/code-panel.tsx`, `src/ui/code/code-panel.module.css`, `src/ui/figure/figure.tsx`
 - Test: `src/tests/figure-shared-mark.test.ts` (new), `src/tests/figure-notes.test.tsx`, `src/tests/code-panel.test.tsx`, `src/tests/figure-stage.test.tsx`
 
 **Interfaces:**
 - Consumes: `Lit`, `litAt`, `noteOf` (`src/ui/code/lit.ts`); `Cut`, `CutCursor`.
-- Produces: `sharedMarkAt(cut, cursor, timeline, lit)`; `placeNotes(…, marked)`; `StageNotes`/`FootNotes` `mark`; `CodePanel` `shared`; `Stage` `shared`.
+- Produces: `sharedMarkAt(cut, cursor, timeline, lit)`; `placeNotes(…, { spot, marked })` (`NoteOptions.marked`); `StageNotes`/`FootNotes` `mark`; `CodePanel` `shared`; `Stage` `shared`.
 
 **Behaviour:**
 - `sharedMarkAt` is `noteOf(lit.event)` when the shot under the cursor is a hold with notes (rate 0, not a move, an opening or an enactment) and the lit event is one of the hold's own entries: its `at` is the hold's `from`, its index is at most the hold's `through`, and it is past the `through` of every earlier shot at that instant with other notes (a beat's extra hold, which shares its notes, keeps the mark). Else null; an empty `noteOf` is null.
-- `placeNotes` counts the marked note (by its index in the shot's notes) a line taller, so the notes after it make room.
-- The first note (index 0) draws the mark as a block, mono `--text-xs` line in `--ink-fresh` above its words, beside the subjects and in the foot; the code panel's note takes `data-shared` and turns `--ink-fresh` while `shared`. Forced colours: `CanvasText`.
+- `placeNotes` counts the marked note (by its index in the shot's notes, the `marked` option beside `spot`) a line taller, beside the subjects and in the room under a wide or a table frame, so the notes after it make room.
+- The first note (index 0) draws the mark as a block, mono `--text-xs` line in `--ink-fresh` above its words, beside the subjects, in the room and in the foot; the code panel's note takes `data-shared` and turns `--ink-fresh` while `shared`. Forced colours: `CanvasText`.
 - The mark is `aria-hidden` like the notes; the code panel's note already speaks.
 
 **Tests:**
 - On `OAT_SCENE` with a light on `Applied`, the add's hold shares `A · #<id>`; its opening does not; a light on an earlier event does not; no code shares nothing.
-- `placeNotes` with a marked note moves the note under it down one line and leaves the marked one where it was.
+- `placeNotes` with a marked note moves the note under it down one line and leaves the marked one where it was, beside the subjects and in the room.
 - `StageNotes` and `FootNotes` set the mark over the first note only.
 - `CodePanel` with `shared` sets `data-shared` on its note, and not without.
 - The stage sets its `shared` mark over the hold's first note.
@@ -9813,25 +9863,35 @@ In `src/tests/figure-notes.test.tsx`, change the stage-notes import to take `Foo
 import { FootNotes, StageNotes } from "#/ui/figure/stage-notes";
 ```
 
-Inside `describe("placeNotes", …)`, after its last test, add:
+Inside `describe("placeNotes", …)`, after its last test ("draws no leader or dot to a subject that was not measured"), add:
 
 ```ts
+  // C's two rows sit closer than a note's height: the first note is level
+  // with its row, the second stacks under it. The first carries the mark's
+  // line, so the second sits a line lower, beside the subjects and in the
+  // room under a wide frame alike; the first stays where it was.
   it("counts the note that carries the shared mark a line taller", () => {
+    const anchors: Anchors = {
+      ...ANCHORS,
+      boxes: new Map([...ANCHORS.boxes, ["row:C:2", box(450, 315, 610, 335)]]),
+    };
     const notes = [
-      note({ kind: "row", where: "B", itemId: "1" }, "Shows on B."),
-      note({ kind: "row", where: "C", itemId: "1" }, "Shows on C."),
+      note({ kind: "row", where: "C", itemId: "1" }, "First."),
+      note({ kind: "row", where: "C", itemId: "2" }, "Second."),
     ];
-    const plain = placeNotes(notes, ANCHORS, IDENTITY, WIDE);
-    const marked = placeNotes(notes, ANCHORS, IDENTITY, WIDE, 0);
-    // B's and C's rows are level: C's note sits under B's, and B's carries
-    // the mark's line.
-    expect(
-      (only(marked, "Shows on C.").at?.top ?? 0) -
-        (only(plain, "Shows on C.").at?.top ?? 0),
-    ).toBe(LINE_PX);
-    expect(only(marked, "Shows on B.").at).toEqual(
-      only(plain, "Shows on B.").at,
-    );
+    const room = { kind: "room", top: 420, left: 40, right: 960 } as const;
+    for (const spot of [{ kind: "beside" } as const, room]) {
+      const plain = placeNotes(notes, anchors, IDENTITY, WIDE, { spot });
+      const marked = placeNotes(notes, anchors, IDENTITY, WIDE, {
+        spot,
+        marked: 0,
+      });
+      expect(
+        (only(marked, "Second.").at?.top ?? 0) -
+          (only(plain, "Second.").at?.top ?? 0),
+      ).toBe(LINE_PX);
+      expect(only(marked, "First.")).toEqual(only(plain, "First."));
+    }
   });
 ```
 
@@ -9847,7 +9907,7 @@ Inside `describe("StageNotes", …)`, after its last test, add:
       ANCHORS,
       IDENTITY,
       WIDE,
-      0,
+      { marked: 0 },
     );
     const { container } = render(
       <StageNotes placed={placed} viewport={WIDE} mark="A · #6" />,
@@ -9898,36 +9958,76 @@ In `src/tests/code-panel.test.tsx`, inside `describe("CodePanel", …)`, after t
 - [ ] **Step 6: Run them to make sure they fail**
 
 Run: `npx vitest run --project unit src/tests/figure-notes.test.tsx src/tests/code-panel.test.tsx`
-Expected: FAIL: the marked placement equals the plain one (no `LINE_PX` difference), no `p > span` is drawn, `FootNotes` draws no mark, and the code's note has no `data-shared`. `tsc` would also flag the unknown `mark` and `shared` props; vitest does not type-check.
+Expected: FAIL: the marked placement equals the plain one (no `LINE_PX` difference), no `p > span` is drawn, `FootNotes` draws no mark, and the code's note has no `data-shared`. `tsc` would also flag the unknown `marked` option and the unknown `mark` and `shared` props; vitest does not type-check.
 
 - [ ] **Step 7: Make room for the mark, draw it, and share the code's note**
 
-In `src/ui/figure/note-placement.ts`, give `placeNotes` a fifth parameter. Replace:
+In `src/ui/figure/note-placement.ts`, give `placeNotes`'s options a `marked` beside `spot`. Replace:
 
 ```ts
+// How a shot's notes are placed: where they go (`spotFor`); by default beside
+// the subjects on a wide viewport, in the foot on a narrow one.
+export interface NoteOptions {
+  readonly spot?: NoteSpot;
+}
+
 export const placeNotes = (
   notes: ReadonlyArray<Note>,
   anchors: Anchors,
   view: View,
   viewport: Size,
+  {
+    spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
+  }: NoteOptions = {},
 ): ReadonlyArray<PlacedNote> => {
 ```
 
 with:
 
 ```ts
-// `marked`: the note (by its index in `notes`) that carries the shared mark,
-// a mono line over its words, which it is counted a line taller for.
+// How a shot's notes are placed: where they go (`spotFor`); by default beside
+// the subjects on a wide viewport, in the foot on a narrow one. `marked`: the
+// note (by its index in `notes`) that carries the shared mark, a mono line
+// over its words, which it is counted a line taller for.
+export interface NoteOptions {
+  readonly spot?: NoteSpot;
+  readonly marked?: number | null;
+}
+
 export const placeNotes = (
   notes: ReadonlyArray<Note>,
   anchors: Anchors,
   view: View,
   viewport: Size,
-  marked: number | null = null,
+  {
+    spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
+    marked = null,
+  }: NoteOptions = {},
 ): ReadonlyArray<PlacedNote> => {
 ```
 
-and replace:
+After `const share = shareFrom(viewport);`, add:
+
+```ts
+  // A note's height at `width`: a line taller for the one that carries the
+  // shared mark over its words.
+  const heightFor = ({ note, index }: Target, width: number) =>
+    heightOf(note.text, width) + (index === marked ? LINE_PX : 0);
+```
+
+In the room under a wide or a table frame, replace:
+
+```ts
+      top += heightOf(target.note.text, width) + NOTE_GAP_PX;
+```
+
+with:
+
+```ts
+      top += heightFor(target, width) + NOTE_GAP_PX;
+```
+
+and beside the subjects, replace:
 
 ```ts
   const heights = ordered.map(({ note }) => heightOf(note.text, strip.width));
@@ -9936,10 +10036,7 @@ and replace:
 with:
 
 ```ts
-  const heights = ordered.map(
-    ({ note, index }) =>
-      heightOf(note.text, strip.width) + (index === marked ? LINE_PX : 0),
-  );
+  const heights = ordered.map((target) => heightFor(target, strip.width));
 ```
 
 Replace `src/ui/figure/stage-notes.tsx` with:
@@ -9981,8 +10078,9 @@ function Words({
 
 // A shot's notes over the viewport: a dot at each subject's end and, beside
 // the subjects, a few words each in the notes' share, tied to it by a fine
-// leader. Hidden from assistive technology, since the caption (and later the
-// transcript) carries the same words.
+// leader. Hidden from assistive technology: the caption tells the step, but
+// not a note's specifics (`#6`, `v6`), which have no accessible equivalent
+// until the transcript carries them.
 export function StageNotes({ placed, viewport, mark = null }: StageNotesProps) {
   return (
     <div className={styles.notes} aria-hidden="true">
@@ -10033,8 +10131,13 @@ export function StageNotes({ placed, viewport, mark = null }: StageNotesProps) {
   );
 }
 
-// A shot's notes under a narrow viewport, in the stage's foot: the words
-// alone, stacked in the order of what they name, for the eye only.
+// The foot's least height during a scene: two notes (a line each, in the
+// notes' type: `--text-sm` at 1.45) and the gap between them (`.foot`), so
+// the controls under the stage hold still from hold to hold.
+export const FOOT_MIN = "calc(2 * 1.45 * var(--text-sm) + var(--space-1))";
+
+// A shot's notes in the stage's foot (a narrow viewport's): the words alone,
+// stacked in the order of what they name, for the eye only.
 export function FootNotes({
   placed,
   mark = null,
@@ -10167,16 +10270,19 @@ In `src/ui/figure/stage.tsx`, add to `StageProps`, after `reduced`:
   readonly shared?: string | null;
 ```
 
-add `shared = null,` to the destructured props after `reduced,`, and replace:
+add `shared = null,` to the destructured props after `reduced,`, and in the notes' placement (`const placed = …`, its `spot` from `spotFor`) replace:
 
 ```ts
-      ? placeNotes(shot.notes, anchors, camera, size)
+      : placeNotes(shot.notes, anchors, camera, size, { spot });
 ```
 
 with:
 
 ```ts
-      ? placeNotes(shot.notes, anchors, camera, size, shared === null ? null : 0)
+      : placeNotes(shot.notes, anchors, camera, size, {
+          spot,
+          marked: shared === null ? null : 0,
+        });
 ```
 
 Then replace:
@@ -10265,74 +10371,41 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `src/ui/figure/use-glide.ts`
-- Modify: `src/ui/figure/camera.ts` (export `along`), `src/ui/figure/stage.tsx`, `src/ui/figure/figure.tsx` (`jumpKey`)
-- Test: `src/tests/figure-glide.test.tsx` (new), `src/tests/figure-stage.test.tsx`
+- Modify: `src/ui/figure/camera.ts` (export `along`), `src/ui/figure/use-camera.ts` (the glide, `jumping`), `src/ui/figure/stage.tsx` (`jumpKey`), `src/ui/figure/figure.tsx` (`jumpKey`)
+- Test: `src/tests/figure-glide.test.tsx` (new), `src/tests/figure-helpers.tsx` (`fakeClock`), `src/tests/figure-use-camera.test.tsx`, `src/tests/figure-stage.test.tsx`
 
 **Interfaces:**
-- Consumes: `along`, `easeInOut`, `zoomPath`, `Anchors`, `Size`, `View` (`camera.ts`); the stage's `framed` view from `cameraAt` (with plan 2's `entry` ease); the player view's `jumped` and `screen`.
-- Produces: `JUMP_MILLIS = 500`; `GlideClock`; `glideAt(from, to, elapsed, anchors, viewport)`; `useGlide(target, jumpKey, { anchors, viewport, reduced, clock? })`; `Stage` `jumpKey`.
+- Consumes: `along`, `easeInOut`, `zoomPath`, `Anchors`, `Size`, `View` (`camera.ts`); `useCamera` and its `Camera` (`use-camera.ts`), whose view is `framedAt`'s (with plan 2's `entry` ease); the player view's `jumped` and `screen`.
+- Produces: `JUMP_MILLIS = 500`; `GlideClock`; `glideAt(from, to, elapsed, anchors, viewport)`; `useGlide(target, jumpKey, { anchors, viewport, reduced, clock? })`; `useCamera(cue, anchors, size, reduced, options?)`, `options: { jumpKey?: string | null; clock?: GlideClock }`; `Camera.jumping`; `Stage` `jumpKey`; `fakeClock()` in `figure-helpers.tsx`.
 
 **Behaviour:**
-- The figure passes `jumpKey = view.mode === "scene" && view.jumped ? String(view.screen) : null`; the stage passes it on only for a shot's cue.
+- The figure passes `jumpKey = view.mode === "scene" && view.jumped ? String(view.screen) : null`; the stage passes it into `useCamera` only for a shot's cue.
 - `glideAt` is `along(from, to, easeInOut(elapsed / JUMP_MILLIS), …)`, kept on the plane as a move is, and `to` itself once there.
 - `useGlide` returns `target` until `jumpKey` becomes a key it has not seen; it then glides from the view it last returned to `target` over `JUMP_MILLIS`, re-rendering by the clock's frames, and returns `target` once there. A target that moves under a glide is followed; a new jump mid-glide starts from where the camera is. It does not glide into the first view, nor under reduced motion.
-- The stage draws `camera = useGlide(framed, …)`; `last` keeps the view drawn. While it glides (`camera !== framed`), `moving` is true: the notes wait and the basins keep their density.
+- `useCamera` draws its framed view through `useGlide(view, jumpKey, { anchors, viewport: size, reduced, clock })`: the glided view is `Camera.view`, and `last` keeps it, so the next shot eases from the view drawn. While it glides (`jumping`: the view drawn is not the framed one), `moving` is true: the plane stays on the compositor and the basins keep their density. The stage's notes wait while `jumping`; they do not wait on `moving`, which also covers an ease within a frame and a narrow window's pan, under which plan 2 keeps them.
 - Basins keep showing a jump's instant at once (`settle={!jumped}`); the marks take the landed instant's ages, so a row first seen a second before the landing is inked and drying, not new (Review Focus 1).
 
 **Tests:**
 - `glideAt` at 0, half (the eased zoom path's midpoint) and the end.
 - `useGlide`: follows at once without a jump; glides on a new key, at half time on the eased path, then rests on the target; the same key again follows at once; a jump mid-glide starts where the camera is; no glide into the first view or under reduced motion.
 - A jump's marks: a seek to a second after A's oat milk was first seen shows it inked and `1 − 1000 / WET_MILLIS` wet.
+- `useCamera`, jumping from a wide hold to a close-up past scale 1: it starts at the wide scale, moving and jumping with the density held, is on the glide's path at half time, and rests on the close-up's own view with its density; with no jump, and under reduced motion, it lands at once.
 - The stage, jumping from a wide shot back to a close-up, starts from the wide scale and holds the close-up's note until it lands.
 
 - [ ] **Step 1: Write the failing tests for the glide**
 
-Create `src/tests/figure-glide.test.tsx`:
+In `src/tests/figure-helpers.tsx`, add the import after `import type { FigureHost } from "#/ui/figure/figure-host";`:
 
-```tsx
-import { it as effect } from "@effect/vitest";
-import { act, renderHook } from "@testing-library/react";
-import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
-import { compile } from "#/lib/director/compile";
-import { WET_MILLIS, wetKey } from "#/lib/director/marks";
-import { sceneAges } from "#/lib/director/reveal";
-import { cursorAtScreen, indexAt, revealedAt } from "#/lib/director/timing";
-import { runHeadless } from "#/lib/sandbox/scene";
-import {
-  type Anchors,
-  easeInOut,
-  type View,
-  zoomPath,
-} from "#/ui/figure/camera";
-import { stageMarksAt } from "#/ui/figure/stage-marks";
-import {
-  type GlideClock,
-  glideAt,
-  JUMP_MILLIS,
-  useGlide,
-} from "#/ui/figure/use-glide";
-import { lastEntryWhere, OAT_SCENE } from "./director-helpers";
+```ts
+import type { GlideClock } from "#/ui/figure/use-glide";
+```
 
-// A plane far larger than anything framed here, so no view meets its edges
-// and the glide is the zoom path itself.
-const ANCHORS: Anchors = {
-  plane: { width: 4000, height: 3000 },
-  boxes: new Map(),
-  messages: new Map(),
-};
-const VIEWPORT = { width: 800, height: 500 };
-const FROM: View = { x: 1500, y: 1200, scale: 1 };
-const TO: View = { x: 1900, y: 1400, scale: 1.5 };
+and after `fakeHost` (before `rect`), add:
 
-const expectView = (actual: View | null, expected: View) => {
-  expect(actual?.x).toBeCloseTo(expected.x, 6);
-  expect(actual?.y).toBeCloseTo(expected.y, 6);
-  expect(actual?.scale).toBeCloseTo(expected.scale, 6);
-};
-
+```ts
 // A clock the test runs by hand: the time, and the frames waiting for it.
-const fakeClock = () => {
+// The glide's tests and the camera's share it.
+export const fakeClock = () => {
   let time = 0;
   let frames = new Map<number, () => void>();
   let handle = 1;
@@ -10356,6 +10429,52 @@ const fakeClock = () => {
         for (const run of due.values()) run();
       }),
   };
+};
+```
+
+Create `src/tests/figure-glide.test.tsx`:
+
+```tsx
+import { it as effect } from "@effect/vitest";
+import { renderHook } from "@testing-library/react";
+import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
+import { compile } from "#/lib/director/compile";
+import { WET_MILLIS, wetKey } from "#/lib/director/marks";
+import { sceneAges } from "#/lib/director/reveal";
+import { cursorAtScreen, indexAt, revealedAt } from "#/lib/director/timing";
+import { runHeadless } from "#/lib/sandbox/scene";
+import {
+  type Anchors,
+  easeInOut,
+  type View,
+  zoomPath,
+} from "#/ui/figure/camera";
+import { stageMarksAt } from "#/ui/figure/stage-marks";
+import {
+  type GlideClock,
+  glideAt,
+  JUMP_MILLIS,
+  useGlide,
+} from "#/ui/figure/use-glide";
+import { lastEntryWhere, OAT_SCENE } from "./director-helpers";
+import { fakeClock } from "./figure-helpers";
+
+// A plane far larger than anything framed here, so no view meets its edges
+// and the glide is the zoom path itself.
+const ANCHORS: Anchors = {
+  plane: { width: 4000, height: 3000 },
+  boxes: new Map(),
+  messages: new Map(),
+};
+const VIEWPORT = { width: 800, height: 500 };
+const FROM: View = { x: 1500, y: 1200, scale: 1 };
+const TO: View = { x: 1900, y: 1400, scale: 1.5 };
+
+const expectView = (actual: View | null, expected: View) => {
+  expect(actual?.x).toBeCloseTo(expected.x, 6);
+  expect(actual?.y).toBeCloseTo(expected.y, 6);
+  expect(actual?.scale).toBeCloseTo(expected.scale, 6);
 };
 
 interface Props {
@@ -10616,9 +10735,123 @@ export const useGlide = (
 Run: `npx vitest run --project unit src/tests/figure-glide.test.tsx`
 Expected: PASS (7 tests).
 
-- [ ] **Step 6: Write the failing test for the stage's glide**
+- [ ] **Step 6: Write the failing tests for the camera's glide and the stage's**
 
-In `src/tests/figure-stage.test.tsx`, add after `closeOn`:
+In `src/tests/figure-use-camera.test.tsx`, add to the imports, after `import { useCamera } from "#/ui/figure/use-camera";`:
+
+```ts
+import { type GlideClock, glideAt, JUMP_MILLIS } from "#/ui/figure/use-glide";
+```
+
+and after `import type { Box } from "#/ui/figure/wires";`:
+
+```ts
+import { fakeClock } from "./figure-helpers";
+```
+
+Inside `describe("useCamera", …)`, before the test "draws nothing until the window and the plane are measured", add:
+
+```tsx
+  // A jump (Back, a scrub) from the world to B's detail, framed close past
+  // scale 1: the camera glides there from the view on screen.
+  describe("a jump", () => {
+    const size = { width: 600, height: 400 };
+    const cut: Cut = {
+      shots: [
+        shot({
+          subjects: [
+            { kind: "device", client: "B" },
+            { kind: "row", where: "B", itemId: "1" },
+            { kind: "ring", where: "B", itemId: "1" },
+          ],
+        }),
+        shot({ framing: "wide", move: true }),
+        shot({ framing: "wide" }),
+      ],
+      steps: [],
+    };
+    const wide = at(cut, 2, 500);
+    const close = at(cut, 0, 500);
+    interface Props {
+      readonly cue: Cue;
+      readonly jumpKey: string | null;
+    }
+    const jumped = (clock: GlideClock, reduced = false) => {
+      const initialProps: Props = { cue: wide, jumpKey: null };
+      return renderHook(
+        (props: Props) =>
+          useCamera(props.cue, ANCHORS, size, reduced, {
+            jumpKey: props.jumpKey,
+            clock,
+          }),
+        { initialProps },
+      );
+    };
+
+    it("glides from the view on screen, moving and holding the basins' density, then rests", async () => {
+      const { clock, advance } = fakeClock();
+      const { result, rerender } = jumped(clock);
+      const from = result.current.view;
+      const to = camera(close, size).result.current.view;
+      if (from === null || to === null) throw new Error("nothing framed");
+      expect(result.current.density).toBe(1);
+      rerender({ cue: close, jumpKey: "1" });
+      expect(result.current.view?.scale).toBeCloseTo(from.scale, 6);
+      expect(result.current).toMatchObject({
+        moving: true,
+        jumping: true,
+        density: 1,
+      });
+      await advance(JUMP_MILLIS / 2);
+      expect(result.current.view).toEqual(
+        glideAt(from, to, JUMP_MILLIS / 2, ANCHORS, size),
+      );
+      expect(result.current).toMatchObject({ moving: true, density: 1 });
+      await advance(JUMP_MILLIS / 2);
+      expect(result.current).toEqual({
+        view: to,
+        moving: false,
+        density: 1.25,
+        gliding: false,
+        jumping: false,
+      });
+    });
+
+    it("lands at once with no jump, and under reduced motion", () => {
+      const { clock } = fakeClock();
+      const played = jumped(clock);
+      played.rerender({ cue: close, jumpKey: null });
+      const still = jumped(clock, true);
+      still.rerender({ cue: close, jumpKey: "1" });
+      for (const { result } of [played, still]) {
+        expect(result.current).toMatchObject({
+          moving: false,
+          jumping: false,
+          density: 1.25,
+        });
+      }
+    });
+  });
+```
+
+In the test "draws nothing until the window and the plane are measured", replace:
+
+```ts
+      density: 1,
+      gliding: false,
+    });
+```
+
+with:
+
+```ts
+      density: 1,
+      gliding: false,
+      jumping: false,
+    });
+```
+
+In `src/tests/figure-stage.test.tsx`, add after `closeOn` (before `scaleOf`):
 
 ```ts
 // A held wide shot, as a step's opening after the light table is.
@@ -10695,20 +10928,132 @@ Inside the `describe` that defines `LAYOUT` and `staged`, after the test "places
   });
 ```
 
-- [ ] **Step 7: Run it to make sure it fails**
+- [ ] **Step 7: Run them to make sure they fail**
 
-Run: `npx vitest run --project unit src/tests/figure-stage.test.tsx -t "glides from the view on screen"`
-Expected: FAIL: the scale after the jump is the close-up's at once (`expected … to be close to …`).
+Run: `npx vitest run --project unit src/tests/figure-use-camera.test.tsx src/tests/figure-stage.test.tsx -t "jump|draws nothing"`
+Expected: FAIL: in `useCamera`'s "a jump" and in the stage's test, the scale after the jump is the close-up's at once (`expected … to be close to …`); and the camera has no `jumping` ("lands at once…", "draws nothing…").
 
-- [ ] **Step 8: Glide the stage's camera on a jump, and pass the jump from the figure**
+- [ ] **Step 8: Glide the camera on a jump, and pass the jump from the figure and the stage**
 
-In `src/ui/figure/stage.tsx`, add the import:
+`useCamera` (plan 2's, in `src/ui/figure/use-camera.ts`) keeps the camera's bookkeeping: the last view drawn and its shot, the entry view and the held density. It composes the glide, so the view it draws, records and eases from is the glided one.
+
+In `src/ui/figure/use-camera.ts`, replace:
 
 ```ts
-import { useGlide } from "./use-glide";
+import type { Cue, FreeFocus } from "./stage";
 ```
 
-Add to `StageProps`, after `reduced`:
+with:
+
+```ts
+import type { Cue, FreeFocus } from "./stage";
+import { type GlideClock, useGlide } from "./use-glide";
+```
+
+In `Camera`, replace:
+
+```ts
+  // Whether the camera is moving (a move, an ease within a frame, a pan's
+  // moving share): the plane is kept on the compositor, and the basins keep
+  // their density.
+  readonly moving: boolean;
+```
+
+with:
+
+```ts
+  // Whether the camera is moving (a move, an ease within a frame, a pan's
+  // moving share, a jump's glide): the plane is kept on the compositor, and
+  // the basins keep their density.
+  readonly moving: boolean;
+```
+
+and replace:
+
+```ts
+  readonly gliding: boolean;
+}
+```
+
+with:
+
+```ts
+  readonly gliding: boolean;
+  // Whether a jump's glide carries the camera from the view on screen to
+  // where a step or a scrub landed (in a scene only): the camera is moving,
+  // and the stage's notes wait for it to land.
+  readonly jumping: boolean;
+}
+```
+
+Replace:
+
+```ts
+// shot began, and the density held through motion.
+export const useCamera = (
+  cue: Cue,
+  anchors: Anchors,
+  size: Size,
+  reduced: boolean,
+): Camera => {
+```
+
+with:
+
+```ts
+// shot began, and the density held through motion. A new `jumpKey` (a
+// step, a scrub, a restart) glides the view drawn there from the one on
+// screen (`useGlide`, on `clock`).
+export const useCamera = (
+  cue: Cue,
+  anchors: Anchors,
+  size: Size,
+  reduced: boolean,
+  options: {
+    readonly jumpKey?: string | null;
+    readonly clock?: GlideClock;
+  } = {},
+): Camera => {
+  const { jumpKey = null, clock } = options;
+```
+
+Replace:
+
+```ts
+  const view = framed?.view ?? null;
+  const moving = framed?.moving === true;
+```
+
+with:
+
+```ts
+  // A jump glides from the view on screen to the one it landed on. The view
+  // drawn is the glided one: `last` keeps it, and the next shot eases from
+  // it.
+  const target = framed?.view ?? null;
+  const view = useGlide(target, jumpKey, {
+    anchors,
+    viewport: size,
+    reduced,
+    clock,
+  });
+  const jumping = view !== target;
+  const moving = framed?.moving === true || jumping;
+```
+
+and replace:
+
+```ts
+  return { view, moving, density, gliding };
+```
+
+with:
+
+```ts
+  return { view, moving, density, gliding, jumping };
+```
+
+In `src/ui/figure/stage.tsx`, add to `StageProps`, after `readonly reduced: boolean;`:
 
 ```ts
   // In a scene, a key for the jump that put the playhead where it is (a
@@ -10719,69 +11064,52 @@ Add to `StageProps`, after `reduced`:
 
 and add `jumpKey = null,` to the destructured props after `reduced,`.
 
-The camera's view is `cameraAt`'s, as plan 2's finish left it (with the ease into a shot that shares its frame, from the `entry` view the stage keeps). Rename that view `framed`, and draw it through the glide. Replace:
+Replace:
 
 ```ts
-  const camera: View | null = !ready
-    ? null
-    : cue.kind === "shot"
-      ? cameraAt(cue.cut, cue.cursor, anchors, size, {
-          reduced,
-          fallback: last.current,
-          entry: entered ? entry.view : arriving,
-        })
-      : freeView(cue.focus, anchors, size);
+  const {
+    view: camera,
+    moving,
+    density,
+    gliding,
+  } = useCamera(cue, anchors, size, reduced);
 ```
 
 with:
 
 ```ts
-  const framed: View | null = !ready
-    ? null
-    : cue.kind === "shot"
-      ? cameraAt(cue.cut, cue.cursor, anchors, size, {
-          reduced,
-          fallback: last.current,
-          entry: entered ? entry.view : arriving,
-        })
-      : freeView(cue.focus, anchors, size);
-  // A jump glides from the view on screen to the one it landed on. The view
-  // drawn is what `last` keeps, and what the next shot eases from.
-  const camera = useGlide(framed, cue.kind === "shot" ? jumpKey : null, {
-    anchors,
-    viewport: size,
-    reduced,
+  // A jump glides the camera in a scene; free play has its own glide.
+  const {
+    view: camera,
+    moving,
+    density,
+    gliding,
+    jumping,
+  } = useCamera(cue, anchors, size, reduced, {
+    jumpKey: cue.kind === "shot" ? jumpKey : null,
   });
-  const gliding = camera !== framed;
-```
-
-and replace:
-
-```ts
-  const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
-  const moving = shot?.move === true;
-```
-
-with:
-
-```ts
-  const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
-  // A move into a shot, or a jump's glide: the basins keep their density,
-  // and the notes wait for the camera to land.
-  const moving = shot?.move === true || gliding;
 ```
 
 and in the notes' placement, replace:
 
 ```ts
+  const spot =
     camera !== null && shot !== undefined && !shot.move && shot.notes.length > 0
 ```
 
 with:
 
 ```ts
-    camera !== null && shot !== undefined && !moving && shot.notes.length > 0
+  // They wait for a move, or a jump's glide, to land.
+  const spot =
+    camera !== null &&
+    shot !== undefined &&
+    !shot.move &&
+    !jumping &&
+    shot.notes.length > 0
 ```
+
+(Not `!moving`: plan 2's `moving` also covers an ease within a frame and a narrow window's pan, under which the notes stay.)
 
 In `src/ui/figure/figure.tsx`, in the `<Stage …>` element, after `reduced={reduced}`, add:
 
@@ -10791,9 +11119,9 @@ In `src/ui/figure/figure.tsx`, in the `<Stage …>` element, after `reduced={red
             }
 ```
 
-- [ ] **Step 9: Run it to make sure it passes**
+- [ ] **Step 9: Run them to make sure they pass**
 
-Run: `npx vitest run --project unit src/tests/figure-stage.test.tsx src/tests/figure-glide.test.tsx src/tests/figure.test.tsx`
+Run: `npx vitest run --project unit src/tests/figure-use-camera.test.tsx src/tests/figure-stage.test.tsx src/tests/figure-glide.test.tsx src/tests/figure.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 10: Check everything**
@@ -10801,7 +11129,7 @@ Expected: PASS.
 Run: `npx tsc --noEmit`
 Expected: no output.
 
-Run: `npx biome check --write src/ui/figure/use-glide.ts src/ui/figure/camera.ts src/ui/figure/stage.tsx src/ui/figure/figure.tsx src/tests/figure-glide.test.tsx src/tests/figure-stage.test.tsx`
+Run: `npx biome check --write src/ui/figure/use-glide.ts src/ui/figure/camera.ts src/ui/figure/use-camera.ts src/ui/figure/stage.tsx src/ui/figure/figure.tsx src/tests/figure-glide.test.tsx src/tests/figure-helpers.tsx src/tests/figure-use-camera.test.tsx src/tests/figure-stage.test.tsx`
 Then: `npx biome check .`
 Expected: no errors.
 
@@ -10811,7 +11139,7 @@ Expected: every test passes.
 - [ ] **Step 11: Commit**
 
 ```bash
-git add src/ui/figure/use-glide.ts src/ui/figure/camera.ts src/ui/figure/stage.tsx src/ui/figure/figure.tsx src/tests/figure-glide.test.tsx src/tests/figure-stage.test.tsx
+git add src/ui/figure/use-glide.ts src/ui/figure/camera.ts src/ui/figure/use-camera.ts src/ui/figure/stage.tsx src/ui/figure/figure.tsx src/tests/figure-glide.test.tsx src/tests/figure-helpers.tsx src/tests/figure-use-camera.test.tsx src/tests/figure-stage.test.tsx
 git commit -m "feat(figure): a jump glides the camera from the view on screen to where it landed
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -11315,17 +11643,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 14: Impeccable's finish
 
-Visual work goes through Impeccable (`.claude/skills/impeccable/`, in the main checkout), as plan 2's Task 6 did.
+Visual work goes through Impeccable, as plan 2's Task 6 did. Plan 2 ran on a machine with Impeccable's scripts in `.claude/skills/impeccable/` and capture scripts in its session's scratchpad; neither is on every machine. This task works with either setup.
 
 **Files:**
 - Captures in `.impeccable/review/` (not committed); fixes in the files above.
 
-- [ ] **Step 1: Load Impeccable's context.** Run `"/home/marcusg/source/repos/kitchen-sync/.claude/skills/impeccable/scripts/impeccable" context --target src/ui/figure/stage.tsx` once, from the worktree, and follow its directives. Read `reference/craft-floor.md` before any edit.
-- [ ] **Step 2: Capture**, on the worktree's dev server at port 3001 (never 3000), with the scratchpad capture scripts (`cdp-shot.mjs`, `filmstrip.mjs` with `--eval half.js` for 0.5×, `--delay`, `--dark`, `--forced`, `--reduced`): at 1440 × 900 dark, the drop scene's add enactment mid-typing, the add's hold (wet row, tray #6, touch), the push follow with its card, the server's hold (drop shoving), the poke (ripple, behind tags, ghosts in B and C), the pulls (ghosts filled, versions rolling), the light table stacked; the check scene's tap, soak and strike, and its table; filmstrips of both scenes; day; forced colours; reduced motion at the add's hold; and the same story at 390 × 844.
-- [ ] **Step 3: Review packet.** Write `finish-packet.md` in the plan's SDD workspace: the user's words (from plan 2's packet), what this plan built, the captures table, and what the controller saw before review. Dispatch a fresh finish reviewer with it. Its dispositions: recapture, rebuild, fix or ship. Two rounds at most.
+- [ ] **Step 1: Load Impeccable's context.** Where the checkout has `.claude/skills/impeccable/scripts/impeccable`, run it once with `context --target src/ui/figure/stage.tsx` from the checkout's root, follow its directives, and read its `reference/craft-floor.md` before any edit. Otherwise use the installed Impeccable skills: `impeccable:critique` for the review, `impeccable:audit` for the mechanical checks, `impeccable:polish` for the fixes.
+- [ ] **Step 2: Capture**, on a dev server at port 3001 (`node node_modules/vite/bin/vite.js dev --port 3001 --strictPort`, in the background; never touch port 3000, the user's own), with plan 2's capture scripts if the session has them (`cdp-shot.mjs`, `filmstrip.mjs` with `--eval half.js` for 0.5×, `--delay`, `--dark`, `--forced`, `--reduced`), or else with the Chrome DevTools tools (`resize_page`, `emulate` for dark, forced colours and reduced motion, `evaluate_script` to seek and to set 0.5×, `take_screenshot` for each frame): at 1440 × 900 dark, the drop scene's add enactment mid-typing, the add's hold (wet row, tray #6, touch), the push follow with its card, the server's hold (drop shoving), the poke (ripple, behind tags, ghosts in B and C), the pulls (ghosts filled, versions rolling), the light table stacked; the check scene's tap, soak and strike, and its table; filmstrips of both scenes; day; forced colours; reduced motion at the add's hold; and the same story at 390 × 844.
+- [ ] **Step 3: Review packet.** Write `finish-packet.md` in the plan's SDD workspace: the user's words (from plan 2's packet), what this plan built, the captures table, and what the controller saw before review. Name these for the reviewer to look at, each a risk the reconciliation with plan 2 found:
+  - a long device status ("v12 · 2 pending · 1 acked", "1 behind", the mark) does not wrap (`.status { white-space: nowrap }`) and can run past its pane header's end, where a note's dot sits;
+  - plan 2's straight-leader rule avoids rows, headings, pane headers and basin water, not a scene's add field (Task 3), so a level leader can cross another device's typing;
+  - the camera's `roomFor` gives two lines a note and does not count the shared mark (Task 11), so a marked two-line note can overflow a tight room under a wide or a table frame by a line;
+  - a tap shot that shares its frame with the shot before lands its touch (150 ms in) during plan 2's 400 ms ease within a frame;
+  - the surface brief's "Hard cuts between scripted steps" predates the user's choice of the glide ("keep the glide", 2026-10-18); Task 12's glide is not a finding, and Task 15 rewrites the line. Dispatch a fresh finish reviewer with it. Its dispositions: recapture, rebuild, fix or ship. Two rounds at most.
 - [ ] **Step 4: Fix** the reviewer's material findings in one batch, with the controller's rulings in `finish-fix-1.md`; review the batch's code; recapture; second round. Put anything left to the user.
 
 ### Task 15: DESIGN.md
 
-- [ ] **Step 1:** Dispatch the documenter: add "The vocabulary" to `DESIGN.md`'s figure section: each mark, its look, its timing constant and its still form; the touch; the card; the light table's blend; the shared mark. Update `.impeccable/design.json` if the documenter's reference asks for it.
-- [ ] **Step 2:** `npx biome check .` and commit: `docs(design): the vocabulary's marks, their timings and still forms`.
+- [ ] **Step 1:** Dispatch the documenter: add "The vocabulary" to `DESIGN.md`'s figure section (the Components' Figure, Stage, Stage Notes and Wire Band, which plan 2 wrote from the build): each mark, its look, its timing constant and its still form; the touch; the card; the light table's blend; the shared mark. Where plan 2's camera passages list the camera's motions, add the jump's 500 ms glide (Task 12): the Overview's motion line ("a figure's camera (its moves, a 400 ms ease within a frame, free play's 600 ms glide)"), Stage's Density and culling ("The camera moves through a move, an ease within a frame and a narrow window's pan"), and Stage Notes, which draw only on a hold and now wait for the glide too. Revise the two passages the vocabulary contradicts: the Item Row's "Read-only" bullet ("in a figure's scene … the row drops the remove column"), since a scene's row now keeps its cross as an inert replica (Task 3), and Stage's "In free play … a Quick Add sits under it", since a scene's device shows its add field and Retry as inert replicas too. In Stage's "Close" framing, add that a close-up naming a device's outbox frames its tray with the basin, rows and rings (Task 4). Regenerate `.impeccable/design.json` from it, as plan 2's Task 7 did: it mirrors those sections (`extensions.motion`, `extensions.figure`, the components and `narrative`). In the surface brief `.impeccable/surfaces/src-routes-blog.md`, replace "Hard cuts between scripted steps, no bounce." with the glide: steps meet on a 500 ms glide along the zoom path, eased in and out, no bounce; reduced motion cuts.
+- [ ] **Step 2:** `npx biome check .` and commit `DESIGN.md`, `.impeccable/design.json` and `.impeccable/surfaces/src-routes-blog.md`: `docs(design): the vocabulary's marks, their timings and still forms`.
