@@ -1,7 +1,11 @@
 import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
-import { compile } from "#/lib/director/compile";
+import {
+  compile,
+  TYPE_CHAR_MILLIS,
+  TYPE_START_MILLIS,
+} from "#/lib/director/compile";
 import { changesOf, LEAVE_MILLIS, wetKey } from "#/lib/director/marks";
 import { sceneAges } from "#/lib/director/reveal";
 import type { Cut } from "#/lib/director/shots";
@@ -20,7 +24,7 @@ import {
   rowLook,
   stageMarksAt,
 } from "#/ui/figure/stage-marks";
-import { OAT_SCENE, REMOVE_FIRST_SCENE } from "./director-helpers";
+import { MILK_SCENE, OAT_SCENE, REMOVE_FIRST_SCENE } from "./director-helpers";
 
 // The marks at a cursor, as a figure computes them for its frame.
 const marksAt = (
@@ -216,4 +220,77 @@ describe("looksFor", () => {
     expect([...looksFor(marks, "A")]).toEqual([["x", look]]);
     expect(looksFor(marks, "B").size).toBe(0);
   });
+});
+
+describe("stageMarksAt: the device acting", () => {
+  it.effect(
+    "acts out the add being typed at its offset into the enactment",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(OAT_SCENE);
+        const cut = compile(result, OAT_SCENE);
+        const { timeline } = result;
+        const typing = cut.shots.findIndex(
+          (shot) => shot.enact?.kind === "type",
+        );
+        expect(typing).toBeGreaterThan(-1);
+        expect(
+          marksAt(cut, timeline, {
+            shot: typing,
+            offset: TYPE_START_MILLIS + 2 * TYPE_CHAR_MILLIS,
+          }).acting,
+        ).toMatchObject({
+          kind: "type",
+          client: "A",
+          typed: "Oat",
+          caret: true,
+          pressed: false,
+        });
+        // The hold that lands the add acts nothing.
+        expect(
+          marksAt(cut, timeline, { shot: typing + 1, offset: 0 }).acting,
+        ).toBeNull();
+        expect(cut.shots[typing + 1]?.enact).toBeNull();
+      }),
+  );
+
+  it.effect("lands a check's tap on the row the check is for", () =>
+    Effect.gen(function* () {
+      const result = yield* runHeadless(MILK_SCENE);
+      const cut = compile(result, MILK_SCENE);
+      const { timeline } = result;
+      const tapping = cut.shots.findIndex((shot) => shot.enact?.kind === "tap");
+      const shot = cut.shots[tapping];
+      if (shot?.enact?.kind !== "tap") throw new Error("no tap");
+      expect(
+        marksAt(cut, timeline, { shot: tapping, offset: shot.screen - 1 })
+          .acting,
+      ).toMatchObject({
+        kind: "tap",
+        client: "B",
+        itemId: shot.enact.itemId,
+        at: "check",
+      });
+    }),
+  );
+
+  it.effect("acts nothing in free play, which is not shot", () =>
+    Effect.gen(function* () {
+      const { timeline } = yield* runHeadless(OAT_SCENE);
+      const index = timeline.entries.length - 1;
+      const snapshot = timeline.entries[index]?.snapshot;
+      if (snapshot === undefined) throw new Error("no frame");
+      expect(
+        stageMarksAt({
+          timeline,
+          index,
+          snapshot,
+          ageOf: () => Number.POSITIVE_INFINITY,
+          reduced: false,
+          cut: null,
+          cursor: null,
+        }).acting,
+      ).toBeNull();
+    }),
+  );
 });

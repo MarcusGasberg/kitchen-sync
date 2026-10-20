@@ -126,6 +126,63 @@ describe("ItemRow", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(row.textContent).toContain("(checked)");
   });
+
+  // A scene's device taps its own controls: the touch is a ring of fresh ink
+  // on the control the change uses, never a hand or a cursor.
+  it("lands a touch on the control it names", () => {
+    render(
+      <ul>
+        <ItemRow
+          item={milk}
+          sync={{ kind: "synced" }}
+          touch={{ at: "check", progress: 0.25 }}
+        />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    const ring = row.querySelector<HTMLElement>(
+      "[data-at='check'] [data-touch]",
+    );
+    expect(ring?.getAttribute("aria-hidden")).toBe("true");
+    expect(ring?.style.getPropertyValue("--touch")).toBe("0.25");
+  });
+
+  // In a scene a row is read-only, but keeps its remove control's box as an
+  // inert replica: laid out as a reader will use it, with somewhere for a
+  // tap to land.
+  it("shows a scene's remove control as an inert replica", () => {
+    render(
+      <ul>
+        <ItemRow item={milk} sync={{ kind: "synced" }} inertControls />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.dataset.controls).toBe("inert");
+    expect(screen.queryByRole("button")).toBeNull();
+    const replica = row.querySelector<HTMLElement>("[data-inert]");
+    expect(replica?.getAttribute("aria-hidden")).toBe("true");
+    expect(replica?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("keeps a live row's remove button, with or without replicas asked for", () => {
+    render(
+      <ul>
+        <ItemRow
+          item={milk}
+          sync={{ kind: "synced" }}
+          onCheck={() => {}}
+          onRemove={() => {}}
+          inertControls
+        />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.dataset.controls).toBeUndefined();
+    expect(
+      screen.getByRole("button", { name: "Remove Oat milk" }),
+    ).toBeTruthy();
+    expect(row.querySelector("[data-inert]")).toBeNull();
+  });
 });
 
 describe("a row's look", () => {
@@ -453,5 +510,26 @@ describe("GroceryList", () => {
     expect(
       screen.getByRole("heading", { level: 4, name: "Produce" }).tagName,
     ).toBe("H4");
+  });
+
+  it("lands a tap's touch on its own row, and shows a scene's controls as replicas", () => {
+    const bread = item("Rye bread", { category: "Bakery" });
+    const eggs = item("Eggs", { category: "Dairy" });
+    render(
+      <GroceryList
+        groups={viewOf([bread, eggs]).groups}
+        rejected={[]}
+        touch={{ itemId: eggs.id, at: "remove", progress: 0.2 }}
+        inertControls
+      />,
+    );
+    const rows = screen.getAllByRole("listitem");
+    const touched = rows.filter(
+      (row) => row.querySelector("[data-touch]") !== null,
+    );
+    expect(touched.map((row) => row.dataset.item)).toEqual([eggs.id]);
+    expect(touched[0]?.querySelector("[data-at='remove']")).not.toBeNull();
+    expect(rows.every((row) => row.dataset.controls === "inert")).toBe(true);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 });

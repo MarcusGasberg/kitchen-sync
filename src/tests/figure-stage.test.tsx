@@ -5,6 +5,7 @@ import { DateTime, Effect, Option } from "effect";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { GroceryItem } from "#/domain/grocery-item";
+import type { Acting } from "#/lib/director/acting";
 import { wetKey } from "#/lib/director/marks";
 import type { Cut, Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
@@ -73,6 +74,70 @@ const scaleOf = (container: HTMLElement) => {
 };
 
 describe("Stage", () => {
+  // In a scene a device acts in its own controls: its add field types and
+  // Add is pressed, and a tap lands as a ring on the row's control. Every
+  // other device's field waits, empty.
+  it("acts out a shot's input in the device's own controls", async () => {
+    const shown = await snapshot();
+    const view = makeStageView()(shown, new Map());
+    const milk = [...(shown.clients.get("B")?.items.values() ?? [])][0];
+    if (milk === undefined) throw new Error("B shows no milk");
+    const stage = (acting: Acting) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        marks={{ ...NO_MARKS, acting }}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const { rerender } = render(
+      stage({
+        kind: "type",
+        client: "A",
+        typed: "Oat",
+        caret: true,
+        pressed: false,
+        touch: null,
+      }),
+    );
+    const replay = (name: string) =>
+      screen
+        .getByRole("region", { name })
+        .querySelector<HTMLElement>("[data-replay]");
+    expect(replay("A")?.textContent).toBe("OatAdd");
+    expect(replay("B")?.textContent).toBe("Add an itemAdd");
+    // Nothing a reader could use: the scene's controls are replicas.
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /Remove/ })).toHaveLength(0);
+
+    rerender(
+      stage({
+        kind: "tap",
+        client: "B",
+        itemId: milk.id,
+        at: "check",
+        touch: 0.4,
+      }),
+    );
+    const row = screen
+      .getByRole("region", { name: "B" })
+      .querySelector<HTMLElement>(`[data-item='${milk.id}']`);
+    expect(row?.dataset.controls).toBe("inert");
+    expect(row?.querySelector("[data-at='check'] [data-touch]")).not.toBeNull();
+    expect(
+      screen.getByRole("region", { name: "A" }).querySelector("[data-touch]"),
+    ).toBeNull();
+  });
+
   it("shows the server and every device, read-only during a scene", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     render(
@@ -373,7 +438,11 @@ describe("Stage", () => {
           onRetry={noop}
         />,
       );
-      expect(container.querySelector("polyline, path")).toBeNull();
+      // Straight: the wire band draws no polyline or path. A scene's rows
+      // draw their inert crosses as paths, in their panes.
+      const band = container.querySelector("[data-anchor='plane'] > svg");
+      expect(band).not.toBeNull();
+      expect(band?.querySelector("polyline, path")).toBeNull();
       return [...container.querySelectorAll("line")].map(
         (line) =>
           ["x1", "y1", "x2", "y2"].map((name) =>

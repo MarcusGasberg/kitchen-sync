@@ -1,4 +1,5 @@
 import type { GroceryItem } from "#/domain/grocery-item";
+import { type Acting, actingAt } from "#/lib/director/acting";
 import {
   type ChangeKind,
   changesOf,
@@ -60,12 +61,15 @@ export interface StageMarks {
   // The rows each place lost less than LEAVE_MILLIS ago, as they were: the
   // stage holds them in their places while they go.
   readonly leaving: ReadonlyMap<Place, ReadonlyArray<GroceryItem>>;
+  // The device acting out the shot's input, in its own controls.
+  readonly acting: Acting | null;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
 export const NO_MARKS: StageMarks = {
   rows: new Map(),
   leaving: new Map(),
+  acting: null,
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -138,10 +142,19 @@ const leavingOf = ({ timeline, index, ageOf }: MarkInput) => {
   return byPlace;
 };
 
+// What the shot under the cursor acts out, at its offset: only a scene's
+// enactments act. Free play's changes are the reader's own.
+const actingOf = ({ cut, cursor, reduced }: MarkInput): Acting | null => {
+  if (cut === null || cursor === null) return null;
+  const enact = cut.shots[cursor.shot]?.enact ?? null;
+  return enact === null ? null : actingAt(enact, cursor.offset, reduced);
+};
+
 // Every mark at a frame, each found by its own function from one input.
 export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
   leaving: leavingOf(input),
+  acting: actingOf(input),
 });
 
 // One place's row looks, by item id: what its list takes.

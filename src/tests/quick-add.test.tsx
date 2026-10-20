@@ -43,4 +43,49 @@ describe("QuickAdd", () => {
       screen.getByRole("textbox", { name: "Add to A's list" }),
     );
   });
+
+  // A scene's device acts out an add in its own field: the same form, inert
+  // and hidden from assistive technology (the caption and the list say what
+  // happened), showing what has been typed so far and Add as it is pressed.
+  it("acts out an add without a field anyone can use", () => {
+    const { container, rerender } = render(
+      <QuickAdd
+        label="Add to A's list"
+        onAdd={vi.fn()}
+        replay={{ typed: "Oat", caret: true, pressed: false, touch: null }}
+      />,
+    );
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
+    const form = container.querySelector<HTMLElement>("[data-replay]");
+    expect(form?.hasAttribute("inert")).toBe(true);
+    expect(form?.getAttribute("aria-hidden")).toBe("true");
+    expect(form?.textContent).toBe("OatAdd");
+    expect(container.querySelector("[data-pressed]")).toBeNull();
+    expect(container.querySelector("[data-touch]")).toBeNull();
+
+    rerender(
+      <QuickAdd
+        label="Add to A's list"
+        onAdd={vi.fn()}
+        replay={{ typed: "Oat milk", caret: false, pressed: true, touch: 0.5 }}
+      />,
+    );
+    expect(container.querySelector("[data-pressed]")?.textContent).toBe("Add");
+    const ring = container.querySelector<HTMLElement>("[data-touch]");
+    expect(ring?.style.getPropertyValue("--touch")).toBe("0.5");
+  });
+
+  it("shows an idle scene field as empty, with its placeholder", () => {
+    const { container } = render(
+      <QuickAdd
+        label="Add to A's list"
+        onAdd={vi.fn()}
+        replay={{ typed: "", caret: false, pressed: false, touch: null }}
+      />,
+    );
+    expect(container.querySelector("[data-replay]")?.textContent).toBe(
+      "Add an itemAdd",
+    );
+  });
 });

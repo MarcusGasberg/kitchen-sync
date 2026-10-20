@@ -1,6 +1,7 @@
 import type { DateTime } from "effect";
 import { type ReactNode, useId } from "react";
 import type { MutationIntent } from "#/domain/mutation";
+import type { TouchAt } from "#/lib/director/acting";
 import type { Rejection } from "#/lib/store";
 import type { RowLook } from "#/ui/figure/stage-marks";
 import styles from "./grocery-list.module.css";
@@ -31,6 +32,15 @@ interface ListBase {
   readonly headingLevel?: 2 | 3 | 4;
   // A figure's marks: each changed row's look, by item id.
   readonly looks?: ReadonlyMap<string, RowLook>;
+  // A scene's device acting out a tap: the row it lands on, where, and how
+  // far the touch has spread.
+  readonly touch?: {
+    readonly itemId: string;
+    readonly at: TouchAt;
+    readonly progress: number;
+  } | null;
+  // A scene: every row shows its controls as inert replicas.
+  readonly inertControls?: boolean;
 }
 
 // A compact list takes no intents: with no targets on it, its rows can drop
@@ -65,6 +75,8 @@ export function GroceryList({
   onIntent,
   onDismiss,
   looks,
+  touch = null,
+  inertControls = false,
   empty = "Nothing on the list yet.",
   headingLevel = 2,
   density = "regular",
@@ -96,6 +108,8 @@ export function GroceryList({
             headingLevel={headingLevel}
             density={density}
             looks={looks}
+            touch={touch}
+            inertControls={inertControls}
           />
         ))
       )}
@@ -109,6 +123,8 @@ interface GroupSectionProps {
   readonly headingLevel: 2 | 3 | 4;
   readonly density: Density;
   readonly looks: ReadonlyMap<string, RowLook> | undefined;
+  readonly touch: ListBase["touch"];
+  readonly inertControls: boolean;
 }
 
 function GroupSection({
@@ -117,6 +133,8 @@ function GroupSection({
   headingLevel,
   density,
   looks,
+  touch,
+  inertControls,
 }: GroupSectionProps) {
   const id = useId();
   const Heading = headingLevel === 4 ? "h4" : headingLevel === 3 ? "h3" : "h2";
@@ -137,6 +155,12 @@ function GroupSection({
             density={density}
             look={looks?.get(item.id)}
             presence={presence}
+            touch={
+              touch?.itemId === item.id
+                ? { at: touch.at, progress: touch.progress }
+                : undefined
+            }
+            inertControls={inertControls}
             // A row the list does not hold takes nothing.
             onCheck={
               onIntent && presence === undefined

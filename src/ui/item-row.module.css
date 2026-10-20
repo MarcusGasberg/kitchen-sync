@@ -6,10 +6,18 @@
   column-gap: var(--space-2);
   min-height: var(--row-height);
   border-top: var(--rule) solid var(--line);
+  /* Holds a scene's touch at the control it lands on. */
+  position: relative;
 }
 
 .row[data-readonly="true"] {
   grid-template-columns: minmax(0, 1fr) 4.5rem;
+}
+
+/* A scene's row: read-only, its remove control an inert replica in the live
+   row's column, so the hand-over moves nothing. */
+.row[data-readonly="true"][data-controls="inert"] {
+  grid-template-columns: minmax(0, 1fr) 4.5rem var(--remove-width);
 }
 
 .label {
@@ -145,6 +153,35 @@ label.label {
 
 .removeLabel {
   display: none;
+}
+
+.remove[data-inert] {
+  cursor: default;
+}
+
+/* Where a touch lands: a point on the control, with the ring centred on
+   it. */
+.touch {
+  position: absolute;
+  inset-block-start: 50%;
+  inline-size: 0;
+  block-size: 0;
+  pointer-events: none;
+}
+
+/* The checkbox's middle: half its 1.25rem in from the row's start. */
+.touch[data-at="check"] {
+  inset-inline-start: 0.625rem;
+}
+
+/* The remove control's middle. */
+.touch[data-at="remove"] {
+  inset-inline-end: calc(var(--remove-width) / 2);
+}
+
+/* An edit or a move lands on the name. */
+.touch[data-at="row"] {
+  inset-inline-start: 50%;
 }
 
 /* Given 30rem of list, the control reads as a word with its mark. */

@@ -1,0 +1,31 @@
+/* A touch: 1.5 px of fresh ink, 10 px across as it lands and 28 px as it
+   goes, fading as it spreads. Its block must be positioned: the ring sits
+   on that block's middle. */
+.ring {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: calc(10px + 18px * var(--touch, 0));
+  block-size: calc(10px + 18px * var(--touch, 0));
+  border: 1.5px solid var(--ink-fresh);
+  border-radius: 50%;
+  opacity: calc(1 - var(--touch, 0));
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Still: one ring, 20 px across, for as long as the touch lasts. */
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    inline-size: 20px;
+    block-size: 20px;
+    opacity: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .ring {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+}

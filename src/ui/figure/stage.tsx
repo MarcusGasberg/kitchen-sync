@@ -18,7 +18,7 @@ import { Button } from "#/ui/button";
 import { GroceryList, type ListIntent } from "#/ui/grocery-list";
 import type { ListView } from "#/ui/list-view";
 import { Pane } from "#/ui/pane";
-import { QuickAdd } from "#/ui/quick-add";
+import { QuickAdd, type QuickAddReplay } from "#/ui/quick-add";
 import { StatusBand } from "#/ui/status-band";
 import {
   type Anchors,
@@ -197,6 +197,15 @@ const messagesOf = (
   return anchors;
 };
 
+// A device's add field in a scene while it is not acting: empty, nothing
+// pressed.
+const IDLE: QuickAddReplay = {
+  typed: "",
+  caret: false,
+  pressed: false,
+  touch: null,
+};
+
 // One instant of a world, through the camera: the world plane (the server's
 // pane, the wire band, the devices in one row, laid out once at the app's own
 // density) moved and scaled by one transform to frame the cue's shot.
@@ -216,6 +225,21 @@ export function Stage({
   onAdd,
   onRetry,
 }: StageProps) {
+  // The device acting out the shot's input, in its own controls.
+  const { acting } = marks;
+  const replayOf = (client: ClientName): QuickAddReplay =>
+    acting?.kind === "type" && acting.client === client
+      ? {
+          typed: acting.typed,
+          caret: acting.caret,
+          pressed: acting.pressed,
+          touch: acting.touch,
+        }
+      : IDLE;
+  const touchOf = (client: ClientName) =>
+    acting?.kind === "tap" && acting.client === client && acting.touch !== null
+      ? { itemId: acting.itemId, at: acting.at, progress: acting.touch }
+      : null;
   const viewport = useRef<HTMLDivElement>(null);
   const plane = useRef<HTMLDivElement>(null);
   // Rows held while they go lay the plane out as the view does: it is
@@ -557,14 +581,17 @@ export function Stage({
                         rejected={device.list.rejected}
                         headingLevel={4}
                         looks={looksFor(marks, device.name)}
+                        inertControls
+                        touch={touchOf(device.name)}
                       />
                     )}
-                    {live && (
-                      <QuickAdd
-                        label={`Add to ${device.name}'s list`}
-                        onAdd={(name) => onAdd(device.name, name)}
-                      />
-                    )}
+                    {/* Free play's field, or in a scene the same field acting
+                        out the scene's adds: the hand-over moves nothing. */}
+                    <QuickAdd
+                      label={`Add to ${device.name}'s list`}
+                      onAdd={(name) => onAdd(device.name, name)}
+                      replay={live ? undefined : replayOf(device.name)}
+                    />
                   </Pane>
                   {showButton(
                     deviceFocus(device.name),

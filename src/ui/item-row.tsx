@@ -1,10 +1,12 @@
 import { Option } from "effect";
 import type { CSSProperties } from "react";
 import type { GroceryItem } from "#/domain/grocery-item";
+import type { TouchAt } from "#/lib/director/acting";
 import type { RowLook } from "#/ui/figure/stage-marks";
 import { VERB } from "./intent-words";
 import styles from "./item-row.module.css";
 import type { Row, RowSync } from "./list-view";
+import { TouchRing } from "./touch-ring";
 
 // "2 l": a row's quantity and unit, set bold before its name.
 const amount = (item: GroceryItem) =>
@@ -31,6 +33,13 @@ interface ItemRowProps {
   // A figure's row the list does not hold (`Row.presence`): read-only, and a
   // row that is going is hidden from the accessibility tree.
   readonly presence?: Row["presence"];
+  // A scene's device acting out a tap on this row: where the touch lands
+  // and how far it has spread.
+  readonly touch?: { readonly at: TouchAt; readonly progress: number };
+  // A scene: a read-only row shows its remove control as an inert replica
+  // in the button's box, so it is laid out as a reader will use it, and a
+  // tap has a control to land on.
+  readonly inertControls?: boolean;
 }
 
 // A look as the custom properties the row's CSS draws it by.
@@ -55,7 +64,10 @@ export function ItemRow({
   density = "regular",
   look,
   presence,
+  touch,
+  inertControls = false,
 }: ItemRowProps) {
+  const replica = inertControls && onRemove === undefined;
   const text = (
     <span className={styles.what}>
       <span className={styles.amount}>{amount(item)}</span> {item.name}
@@ -69,6 +81,7 @@ export function ItemRow({
       data-checked={item.checked}
       data-readonly={onCheck === undefined}
       data-density={density}
+      data-controls={replica ? "inert" : undefined}
       data-change={look?.kind}
       data-presence={presence}
       aria-hidden={presence === "leaving" || undefined}
@@ -112,22 +125,41 @@ export function ItemRow({
           <span className={styles.removeLabel} aria-hidden="true">
             Remove
           </span>
-          <svg
-            className={styles.cross}
-            viewBox="0 0 12 12"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path
-              d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Cross />
         </button>
       )}
+      {replica && (
+        <span className={styles.remove} aria-hidden="true" data-inert="">
+          <span className={styles.removeLabel}>Remove</span>
+          <Cross />
+        </span>
+      )}
+      {touch !== undefined && (
+        <span className={styles.touch} data-at={touch.at} aria-hidden="true">
+          <TouchRing progress={touch.progress} />
+        </span>
+      )}
     </li>
+  );
+}
+
+// The remove control's mark: a button's in free play and the app, its inert
+// replica's in a scene.
+function Cross() {
+  return (
+    <svg
+      className={styles.cross}
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
