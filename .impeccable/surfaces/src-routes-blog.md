@@ -20,7 +20,7 @@ The three-part blog series under `src/routes/blog/`, Part 1 first. Visitor mode:
 
 ## Chosen direction and memorable moment
 
-Ink Basin, picked by the user on 2026-10-15 from the bolder re-roll, replacing the rejected Collective Plate. Memorable moment: A drops oat milk into its own basin and only A's water shows the fresh drop; the server places it in order, and B's and C's basins redraw until all four patterns are line-for-line identical.
+Ink Basin, picked by the user on 2026-10-15 from the bolder re-roll, replacing the rejected Collective Plate. Memorable moment: A drops oat milk into its own basin and only A's water shows the fresh drop; the server places it in order, and B's and C's basins redraw until all four patterns are line-for-line identical. It ends on the light table: the three device basins slide together, stack, and register as one pattern.
 
 ## Signature interaction
 
@@ -32,20 +32,21 @@ Each basin is computed, never simulated (user, 2026-10-15: marbling math over a 
 
 ## Motion grammar
 
-A new drop lands crisp at the moment its device applies the change and settles into the pattern over 900 ms, the same on every device; a new check stroke settles the same way. A removed or rejected item shrinks out where it was, and an item that moves in the order lifts out of its old place as it lands in its new one, so the water never jumps; a scrub shows its instant at once. In flight between devices, a mutation is its labelled message travelling on a straight path at one fixed time scale (distance is time). Pending and acked (still in this device's outbox) mean fresh ink on top of the pattern; synced means the item has taken its place in the server's order. A rejection takes the item out of the device's list and out of its basin. Hard cuts between scripted steps, no bounce. A world starts when its figure is at least half in view and pauses when it leaves the view or the tab is hidden; only a world paused that way resumes on its own. Reduced motion: no world starts on its own, operations apply without the settle, messages cut between sent and arrived, stepping and scrubbing still work. The pause control is each figure's first focusable control.
+A new drop lands crisp at the moment its device applies the change and settles into the pattern over 900 ms, the same on every device, except in a close-up or split that lights its basin, where it settles over 1800 ms so the drop visibly shoves the older rings aside; a new check stroke settles the same way. A removed or rejected item shrinks out where it was in the basin, and an item that moves in the order lifts out of its old place as it lands in its new one, so the water never jumps; a scrub shows its instant at once. In the list, a removed row fades in place, struck, to 35% over 900 ms, and then goes in one step: no row slides into its place while it goes. Every mark of the figure's vocabulary is a function of screen time since the reader first saw its entry, so a pause freezes it, speed scales it and a seek lands on it. In flight between devices, a mutation is its labelled message travelling on a straight path at one fixed time scale (distance is time). Pending and acked (still in this device's outbox) mean fresh ink on top of the pattern; synced means the item has taken its place in the server's order. A rejection takes the item out of the device's list and out of its basin. Steps meet on a glide (user, 2026-10-18: "keep the glide"): a jump (a step, Back, a scrub, Restart, Play from the end) shows the landed instant at once and glides the camera there from the view on screen over 500 ms along the zoom path, eased in and out, no bounce; reduced motion cuts. A world starts when its figure is at least half in view and pauses when it leaves the view or the tab is hidden; only a world paused that way resumes on its own. Reduced motion: no world starts on its own, operations apply without the settle, messages cut between sent and arrived, every mark takes its still form, stepping and scrubbing still work. The pause control is each figure's first focusable control.
 
 ## Interaction rules carried from earlier rounds
 
 - State is never carried by colour or pattern alone: every state has a form and a word (pending, acked, synced, rejected, offline, retrying, stopped). Offline and stopped share one treatment; stopped adds its reason and Retry.
-- Every message on a wire carries its label (`#3–#5`, `ack #5`, `pull v4`, `v7` for a pull response, `poke v7`), so its kind never rests on shape alone.
-- Messages travel on a wire band (user, 2026-10-16, over drops through air and a lane per device). A band 5rem tall separates the server's pane from the devices. Each device has one hairline wire from the foot of the server's basin to the top of its pane. A message is a small dot with its mono label: requests rise to one side of the wire and replies fall to the other, and a push's dot is fresh ink. A held message waits at its sender as a dashed ring ("… · held"). A lost one leaves "… · lost" where it was dropped, fading over 600 ms.
+- Every message on a wire carries its label (`#3–#5`, `ack #5`, `pull v4`, `v7` for a pull response, `poke v7`), so its kind never rests on shape alone. While the camera follows a message, its label gives way to its card, which opens out of the dot and names the message on its first line.
+- Messages travel on a wire band (user, 2026-10-16, over drops through air and a lane per device). A band 5rem tall separates the server's pane from the devices. Each device has one hairline wire from the foot of the server's basin to the top of its pane. A message is a small dot with its mono label: requests rise to one side of the wire and replies fall to the other, and a push's dot is fresh ink, taking over from the copy of each change it carries that rises toward the wire from the device's outbox tray. A held message waits at its sender as a dashed ring ("… · held"). A lost one leaves "… · lost" where it was dropped, fading over 600 ms.
 - Breaking controls (drop a message, take a client offline, stop the server) sit apart from playback, separated by space.
 - Lists always render as real text on the still margin beside their basin; the basin never replaces the list.
 
 ## Unresolved
 
 - Faces chosen while planning: Commissioner (text) and Spline Sans Mono (data), self-hosted.
-- Phone composition at 320 px of the stage's window and its foot, to be confirmed by a phone capture.
+- Phone composition: the 390 px captures of plan 3's finish confirm the stage's window and its foot, kept two notes tall. A 320 px capture has still not been taken.
+- The network enactments' marks (an armed rule's words on its wire, a reload's dip, Retry's touch) are unit-tested but not yet seen in any capture: no lab scene enacts an arm, a reload or a retry. The first blog scene that enacts one is captured at its own finish.
 
 ## Direction contract
 
