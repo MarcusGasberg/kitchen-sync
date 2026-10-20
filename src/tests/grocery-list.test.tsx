@@ -288,6 +288,51 @@ describe("a row's look", () => {
     // The row that is there keeps its controls.
     expect(screen.getAllByRole("checkbox")).toHaveLength(1);
   });
+
+  // A row going in free play stays where it was: its remove column stays,
+  // the cross an inert replica that fades with the row, as in a scene.
+  it("keeps a leaving row's remove column, in a scene and in free play", () => {
+    const milk = item("Milk");
+    const drawn = (props: {
+      inertControls?: boolean;
+      onIntent?: () => void;
+    }) => {
+      const { container, unmount } = render(
+        <GroceryList
+          groups={[
+            {
+              category: null,
+              rows: [
+                { item: milk, sync: { kind: "synced" }, presence: "leaving" },
+              ],
+              left: 0,
+            },
+          ]}
+          rejected={[]}
+          {...props}
+        />,
+      );
+      const row = container.querySelector<HTMLElement>("li[data-item]");
+      const look = {
+        controls: row?.dataset.controls,
+        replica: row
+          ?.querySelector<HTMLElement>("[data-inert]")
+          ?.getAttribute("aria-hidden"),
+        reachable: container.querySelectorAll("a, input, button").length,
+      };
+      unmount();
+      return look;
+    };
+    const scene = drawn({ inertControls: true });
+    expect(scene).toEqual({ controls: "inert", replica: "true", reachable: 0 });
+    expect(drawn({ onIntent: () => {} })).toEqual(scene);
+    // Only a ghost hides its cross: a leaving row's fades with it.
+    const css = readFileSync(
+      resolve(process.cwd(), "src/ui/item-row.module.css"),
+      "utf8",
+    );
+    expect(css).not.toMatch(/\[data-presence="leaving"\][^{]*\.remove/);
+  });
 });
 
 describe("RejectedRow", () => {
