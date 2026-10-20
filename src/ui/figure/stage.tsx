@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { GroceryItem } from "#/domain/grocery-item";
 import { type Cut, type Place, SERVER } from "#/lib/director/shots";
 import type { CutCursor } from "#/lib/director/timing";
 import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
@@ -258,15 +259,21 @@ export function Stage({
     .join(";");
   const laidOut = useMemo(() => ({ view, leavingKey }), [view, leavingKey]);
   const { measured, size } = useMeasure(viewport, plane, laidOut);
-  // A place's list with the rows it has just lost held in their places.
-  const listOf = (list: ListView, where: Place): ListView =>
-    withRows(
-      list,
-      (marks.leaving.get(where) ?? []).map((item) => ({
+  // A place's list as the stage draws it: its own rows, each server row a
+  // device has not pulled as a ghost in its place, and each row it removed a
+  // moment ago, leaving.
+  const listOf = (
+    list: ListView,
+    where: Place,
+    ghosts: ReadonlyArray<GroceryItem> = [],
+  ): ListView =>
+    withRows(list, [
+      ...ghosts.map((item) => ({ item, presence: "ghost" as const })),
+      ...(marks.leaving.get(where) ?? []).map((item) => ({
         item,
         presence: "leaving" as const,
       })),
-    );
+    ]);
   const flying = placeFlights(measured.wires, flights);
   const gone = placeLost(measured.wires, lost);
   const anchors: Anchors = {
@@ -599,6 +606,7 @@ export function Stage({
                           density={density}
                           active={inView(`basin:${device.name}`)}
                           ringAnchors={device.name}
+                          ghosts={device.ghosts}
                         />
                       </div>
                     }
@@ -613,7 +621,9 @@ export function Stage({
                         checks and removals from the hand-over. */}
                     {live ? (
                       <GroceryList
-                        groups={listOf(device.list, device.name).groups}
+                        groups={
+                          listOf(device.list, device.name, device.ghosts).groups
+                        }
                         rejected={device.list.rejected}
                         headingLevel={4}
                         looks={looksFor(marks, device.name)}
@@ -621,7 +631,9 @@ export function Stage({
                       />
                     ) : (
                       <GroceryList
-                        groups={listOf(device.list, device.name).groups}
+                        groups={
+                          listOf(device.list, device.name, device.ghosts).groups
+                        }
                         rejected={device.list.rejected}
                         headingLevel={4}
                         looks={looksFor(marks, device.name)}

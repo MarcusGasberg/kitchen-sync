@@ -8,6 +8,7 @@ import {
   labelSpotsOf,
   landmarksOf,
   patternOf,
+  reachOf,
 } from "./marbling/pattern";
 
 // A basin's counts in words, as "10 items, 1 in fresh ink": items, not the
@@ -58,6 +59,10 @@ interface BasinProps {
   // A figure's world: marks each item's rings with an anchor the camera can
   // frame and a note can point at (`ring:<place>:<item id>`).
   readonly ringAnchors?: string;
+  // A figure's device behind the server: the server's rows it has not pulled
+  // (`ghostsOf`). Each gets a dashed ring where its drop will land. Memoise
+  // it on the state it comes from, as `waiting`.
+  readonly ghosts?: ReadonlyArray<GroceryItem>;
 }
 
 // A device's basin: its list's pattern on water, the same on every device
@@ -73,6 +78,7 @@ export function Basin({
   density = 1,
   active = true,
   ringAnchors,
+  ghosts,
 }: BasinProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const mounted = useRef<MountedBasin | null>(null);
@@ -111,6 +117,21 @@ export function Basin({
         : [...landmarksOf(ops, new Set(items.map((item) => item.id)))],
     [ops, items, ringAnchors],
   );
+
+  // Where each ghost's drop will land once the device pulls it: its
+  // landmark and reach in the pattern the basin will have then.
+  const ghostRings = useMemo(() => {
+    if (ghosts === undefined || ghosts.length === 0) return [];
+    const future = patternOf({ items: [...items, ...ghosts], waiting, scale });
+    const reach = reachOf(future);
+    const ids = new Set(ghosts.map((ghost) => ghost.id));
+    return [...landmarksOf(future, ids)].map(([id, point]) => ({
+      id,
+      x: point.x,
+      y: point.y,
+      r: reach.get(id) ?? 0,
+    }));
+  }, [items, ghosts, waiting, scale]);
 
   // A labelled basin knows its width, so it places each label where a label
   // of that size finds clear water.
@@ -155,6 +176,24 @@ export function Basin({
       aria-label={describeBasin(label, items, waiting)}
     >
       <canvas ref={canvas} className={styles.canvas} />
+      {ghostRings.length > 0 && (
+        <svg
+          className={styles.ghosts}
+          viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
+          aria-hidden="true"
+          focusable="false"
+        >
+          {ghostRings.map((ring) => (
+            <circle
+              key={ring.id}
+              data-ghost={ring.id}
+              cx={ring.x}
+              cy={ring.y}
+              r={ring.r}
+            />
+          ))}
+        </svg>
+      )}
       {spots.map(([id, spot]) => (
         <span
           key={id}

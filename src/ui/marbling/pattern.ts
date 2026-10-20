@@ -311,6 +311,17 @@ const outerRings = (ops: ReadonlyArray<Operation>) => {
   return squares;
 };
 
+// How far out each item's outer ring lands, by item id: the root of its
+// drops' squared radii. Later drops press on its rings without changing it,
+// since marbling keeps each drop's area.
+export const reachOf = (
+  ops: ReadonlyArray<Operation>,
+): ReadonlyMap<string, number> => {
+  const reach = new Map<string, number>();
+  for (const [id, square] of outerRings(ops)) reach.set(id, Math.sqrt(square));
+  return reach;
+};
+
 type Box = readonly [left: number, top: number, right: number, bottom: number];
 
 // One axis of a label's box, hanging off `at` the way `hang` points: past the

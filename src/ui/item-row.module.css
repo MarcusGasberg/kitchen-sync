@@ -322,3 +322,36 @@ label.label {
     forced-color-adjust: none;
   }
 }
+
+/* A ghost: a row the server holds that this device has not pulled. Its
+   place is kept, its edge dashed in the third ink, its words faint, and it
+   says so in the state's slot, so its name gives that slot back. */
+.row[data-presence="ghost"] {
+  outline: var(--rule) dashed var(--ink-3);
+  outline-offset: calc(-1 * var(--rule));
+  color: var(--text-3);
+}
+
+.row[data-presence="ghost"] .label {
+  grid-column: auto;
+}
+
+.row[data-presence="ghost"] .check {
+  border-style: dashed;
+  border-color: var(--ink-3);
+}
+
+.ghost {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.25 var(--font-text);
+}
+
+@media (forced-colors: active) {
+  .row[data-presence="ghost"] {
+    outline-color: CanvasText;
+  }
+
+  .row[data-presence="ghost"] .check {
+    border-color: CanvasText;
+  }
+}

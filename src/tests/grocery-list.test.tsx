@@ -6,6 +6,7 @@ import { type Category, GroceryItem } from "#/domain/grocery-item";
 import { World } from "#/lib/sandbox/world";
 import { EMPTY_STATE } from "#/lib/store";
 import { rowLook } from "#/ui/figure/stage-marks";
+import { withRows } from "#/ui/figure/stage-view";
 import { GroceryList, stamp } from "#/ui/grocery-list";
 import { ItemRow } from "#/ui/item-row";
 import { listView } from "#/ui/list-view";
@@ -531,5 +532,33 @@ describe("GroceryList", () => {
     expect(touched[0]?.querySelector("[data-at='remove']")).not.toBeNull();
     expect(rows.every((row) => row.dataset.controls === "inert")).toBe(true);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+});
+
+describe("a ghost row", () => {
+  it("keeps the place of a row the device has not pulled, and says so", () => {
+    const bread = item("Rye bread", { category: "Bakery" });
+    render(
+      <ul>
+        <ItemRow item={bread} sync={{ kind: "synced" }} presence="ghost" />
+      </ul>,
+    );
+    const row = screen.getByRole("listitem");
+    expect(row.dataset.presence).toBe("ghost");
+    expect(row.textContent).toContain("Rye bread, not here yet");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("takes no change in a live list", () => {
+    const milk = item("Milk");
+    const bread = item("Rye bread");
+    const list = withRows(viewOf([milk]), [{ item: bread, presence: "ghost" }]);
+    render(
+      <GroceryList groups={list.groups} rejected={[]} onIntent={() => {}} />,
+    );
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Remove Rye bread" }),
+    ).toBeNull();
   });
 });

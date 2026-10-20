@@ -104,16 +104,25 @@ export function ItemRow({
           {item.checked && <span className="visually-hidden"> (checked)</span>}
         </span>
       )}
-      {sync.kind !== "synced" && (
-        <span className={styles.state}>
-          <span className={styles.ring} aria-hidden="true" />
-          <span className="visually-hidden">{VERB[sync.intent]} </span>
-          <span>#{sync.clientMutationId}</span>
-          <span className={styles.word}>
-            <span className="visually-hidden">, </span>
-            {sync.kind}
-          </span>
+      {presence === "ghost" ? (
+        // A row the server holds that this device has not pulled: its place
+        // kept until the pull fills it with ink.
+        <span className={styles.ghost}>
+          <span className="visually-hidden">, </span>
+          not here yet
         </span>
+      ) : (
+        sync.kind !== "synced" && (
+          <span className={styles.state}>
+            <span className={styles.ring} aria-hidden="true" />
+            <span className="visually-hidden">{VERB[sync.intent]} </span>
+            <span>#{sync.clientMutationId}</span>
+            <span className={styles.word}>
+              <span className="visually-hidden">, </span>
+              {sync.kind}
+            </span>
+          </span>
+        )
       )}
       {onRemove && (
         <button

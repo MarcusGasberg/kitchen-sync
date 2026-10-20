@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GroceryItem } from "#/domain/grocery-item";
 import { Basin, basinCounts, describeBasin } from "#/ui/basin";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "#/ui/marbling/operations";
-import { patternOf } from "#/ui/marbling/pattern";
+import { landmarksOf, patternOf, reachOf } from "#/ui/marbling/pattern";
 
 const at = DateTime.makeUnsafe(0);
 
@@ -118,6 +118,43 @@ describe("Basin", () => {
     expect(
       container.querySelector("[role='img']")?.getAttribute("data-active"),
     ).toBe("false");
+  });
+
+  it("rings where each ghost's drop will land, and says nothing more of it", () => {
+    const bread = item(3, "Bread");
+    const { container } = render(
+      <Basin items={[milk]} ghosts={[eggs, bread]} label="B's list" />,
+    );
+    // Where they land once pulled: in the pattern of every item together.
+    const future = patternOf({ items: [milk, eggs, bread] });
+    const marks = landmarksOf(future, new Set([eggs.id, bread.id]));
+    const reach = reachOf(future);
+    const rings = [...container.querySelectorAll("circle[data-ghost]")];
+    expect(rings.map((ring) => ring.getAttribute("data-ghost")).sort()).toEqual(
+      [eggs.id, bread.id].sort(),
+    );
+    for (const ring of rings) {
+      const id = ring.getAttribute("data-ghost") ?? "";
+      expect(Number(ring.getAttribute("cx"))).toBeCloseTo(
+        marks.get(id)?.x ?? Number.NaN,
+      );
+      expect(Number(ring.getAttribute("cy"))).toBeCloseTo(
+        marks.get(id)?.y ?? Number.NaN,
+      );
+      expect(Number(ring.getAttribute("r"))).toBeCloseTo(
+        reach.get(id) ?? Number.NaN,
+      );
+    }
+    expect(rings[0]?.closest("svg")?.getAttribute("aria-hidden")).toBe("true");
+    // The list says the ghosts; the basin counts what it holds.
+    expect(screen.getByRole("img", { name: "B's list: 1 item" })).toBeTruthy();
+  });
+
+  it("draws no ghost rings without ghosts", () => {
+    const { container } = render(
+      <Basin items={[milk]} ghosts={[]} label="B's list" />,
+    );
+    expect(container.querySelector("[data-ghost]")).toBeNull();
   });
 });
 

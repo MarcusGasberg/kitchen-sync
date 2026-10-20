@@ -19,6 +19,7 @@ import {
   MAX_ITEMS,
   MAX_SCALE,
   patternOf,
+  reachOf,
   scaleFor,
   waitingOf,
 } from "#/ui/marbling/pattern";
@@ -621,5 +622,26 @@ describe("labelSpotsOf", () => {
     const rows = [item(1, 1), item(2, 2)];
     const ops = patternOf({ items: rows });
     expect([...labelSpotsOf(ops, new Set([id(2)])).keys()]).toEqual([id(2)]);
+  });
+});
+
+describe("reachOf", () => {
+  it("finds how far out an item's outer ring lands", () => {
+    const one = item(1, 1);
+    const ops = patternOf({ items: [one] });
+    const reach = reachOf(ops).get(one.id) ?? 0;
+    const centre = landmarksOf(ops, new Set([one.id])).get(one.id);
+    if (centre === undefined) throw new Error("no landmark");
+    // Just inside the reach is the outer ring's ink; just outside, water.
+    expect(toneAt(ops, centre.x + reach * 0.98, centre.y)).not.toBe(0);
+    expect(toneAt(ops, centre.x + reach * 1.02, centre.y)).toBe(0);
+  });
+
+  it("keeps an item's reach as later drops press on it: marbling keeps area", () => {
+    const one = item(1, 1);
+    const two = item(2, 2);
+    expect(reachOf(patternOf({ items: [one, two] })).get(one.id)).toBe(
+      reachOf(patternOf({ items: [one] })).get(one.id),
+    );
   });
 });

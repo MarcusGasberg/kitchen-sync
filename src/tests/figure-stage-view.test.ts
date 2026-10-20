@@ -110,6 +110,48 @@ describe("makeStageView", () => {
   );
 });
 
+describe("a device's ghosts", () => {
+  it.effect(
+    "are the server's rows it has not pulled, kept while nothing changes, gone once it pulls",
+    () =>
+      Effect.gen(function* () {
+        const world = yield* World;
+        yield* world.clock.advance("1 second");
+        yield* world.net.offline("B", true);
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("2 seconds");
+        const behind = yield* world.snapshot;
+        yield* world.net.offline("B", false);
+        // Past the sync loops' longest backoff, 30 s.
+        yield* world.clock.advance("40 seconds");
+        const caught = yield* world.snapshot;
+        expect(caught.clients.get("B")?.appliedVersion).toBe(
+          caught.server.serverVersion,
+        );
+
+        const stage = makeStageView();
+        const ids = new Map<string, string>();
+        const first = stage(behind, ids);
+        const b = first.devices.find((device) => device.name === "B");
+        expect(b?.ghosts.map((ghost) => ghost.name)).toEqual(["Milk"]);
+        expect(
+          first.devices.find((device) => device.name === "A")?.ghosts,
+        ).toEqual([]);
+        // Nothing changed: the same array, so the same rings.
+        expect(
+          stage(behind, ids).devices.find((device) => device.name === "B")
+            ?.ghosts,
+        ).toBe(b?.ghosts);
+        expect(
+          stage(caught, ids).devices.find((device) => device.name === "B")
+            ?.ghosts,
+        ).toEqual([]);
+      }).pipe(
+        Effect.provide(World.layer({ clients: ["A", "B"], seed: "ghosts" })),
+      ),
+  );
+});
+
 describe("mostRows", () => {
   it.effect(
     "counts the most rows the server or any device held at any instant",

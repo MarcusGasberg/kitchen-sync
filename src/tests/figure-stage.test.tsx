@@ -4,11 +4,12 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { DateTime, Effect, Option } from "effect";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { GroceryItem } from "#/domain/grocery-item";
+import { type Category, GroceryItem } from "#/domain/grocery-item";
 import type { Acting } from "#/lib/director/acting";
 import { wetKey } from "#/lib/director/marks";
 import { type Cut, SERVER, type Shot } from "#/lib/director/shots";
 import { World } from "#/lib/sandbox/world";
+import { addItem } from "#/ui/figure/actions";
 import { EASE_MILLIS, MARGIN_PX, MAX_SCALE } from "#/ui/figure/camera";
 import { measureWorld } from "#/ui/figure/measure";
 import { type Cue, type FreeFocus, Stage } from "#/ui/figure/stage";
@@ -35,6 +36,39 @@ const snapshot = () =>
       return yield* world.snapshot;
     }).pipe(
       Effect.provide(World.layer({ clients: ["A", "B"], seed: "stage-ui" })),
+    ),
+  );
+
+// B is offline while A adds six rows across three categories, and one with
+// none: B has all six to come.
+const SIX: ReadonlyArray<readonly [string, Category | undefined]> = [
+  ["Bananas", "Produce"],
+  ["Rye bread", "Bakery"],
+  ["Spinach", "Produce"],
+  ["Butter", "Dairy"],
+  ["Greek yogurt", "Dairy"],
+  ["Tea", undefined],
+];
+
+const behindSnapshot = () =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const world = yield* World;
+      yield* world.clock.advance("1 second");
+      yield* world.net.offline("B", true);
+      for (const [name, category] of SIX) {
+        yield* addItem(
+          "A",
+          name,
+          category === undefined ? {} : { category },
+        )(world).pipe(Effect.orDie);
+      }
+      yield* world.clock.advance("2 seconds");
+      return yield* world.snapshot;
+    }).pipe(
+      Effect.provide(
+        World.layer({ clients: ["A", "B"], seed: "stage-ghosts" }),
+      ),
     ),
   );
 
@@ -79,6 +113,47 @@ const scaleOf = (container: HTMLElement) => {
 };
 
 describe("Stage", () => {
+  it("keeps each row B lacks in its place as a ghost, not here yet, and rings its drop", async () => {
+    const view = makeStageView()(await behindSnapshot(), new Map());
+    const { container } = render(
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />,
+    );
+    const rows = (client: string) => [
+      ...container.querySelectorAll<HTMLElement>(
+        `[data-client='${client}'] li[data-item]`,
+      ),
+    ];
+    const ghosts = rows("B");
+    expect(ghosts).toHaveLength(SIX.length);
+    for (const row of ghosts) {
+      expect(row.dataset.presence).toBe("ghost");
+      expect(row.textContent).toContain("not here yet");
+    }
+    // Each in its category, in the order A, which has them, draws them.
+    expect(ghosts.map((row) => row.dataset.item)).toEqual(
+      rows("A").map((row) => row.dataset.item),
+    );
+    expect(
+      container.querySelectorAll("[data-client='B'] circle[data-ghost]"),
+    ).toHaveLength(SIX.length);
+    expect(
+      container.querySelectorAll("[data-client='A'] circle[data-ghost]"),
+    ).toHaveLength(0);
+  });
+
   // In a scene a device acts in its own controls: its add field types and
   // Add is pressed, and a tap lands as a ring on the row's control. Every
   // other device's field waits, empty.

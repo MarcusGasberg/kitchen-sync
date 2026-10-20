@@ -4,6 +4,7 @@ import {
   type Category,
   type GroceryItem,
 } from "#/domain/grocery-item";
+import { ghostsOf } from "#/lib/director/marks";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { type Group, type ListView, listView, type Row } from "#/ui/list-view";
@@ -17,6 +18,9 @@ export interface DeviceView {
   readonly name: ClientName;
   readonly clientId: string | undefined;
   readonly items: ReadonlyArray<GroceryItem>;
+  // The server's rows it has not pulled yet (`ghostsOf`), drawn as ghosts in
+  // its list and its basin; empty unless it trails the server.
+  readonly ghosts: ReadonlyArray<GroceryItem>;
   // From `waitingOf(outbox)`: what the device's basin draws in fresh ink.
   readonly waiting: ReadonlyMap<string, number>;
   readonly list: ListView;
@@ -126,6 +130,8 @@ export const mostRows = (timeline: Timeline): number => {
 const rowsKey = (items: ReadonlyArray<GroceryItem>) =>
   items.map((item) => `${item.id}@${item.version}`).join(",");
 
+const NO_GHOSTS: ReadonlyArray<GroceryItem> = [];
+
 // Builds a figure's stage from a snapshot. A snapshot keeps each client's
 // state by reference, so a device that did nothing keeps its arrays (and its
 // basin its pattern); the server's pane is kept while its rows are.
@@ -136,6 +142,26 @@ export const makeStageView = () => {
   >();
   let server: { readonly key: string; readonly view: ServerPaneView } | null =
     null;
+
+  // Each device's ghosts, kept while neither its state nor the server's rows
+  // change, so its list and its basin keep theirs.
+  const ghostParts = new WeakMap<
+    StoreState,
+    { readonly key: string; readonly ghosts: ReadonlyArray<GroceryItem> }
+  >();
+  const ghostsFor = (
+    snapshot: WorldSnapshot,
+    name: ClientName,
+    state: StoreState,
+    serverKey: string,
+  ): ReadonlyArray<GroceryItem> => {
+    const known = ghostParts.get(state);
+    if (known !== undefined && known.key === serverKey) return known.ghosts;
+    const found = ghostsOf(snapshot, name);
+    const ghosts = found.length === 0 ? NO_GHOSTS : found;
+    ghostParts.set(state, { key: serverKey, ghosts });
+    return ghosts;
+  };
 
   const partsOf = (state: StoreState) => {
     const known = parts.get(state);
@@ -155,6 +181,7 @@ export const makeStageView = () => {
   ): StageView => {
     const { serverVersion, items } = snapshot.server;
     const key = rowsKey(items);
+    const serverKey = `${serverVersion}:${key}`;
     if (server === null || server.key !== key) {
       server = { key, view: serverPane(serverVersion, items) };
     }
@@ -168,6 +195,7 @@ export const makeStageView = () => {
           name,
           clientId: clientIds.get(name),
           ...partsOf(state),
+          ghosts: ghostsFor(snapshot, name, state, serverKey),
           status,
           version: status.kind === "connecting" ? null : state.appliedVersion,
           words: deviceWords(status),

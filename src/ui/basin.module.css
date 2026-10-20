@@ -93,3 +93,29 @@
   translate: -50% -50%;
   pointer-events: none;
 }
+
+/* Where a ghost's drop will land once the device pulls it: a dashed ring of
+   the third ink over the water, a hairline at any zoom. The basin is 5:2,
+   the world's own shape, so the world's units map onto it evenly. */
+.ghosts {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ghosts circle {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (forced-colors: active) {
+  .ghosts circle {
+    stroke: CanvasText;
+  }
+}
