@@ -76,4 +76,22 @@ describe("Figure's basins and the end of a scene", () => {
     scrubTo(Number(bar.max));
     await waitFor(() => expect(paused.calls.at(-1)).toBe(false));
   });
+
+  // A playing figure scrolled out of view stops its world's clock, so its
+  // basins' settles hold where they were with every other mark, and go on
+  // once it is back.
+  it("holds the basins' settles while a playing scene is out of view", async () => {
+    const host = fakeHost({ reduced: false });
+    render(<Figure scene={scene} title="Out of view" host={host.host} />);
+    host.show(0, 1);
+    await screen.findByRole("button", { name: "Pause" });
+    await waitFor(() => expect(paused.calls.at(-1)).toBe(false));
+
+    host.show(0, 0.3);
+    await waitFor(() => expect(paused.calls.at(-1)).toBe(true));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+
+    host.show(0, 1);
+    await waitFor(() => expect(paused.calls.at(-1)).toBe(false));
+  });
 });

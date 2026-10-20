@@ -390,8 +390,9 @@ function FigureBody({
             }
             shared={shared}
             speed={view.speed}
-            // An ended scene lets its last drops finish settling.
-            playing={view.playing || view.ended}
+            // A world out of view holds still with its basins; an ended
+            // scene lets its last drops finish settling.
+            playing={(view.playing && view.visible) || view.ended}
             marks={marks}
             group={world}
             onFocus={setFocus}

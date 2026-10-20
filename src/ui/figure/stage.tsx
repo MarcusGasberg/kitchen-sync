@@ -126,9 +126,10 @@ interface StageProps {
   // The player's speed, which scales every basin's settle as it scales the
   // cut; 1 unless given.
   readonly speed?: number;
-  // False while the player is paused: in a scene, every basin's settle holds
-  // where it was. Free play's basins settle on, since a reader's own change
-  // lands in them while the world waits.
+  // False while the player is paused or its world is out of view: in a
+  // scene, every basin's settle holds where it was. Free play's basins
+  // settle on, since a reader's own change lands in them while the world
+  // waits.
   readonly playing?: boolean;
   // The figure's world group around the stage, which a click on the stage's
   // background focuses: Escape on it goes back to every device too.
