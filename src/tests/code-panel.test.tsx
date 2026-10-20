@@ -266,6 +266,16 @@ describe("CodePanel under forced colours", () => {
     expect(forced).toMatch(/\.lit \{[^}]*background: Mark;/);
     expect(forced).toMatch(/\.lit \{[^}]*color: MarkText;/);
     expect(forced).toMatch(/border-inline-start-color: MarkText;/);
-    expect(forced).toMatch(/\.lit \* \{[^}]*color: MarkText;/);
+    // Tokens colour themselves inline by these aliases, so each one is
+    // MarkText inside a lit line: every alias tokens.css defines.
+    const tokens = readFileSync(
+      resolve(process.cwd(), "src/styles/tokens.css"),
+      "utf8",
+    );
+    const aliases = [...tokens.matchAll(/(--code-[a-z-]+):/g)].map((m) => m[1]);
+    expect(aliases).toHaveLength(13);
+    for (const alias of aliases) {
+      expect(forced).toMatch(new RegExp(`${alias}: MarkText;`));
+    }
   });
 });

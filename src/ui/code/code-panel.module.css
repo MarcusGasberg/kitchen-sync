@@ -45,18 +45,28 @@
 }
 
 /* Forced colours: the lit lines take the system's mark colours. Taking the
-   forced-colour backplate away stops it drawing Canvas behind text the
-   browser would otherwise leave as MarkText on black; the tokens inside take
-   MarkText, so nothing shows its own colour on Mark. */
+   forced-colour backplate away stops it drawing Canvas behind the text. Each
+   token carries its colour inline (`var(--code-token-*)`), which no rule
+   here could outrank, so the aliases it reads are what change: every one is
+   MarkText inside a lit line, and nothing shows its own colour on Mark. */
 @media (forced-colors: active) {
   .lit {
     forced-color-adjust: none;
     background: Mark;
     color: MarkText;
     border-inline-start-color: MarkText;
-  }
-
-  .lit * {
-    color: MarkText;
+    --code-foreground: MarkText;
+    --code-token-constant: MarkText;
+    --code-token-function: MarkText;
+    --code-token-parameter: MarkText;
+    --code-token-keyword: MarkText;
+    --code-token-string: MarkText;
+    --code-token-string-expression: MarkText;
+    --code-token-link: MarkText;
+    --code-token-comment: MarkText;
+    --code-token-punctuation: MarkText;
+    --code-token-inserted: MarkText;
+    --code-token-deleted: MarkText;
+    --code-token-changed: MarkText;
   }
 }
