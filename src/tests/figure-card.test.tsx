@@ -25,6 +25,27 @@ import { rect, stubLayout } from "./figure-helpers";
 const LINES = ["push #3", "#3 add Oat milk", "base v2"];
 const VIEWPORT = { width: 1000, height: 600 };
 
+describe("MessageCard's ids and versions", () => {
+  it("sets #ids and vN versions in the mono face, and the words in the text face", () => {
+    const { container } = render(
+      <MessageCard
+        lines={["push #6", "#6 add Oat milk", "base v5"]}
+        at={{ x: 400, y: 300 }}
+        side="end"
+        open={1}
+        viewport={VIEWPORT}
+      />,
+    );
+    const marked = [...container.querySelectorAll("[data-card] span")];
+    expect(marked.map((span) => span.textContent)).toEqual(["#6", "#6", "v5"]);
+    expect(container.textContent).toBe("push #6#6 add Oat milk\nbase v5");
+    // "add Oat milk" is no span's: it stays in the card's own face.
+    expect(marked.some((span) => /Oat/.test(span.textContent ?? ""))).toBe(
+      false,
+    );
+  });
+});
+
 describe("placeCard", () => {
   it("keeps its foot above a floor, riding up the wire past it", () => {
     const height = LINES.length * LINE_PX + 2 * CARD_INSET_PX;

@@ -34,6 +34,12 @@
   color: var(--text-2);
 }
 
+/* Ids and versions, as the wire's own labels set them. */
+.data {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 @media (forced-colors: active) {
   .card {
     border-color: CanvasText;

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, Fragment } from "react";
 import type { Point } from "#/ui/marbling/operations";
 import { LINE_PX, type Size } from "./camera";
 import styles from "./message-card.module.css";
@@ -56,6 +56,21 @@ export const placeCard = (
   };
 };
 
+// A line with its ids and versions ("#6", "v5") set in the mono face and the
+// words left in the text face.
+function Line({ text }: { readonly text: string }) {
+  return text.split(/(#\d+|v\d+)/).map((part, index) =>
+    index % 2 === 1 ? (
+      // biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+      <span key={index} className={styles.data}>
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
+
 interface MessageCardProps {
   // `payloadOf`'s lines: the message's name, then what it carries.
   readonly lines: ReadonlyArray<string>;
@@ -99,8 +114,21 @@ export function MessageCard({
         } as CSSProperties
       }
     >
-      <p className={styles.head}>{head}</p>
-      {rest.length > 0 && <p className={styles.body}>{rest.join("\n")}</p>}
+      <p className={styles.head}>
+        <Line text={head ?? ""} />
+      </p>
+      {rest.length > 0 && (
+        <p className={styles.body}>
+          {rest.map((line, index) => (
+            // Lines are positional and never reorder.
+            // biome-ignore lint/suspicious/noArrayIndexKey: as above
+            <Fragment key={index}>
+              {index > 0 && "\n"}
+              <Line text={line} />
+            </Fragment>
+          ))}
+        </p>
+      )}
     </div>
   );
 }
