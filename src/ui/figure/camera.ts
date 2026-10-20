@@ -277,6 +277,46 @@ const wideFor = (notes: number, anchors: Anchors, viewport: Size): View => {
   return frameIn(band, above, anchors, viewport, 1);
 };
 
+// The devices' basins, each by its anchor: every `basin:<place>` but the
+// server's.
+const deviceBasins = (anchors: Anchors): ReadonlyArray<Box> =>
+  [...anchors.boxes].flatMap(([key, b]) =>
+    key.startsWith("basin:") && key !== `basin:${SERVER}` ? [b] : [],
+  );
+
+// Where the light table stacks the devices' basins: the largest one's size,
+// centred on the middle of them all; null before any was measured.
+export const stackBox = (anchors: Anchors): Box | null => {
+  const basins = deviceBasins(anchors);
+  const all = union(basins);
+  if (all === null) return null;
+  const width = Math.max(...basins.map((b) => b.right - b.left));
+  const height = Math.max(...basins.map((b) => b.bottom - b.top));
+  const x = (all.left + all.right) / 2;
+  const y = (all.top + all.bottom) / 2;
+  return {
+    left: x - width / 2,
+    top: y - height / 2,
+    right: x + width / 2,
+    bottom: y + height / 2,
+  };
+};
+
+// How far a device's basin goes, in plane pixels, to lie on the stack; null
+// when its basin or the stack was not measured.
+export const stackShiftOf = (
+  anchors: Anchors,
+  client: string,
+): Point | null => {
+  const stack = stackBox(anchors);
+  const own = anchors.boxes.get(`basin:${client}`);
+  if (stack === null || own === undefined) return null;
+  return {
+    x: (stack.left + stack.right) / 2 - (own.left + own.right) / 2,
+    y: (stack.top + stack.bottom) / 2 - (own.top + own.bottom) / 2,
+  };
+};
+
 // A subject's box on the plane: its measured anchor, or for a message, where
 // it is (padded) together with its wire.
 export const boxOf = (subject: Subject, anchors: Anchors): Box | null => {

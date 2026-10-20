@@ -20,6 +20,7 @@ import {
 import { payloadOf } from "#/lib/director/payload";
 import { type AgeOf, progress } from "#/lib/director/reveal";
 import type { Cut, Place, Shot } from "#/lib/director/shots";
+import { tableAt } from "#/lib/director/table";
 import { type CutCursor, screenOf } from "#/lib/director/timing";
 import {
   BEHIND_IN_MILLIS,
@@ -136,6 +137,8 @@ export interface StageMarks {
   // 1× (a follow at 0.5×, slowing to 0.25×); null at 1×, in a hold, a skip,
   // or free play.
   readonly rate: number | null;
+  // How far the devices' basins have slid to the light table's stack, 0–1.
+  readonly table: number;
 }
 
 // A world drawn plain, as a stage given no marks draws it.
@@ -149,6 +152,7 @@ export const NO_MARKS: StageMarks = {
   behind: new Map(),
   rolls: new Map(),
   rate: null,
+  table: 0,
 };
 
 // How wet a change is `age` ms after it landed: all wet, then dry at
@@ -406,6 +410,10 @@ export const stageMarksAt = (input: MarkInput): StageMarks => ({
   behind: behindLooks(input),
   rolls: rollLooks(input),
   rate: rateAt(input),
+  table:
+    input.cut === null || input.cursor === null
+      ? 0
+      : tableAt(input.cut, input.cursor, input.reduced),
 });
 
 // One place's row looks, by item id: what its list takes.

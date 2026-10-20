@@ -166,3 +166,42 @@ describe("settleMillisFor", () => {
     expect(settleMillisFor(undefined, "device:A", 1)).toBe(SETTLE_MS);
   });
 });
+
+describe("the light table's mark", () => {
+  it.effect(
+    "stacks the basins after the move onto the table, at once under reduced motion, and never in free play",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(OAT_SCENE);
+        const cut = compile(result, OAT_SCENE);
+        const move = cut.shots.findIndex(
+          (s) => s.framing === "table" && s.move,
+        );
+        const holds = cut.shots.flatMap((s, i) =>
+          s.framing === "table" && !s.move ? [i] : [],
+        );
+        const last = holds.at(-1);
+        expect(move).toBeGreaterThanOrEqual(0);
+        expect(holds[0]).toBe(move + 1);
+        expect(last).toBeDefined();
+        if (last === undefined) return;
+        expect(
+          marksOn(result, cut, { shot: move, offset: MOVE_MILLIS / 2 }).table,
+        ).toBe(0);
+        expect(marksOn(result, cut, { shot: move + 1, offset: 0 }).table).toBe(
+          0,
+        );
+        expect(
+          marksOn(result, cut, { shot: move + 1, offset: 0 }, true).table,
+        ).toBe(1);
+        expect(
+          marksOn(result, cut, {
+            shot: last,
+            offset: cut.shots[last]?.screen ?? 0,
+          }).table,
+        ).toBe(1);
+        expect(freeMarksOf(result).table).toBe(0);
+        expect(NO_MARKS.table).toBe(0);
+      }),
+  );
+});

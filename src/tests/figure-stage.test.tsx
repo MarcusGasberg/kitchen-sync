@@ -1689,6 +1689,53 @@ describe("Stage", () => {
     expect(screen.queryByText(/×$/)).toBeNull();
     restore();
   });
+
+  // The light table, held.
+  const onTable = (): Cue => {
+    const table: Shot = {
+      framing: "table",
+      subjects: [{ kind: "basins" }],
+      from: 0,
+      to: 0,
+      rate: 0,
+      screen: 2000,
+      through: 0,
+      enact: null,
+      notes: [],
+      move: false,
+      opening: false,
+      step: 0,
+    };
+    return {
+      kind: "shot",
+      cut: {
+        shots: [table],
+        steps: [{ label: "Test.", first: 0, end: 1, startedAt: 0, endedAt: 0 }],
+      },
+      cursor: { shot: 0, offset: 0 },
+    };
+  };
+
+  it("slides each device's basin to the stack by how far the table has gone, its anchor left where it was laid", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const restore = stubLayout(LAYOUT);
+    const { container, rerender } = render(
+      markedStage(view, onTable(), { ...NO_MARKS, table: 0.5 }),
+    );
+    const stackOf = (client: string) =>
+      container.querySelector<HTMLElement>(
+        `[data-anchor-key='basin:${client}'] > div`,
+      );
+    // A's basin (40–360) and B's (860–1180) stack at 610: at half the slide
+    // each has gone half of its 410 px.
+    expect(stackOf("A")?.style.transform).toBe("translate(205px, 0px)");
+    expect(stackOf("B")?.style.transform).toBe("translate(-205px, 0px)");
+    expect(stackOf("A")?.dataset.stacked).toBe("");
+    rerender(markedStage(view, onTable(), NO_MARKS));
+    expect(stackOf("A")?.style.transform).toBe("");
+    expect(container.querySelector("[data-stacked]")).toBeNull();
+    restore();
+  });
 });
 
 describe("the outbox tray", () => {

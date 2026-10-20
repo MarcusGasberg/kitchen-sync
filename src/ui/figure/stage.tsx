@@ -33,6 +33,7 @@ import {
   project,
   type Size,
   shareFrom,
+  stackShiftOf,
   transformOf,
   visibleBox,
   wideView,
@@ -301,6 +302,15 @@ export function Stage({
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
   const lit = shot === undefined ? null : litOf(shot);
   const paused = !playing && !live;
+  // The light table: how far the devices' basins have slid to the stack, and
+  // each one's way there, in plane pixels.
+  const table = marks.table;
+  const stackTransform = (client: ClientName): string | undefined => {
+    const shift = table > 0 ? stackShiftOf(anchors, client) : null;
+    return shift === null
+      ? undefined
+      : `translate(${shift.x * table}px, ${shift.y * table}px)`;
+  };
   const seen = camera === null ? null : visibleBox(camera, size);
   const inView = (key: string) => {
     const box = measured.boxes.get(key);
@@ -610,23 +620,33 @@ export function Stage({
                     }
                     basin={
                       <div data-anchor-key={`basin:${device.name}`}>
-                        <Basin
-                          items={device.items}
-                          waiting={device.waiting}
-                          label={`${device.name}'s list`}
-                          settle={settle}
-                          scale={scale}
-                          density={density}
-                          active={inView(`basin:${device.name}`)}
-                          ringAnchors={device.name}
-                          settleMillis={settleMillisFor(
-                            shot,
-                            `device:${device.name}`,
-                            speed,
-                          )}
-                          paused={paused}
-                          ghosts={device.ghosts}
-                        />
+                        {/* The light table: the basin slides to the stack and
+                            blends with the others there, while its anchor
+                            stays where the plane laid it out. On the table
+                            every basin draws, wherever it was laid. */}
+                        <div
+                          className={styles.stack}
+                          data-stacked={table > 0 ? "" : undefined}
+                          style={{ transform: stackTransform(device.name) }}
+                        >
+                          <Basin
+                            items={device.items}
+                            waiting={device.waiting}
+                            label={`${device.name}'s list`}
+                            settle={settle}
+                            scale={scale}
+                            density={density}
+                            active={table > 0 || inView(`basin:${device.name}`)}
+                            ringAnchors={device.name}
+                            settleMillis={settleMillisFor(
+                              shot,
+                              `device:${device.name}`,
+                              speed,
+                            )}
+                            paused={paused}
+                            ghosts={device.ghosts}
+                          />
+                        </div>
                       </div>
                     }
                     band={

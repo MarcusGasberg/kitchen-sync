@@ -23,6 +23,8 @@ import {
   project,
   roomFor,
   SERVER_RING_PAD_PX,
+  stackBox,
+  stackShiftOf,
   transformOf,
   type View,
   visibleBox,
@@ -1213,5 +1215,50 @@ describe("the view on screen", () => {
     expect(densityFor(1.2)).toBe(MAX_SCALE);
     expect(densityFor(1.8)).toBe(MAX_SCALE);
     expect(densityFor(Number.NaN)).toBe(1);
+  });
+});
+
+describe("the light table", () => {
+  const TABLE = shot({ framing: "table", subjects: [{ kind: "basins" }] });
+
+  it("stacks on the devices' basins: the largest one's size, at the middle of them all", () => {
+    // B's basin (400–720) and C's (760–1080) meet at 740; the server's is
+    // not a device's.
+    expect(stackBox(DETAIL)).toEqual(box(580, 430, 900, 558));
+    expect(stackShiftOf(DETAIL, "B")).toEqual({ x: 180, y: 0 });
+    expect(stackShiftOf(DETAIL, "C")).toEqual({ x: -180, y: 0 });
+    // A's basin was not measured.
+    expect(stackShiftOf(DETAIL, "A")).toBeNull();
+  });
+
+  it("sizes the stack by the largest basin when they differ", () => {
+    const uneven = anchorsOf({
+      "basin:A": box(0, 100, 400, 260),
+      "basin:B": box(500, 120, 800, 240),
+      "basin:server": box(0, 0, 1200, 90),
+    });
+    expect(stackBox(uneven)).toEqual(box(200, 100, 600, 260));
+  });
+
+  // The table frames the world's band, exactly as wide: the stack lies
+  // inside it, so the camera holds still while the basins slide there.
+  it("keeps the table's frame on the world's band, which holds the stack", () => {
+    const anchors = anchorsOf({
+      ...Object.fromEntries(DETAIL.boxes),
+      world: box(40, 40, 1160, 560),
+    });
+    const stack = stackBox(anchors);
+    expect(stack).toEqual(box(580, 430, 900, 558));
+    for (const size of [viewport, { width: 390, height: 480 }]) {
+      const view = frameFor(TABLE, anchors, size);
+      expect(view).toEqual(frameFor(shot({ framing: "wide" }), anchors, size));
+      if (view === null || stack === null) return;
+      expect(inside(stack, visibleBox(view, size))).toBe(true);
+    }
+  });
+
+  it("has no stack before a device's basin is measured", () => {
+    expect(stackBox(ANCHORS)).toBeNull();
+    expect(stackShiftOf(ANCHORS, "A")).toBeNull();
   });
 });

@@ -217,11 +217,52 @@
   grid-template-columns: repeat(var(--clients), 20rem);
   gap: var(--space-6);
   align-items: start;
+  /* The light table's blend stays among the devices: stacked basins blend
+     with each other, not with the page. */
+  isolation: isolate;
 }
 
 .device {
   position: relative;
   min-width: 0;
+}
+
+/* The light table: a device's basin slides to the stack (the stage sets the
+   transform each frame from the cut) and sits over the device's other
+   content. Stacked, the basins blend so identical patterns register as one
+   and a pattern that disagrees shows doubled rings: by day the darker ink
+   wins, at night the lighter, whichever the page shows. */
+.stack {
+  position: relative;
+}
+
+.stack[data-stacked] {
+  z-index: 1;
+  mix-blend-mode: darken;
+}
+
+@media (prefers-color-scheme: dark) {
+  .stack[data-stacked] {
+    mix-blend-mode: lighten;
+  }
+}
+
+:global([data-theme="day"]) .stack[data-stacked] {
+  mix-blend-mode: darken;
+}
+
+:global([data-theme="night"]) .stack[data-stacked] {
+  mix-blend-mode: lighten;
+}
+
+/* High Contrast draws the basins in the system's colours: no blend, each at
+   half strength, so a disagreement still doubles. */
+@media (forced-colors: active) {
+  .stack[data-stacked],
+  :global([data-theme]) .stack[data-stacked] {
+    mix-blend-mode: normal;
+    opacity: 0.5;
+  }
 }
 
 /* A device's outbox tray, under its header: one line, which scrolls before
