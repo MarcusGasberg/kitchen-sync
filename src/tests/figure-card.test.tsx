@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { it as effect } from "@effect/vitest";
 import { render, screen } from "@testing-library/react";
 import { Effect } from "effect";
@@ -43,6 +45,18 @@ describe("MessageCard's ids and versions", () => {
     expect(marked.some((span) => /Oat/.test(span.textContent ?? ""))).toBe(
       false,
     );
+  });
+});
+
+// jsdom lays nothing out, so the rule is pinned where it is written: a
+// mono span's own line-height keeps each line at the estimate's LINE_PX.
+describe("the card's mono spans", () => {
+  it("keep the card's line height", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/ui/figure/message-card.module.css"),
+      "utf8",
+    );
+    expect(/\n\.data \{([^}]*)\}/.exec(css)?.[1]).toMatch(/line-height: 1;/);
   });
 });
 

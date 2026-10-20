@@ -38,6 +38,8 @@
 .data {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  /* The smaller face must not grow the line past the estimate's. */
+  line-height: 1;
 }
 
 @media (forced-colors: active) {
