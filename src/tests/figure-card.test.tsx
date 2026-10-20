@@ -74,6 +74,15 @@ describe("placeCard", () => {
     expect(placeCard(at, "end", LINES, VIEWPORT, 500)).toEqual(free);
   });
 
+  it("stays inside the window's top when a floor leaves it no room", () => {
+    const height = LINES.length * LINE_PX + 2 * CARD_INSET_PX;
+    const at = { x: 400, y: 30 };
+    const floor = EDGE_PX + height / 2;
+    const place = placeCard(at, "end", LINES, VIEWPORT, floor);
+    expect(place.top).toBe(EDGE_PX);
+    expect(place.origin.y).toBe(30 - EDGE_PX);
+  });
+
   it("sits beside its dot on its label's side, centred on the dot's height", () => {
     const end = placeCard({ x: 400, y: 300 }, "end", LINES, VIEWPORT);
     expect(end.left).toBe(400 + CARD_GAP_PX);

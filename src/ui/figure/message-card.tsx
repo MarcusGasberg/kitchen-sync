@@ -25,8 +25,9 @@ const clamp = (value: number, low: number, high: number) =>
 // as wide as its longest line (within a note's width), centred on the dot's
 // height, and kept EDGE_PX inside the window. Sized by estimate, as notes
 // are, so it is placed in one pass. A `floor` (a screen y, such as a device
-// pane's top) is a line its foot never crosses: the card rides up the wire
-// above it, and centres on the dot again once there is room.
+// pane's top) is a line its foot does not cross: the card rides up the wire
+// above it, and centres on the dot again once there is room. Where the floor
+// leaves no room under the window's top, the floor yields.
 export const placeCard = (
   at: Point,
   side: "start" | "end",
@@ -46,7 +47,9 @@ export const placeCard = (
     viewport.height - EDGE_PX - height,
   );
   const top =
-    floor === undefined ? windowed : Math.min(windowed, floor - height);
+    floor === undefined
+      ? windowed
+      : Math.max(EDGE_PX, Math.min(windowed, floor - height));
   return {
     left,
     top,
