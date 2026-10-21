@@ -59,6 +59,11 @@
   break-inside: avoid;
 }
 
+/* A group made only for rows the shot ahead lands. */
+.group[data-presence="arriving"] {
+  visibility: hidden;
+}
+
 .empty {
   max-width: 34ch;
   padding-block: var(--space-6);

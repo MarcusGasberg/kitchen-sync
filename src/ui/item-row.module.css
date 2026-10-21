@@ -323,6 +323,12 @@ label.label {
   }
 }
 
+/* A row the shot ahead lands: its place kept, unseen, while the camera
+   moves to where it will be. */
+.row[data-presence="arriving"] {
+  visibility: hidden;
+}
+
 /* A ghost: a row the server holds that this device has not pulled. Its
    place is kept, its edge dashed in the third ink, its words faint, and it
    says so in the state's slot, so its name gives that slot back. */

@@ -231,6 +231,14 @@ const messagesOf = (
   return anchors;
 };
 
+// A key for the rows each place sets into its list, which lay the plane out.
+const rowsKeyOf = (
+  rows: ReadonlyMap<string, ReadonlyArray<GroceryItem>>,
+): string =>
+  [...rows]
+    .map(([where, items]) => `${where}:${items.map((i) => i.id).join(",")}`)
+    .join(";");
+
 // How far a reloading device dips: to 35% at its lowest.
 const RELOAD_DIP = 0.65;
 
@@ -309,16 +317,24 @@ export function Stage({
       : undefined;
   const viewport = useRef<HTMLDivElement>(null);
   const plane = useRef<HTMLDivElement>(null);
-  // Rows held while they go lay the plane out as the view does: it is
-  // measured again when they come and go, not on every frame of their going.
-  const leavingKey = [...marks.leaving]
-    .map(([where, items]) => `${where}:${items.map((i) => i.id).join(",")}`)
-    .join(";");
-  const laidOut = useMemo(() => ({ view, leavingKey }), [view, leavingKey]);
+  // Rows held while they go, and rows laid out while the camera moves to
+  // where they land, lay the plane out as the view does: it is measured again
+  // when they come and go, not on every frame of their going.
+  const leavingKey = rowsKeyOf(marks.leaving);
+  const arrivingKey = rowsKeyOf(marks.arriving);
+  const laidOut = useMemo(
+    () => ({ view, leavingKey, arrivingKey }),
+    [view, leavingKey, arrivingKey],
+  );
   const { measured, size } = useMeasure(viewport, plane, laidOut);
+  // The marks make the arriving rows afresh each frame; the basins take them
+  // as they were while they are the same, so the patterns they will have are
+  // not worked out again each frame.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `arrivingKey` is what changes the rows
+  const arriving = useMemo(() => marks.arriving, [arrivingKey]);
   // A place's list as the stage draws it: its own rows, each server row a
-  // device has not pulled as a ghost in its place, and each row it removed a
-  // moment ago, leaving.
+  // device has not pulled as a ghost in its place, each row it removed a
+  // moment ago, leaving, and each the shot ahead lands, unseen.
   const listOf = (
     list: ListView,
     where: Place,
@@ -329,6 +345,10 @@ export function Stage({
       ...(marks.leaving.get(where) ?? []).map((item) => ({
         item,
         presence: "leaving" as const,
+      })),
+      ...(arriving.get(where) ?? []).map((item) => ({
+        item,
+        presence: "arriving" as const,
       })),
     ]);
   const flying = placeFlights(measured.wires, flights);
@@ -629,6 +649,7 @@ export function Stage({
                       density={density}
                       active={inView("basin:server")}
                       ringAnchors="server"
+                      arriving={arriving.get(SERVER)}
                       settleMillis={settleMillisFor(shot, "server", speed)}
                       paused={paused}
                     />
@@ -718,6 +739,7 @@ export function Stage({
                             )}
                             paused={paused}
                             ghosts={device.ghosts}
+                            arriving={arriving.get(device.name)}
                           />
                         </div>
                       </div>

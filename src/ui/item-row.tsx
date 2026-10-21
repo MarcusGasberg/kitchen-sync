@@ -31,7 +31,7 @@ interface ItemRowProps {
   // spreading in. Absent, the row is drawn as it is, as the app draws it.
   readonly look?: RowLook;
   // A figure's row the list does not hold (`Row.presence`): read-only, and a
-  // row that is going is hidden from the accessibility tree.
+  // row that is going or not yet come is hidden from the accessibility tree.
   readonly presence?: Row["presence"];
   // A scene's device acting out a tap on this row: where the touch lands
   // and how far it has spread.
@@ -84,7 +84,9 @@ export function ItemRow({
       data-controls={replica ? "inert" : undefined}
       data-change={look?.kind}
       data-presence={presence}
-      aria-hidden={presence === "leaving" || undefined}
+      aria-hidden={
+        presence === "leaving" || presence === "arriving" || undefined
+      }
       style={look === undefined ? undefined : lookStyle(look)}
     >
       {onCheck ? (

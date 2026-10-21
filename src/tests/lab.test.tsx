@@ -8,7 +8,7 @@ import type { Acting } from "#/lib/director/acting";
 import { compile } from "#/lib/director/compile";
 import { wetKey } from "#/lib/director/marks";
 import { sceneAges } from "#/lib/director/reveal";
-import type { Cut, Shot } from "#/lib/director/shots";
+import { type Cut, SERVER, type Shot } from "#/lib/director/shots";
 import {
   type CutCursor,
   cursorAtScreen,
@@ -18,7 +18,11 @@ import {
 } from "#/lib/director/timing";
 import { entryIndexAt } from "#/lib/sandbox/frame";
 import { runHeadless } from "#/lib/sandbox/scene";
-import { isConverged, type Timeline } from "#/lib/sandbox/trace";
+import {
+  isConverged,
+  type Timeline,
+  type WorldSnapshot,
+} from "#/lib/sandbox/trace";
 import { litAt, missingSpans } from "#/ui/code/lit";
 import { sharedMarkAt } from "#/ui/figure/shared-mark";
 import { type StageMarks, stageMarksAt } from "#/ui/figure/stage-marks";
@@ -366,6 +370,45 @@ describe("the lab's marks", () => {
         expect(ghosts(end.snapshot, "B")).toEqual([]);
         expect(ghosts(end.snapshot, "C")).toEqual([]);
         expect(end.marks.table).toBe(1);
+      }),
+  );
+
+  effect.effect(
+    "lays out the oat milk the server is about to apply while the camera moves to it, so the move ends on the hold's frame",
+    () =>
+      Effect.gen(function* () {
+        const { cut, timeline, oat } = yield* drop;
+        const move = cut.shots.findIndex(
+          (shot) =>
+            shot.move &&
+            shot.subjects.some((s) => s.kind === "row" && s.where === SERVER),
+        );
+        expect(move).toBeGreaterThan(0);
+        const holds = (snapshot: WorldSnapshot) =>
+          snapshot.server.items.some((item) => item.id === oat);
+        const moving = marksAt(cut, timeline, {
+          shot: move,
+          offset: (cut.shots[move]?.screen ?? 0) / 2,
+        });
+        expect(holds(moving.snapshot)).toBe(false);
+        expect(
+          moving.marks.arriving.get(SERVER)?.map((item) => item.name),
+        ).toEqual(["Oat milk"]);
+        expect(moving.marks.arriving.size).toBe(1);
+        // Landed, it is the server's own row, and nothing waits to arrive.
+        const landed = marksAt(cut, timeline, { shot: move + 1, offset: 0 });
+        expect(holds(landed.snapshot)).toBe(true);
+        expect(landed.marks.arriving.size).toBe(0);
+        // B and C's rows to come are their ghosts already: the move onto
+        // their pulls lays nothing out.
+        const split = cut.shots.findIndex(
+          (shot) => shot.move && shot.framing === "split",
+        );
+        expect(split).toBeGreaterThan(move);
+        expect(
+          marksAt(cut, timeline, { shot: split, offset: 400 }).marks.arriving
+            .size,
+        ).toBe(0);
       }),
   );
 

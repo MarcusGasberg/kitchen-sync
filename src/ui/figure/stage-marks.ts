@@ -4,6 +4,7 @@ import { FOLLOW_RATE } from "#/lib/director/compile";
 import {
   type ChangeKind,
   changesOf,
+  ghostsOf,
   LEAVE_MILLIS,
   leavingAt,
   WET_MILLIS,
@@ -19,9 +20,9 @@ import {
 } from "#/lib/director/outbox";
 import { payloadOf } from "#/lib/director/payload";
 import { type AgeOf, progress } from "#/lib/director/reveal";
-import type { Cut, Place, Shot } from "#/lib/director/shots";
+import { type Cut, type Place, SERVER, type Shot } from "#/lib/director/shots";
 import { tableAt } from "#/lib/director/table";
-import { type CutCursor, screenOf } from "#/lib/director/timing";
+import { type CutCursor, indexAt, screenOf } from "#/lib/director/timing";
 import {
   BEHIND_IN_MILLIS,
   behindAt,
@@ -122,6 +123,10 @@ export interface StageMarks {
   // The rows each place lost less than LEAVE_MILLIS ago, as they were: the
   // stage holds them in their places while they go.
   readonly leaving: ReadonlyMap<Place, ReadonlyArray<GroceryItem>>;
+  // While the camera moves, the rows the shot it moves into lands, as that
+  // shot first shows them: the stage lays them out unseen, so the move
+  // frames where they will be.
+  readonly arriving: ReadonlyMap<Place, ReadonlyArray<GroceryItem>>;
   // The device acting out the shot's input, in its own controls.
   readonly acting: Acting | null;
   // Each device's outbox tray, its slots in id order, then those leaving.
@@ -145,6 +150,7 @@ export interface StageMarks {
 export const NO_MARKS: StageMarks = {
   rows: new Map(),
   leaving: new Map(),
+  arriving: new Map(),
   acting: null,
   trays: new Map(),
   card: null,
@@ -223,6 +229,56 @@ const leavingOf = ({ timeline, index, ageOf }: MarkInput) => {
     byPlace.set(where, items);
   }
   return byPlace;
+};
+
+// The item `itemId` as `where` holds it in `snapshot`, if it does.
+const heldBy = (
+  snapshot: WorldSnapshot,
+  where: Place,
+  itemId: string,
+): GroceryItem | undefined =>
+  where === SERVER
+    ? snapshot.server.items.find((item) => item.id === itemId)
+    : snapshot.clients.get(where)?.items.get(itemId);
+
+// The rows a move is about to land: each row the shot it moves into is
+// about that the row's place does not hold yet, as that shot first shows
+// it. The world holds while the camera moves, so without them the move
+// would frame a place without its change, and the hold would cut to the
+// frame with it as the change lands. A device's row to come is its ghost,
+// laid out already.
+const arrivingOf = ({
+  timeline,
+  snapshot,
+  cut,
+  cursor,
+}: MarkInput): ReadonlyMap<Place, ReadonlyArray<GroceryItem>> => {
+  const arriving = new Map<Place, Array<GroceryItem>>();
+  if (cut === null || cursor === null) return arriving;
+  const shot = cut.shots[cursor.shot];
+  if (shot?.move !== true || cursor.shot + 1 >= cut.shots.length) {
+    return arriving;
+  }
+  const landing =
+    timeline.entries[
+      indexAt(cut, timeline, { shot: cursor.shot + 1, offset: 0 })
+    ]?.snapshot;
+  if (landing === undefined) return arriving;
+  for (const subject of shot.subjects) {
+    if (subject.kind !== "row") continue;
+    const { where, itemId } = subject;
+    if (heldBy(snapshot, where, itemId) !== undefined) continue;
+    if (
+      where !== SERVER &&
+      ghostsOf(snapshot, where).some((ghost) => ghost.id === itemId)
+    ) {
+      continue;
+    }
+    const item = heldBy(landing, where, itemId);
+    if (item === undefined) continue;
+    arriving.set(where, [...(arriving.get(where) ?? []), item]);
+  }
+  return arriving;
 };
 
 // How a slot looks: dropping in, its ring half-filling on the ack, going once
@@ -403,6 +459,7 @@ export const settleMillisFor = (
 export const stageMarksAt = (input: MarkInput): StageMarks => ({
   rows: rowsAt(input),
   leaving: leavingOf(input),
+  arriving: arrivingOf(input),
   acting: actingOf(input),
   trays: traysAt(input),
   card: cardAt(input),

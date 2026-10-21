@@ -150,6 +150,38 @@ describe("Basin", () => {
     expect(screen.getByRole("img", { name: "B's list: 1 item" })).toBeTruthy();
   });
 
+  it("anchors where each arriving item's drop will land, and draws nothing of it", () => {
+    const { container } = render(
+      <Basin
+        items={[milk]}
+        arriving={[eggs]}
+        ringAnchors="server"
+        label="The server's list"
+      />,
+    );
+    // Where it lands once the shot ahead shows it: in the pattern of every
+    // item together, as the basin will hold them then.
+    const landing = landmarksOf(
+      patternOf({ items: [milk, eggs] }),
+      new Set([eggs.id]),
+    ).get(eggs.id);
+    const anchor = container.querySelector<HTMLElement>(
+      `[data-anchor-key='ring:server:${eggs.id}']`,
+    );
+    expect(anchor?.getAttribute("aria-hidden")).toBe("true");
+    expect(Number.parseFloat(anchor?.style.left ?? "")).toBeCloseTo(
+      ((landing?.x ?? Number.NaN) / WORLD_WIDTH) * 100,
+    );
+    expect(Number.parseFloat(anchor?.style.top ?? "")).toBeCloseTo(
+      ((landing?.y ?? Number.NaN) / WORLD_HEIGHT) * 100,
+    );
+    expect(container.querySelector("[data-ghost]")).toBeNull();
+    // It is not the basin's yet.
+    expect(
+      screen.getByRole("img", { name: "The server's list: 1 item" }),
+    ).toBeTruthy();
+  });
+
   it("draws no ghost rings without ghosts", () => {
     const { container } = render(
       <Basin items={[milk]} ghosts={[]} label="B's list" />,

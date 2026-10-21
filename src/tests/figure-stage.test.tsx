@@ -438,6 +438,69 @@ describe("Stage", () => {
     expect(after).toBeGreaterThan(before);
   });
 
+  it("lays out a row a move is about to land, unseen, where the camera will find it", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const eggs = new GroceryItem({
+      id: crypto.randomUUID(),
+      name: "Eggs",
+      quantity: 1,
+      unit: Option.none(),
+      category: Option.none(),
+      createdAt: DateTime.makeUnsafe(0),
+      checked: false,
+      order: 5,
+      version: 2,
+    });
+    const stage = (marks: StageMarks) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={FREE}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+        marks={marks}
+      />
+    );
+    const restore = stubLayout(LAYOUT);
+    const measures = () =>
+      vi.mocked(Element.prototype.getBoundingClientRect).mock.calls.length;
+    const { container, rerender } = render(stage(NO_MARKS));
+    const before = measures();
+    rerender(stage({ ...NO_MARKS, arriving: new Map([[SERVER, [eggs]]]) }));
+    const after = measures();
+    restore();
+    // Its row holds the place it lands in, out of sight and out of the
+    // accessibility tree, and is measured as the server's.
+    const row = container.querySelector<HTMLElement>(
+      `[data-anchor-key='server'] li[data-item='${eggs.id}']`,
+    );
+    expect(row?.dataset.presence).toBe("arriving");
+    expect(row?.getAttribute("aria-hidden")).toBe("true");
+    expect(after).toBeGreaterThan(before);
+    // Its drop has an anchor where it will land, and nothing drawn there.
+    expect(
+      container.querySelector(
+        `[data-anchor='server-basin'] [data-anchor-key='ring:server:${eggs.id}']`,
+      ),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("img", { name: "The server's list: 1 item" }),
+    ).toBeTruthy();
+    const shown = within(
+      screen.getByRole("group", { name: "The server's items" }),
+    ).getAllByRole("listitem");
+    expect(shown.map((li) => li.textContent)).toEqual([
+      expect.stringContaining("Milk"),
+    ]);
+  });
+
   it("takes a reader's changes in free play, naming the device", async () => {
     const view = makeStageView()(await snapshot(), new Map());
     const onIntent = vi.fn();

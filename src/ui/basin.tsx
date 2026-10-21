@@ -63,6 +63,10 @@ interface BasinProps {
   // (`ghostsOf`). Each gets a dashed ring where its drop will land. Memoise
   // it on the state it comes from, as `waiting`.
   readonly ghosts?: ReadonlyArray<GroceryItem>;
+  // A figure's items the shot its camera moves into lands here: no drop yet,
+  // only an anchor (with `ringAnchors`) where each will land, so the move
+  // frames it. Memoise it on the state it comes from, as `waiting`.
+  readonly arriving?: ReadonlyArray<GroceryItem>;
   // How long its next change settles, in milliseconds: SETTLE_MS unless a
   // figure stretches a close-up's settle or plays at another speed.
   readonly settleMillis?: number;
@@ -84,6 +88,7 @@ export function Basin({
   active = true,
   ringAnchors,
   ghosts,
+  arriving,
   settleMillis,
   paused = false,
 }: BasinProps) {
@@ -129,6 +134,19 @@ export function Basin({
         : [...landmarksOf(ops, new Set(items.map((item) => item.id)))],
     [ops, items, ringAnchors],
   );
+
+  // Where each arriving item's drop will land: its landmark in the pattern
+  // the basin will have once it holds them.
+  const arrivingRings = useMemo(() => {
+    if (ringAnchors === undefined || arriving === undefined) return [];
+    if (arriving.length === 0) return [];
+    const future = patternOf({
+      items: [...items, ...arriving],
+      waiting,
+      scale,
+    });
+    return [...landmarksOf(future, new Set(arriving.map((item) => item.id)))];
+  }, [items, arriving, waiting, scale, ringAnchors]);
 
   // Where each ghost's drop will land once the device pulls it: its
   // landmark and reach in the pattern the basin will have then.
@@ -219,7 +237,7 @@ export function Basin({
           {labels?.get(id)}
         </span>
       ))}
-      {rings.map(([id, point]) => (
+      {[...rings, ...arrivingRings].map(([id, point]) => (
         <span
           key={`ring:${id}`}
           className={styles.anchor}

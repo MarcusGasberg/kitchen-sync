@@ -138,8 +138,18 @@ function GroupSection({
 }: GroupSectionProps) {
   const id = useId();
   const Heading = headingLevel === 4 ? "h4" : headingLevel === 3 ? "h3" : "h2";
+  // A group made only for rows still to come keeps its place unseen, as they
+  // do.
+  const arriving =
+    group.rows.length > 0 &&
+    group.rows.every((row) => row.presence === "arriving");
   return (
-    <section className={styles.group} aria-labelledby={id}>
+    <section
+      className={styles.group}
+      aria-labelledby={id}
+      data-presence={arriving ? "arriving" : undefined}
+      aria-hidden={arriving || undefined}
+    >
       <header className={styles.head}>
         <Heading id={id} className={styles.title}>
           {group.category ?? "No category"}
