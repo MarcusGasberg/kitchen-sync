@@ -158,6 +158,51 @@ describe("the lab's camera", () => {
         }
       }),
   );
+
+  effect.effect(
+    "sends the poke out in the step that tells of it, right after its note, and opens the pulls' step on phones it has told",
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runHeadless(DROP_SCENE);
+        const cut = compile(result, DROP_SCENE);
+        const shotsOf = (step: number) => {
+          const found = cut.steps[step];
+          return found === undefined
+            ? []
+            : cut.shots.slice(found.first, found.end);
+        };
+        const poking = shotsOf(2);
+        expect(poking.slice(-3).map(label)).toEqual([
+          "move→wide",
+          "hold wide",
+          "wide ×0.5",
+        ]);
+        expect(poking.at(-2)?.notes.map((n) => n.text)).toEqual([
+          "The server is at v6. It pokes every online phone.",
+        ]);
+        // The flight after the note is the pokes', to their landing.
+        const flight = poking.at(-1);
+        const sent = lastEntryWhere(
+          result.timeline,
+          (e) => e._tag === "Sent" && e.message.kind === "poke",
+        ).entry.snapshot.messages.filter((m) => m.kind === "poke");
+        expect(sent).toHaveLength(3);
+        for (const poke of sent) {
+          expect(flight?.from).toBe(poke.departedAt);
+          expect(flight?.to).toBe(poke.arriveAt);
+        }
+        // The pulls' step opens with every poke landed: no phone waits to be
+        // told through its caption.
+        const opening = shotsOf(3)[0];
+        const told = result.timeline.entries[opening?.through ?? -1]?.snapshot;
+        expect(told?.messages.some((m) => m.kind === "poke")).toBe(false);
+        expect(shotsOf(3).map(label).slice(0, 3)).toEqual([
+          "open wide",
+          "wide ×0.5",
+          "wide ×0.5",
+        ]);
+      }),
+  );
 });
 
 // The stage's marks at a cursor, worked out as the figure works them out.

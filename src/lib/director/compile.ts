@@ -326,9 +326,10 @@ const WIDE_FRAME: Frame = { framing: "wide", subjects: [] };
 
 // The world between two moments. A wait with nothing moving keeps the frame
 // before it (`still`), skipped when quiet: the camera moves only when the
-// frame must change. One wire's messages are followed (slowing into a
-// decision or a drop at its end); several play wide. A setup plays it all
-// wide.
+// frame must change. One wire's messages are followed; several play wide at
+// the same pace, so a poke and the pulls it sets off are watched as one push
+// is (slowing into a decision or a drop at its end either way). A setup plays
+// it all wide at 1×.
 const flights = (
   timeline: Timeline,
   from: number,
@@ -365,7 +366,7 @@ const flights = (
     timeline.entries[entryIndexAt(timeline, from)]?.snapshot.messages ?? []
   ).filter((m) => m.fate === "inFlight");
   const wires = new Set(moving.map((m) => m.client));
-  if (how.quiet || moving.length === 0 || wires.size !== 1) {
+  if (how.quiet || moving.length === 0) {
     const { framing, subjects } = moving.length === 0 ? how.still : WIDE_FRAME;
     return [
       {
@@ -379,14 +380,20 @@ const flights = (
       },
     ];
   }
-  const subjects: ReadonlyArray<Subject> = moving.map((m) => ({
-    kind: "message",
-    messageId: m.id,
-    client: m.client,
-  }));
+  const { framing, subjects }: Frame =
+    wires.size === 1
+      ? {
+          framing: "follow",
+          subjects: moving.map((m) => ({
+            kind: "message",
+            messageId: m.id,
+            client: m.client,
+          })),
+        }
+      : WIDE_FRAME;
   const follow = (a: number, b: number, rate: number): Shot => ({
     ...base,
-    framing: "follow",
+    framing,
     subjects,
     from: a,
     to: b,

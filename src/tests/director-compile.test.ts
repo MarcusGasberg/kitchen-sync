@@ -163,22 +163,27 @@ describe("compile", () => {
   );
 
   it.effect(
-    "plays the replies wide, sets B and C side by side, and stacks the basins",
+    "plays the replies wide at a followed message's pace, sets B and C side by side, and stacks the basins",
     () =>
       Effect.gen(function* () {
         const result = yield* runHeadless(OAT_SCENE);
         const cut = compile(result, OAT_SCENE);
         expect(storyOf(cut, 3)).toEqual([
           "open wide",
-          "wide ×1",
-          "wide ×1",
-          "wide ×1",
+          `wide ×${FOLLOW_RATE}`,
+          `wide ×${FOLLOW_RATE}`,
+          `wide ×${FOLLOW_RATE}`,
           "move→split",
           "hold split",
           "move→table",
           "hold table",
         ]);
         const story = shotsOf(cut, 3);
+        // The pokes, the pulls and their responses, each on every wire:
+        // watched at the pace one followed message is, twice its world time.
+        for (const flight of story.slice(1, 4)) {
+          expect(flight.screen).toBe((flight.to - flight.from) / FOLLOW_RATE);
+        }
         expect(story[5]?.notes.map((n) => n.text)).toEqual([
           "B pulls v3: Oat milk arrives.",
           "C pulls v3: Oat milk arrives.",
@@ -245,12 +250,12 @@ describe("compile", () => {
         expect(storyOf(told, 3)).toEqual([
           "open close",
           "move→wide",
-          "wide ×1",
+          `wide ×${FOLLOW_RATE}`,
           "move→close",
           "hold close",
           "move→wide",
-          "wide ×1",
-          "wide ×1",
+          `wide ×${FOLLOW_RATE}`,
+          `wide ×${FOLLOW_RATE}`,
           "move→split",
           "hold split",
           "move→table",
@@ -365,12 +370,12 @@ describe("compile", () => {
           "hold close",
           "move→wide",
           "hold wide",
-          "wide ×1",
+          `wide ×${FOLLOW_RATE}`,
           "move→close",
           "hold close",
           "move→wide",
-          "wide ×1",
-          "wide ×1",
+          `wide ×${FOLLOW_RATE}`,
+          `wide ×${FOLLOW_RATE}`,
           "move→close",
           "hold close",
           "move→table",

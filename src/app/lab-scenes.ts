@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { Category } from "#/domain/grocery-item";
-import type { Scene } from "#/lib/sandbox/scene";
+import type { BeatView, Scene } from "#/lib/sandbox/scene";
 import type { WorldHandle, WorldOptions } from "#/lib/sandbox/world";
 import { addItem, applyIntent } from "#/ui/figure/actions";
 
@@ -54,6 +54,14 @@ const SHORT_LIST: ReadonlyArray<Row> = [
   { name: "Butter", category: "Dairy" },
 ];
 
+// The server has poked, and every poke it sent has landed: the step that says
+// it pokes every phone shows them go, and the next opens on phones it told.
+const pokesLanded = ({ since }: BeatView) => {
+  const pokes = (tag: "Sent" | "Delivered") =>
+    since.filter((e) => e._tag === tag && e.message.kind === "poke").length;
+  return pokes("Sent") > 0 && pokes("Delivered") === pokes("Sent");
+};
+
 const setup: Scene["beats"][number] = {
   caption: "Three phones share a short list.",
   run: adds("A", ...SHORT_LIST),
@@ -73,12 +81,12 @@ export const DROP_SCENE: Scene = {
         since.some((e) => e._tag === "Sent" && e.message.kind === "push"),
     },
     {
-      // The server decides and pokes in the same instant, so one beat waits
-      // for both: a beat that waited for the poke alone would start after it.
+      // The server decides and pokes in the same instant, so one beat shows
+      // both, and the pokes on their way.
       caption:
         "A's push reaches the server, which places it in order and pokes every phone.",
       run: () => Effect.void,
-      until: ({ since }) => since.some((e) => e._tag === "Poked"),
+      until: pokesLanded,
     },
     {
       caption: "B and C pull the new version. Every basin shows one pattern.",
@@ -116,7 +124,7 @@ export const CHECK_SCENE: Scene = {
     {
       caption: "B's push reaches the server, which pokes every phone.",
       run: () => Effect.void,
-      until: ({ since }) => since.some((e) => e._tag === "Poked"),
+      until: pokesLanded,
     },
     {
       caption: "A and C pull the check. Every basin shows one pattern.",
