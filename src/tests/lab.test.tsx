@@ -11,12 +11,14 @@ import { sceneAges } from "#/lib/director/reveal";
 import { type Cut, SERVER, type Shot } from "#/lib/director/shots";
 import {
   type CutCursor,
+  cursorAt,
   cursorAtScreen,
   endCursor,
   indexAt,
   revealedAt,
+  virtualAt,
 } from "#/lib/director/timing";
-import { entryIndexAt } from "#/lib/sandbox/frame";
+import { entryIndexAt, frameAt } from "#/lib/sandbox/frame";
 import { runHeadless } from "#/lib/sandbox/scene";
 import {
   isConverged,
@@ -172,6 +174,7 @@ const marksAt = (
     timeline,
     index,
     snapshot,
+    at: virtualAt(cut, cursor),
     ageOf: sceneAges(cut, timeline, cursor),
     reduced,
     cut,
@@ -347,8 +350,25 @@ describe("the lab's marks", () => {
         const { cut, timeline, cursors } = yield* drop;
         expect(cursors.poking.shot).toBeGreaterThan(0);
         const poking = marksAt(cut, timeline, cursors.poking);
-        expect(poking.marks.ripple ?? 0).toBeGreaterThan(0);
-        expect(poking.marks.ripple ?? 1).toBeLessThan(1);
+        // The poke's hold keeps its dots at the server, and its ripple with
+        // them: the two go out together once the world plays on.
+        expect(poking.marks.ripple).toBeNull();
+        const pokes = poking.snapshot.messages.filter((m) => m.kind === "poke");
+        expect(pokes).toHaveLength(3);
+        const departed = pokes[0]?.departedAt ?? Number.NaN;
+        const span = (pokes[0]?.arriveAt ?? Number.NaN) - departed;
+        for (const share of [0.25, 0.5, 0.75]) {
+          const cursor = cursorAt(cut, departed + span * share);
+          const flying = marksAt(cut, timeline, cursor);
+          const dots = frameAt(timeline, virtualAt(cut, cursor), {
+            through: flying.index,
+          })?.flights.filter((f) => f.message.kind === "poke");
+          expect(dots).toHaveLength(3);
+          for (const dot of dots ?? []) {
+            expect(dot.progress).toBeCloseTo(share);
+            expect(flying.marks.ripple).toBeCloseTo(dot.progress);
+          }
+        }
         const ghosts = (snapshot: typeof poking.snapshot, name: string) =>
           makeStageView()(snapshot, new Map())
             .devices.find((device) => device.name === name)

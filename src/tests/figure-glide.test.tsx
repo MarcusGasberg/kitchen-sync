@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 import { compile } from "#/lib/director/compile";
 import { WET_MILLIS, wetKey } from "#/lib/director/marks";
 import { sceneAges } from "#/lib/director/reveal";
-import { cursorAtScreen, indexAt, revealedAt } from "#/lib/director/timing";
+import {
+  cursorAtScreen,
+  indexAt,
+  revealedAt,
+  virtualAt,
+} from "#/lib/director/timing";
 import { runHeadless } from "#/lib/sandbox/scene";
 import {
   type Anchors,
@@ -170,6 +175,7 @@ describe("a jump's marks", () => {
           timeline,
           index,
           snapshot,
+          at: virtualAt(cut, cursor),
           ageOf: sceneAges(cut, timeline, cursor),
           reduced: false,
           cut,

@@ -22,6 +22,7 @@ import {
   cursorAtScreen,
   indexAt,
   revealedAt,
+  virtualAt,
 } from "#/lib/director/timing";
 import { runHeadless } from "#/lib/sandbox/scene";
 import type { Timeline } from "#/lib/sandbox/trace";
@@ -56,6 +57,7 @@ const marksAt = (
     timeline,
     index,
     snapshot,
+    at: virtualAt(cut, cursor),
     ageOf: sceneAges(cut, timeline, cursor),
     reduced,
     cut,
@@ -307,6 +309,7 @@ describe("stageMarksAt: the device acting", () => {
           timeline,
           index,
           snapshot,
+          at: timeline.entries[index]?.event.at ?? 0,
           ageOf: () => Number.POSITIVE_INFINITY,
           reduced: false,
           cut: null,
@@ -470,6 +473,7 @@ describe("a followed message's card", () => {
             timeline,
             index: sent.index,
             snapshot: sent.entry.snapshot,
+            at: sent.entry.event.at,
             ageOf: () => Number.POSITIVE_INFINITY,
             reduced: false,
             cut: null,

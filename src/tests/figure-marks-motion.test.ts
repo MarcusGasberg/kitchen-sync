@@ -9,7 +9,7 @@ import {
 } from "#/lib/director/compile";
 import { freeAges, sceneAges } from "#/lib/director/reveal";
 import type { Cut, Shot } from "#/lib/director/shots";
-import { type CutCursor, indexAt } from "#/lib/director/timing";
+import { type CutCursor, indexAt, virtualAt } from "#/lib/director/timing";
 import { runHeadless, type SceneResult } from "#/lib/sandbox/scene";
 import {
   NO_MARKS,
@@ -34,6 +34,7 @@ const marksOn = (
     timeline,
     index,
     snapshot,
+    at: virtualAt(cut, cursor),
     ageOf: sceneAges(cut, timeline, cursor),
     reduced,
     cut,
@@ -51,6 +52,7 @@ const freeMarksOf = (result: SceneResult) => {
     timeline,
     index,
     snapshot: entry.snapshot,
+    at: entry.event.at,
     ageOf: freeAges(timeline, entry.event.at),
     reduced: false,
     cut: null,

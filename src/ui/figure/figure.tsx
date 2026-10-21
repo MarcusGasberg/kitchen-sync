@@ -319,6 +319,7 @@ function FigureBody({
           timeline: view.timeline,
           index: frame.index,
           snapshot: frame.snapshot,
+          at: frame.at,
           ageOf: sceneAgeOf ?? freeAges(view.timeline, view.at, opening),
           reduced,
           cut: playhead?.cut ?? null,

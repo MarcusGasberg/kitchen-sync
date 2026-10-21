@@ -26,7 +26,6 @@ import { type CutCursor, indexAt, screenOf } from "#/lib/director/timing";
 import {
   BEHIND_IN_MILLIS,
   behindAt,
-  RIPPLE_MILLIS,
   ROLL_MILLIS,
   rippleAt,
   rollsAt,
@@ -46,6 +45,8 @@ export interface MarkInput {
   // The frame's entry.
   readonly index: number;
   readonly snapshot: WorldSnapshot;
+  // The frame's world instant: messages travel on the world's time.
+  readonly at: number;
   readonly ageOf: AgeOf;
   readonly reduced: boolean;
   // The scene's cut and the playhead in it; null in free play.
@@ -134,7 +135,7 @@ export interface StageMarks {
   // The card of the message a follow is on; null in any other shot, and in
   // free play.
   readonly card: CardLook | null;
-  // The poke's ripple, 0→1, while it runs.
+  // The poke's ripple, 0→1, while its messages are on their way.
   readonly ripple: number | null;
   readonly behind: ReadonlyMap<ClientName, BehindLook>;
   readonly rolls: ReadonlyMap<Place, RollLook>;
@@ -383,17 +384,13 @@ const cardAt = ({
   return { messageId: message.id, lines: payloadOf(message, timeline), open };
 };
 
-// The poke's ripple, 0→1, while it runs. Under reduced motion it is 1 for
-// as long as it runs: the wire band draws its still form, one ring at its
+// The poke's ripple, 0→1, as far out as its messages are down their wires
+// (`rippleAt`), so the two go together. Under reduced motion it is 1 while
+// they are on their way: the wire band draws its still form, one ring at its
 // full reach.
-const rippleLook = ({
-  timeline,
-  index,
-  ageOf,
-  reduced,
-}: MarkInput): number | null => {
-  const age = rippleAt(timeline, index, ageOf);
-  return age === null ? null : progress(age, RIPPLE_MILLIS, reduced);
+const rippleLook = ({ snapshot, at, reduced }: MarkInput): number | null => {
+  const out = rippleAt(snapshot, at);
+  return out === null ? null : reduced ? 1 : out;
 };
 
 const behindLooks = ({

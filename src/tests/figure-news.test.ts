@@ -4,12 +4,15 @@ import { describe, expect } from "vitest";
 import { compile } from "#/lib/director/compile";
 import { progress, sceneAges } from "#/lib/director/reveal";
 import type { Cut } from "#/lib/director/shots";
-import { cursorAtScreen, indexAt, revealedAt } from "#/lib/director/timing";
 import {
-  BEHIND_IN_MILLIS,
-  RIPPLE_MILLIS,
-  ROLL_MILLIS,
-} from "#/lib/director/versions";
+  cursorAt,
+  cursorAtScreen,
+  indexAt,
+  revealedAt,
+  screenOf,
+  virtualAt,
+} from "#/lib/director/timing";
+import { BEHIND_IN_MILLIS, ROLL_MILLIS } from "#/lib/director/versions";
 import { runHeadless } from "#/lib/sandbox/scene";
 import type { Timeline } from "#/lib/sandbox/trace";
 import { stageMarksAt } from "#/ui/figure/stage-marks";
@@ -30,11 +33,35 @@ const newsAt = (
     timeline,
     index,
     snapshot,
+    at: virtualAt(cut, cursor),
     ageOf: sceneAges(cut, timeline, cursor),
     reduced,
     cut,
     cursor,
   });
+};
+
+// The last poke's messages, as the world sends them, and the screen time at
+// which they are `share` of the way down their wires.
+const pokesOf = (cut: Cut, timeline: Timeline) => {
+  const { snapshot } = lastEntryWhere(
+    timeline,
+    (e) => e._tag === "Sent" && e.message.kind === "poke",
+  ).entry;
+  const pokes = snapshot.messages.filter((m) => m.kind === "poke");
+  const departedAt = pokes[0]?.departedAt ?? null;
+  const arriveAt = pokes[0]?.arriveAt ?? null;
+  if (departedAt === null || arriveAt === null) {
+    throw new Error("no poke on its way");
+  }
+  const along = (share: number) => {
+    const at = departedAt + (arriveAt - departedAt) * share;
+    const cursor = cursorAt(cut, at);
+    // In proportion through the shot that plays it.
+    expect(virtualAt(cut, cursor)).toBeCloseTo(at);
+    return screenOf(cut, cursor);
+  };
+  return { pokes, along };
 };
 
 describe("the news in a scene's marks", () => {
@@ -55,14 +82,14 @@ describe("the news in a scene's marks", () => {
           timeline,
           (e) => e._tag === "Poked",
         );
-        const rippling = newsAt(
-          cut,
-          timeline,
-          shown(poked) + RIPPLE_MILLIS / 2,
-        );
-        expect(rippling.ripple).toBeCloseTo(
-          progress(RIPPLE_MILLIS / 2, RIPPLE_MILLIS, false),
-        );
+        // Shown in a hold, the pokes wait at the server: nothing ripples.
+        const { pokes, along } = pokesOf(cut, timeline);
+        expect(pokes).toHaveLength(3);
+        expect(newsAt(cut, timeline, shown(poked) + 300).ripple).toBeNull();
+        // Half-way down their wires, the ripple is half-way out.
+        const rippling = newsAt(cut, timeline, along(0.5));
+        expect(rippling.ripple).toBeCloseTo(0.5);
+        expect(newsAt(cut, timeline, along(0.25)).ripple).toBeCloseTo(0.25);
         // The poke has not reached B yet: B is not told.
         expect(rippling.behind.has("B")).toBe(false);
 
@@ -100,15 +127,12 @@ describe("the news in a scene's marks", () => {
         const cut = compile(result, OAT_SCENE);
         const { timeline } = result;
         const at = (index: number) => revealedAt(cut, timeline, index) ?? 0;
-        const { index: poked } = lastEntryWhere(
-          timeline,
-          (e) => e._tag === "Poked",
-        );
-        // Still: the whole ripple for as long as it runs, then none.
-        expect(newsAt(cut, timeline, at(poked) + 100, true).ripple).toBe(1);
-        expect(
-          newsAt(cut, timeline, at(poked) + RIPPLE_MILLIS, true).ripple,
-        ).toBeNull();
+        // Still: the whole ripple while the pokes are on their way, then
+        // none.
+        const { along } = pokesOf(cut, timeline);
+        expect(newsAt(cut, timeline, along(0.25), true).ripple).toBe(1);
+        expect(newsAt(cut, timeline, along(0.75), true).ripple).toBe(1);
+        expect(newsAt(cut, timeline, along(1), true).ripple).toBeNull();
         const { index: told } = lastEntryWhere(
           timeline,
           (e) =>

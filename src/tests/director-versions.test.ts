@@ -5,7 +5,6 @@ import { freeAges } from "#/lib/director/reveal";
 import { SERVER } from "#/lib/director/shots";
 import {
   behindAt,
-  RIPPLE_MILLIS,
   ROLL_MILLIS,
   rippleAt,
   rollsAt,
@@ -107,20 +106,31 @@ describe("behindAt", () => {
 });
 
 describe("rippleAt", () => {
-  it.effect("runs from the poke for RIPPLE_MILLIS", () =>
-    Effect.gen(function* () {
-      const { timeline } = yield* runHeadless(OAT_SCENE);
-      const { index: poked } = lastEntryWhere(
-        timeline,
-        (e) => e._tag === "Poked",
-      );
-      expect(rippleAt(timeline, poked, agesAt(timeline, poked))).toBe(0);
-      expect(rippleAt(timeline, poked, agesAt(timeline, poked, 400))).toBe(400);
-      expect(
-        rippleAt(timeline, poked, agesAt(timeline, poked, RIPPLE_MILLIS)),
-      ).toBeNull();
-      // Before any poke, nothing ripples.
-      expect(rippleAt(timeline, 0, agesAt(timeline, 0))).toBeNull();
-    }),
+  it.effect(
+    "keeps the poke's time: as far out as its messages are down their wires",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(OAT_SCENE);
+        // The world as the last poke leaves: every poke it sent on its wire.
+        const { snapshot } = lastEntryWhere(
+          timeline,
+          (e) => e._tag === "Sent" && e.message.kind === "poke",
+        ).entry;
+        const pokes = snapshot.messages.filter((m) => m.kind === "poke");
+        expect(pokes).toHaveLength(3);
+        const departed = pokes[0]?.departedAt ?? Number.NaN;
+        const span = (pokes[0]?.arriveAt ?? Number.NaN) - departed;
+        // Waiting at the server, as a hold keeps them: nothing ripples.
+        expect(rippleAt(snapshot, departed)).toBeNull();
+        expect(rippleAt(snapshot, departed + span / 4)).toBeCloseTo(0.25);
+        expect(rippleAt(snapshot, departed + span / 2)).toBeCloseTo(0.5);
+        // Landed: the news is told.
+        expect(rippleAt(snapshot, departed + span)).toBeNull();
+        // Before any poke, nothing ripples.
+        const first = timeline.entries[0];
+        expect(
+          first && rippleAt(first.snapshot, first.event.at + span / 2),
+        ).toBeNull();
+      }),
   );
 });

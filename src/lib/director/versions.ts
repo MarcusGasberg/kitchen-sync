@@ -8,7 +8,6 @@ import { type Place, SERVER } from "./shots";
 
 // Screen milliseconds at 1×.
 export const ROLL_MILLIS = 600;
-export const RIPPLE_MILLIS = 1200;
 export const BEHIND_IN_MILLIS = 200;
 
 export interface Roll {
@@ -36,8 +35,6 @@ interface Read {
   readonly versions: ReadonlyArray<VersionChange>;
   // The entries at which a poke reached each client, in order.
   readonly told: ReadonlyMap<ClientName, ReadonlyArray<number>>;
-  // The entries at which the server poked, in order.
-  readonly poked: ReadonlyArray<number>;
 }
 
 const known = new WeakMap<Timeline, Read>();
@@ -49,7 +46,6 @@ const read = (timeline: Timeline): Read => {
   if (cached !== undefined) return cached;
   const versions: Array<VersionChange> = [];
   const told = new Map<ClientName, Array<number>>();
-  const poked: Array<number> = [];
   let previous: WorldSnapshot | undefined;
   for (const [index, { event, snapshot }] of timeline.entries.entries()) {
     if (previous !== undefined) {
@@ -75,7 +71,6 @@ const read = (timeline: Timeline): Read => {
         }
       }
     }
-    if (event._tag === "Poked") poked.push(index);
     if (event._tag === "Delivered" && event.message.kind === "poke") {
       const list = told.get(event.message.client) ?? [];
       list.push(index);
@@ -83,7 +78,7 @@ const read = (timeline: Timeline): Read => {
     }
     previous = snapshot;
   }
-  const made = { versions, told, poked };
+  const made = { versions, told };
   known.set(timeline, made);
   return made;
 };
@@ -148,15 +143,27 @@ export const behindAt = (
   return behind;
 };
 
-// The age of the latest poke at or before the frame's entry, while it is
-// younger than RIPPLE_MILLIS; otherwise null.
+// How far out the poke's news is at world instant `at`, 0→1: as far as the
+// latest poke's messages in `snapshot` (the frame's) are down their wires,
+// while they travel; otherwise null. The ripple is those messages, so it
+// keeps their time, not the reveal clock's: a hold that keeps them at the
+// server keeps it there too, and slow motion slows both.
 export const rippleAt = (
-  timeline: Timeline,
-  index: number,
-  ageOf: AgeOf,
+  snapshot: WorldSnapshot,
+  at: number,
 ): number | null => {
-  const last = lastAtOrBefore(read(timeline).poked, index);
-  if (last === undefined) return null;
-  const age = ageOf(last);
-  return age >= 0 && age < RIPPLE_MILLIS ? age : null;
+  // A poke sends one message to every online device in one instant; a held
+  // one has not left, and waits at the server with its dot.
+  const pokes = snapshot.messages.filter(
+    (m) => m.kind === "poke" && m.departedAt !== null && m.arriveAt !== null,
+  );
+  const left = Math.max(...pokes.map((m) => m.departedAt ?? -Infinity));
+  const landed = Math.max(
+    ...pokes.flatMap((m) =>
+      m.departedAt === left ? [m.arriveAt ?? -Infinity] : [],
+    ),
+  );
+  if (!(landed > left)) return null;
+  const out = (at - left) / (landed - left);
+  return out > 0 && out < 1 ? out : null;
 };
