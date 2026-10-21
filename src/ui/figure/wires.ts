@@ -106,23 +106,20 @@ export const rippleOf = (wires: ReadonlyArray<Wire>): Ripple | null => {
   return { at, reach, floor };
 };
 
-// Requests rise this far to one side of a wire and replies fall as far to the
-// other, so a push and the pull response passing it never sit on each other.
-export const LANE_PX = 6;
-
-// How far above a device's pane a message's dot stops, at its lane and
-// however its wire leans: half its label's height (7 px of 12 px type), the
+// How far above a device's pane a message's dot stops on its wire, however
+// the wire leans: half its label's height (7 px of 12 px type), the
 // label's halo (3 px) and a gap (2 px). A message leaving, held at or
 // arriving at a device, and a loss there, never sits on the pane's header,
 // whose state line is the word the caption points at. The wire itself is
 // drawn on to the pane.
 export const DEVICE_INSET_PX = 7 + 3 + 2;
 
-// Two messages on one side of one wire can still meet: an ack and the poke
-// its push set off leave the server in the same instant for the same device.
-// A message within this distance of earlier ones queues behind them, toward
-// its sender, so that consecutive dots end up at least STACK_PX apart and
-// within its lane (see `queue`).
+// Two messages going one way on one wire can meet: an ack and the poke its
+// push set off leave the server in the same instant for the same device. A
+// message within this distance of earlier ones queues behind them, toward its
+// sender, so that consecutive dots end up at least STACK_PX apart and on its
+// wire (see `queue`). Two going opposite ways pass each other, their labels
+// on either side.
 export const STACK_PX = 16;
 
 export interface Placed {
@@ -130,21 +127,13 @@ export interface Placed {
   readonly message: Message;
   readonly x: number;
   readonly y: number;
-  // Which side of the dot its label sits: away from the wire.
+  // Which side of the dot its label sits, by which way it goes: a request's
+  // before it, a reply's after.
   readonly side: "start" | "end";
   readonly held: boolean;
   // Virtual milliseconds since it was lost; null for a message in flight.
   readonly age: number | null;
 }
-
-// A unit vector across the wire, to the right as seen from the server.
-const across = (wire: Wire): Point => {
-  const dx = wire.device.x - wire.server.x;
-  const dy = wire.device.y - wire.server.y;
-  const length = Math.sqrt(dx * dx + dy * dy) || 1;
-  // `|| 0`: a vertical wire gives no negative zero.
-  return { x: dy / length || 0, y: -dx / length || 0 };
-};
 
 interface Lane {
   readonly from: Point;
@@ -153,26 +142,22 @@ interface Lane {
 
 const fromDeviceOf = (message: Message) => senderOf(message.kind) === "client";
 
-// The path a message travels, from its sender to its receiver: its wire, set
-// LANE_PX to its side, from the server's end to DEVICE_INSET_PX above the
-// device's pane.
+// The path a message travels, from its sender to its receiver: along its
+// wire, from the server's end to DEVICE_INSET_PX above the device's pane.
 const laneOf = (wire: Wire, fromDevice: boolean): Lane => {
-  const normal = across(wire);
-  const side = fromDevice ? -1 : 1;
-  const offset = { x: side * LANE_PX * normal.x, y: side * LANE_PX * normal.y };
   const dx = wire.device.x - wire.server.x;
   const dy = wire.device.y - wire.server.y;
-  // The share of the wire the lane runs, so that its device end, lane offset
-  // and all, sits DEVICE_INSET_PX over the pane.
+  // The share of the wire it runs, so that its device end sits
+  // DEVICE_INSET_PX over the pane.
   const reach =
-    dy > 0
-      ? Math.min(1, Math.max(0, (dy - DEVICE_INSET_PX - offset.y) / dy))
-      : 1;
-  const server = { x: wire.server.x + offset.x, y: wire.server.y + offset.y };
-  const device = { x: server.x + dx * reach, y: server.y + dy * reach };
+    dy > 0 ? Math.min(1, Math.max(0, (dy - DEVICE_INSET_PX) / dy)) : 1;
+  const device = {
+    x: wire.server.x + dx * reach,
+    y: wire.server.y + dy * reach,
+  };
   return fromDevice
-    ? { from: device, to: server }
-    : { from: server, to: device };
+    ? { from: device, to: wire.server }
+    : { from: wire.server, to: device };
 };
 
 export const placeMessage = (
@@ -200,8 +185,8 @@ const byClient = (wires: ReadonlyArray<Wire>) =>
 const lengthOf = ({ from, to }: Lane) =>
   Math.hypot(to.x - from.x, to.y - from.y);
 
-// The distance of each flight from its sender, in pixels, once those on one
-// wire and side are kept STACK_PX apart. Two passes: from the front (nearest
+// The distance of each flight from its sender, in pixels, once those going one
+// way on one wire are kept STACK_PX apart. Two passes: from the front (nearest
 // the receiver) back, each sits no further than STACK_PX behind the one ahead;
 // then, if the rearmost has been pushed past the sender, from the sender
 // forward, each sits no nearer than STACK_PX in front of the one behind.
@@ -244,7 +229,7 @@ export const placeFlights = (
           },
         ];
   });
-  // The flights of each wire and side, in order, queue together.
+  // The flights going one way on each wire, in order, queue together.
   const lanes = new Map<string, Array<number>>();
   for (const [index, { message, wire }] of onWires.entries()) {
     const lane = `${wire.client}:${senderOf(message.kind)}`;

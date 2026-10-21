@@ -5,7 +5,6 @@ import { WireBand } from "#/ui/figure/wire-band";
 import {
   CORNER_PX,
   DEVICE_INSET_PX,
-  LANE_PX,
   layWires,
   type Placed,
   placeFlights,
@@ -134,21 +133,38 @@ describe("layWires", () => {
 });
 
 describe("placeMessage", () => {
-  it("rises from the device on one side of the wire", () => {
+  it("rises from the device along its wire, labelled on one side", () => {
     const start = placeMessage(wire, message(), 0);
     const half = placeMessage(wire, message(), 0.5);
-    expect(start).toMatchObject({ x: 100 - LANE_PX, y: near, side: "start" });
-    expect(half).toMatchObject({ x: 100 - LANE_PX, y: near / 2 });
+    expect(start).toMatchObject({ x: 100, y: near, side: "start" });
+    expect(half).toMatchObject({ x: 100, y: near / 2 });
   });
 
-  it("falls from the server on the other side", () => {
+  it("falls from the server along the same wire, labelled on the other", () => {
     const ack = message({ kind: "ack", label: "ack #5" });
     expect(placeMessage(wire, ack, 0)).toMatchObject({
-      x: 100 + LANE_PX,
+      x: 100,
       y: 0,
       side: "end",
     });
-    expect(placeMessage(wire, ack, 1)).toMatchObject({ y: near });
+    expect(placeMessage(wire, ack, 1)).toMatchObject({ x: 100, y: near });
+  });
+
+  it("rides on a leaning wire, never beside it", () => {
+    const leaning: Wire = {
+      client: "C",
+      server: { x: 100, y: 0 },
+      device: { x: 500, y: 100 },
+    };
+    for (const kind of ["pull", "pullResponse"] as const) {
+      for (const progress of [0, 0.3, 1]) {
+        const { x, y } = placeMessage(leaning, message({ kind }), progress);
+        // Its distance off the line through the wire's two ends.
+        expect(
+          Math.abs((x - 100) * 100 - (y - 0) * 400) / Math.hypot(400, 100),
+        ).toBeCloseTo(0, 6);
+      }
+    }
   });
 
   it("keeps a held message at its sender", () => {
@@ -256,8 +272,8 @@ describe("placing a frame", () => {
         { message: poke, progress: 0.5 },
       ],
     );
-    expect(first).toMatchObject({ x: 100 + LANE_PX, y: near / 2 });
-    expect(second?.x).toBe(100 + LANE_PX);
+    expect(first).toMatchObject({ x: 100, y: near / 2 });
+    expect(second?.x).toBe(100);
     expect((first?.y ?? 0) - (second?.y ?? 0)).toBeCloseTo(STACK_PX);
   });
 });
