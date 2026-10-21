@@ -536,6 +536,14 @@ export function Stage({
       : project(camera, size, { x: paneBox.left, y: paneBox.top }).y -
         DEVICE_INSET_PX * camera.scale;
   const room = spot?.kind === "room" ? spot : null;
+  // The room's edge stays set once its notes go, so the plane fades back in
+  // where it faded out. The share's comes from the window alone.
+  const roomTop = room?.top ?? null;
+  const [roomEdge, setRoomEdge] = useState<number | null>(null);
+  useEffect(() => {
+    if (roomTop !== null) setRoomEdge(roomTop);
+  }, [roomTop]);
+  const roomFrom = roomTop ?? roomEdge;
   const noteKey = cue.kind === "shot" ? cue.cursor.shot : -1;
   // The foot under the window: a narrow viewport's notes for the whole
   // scene, kept two notes tall so the page holds still between holds, and
@@ -563,20 +571,19 @@ export function Stage({
           data-notes={fade ? "" : undefined}
           data-room={room === null ? undefined : ""}
           style={
-            fade
-              ? ({
-                  "--share-from": `${shareFrom(size)}px`,
-                  // From the framing margin before the share: a subject
-                  // framed against it keeps full ink.
-                  "--fade-from": `${shareFrom(size) - MARGIN_PX}px`,
-                } as CSSProperties)
-              : room !== null
-                ? ({
-                    "--room-from": `${room.top}px`,
-                    // From the frame's foot, a margin above the room.
-                    "--room-fade-from": `${room.top - MARGIN_PX}px`,
-                  } as CSSProperties)
-                : undefined
+            {
+              ...(beside && {
+                "--share-from": `${shareFrom(size)}px`,
+                // From the framing margin before the share: a subject
+                // framed against it keeps full ink.
+                "--fade-from": `${shareFrom(size) - MARGIN_PX}px`,
+              }),
+              ...(roomFrom !== null && {
+                "--room-from": `${roomFrom}px`,
+                // From the frame's foot, a margin above the room.
+                "--room-fade-from": `${roomFrom - MARGIN_PX}px`,
+              }),
+            } as CSSProperties
           }
         >
           <div

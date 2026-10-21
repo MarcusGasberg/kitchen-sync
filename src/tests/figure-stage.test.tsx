@@ -1376,6 +1376,117 @@ describe("Stage", () => {
     expect(lensOf(phone.container)?.hasAttribute("data-notes")).toBe(false);
   });
 
+  it("keeps the share's edge once the notes go, so the plane fades back in where it faded out", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const stage = (cue: Cue) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={cue}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const restore = stubLayout(LAYOUT);
+    const { container, rerender } = render(stage(closeOn("A", NOTED)));
+    rerender(stage(closeOn("A")));
+    restore();
+    const lens = container.querySelector<HTMLElement>("[data-anchor='lens']");
+    expect(lens?.hasAttribute("data-notes")).toBe(false);
+    expect(
+      Number.parseFloat(lens?.style.getPropertyValue("--share-from") ?? ""),
+    ).toBeCloseTo(660);
+  });
+
+  it("keeps the room's edge once a wide hold's notes go, so the plane fades back in where it faded out", async () => {
+    const view = makeStageView()(await snapshot(), new Map());
+    const wide = (notes: Shot["notes"]): Cue => ({
+      kind: "shot",
+      cut: {
+        shots: [
+          {
+            framing: "wide",
+            subjects: [],
+            from: 0,
+            to: 0,
+            rate: 0,
+            screen: 1000,
+            through: 0,
+            enact: null,
+            notes,
+            move: false,
+            opening: false,
+            step: 0,
+          },
+        ],
+        steps: [{ label: "Test.", first: 0, end: 1, startedAt: 0, endedAt: 0 }],
+      },
+      cursor: { shot: 0, offset: 0 },
+    });
+    const stage = (cue: Cue) => (
+      <Stage
+        view={view}
+        flights={[]}
+        lost={[]}
+        settle
+        scale={1}
+        live={false}
+        cue={cue}
+        reduced={false}
+        onFocus={noop}
+        onIntent={noop}
+        onAdd={noop}
+        onRetry={noop}
+      />
+    );
+    const restore = stubLayout(LAYOUT);
+    const { container, rerender } = render(
+      stage(wide([{ on: { kind: "server" }, text: "The server pokes." }])),
+    );
+    const lens = () =>
+      container.querySelector<HTMLElement>("[data-anchor='lens']");
+    const edge = lens()?.style.getPropertyValue("--room-from");
+    expect(edge).toBeTruthy();
+    rerender(stage(wide([])));
+    restore();
+    expect(lens()?.hasAttribute("data-room")).toBe(false);
+    expect(lens()?.style.getPropertyValue("--room-from")).toBe(edge);
+  });
+
+  // jsdom draws no masks, so the rule is pinned where it is written: the
+  // share and the room fade the plane out and back by a registered strength
+  // that eases with the notes' leader, never in one frame, and at once under
+  // reduced motion.
+  it("fades the share and the room in and out, at once under reduced motion", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/ui/figure/stage.module.css"),
+      "utf8",
+    );
+    for (const strength of ["--share-on", "--room-on"]) {
+      expect(css).toMatch(
+        new RegExp(`@property ${strength} \\{[^}]*syntax: "<number>"`),
+      );
+    }
+    const lens = /\n\.lens \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(lens).toMatch(/transition:[^;]*--share-on[^;]*--room-on/);
+    expect(/\.lens\[data-notes\] \{([^}]*)\}/.exec(css)?.[1]).toMatch(
+      /--share-on: 1;/,
+    );
+    expect(/\.lens\[data-room\] \{([^}]*)\}/.exec(css)?.[1]).toMatch(
+      /--room-on: 1;/,
+    );
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.lens \{\s*transition: none;/,
+    );
+  });
+
   // An add acted out on A, then held on A with its note: one frame, two
   // views. The add's row lands as the hold begins and A's pane grows, so the
   // ease into the hold starts from the view the camera drew, not from the

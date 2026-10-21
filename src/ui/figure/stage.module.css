@@ -29,15 +29,35 @@
   }
 }
 
+/* How far the notes' share, and the room under a wide or a table frame, have
+   faded the plane out: 0 to 1. Registered, so they ease. */
+@property --share-on {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --room-on {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 /* The lens over the plane: the window's four edges fade to the page over
    24 px (FEATHER_PX in note-placement.ts), so no glyph is sliced at them.
    While notes show beside the subjects, the plane also fades out from
    `--fade-from` (the framing margin before their share, set by the stage)
    to `--share-from`, so their words sit on the page and a subject framed
-   against the share keeps full ink. The layers intersect. A mask reads
-   alpha alone: #000 is opaque, never a colour on screen. Forced colours
-   keep the feather too: a line fading to a partial CanvasText within 24 px
-   of the edge is better than a glyph sliced at it. */
+   against the share keeps full ink. A wide or a table hold keeps its whole
+   frame; its notes go in the room under it, where the plane fades out the
+   same way: from the frame's foot (`--room-fade-from`) to the room's top
+   (`--room-from`). The share and the room come and go with their notes,
+   easing as the notes' leader draws (300 ms), so the plane never drops out
+   or comes back in one frame; the stage keeps their edges set while they
+   go. The layers intersect. A mask reads alpha alone: #000 is opaque, never
+   a colour on screen. Forced colours keep the feather too: a line fading to
+   a partial CanvasText within 24 px of the edge is better than a glyph
+   sliced at it. */
 .lens {
   --feather: var(--space-5);
   --across: linear-gradient(
@@ -54,36 +74,39 @@
     #000 calc(100% - var(--feather)),
     transparent
   );
+  --share: linear-gradient(
+    to right,
+    #000 var(--fade-from, 100%),
+    rgb(0 0 0 / calc(1 - var(--share-on))) var(--share-from, 100%)
+  );
+  --room: linear-gradient(
+    to bottom,
+    #000 var(--room-fade-from, 100%),
+    rgb(0 0 0 / calc(1 - var(--room-on))) var(--room-from, 100%)
+  );
   position: absolute;
   inset: 0;
-  -webkit-mask-image: var(--across), var(--down);
-  mask-image: var(--across), var(--down);
+  -webkit-mask-image: var(--across), var(--down), var(--share), var(--room);
+  mask-image: var(--across), var(--down), var(--share), var(--room);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
+  transition:
+    --share-on 300ms var(--ease-out),
+    --room-on 300ms var(--ease-out);
 }
 
 .lens[data-notes] {
-  --share: linear-gradient(
-    to right,
-    #000 var(--fade-from),
-    transparent var(--share-from)
-  );
-  -webkit-mask-image: var(--across), var(--down), var(--share);
-  mask-image: var(--across), var(--down), var(--share);
+  --share-on: 1;
 }
 
-/* A wide or a table hold keeps its whole frame; its notes go in the room
-   under it, where the plane fades out the same way: from the frame's foot
-   (`--room-fade-from`) to the room's top (`--room-from`), both set by the
-   stage. */
 .lens[data-room] {
-  --room: linear-gradient(
-    to bottom,
-    #000 var(--room-fade-from),
-    transparent var(--room-from)
-  );
-  -webkit-mask-image: var(--across), var(--down), var(--room);
-  mask-image: var(--across), var(--down), var(--room);
+  --room-on: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lens {
+    transition: none;
+  }
 }
 
 /* Slow motion's rate, in the window's top-left corner just inside its
