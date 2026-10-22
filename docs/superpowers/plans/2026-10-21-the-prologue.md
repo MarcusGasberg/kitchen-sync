@@ -343,9 +343,24 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
 
 **Files:** `src/lib/director/wait.ts`, test `director-wait.test.ts`.
 
-- [ ] **Step 1:** `waitsOf(inputs, timeline)`: for an engine `Apply`, `to` is the `Applied` (or `RefusedLocally`) at the input's instant; for a `ClassicChange`, `to` is the next `Saved` or `SaveFailed` for that client after the input; `waiting` until then.
-- [ ] **Step 2:** `waitTallyAt(waits, client, at)` (Decision: last wait, count and total). Tests: every Kitchen Sync wait is 0; a classic wait in train weather is 1800 ms; offline is a failed 0 ms; a cut mid-flight is a failed wait of the time it took.
-- [ ] **Step 3:** Commit `feat(director): every change's wait, from its input to its row`.
+- [x] **Step 1:** `waitsOf(inputs, timeline)`: for an engine `Apply`, `to` is the `Applied` (or `RefusedLocally`) at the input's instant; for a `ClassicChange`, `to` is the next `Saved` or `SaveFailed` for that client after the input; `waiting` until then.
+- [x] **Step 2:** `waitTallyAt(waits, client, at)` (Decision: last wait, count and total). Tests: every Kitchen Sync wait is 0; a classic wait in train weather is 1800 ms; offline is a failed 0 ms; a cut mid-flight is a failed wait of the time it took.
+- [x] **Step 3:** Commit `feat(director): every change's wait, from its input to its row`.
+
+#### Task 5, code-level steps (written against `f2e582d`)
+
+**Notes found against the code.**
+- `compile.ts`'s `actsOf` already pairs an input with the entry that answers it (same client, same instant, first not yet taken); `waitsOf` pairs the same way, so two changes in one instant each get their own entry.
+- A Kitchen Sync change's row is in its store the instant the input runs: its `Applied` (or `RefusedLocally`, a failed wait of 0 ms) is at the input's own time.
+- A classic change ends at the first `Saved` or `SaveFailed` of its client, not yet taken by an earlier change, at or after its instant. Matching on `SavingBegan` instead would lose a change that overlaps another (they share one `saving` flag, so the second records no `SavingBegan`); the pane disables its controls while saving, so the plan's rule is the honest one.
+- A trimmed timeline (free play keeps 2,000 entries) has lost the answers of its oldest inputs, so `waitsOf` skips inputs from before its first entry, and at its first instant (which may have lost some of its entries), rather than pair them with a later change's answer or leave them waiting forever; the tally then counts the changes it still holds.
+- `waitTallyAt` sees each wait as it was at `at`: a wait that ends after `at` is still `waiting` there, and the total counts its time so far, so the tally counts up.
+
+**What the build found (2026-10-22).** The world's clock moves in 50 ms quanta, so a message lands on the first quantum at or after its `arriveAt`. With the office at 80 ms one-way, each leg lands at 100 ms and a classic round trip is **200 ms**, not the Decisions' 160 ms (its `Sent` still says `arriveAt` = sent + 80). Café (300 ms) and train (900 ms) are multiples of 50 and give exactly 600 ms and 1800 ms. The tally reports what the world records, so Task 12's claim ("160, 600, 1800") holds only if the office latency becomes a multiple of 50 (for example 100 ms); `WEATHERS` keeps the confirmed 80 ms until the user decides.
+
+**Step 1 (`src/lib/director/wait.ts`):** `Wait { client, from, to, outcome }`; `waitsOf(inputs, timeline)`: for each recorded `Apply` (paired with its client's `Applied`/`RefusedLocally` at its instant: `shown`/`failed` with `to = from`) and `ClassicChange` (paired with the next `Saved`/`SaveFailed` of its client at or after its instant: `shown`/`failed` with `to` the answer's time); unpaired, `to: null` and `waiting`. Other inputs make no wait.
+
+**Step 2:** `waitTallyAt(waits, client, at)`: of the client's waits with `from ≤ at`, each as seen at `at`; `last` the latest (null if none), `count`, `totalMillis` (each wait's `to`, or `at` while waiting, minus its `from`). Tests (`src/tests/director-wait.test.ts`, written first and seen failing), on one recorded world at 80 ms with the weather of Task 3: every Kitchen Sync wait is 0 ms and `shown`; the office round trip is 200 ms (see the note below); the train's 1800 ms, and at 900 ms into it the tally's last wait is `waiting` with 900 ms counted; the tunnel's classic add is a failed 0 ms; a reply cut 100 ms in is a failed 100 ms wait; a refresh makes no wait; the tally's count and total over the classic phone's waits; a local refusal is a failed 0 ms wait; an input past the timeline's end is `waiting`; a trimmed timeline's inputs at or before its first instant make no wait.
 
 ---
 
