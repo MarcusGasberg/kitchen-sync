@@ -4,7 +4,7 @@ import { FOLLOW_RATE } from "#/lib/director/compile";
 import {
   type ChangeKind,
   changesOf,
-  ghostsOf,
+  ghostsAt,
   LEAVE_MILLIS,
   leavingAt,
   WET_MILLIS,
@@ -241,10 +241,11 @@ const heldBy = (
 // about that the row's place does not hold yet, as that shot first shows
 // it. The world holds while the camera moves, so without them the move
 // would frame a place without its change, and the hold would cut to the
-// frame with it as the change lands. A device's row to come is its ghost,
-// laid out already.
+// frame with it as the change lands. A device's row to come is laid out
+// already when it is a ghost: once a poke has told it (`ghostsAt`).
 const arrivingOf = ({
   timeline,
+  index,
   snapshot,
   cut,
   cursor,
@@ -266,7 +267,7 @@ const arrivingOf = ({
     if (heldBy(snapshot, where, itemId) !== undefined) continue;
     if (
       where !== SERVER &&
-      ghostsOf(snapshot, where).some((ghost) => ghost.id === itemId)
+      ghostsAt(timeline, index, where).some((ghost) => ghost.id === itemId)
     ) {
       continue;
     }

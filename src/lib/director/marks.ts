@@ -8,6 +8,7 @@ import type {
 } from "#/lib/sandbox/trace";
 import type { AgeOf } from "./reveal";
 import { type Place, SERVER } from "./shots";
+import { toldAt } from "./versions";
 
 // What changed where: marks a stage draws from the trace itself, whatever
 // shot is playing. Wet ink on a row that just changed; a ghost of a row a
@@ -261,9 +262,9 @@ export const leavingAt = (
   return leaving.reverse();
 };
 
-// The server's rows a device has not pulled yet, drawn as ghosts ("not here
-// yet") until a pull brings them. A row the device knows and removed itself
-// is its own change, not a ghost.
+// The server's rows a device has not pulled yet. A row the device knows and
+// removed itself is its own change, not one it lacks. A figure draws only
+// those the device knows it lacks (`ghostsAt`).
 export const ghostsOf = (
   snapshot: WorldSnapshot,
   client: ClientName,
@@ -278,4 +279,28 @@ export const ghostsOf = (
   return snapshot.server.items.filter(
     (item) => !state.items.has(item.id) && !state.base.has(item.id),
   );
+};
+
+// The rows a device knows it lacks at entry `index`, drawn as ghosts ("not
+// here yet"): the server's rows it has not pulled (`ghostsOf`) up to the
+// version a poke told it of (`toldAt`), from that poke's delivery until the
+// pull that fills them. A device no poke has told shows none.
+export const ghostsWithin = (
+  snapshot: WorldSnapshot,
+  client: ClientName,
+  told: number | undefined,
+): ReadonlyArray<GroceryItem> =>
+  told === undefined
+    ? []
+    : ghostsOf(snapshot, client).filter((item) => item.version <= told);
+
+export const ghostsAt = (
+  timeline: Timeline,
+  index: number,
+  client: ClientName,
+): ReadonlyArray<GroceryItem> => {
+  const snapshot = timeline.entries[index]?.snapshot;
+  return snapshot === undefined
+    ? []
+    : ghostsWithin(snapshot, client, toldAt(timeline, index).get(client));
 };

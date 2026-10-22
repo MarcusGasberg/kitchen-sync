@@ -7,6 +7,7 @@ import {
   changesOf,
   diffItems,
   entryBeforeUpdate,
+  ghostsAt,
   ghostsOf,
   LEAVE_MILLIS,
   leavingAt,
@@ -118,6 +119,41 @@ describe("diffItems", () => {
       const { timeline } = yield* runHeadless(REMOVE_FIRST_SCENE);
       expect(changesOf(timeline).filter((c) => c.kind === "moved")).toEqual([]);
     }),
+  );
+});
+
+describe("ghostsAt", () => {
+  it.effect(
+    "shows a device the rows it lacks only once a poke has told it, until the pull that fills them",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(MILK_SCENE);
+        const names = (index: number, client: string) =>
+          ghostsAt(timeline, index, client).map((item) => item.name);
+        // The server holds milk and pokes: B lacks it, but does not know.
+        const { entry, index: poked } = entryWhere(
+          timeline,
+          (e) => e._tag === "Poked",
+        );
+        expect(ghostsOf(entry.snapshot, "B").map((item) => item.name)).toEqual([
+          "Milk",
+        ]);
+        expect(names(poked, "B")).toEqual([]);
+        // The poke reaches B: it knows it lacks milk.
+        const { index: told } = entryWhere(
+          timeline,
+          (e) =>
+            e._tag === "Delivered" &&
+            e.message.kind === "poke" &&
+            e.message.client === "B",
+        );
+        expect(names(told, "B")).toEqual(["Milk"]);
+        // A holds milk as its own change, and an unknown device has none.
+        expect(names(told, "A")).toEqual([]);
+        expect(names(told, "Z")).toEqual([]);
+        // The pull fills them.
+        expect(names(timeline.entries.length - 1, "B")).toEqual([]);
+      }),
   );
 });
 

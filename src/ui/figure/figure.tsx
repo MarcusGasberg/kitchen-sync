@@ -16,6 +16,7 @@ import {
   freeOpening,
   sceneAges,
 } from "#/lib/director/reveal";
+import { toldAt } from "#/lib/director/versions";
 import { frameAt, lostAt } from "#/lib/sandbox/frame";
 import type { Player } from "#/lib/sandbox/player";
 import type { Scene } from "#/lib/sandbox/scene";
@@ -147,16 +148,17 @@ function FigureBody({
       : frameAt(view.timeline, view.at, { reduced, through: view.index });
   const snapshot = frame?.snapshot ?? null;
   const clientIds = view?.clientIds;
-  const stage = useMemo(
-    () =>
-      snapshot === null || clientIds === undefined
-        ? null
-        : stageOf(snapshot, clientIds),
-    [stageOf, snapshot, clientIds],
-  );
-  // The code's lit span follows the frame's entry, not every instant.
   const timeline = view?.timeline;
   const index = frame?.index ?? -1;
+  // A device's ghosts are what a poke has told it it lacks (`toldAt`).
+  const stage = useMemo(
+    () =>
+      snapshot === null || clientIds === undefined || timeline === undefined
+        ? null
+        : stageOf(snapshot, clientIds, toldAt(timeline, index)),
+    [stageOf, snapshot, clientIds, timeline, index],
+  );
+  // The code's lit span follows the frame's entry, not every instant.
   const lit = useMemo(
     () =>
       code === undefined || timeline === undefined

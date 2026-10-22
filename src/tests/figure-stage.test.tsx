@@ -163,8 +163,14 @@ const scaleOf = (container: HTMLElement) => {
 };
 
 describe("Stage", () => {
-  it("keeps each row B lacks in its place as a ghost, not here yet, and rings its drop", async () => {
-    const view = makeStageView()(await behindSnapshot(), new Map());
+  it("keeps each row B knows it lacks in its place as a ghost, not here yet, and rings its drop", async () => {
+    const behind = await behindSnapshot();
+    // As if a poke had told B of the server's version.
+    const view = makeStageView()(
+      behind,
+      new Map(),
+      new Map([["B", behind.server.serverVersion]]),
+    );
     const { container } = render(
       <Stage
         view={view}

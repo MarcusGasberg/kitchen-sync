@@ -117,6 +117,48 @@ export const rollsAt = (
   return rolls;
 };
 
+// Each device a poke has told the server is ahead and that has not pulled
+// what it was told of, at entry `index`: the entry the latest poke reached
+// it at, and the version the server held then. From the poke's delivery
+// until a pull brings the device to that version.
+const toldOf = (
+  timeline: Timeline,
+  index: number,
+): ReadonlyMap<
+  ClientName,
+  { readonly at: number; readonly version: number }
+> => {
+  const told = new Map<
+    ClientName,
+    { readonly at: number; readonly version: number }
+  >();
+  const now = timeline.entries[index]?.snapshot;
+  if (now === undefined) return told;
+  for (const [client, deliveries] of read(timeline).told) {
+    const state = now.clients.get(client);
+    const last = lastAtOrBefore(deliveries, index);
+    if (state === undefined || last === undefined) continue;
+    const version = timeline.entries[last]?.snapshot.server.serverVersion ?? 0;
+    if (state.appliedVersion >= version) continue;
+    told.set(client, { at: last, version });
+  }
+  return told;
+};
+
+// The version a poke told each device of, while it has not pulled it: what
+// the device knows it lacks (`ghostsAt`). A device the server is ahead of
+// but no poke has reached (offline, or its poke dropped) knows nothing.
+export const toldAt = (
+  timeline: Timeline,
+  index: number,
+): ReadonlyMap<ClientName, number> =>
+  new Map(
+    [...toldOf(timeline, index)].map(([client, { version }]) => [
+      client,
+      version,
+    ]),
+  );
+
 // The devices a poke has told the server is ahead, and that have not pulled
 // what it told them of: behind from the poke's delivery until a pull brings
 // them to the version the server held then. A device the server is ahead of
@@ -129,15 +171,12 @@ export const behindAt = (
   const behind = new Map<ClientName, Behind>();
   const now = timeline.entries[index]?.snapshot;
   if (now === undefined) return behind;
-  for (const [client, deliveries] of read(timeline).told) {
+  for (const [client, { at }] of toldOf(timeline, index)) {
     const state = now.clients.get(client);
-    const last = lastAtOrBefore(deliveries, index);
-    if (state === undefined || last === undefined) continue;
-    const toldOf = timeline.entries[last]?.snapshot.server.serverVersion ?? 0;
-    if (state.appliedVersion >= toldOf) continue;
+    if (state === undefined) continue;
     behind.set(client, {
       versions: now.server.serverVersion - state.appliedVersion,
-      age: Math.max(0, ageOf(last)),
+      age: Math.max(0, ageOf(at)),
     });
   }
   return behind;

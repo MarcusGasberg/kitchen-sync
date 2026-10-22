@@ -128,7 +128,7 @@ describe("makeStageView", () => {
 
 describe("a device's ghosts", () => {
   it.effect(
-    "are the server's rows it has not pulled, kept while nothing changes, gone once it pulls",
+    "are the server's rows a poke told it it lacks, none while untold, kept while nothing changes, gone once it pulls",
     () =>
       Effect.gen(function* () {
         const world = yield* World;
@@ -147,7 +147,14 @@ describe("a device's ghosts", () => {
 
         const stage = makeStageView();
         const ids = new Map<string, string>();
-        const first = stage(behind, ids);
+        // Offline, B heard no poke: it does not know it lacks milk.
+        expect(
+          stage(behind, ids).devices.find((device) => device.name === "B")
+            ?.ghosts,
+        ).toEqual([]);
+        // Told of the server's version, it does.
+        const told = new Map([["B", behind.server.serverVersion]]);
+        const first = stage(behind, ids, told);
         const b = first.devices.find((device) => device.name === "B");
         expect(b?.ghosts.map((ghost) => ghost.name)).toEqual(["Milk"]);
         expect(
@@ -155,11 +162,11 @@ describe("a device's ghosts", () => {
         ).toEqual([]);
         // Nothing changed: the same array, so the same rings.
         expect(
-          stage(behind, ids).devices.find((device) => device.name === "B")
+          stage(behind, ids, told).devices.find((device) => device.name === "B")
             ?.ghosts,
         ).toBe(b?.ghosts);
         expect(
-          stage(caught, ids).devices.find((device) => device.name === "B")
+          stage(caught, ids, told).devices.find((device) => device.name === "B")
             ?.ghosts,
         ).toEqual([]);
       }).pipe(

@@ -6,7 +6,7 @@ import { CHECK_SCENE, DROP_SCENE, FREE_SCENE, Lab } from "#/app/lab";
 import { PUSH_LOOP } from "#/app/lab-code";
 import type { Acting } from "#/lib/director/acting";
 import { compile } from "#/lib/director/compile";
-import { wetKey } from "#/lib/director/marks";
+import { ghostsAt, wetKey } from "#/lib/director/marks";
 import { sceneAges } from "#/lib/director/reveal";
 import { type Cut, SERVER, type Shot } from "#/lib/director/shots";
 import {
@@ -18,6 +18,7 @@ import {
   revealedAt,
   virtualAt,
 } from "#/lib/director/timing";
+import { behindAt, toldAt } from "#/lib/director/versions";
 import { entryIndexAt, frameAt } from "#/lib/sandbox/frame";
 import { runHeadless } from "#/lib/sandbox/scene";
 import {
@@ -389,7 +390,7 @@ describe("the lab's marks", () => {
   );
 
   effect.effect(
-    "ripples the poke out, and B and C wait behind with oat milk's ghost until they pull",
+    "ripples the poke out, and B and C wait behind with oat milk's ghost from their pokes until they pull",
     () =>
       Effect.gen(function* () {
         const { cut, timeline, cursors } = yield* drop;
@@ -414,26 +415,45 @@ describe("the lab's marks", () => {
             expect(flying.marks.ripple).toBeCloseTo(dot.progress);
           }
         }
-        const ghosts = (snapshot: typeof poking.snapshot, name: string) =>
-          makeStageView()(snapshot, new Map())
-            .devices.find((device) => device.name === name)
-            ?.ghosts.map((item) => item.name) ?? [];
-        expect(ghosts(poking.snapshot, "B")).toContain("Oat milk");
-        expect(ghosts(poking.snapshot, "C")).toContain("Oat milk");
-        // Behind from the moment each one's poke reaches it.
+        // A device's ghosts as the figure builds its stage at a cursor.
+        const ghosts = (cursor: CutCursor, name: string) => {
+          const { index, snapshot } = marksAt(cut, timeline, cursor);
+          return (
+            makeStageView()(snapshot, new Map(), toldAt(timeline, index))
+              .devices.find((device) => device.name === name)
+              ?.ghosts.map((item) => item.name) ?? []
+          );
+        };
+        // The server pokes, but no poke has reached B or C: no ghosts yet.
+        expect(ghosts(cursors.poking, "B")).toEqual([]);
+        expect(ghosts(cursors.poking, "C")).toEqual([]);
+        // Behind, and oat milk's ghost, from the moment each one's poke
+        // reaches it.
         expect(
           marksAt(cut, timeline, cursors.pokedB).marks.behind.get("B")
             ?.versions,
         ).toBe(1);
+        expect(ghosts(cursors.pokedB, "B")).toEqual(["Oat milk"]);
         expect(
           marksAt(cut, timeline, cursors.pokedC).marks.behind.get("C")
             ?.versions,
         ).toBe(1);
+        expect(ghosts(cursors.pokedC, "C")).toEqual(["Oat milk"]);
+        // A ghost never sits beside "synced": at every entry, a device that
+        // shows one is behind.
+        for (const index of timeline.entries.keys()) {
+          const behind = behindAt(timeline, index, () => 0);
+          for (const name of ["B", "C"]) {
+            if (ghostsAt(timeline, index, name).length > 0) {
+              expect(behind.has(name), `${name} at ${index}`).toBe(true);
+            }
+          }
+        }
         // At agreement: no one behind, no ghosts, the basins stacked.
         const end = marksAt(cut, timeline, cursors.end);
         expect(end.marks.behind.size).toBe(0);
-        expect(ghosts(end.snapshot, "B")).toEqual([]);
-        expect(ghosts(end.snapshot, "C")).toEqual([]);
+        expect(ghosts(cursors.end, "B")).toEqual([]);
+        expect(ghosts(cursors.end, "C")).toEqual([]);
         expect(end.marks.table).toBe(1);
       }),
   );

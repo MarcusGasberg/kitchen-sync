@@ -4,7 +4,7 @@ import {
   type Category,
   type GroceryItem,
 } from "#/domain/grocery-item";
-import { ghostsOf } from "#/lib/director/marks";
+import { ghostsWithin } from "#/lib/director/marks";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { type Group, type ListView, listView, type Row } from "#/ui/list-view";
@@ -18,7 +18,7 @@ export interface DeviceView {
   readonly name: ClientName;
   readonly clientId: string | undefined;
   readonly items: ReadonlyArray<GroceryItem>;
-  // The server's rows it has not pulled yet (`ghostsOf`), drawn as ghosts in
+  // The server's rows it knows it lacks (`ghostsWithin`), drawn as ghosts in
   // its list and its basin; empty unless it trails the server.
   readonly ghosts: ReadonlyArray<GroceryItem>;
   // From `waitingOf(outbox)`: what the device's basin draws in fresh ink.
@@ -119,6 +119,7 @@ const rowsKey = (items: ReadonlyArray<GroceryItem>) =>
   items.map((item) => `${item.id}@${item.version}`).join(",");
 
 const NO_GHOSTS: ReadonlyArray<GroceryItem> = [];
+const NO_TOLD: ReadonlyMap<ClientName, number> = new Map();
 
 // Builds a figure's stage from a snapshot. A snapshot keeps each client's
 // state by reference, so a device that did nothing keeps its arrays (and its
@@ -131,8 +132,8 @@ export const makeStageView = () => {
   let server: { readonly key: string; readonly view: ServerPaneView } | null =
     null;
 
-  // Each device's ghosts, kept while neither its state nor the server's rows
-  // change, so its list and its basin keep theirs.
+  // Each device's ghosts, kept while neither its state, the server's rows nor
+  // what it was told changes, so its list and its basin keep theirs.
   const ghostParts = new WeakMap<
     StoreState,
     { readonly key: string; readonly ghosts: ReadonlyArray<GroceryItem> }
@@ -142,12 +143,14 @@ export const makeStageView = () => {
     name: ClientName,
     state: StoreState,
     serverKey: string,
+    told: number | undefined,
   ): ReadonlyArray<GroceryItem> => {
+    const key = `${serverKey}:${told ?? "-"}`;
     const known = ghostParts.get(state);
-    if (known !== undefined && known.key === serverKey) return known.ghosts;
-    const found = ghostsOf(snapshot, name);
+    if (known !== undefined && known.key === key) return known.ghosts;
+    const found = ghostsWithin(snapshot, name, told);
     const ghosts = found.length === 0 ? NO_GHOSTS : found;
-    ghostParts.set(state, { key: serverKey, ghosts });
+    ghostParts.set(state, { key, ghosts });
     return ghosts;
   };
 
@@ -163,9 +166,12 @@ export const makeStageView = () => {
     return made;
   };
 
+  // `told`: the version a poke told each device of, while it has not pulled
+  // it (`toldAt`); a device without one shows no ghosts.
   return (
     snapshot: WorldSnapshot,
     clientIds: ReadonlyMap<ClientName, string>,
+    told: ReadonlyMap<ClientName, number> = NO_TOLD,
   ): StageView => {
     const { serverVersion, items } = snapshot.server;
     const key = rowsKey(items);
@@ -182,7 +188,7 @@ export const makeStageView = () => {
           name,
           clientId: clientIds.get(name),
           ...partsOf(state),
-          ghosts: ghostsFor(snapshot, name, state, serverKey),
+          ghosts: ghostsFor(snapshot, name, state, serverKey, told.get(name)),
           status,
           offline,
           version: status.kind === "connecting" ? null : state.appliedVersion,

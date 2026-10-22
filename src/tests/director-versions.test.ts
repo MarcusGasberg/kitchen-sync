@@ -8,6 +8,7 @@ import {
   ROLL_MILLIS,
   rippleAt,
   rollsAt,
+  toldAt,
 } from "#/lib/director/versions";
 import { runHeadless } from "#/lib/sandbox/scene";
 import type { Timeline } from "#/lib/sandbox/trace";
@@ -101,6 +102,37 @@ describe("behindAt", () => {
         expect(
           behindAt(timeline, pulled, agesAt(timeline, pulled)).has("B"),
         ).toBe(false);
+      }),
+  );
+});
+
+describe("toldAt", () => {
+  it.effect(
+    "knows the version a poke told each device of, from its delivery until a pull brings it there",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(OAT_SCENE);
+        const final = timeline.entries.at(-1)?.snapshot.server.serverVersion;
+        if (final === undefined) throw new Error("an empty timeline");
+        const { index: poked } = lastEntryWhere(
+          timeline,
+          (e) => e._tag === "Poked",
+        );
+        expect(toldAt(timeline, poked).has("B")).toBe(false);
+        const { index: told } = lastEntryWhere(
+          timeline,
+          (e) =>
+            e._tag === "Delivered" &&
+            e.message.kind === "poke" &&
+            e.message.client === "B",
+        );
+        expect(toldAt(timeline, told).get("B")).toBe(final);
+        // Told and behind are one span.
+        expect([...toldAt(timeline, told).keys()].sort()).toEqual(
+          [...behindAt(timeline, told, agesAt(timeline, told)).keys()].sort(),
+        );
+        const pulled = firstAt(timeline, "B", final);
+        expect(toldAt(timeline, pulled).has("B")).toBe(false);
       }),
   );
 });
