@@ -234,7 +234,8 @@ const ownOf = (on: Note["on"]): ReadonlySet<string> => {
 // the camera comes to rest on in the shot (`landedAt`), when it is easing
 // there: a note keeps a leader, or a dot, only where it would keep it there,
 // so none is drawn and then drops out mid-ease, and a leader it keeps is
-// drawn through the whole ease. `lit`: the containers the shot's spotlight
+// drawn through the whole ease, into the line (first or last) it meets
+// there. `lit`: the containers the shot's spotlight
 // keeps lit (`litOf`), null when it dims nothing: a leader may run over the
 // text of a pane the spotlight dims, never over its water.
 export interface NoteOptions {
@@ -250,7 +251,22 @@ const containerOfKey = (key: string): string => {
   return place === SERVER ? SERVER : `device:${place}`;
 };
 
+// Which of a level note's lines its leader meets: its first, or its last
+// where the first would leave the strip.
+type LevelLine = "first" | "last";
+
 export const placeNotes = (
+  notes: ReadonlyArray<Note>,
+  anchors: Anchors,
+  view: View,
+  viewport: Size,
+  options: NoteOptions = {},
+): ReadonlyArray<PlacedNote> =>
+  placeWithLines(notes, anchors, view, viewport, options).placed;
+
+// The notes as placed, and the line each level note's leader meets, by its
+// key.
+const placeWithLines = (
   notes: ReadonlyArray<Note>,
   anchors: Anchors,
   view: View,
@@ -260,19 +276,23 @@ export const placeNotes = (
     marked = null,
     landed = null,
     lit = null,
-  }: NoteOptions = {},
-): ReadonlyArray<PlacedNote> => {
-  // Each note as it is placed at the landed view, by its key.
-  const atRest =
+  }: NoteOptions,
+): {
+  readonly placed: ReadonlyArray<PlacedNote>;
+  readonly lines: ReadonlyMap<string, LevelLine>;
+} => {
+  // Each note as it is placed at the landed view, by its key, and the line
+  // each level one meets its leader with there.
+  const rest =
     landed === null
       ? null
-      : new Map(
-          placeNotes(notes, anchors, landed, viewport, {
-            spot,
-            marked,
-            lit,
-          }).map((p) => [p.key, p] as const),
-        );
+      : placeWithLines(notes, anchors, landed, viewport, {
+          spot,
+          marked,
+          lit,
+        });
+  const atRest =
+    rest === null ? null : new Map(rest.placed.map((p) => [p.key, p] as const));
   const restsWith = (index: number, what: "leader" | "pin") =>
     atRest === null || (atRest.get(String(index))?.[what] ?? null) !== null;
   const beside = spot.kind === "beside";
@@ -348,16 +368,20 @@ export const placeNotes = (
     pin: restsWith(target.index, "pin") ? shown(endOf(target)) : null,
   });
 
-  if (spot.kind === "foot") return ordered.map((t) => dotted(t, null));
+  const noLines: ReadonlyMap<string, LevelLine> = new Map();
+  if (spot.kind === "foot") {
+    return { placed: ordered.map((t) => dotted(t, null)), lines: noLines };
+  }
   if (spot.kind === "room") {
     // Stacked from the room's top, left-aligned with the frame.
     const width = Math.max(1, spot.right - spot.left);
     let top = spot.top;
-    return ordered.map((target) => {
-      const placed = dotted(target, { left: spot.left, top, width });
+    const placed = ordered.map((target) => {
+      const at = dotted(target, { left: spot.left, top, width });
       top += heightFor(target, width) + NOTE_GAP_PX;
-      return placed;
+      return at;
     });
+    return { placed, lines: noLines };
   }
 
   const strip = {
@@ -383,20 +407,29 @@ export const placeNotes = (
         (isText(key) && (lit === null || lit.has(containerOfKey(key)))),
     )
     .map(([key, b]) => [key, onScreen(b, view, viewport)] as const);
-  // Where a note sits level with its subject: its first line level with the
-  // subject's end, or where that would leave the strip its last line, the
-  // leader running into that line; null where neither fits the strip.
-  const levelTops = ordered.map((target, i) => {
-    const end = shown(endOf(target));
-    if (end === null) return null;
-    const height = heights[i] ?? 0;
-    const fits = (top: number) =>
-      top >= strip.top && top + height <= strip.bottom;
-    const first = end.y - LINE_PX / 2;
-    if (fits(first)) return first;
-    const last = end.y + LINE_PX / 2 - height;
-    return fits(last) ? last : null;
-  });
+  // Where a note sits level with its subject, and the line its leader runs
+  // into: its first line level with the subject's end, or where that would
+  // leave the strip its last line; null where neither fits the strip. Easing
+  // to a landed view, the line it meets there, wherever that puts it, so its
+  // words never jump from one line to the other mid-ease.
+  const levelAt = ordered.map(
+    (target, i): { readonly top: number; readonly line: LevelLine } | null => {
+      const end = shown(endOf(target));
+      if (end === null) return null;
+      const height = heights[i] ?? 0;
+      const first = end.y - LINE_PX / 2;
+      const last = end.y + LINE_PX / 2 - height;
+      const rested = rest?.lines.get(String(target.index));
+      if (rested !== undefined) {
+        return { top: rested === "first" ? first : last, line: rested };
+      }
+      const fits = (top: number) =>
+        top >= strip.top && top + height <= strip.bottom;
+      if (fits(first)) return { top: first, line: "first" };
+      return fits(last) ? { top: last, line: "last" } : null;
+    },
+  );
+  const levelTops = levelAt.map((at) => at?.top ?? null);
   // Whether a note can sit level with its subject and run straight into it:
   // its subject's end shows, it fits the strip level with it, and the run
   // from that end into the note touches nothing (or, easing to a landed
@@ -474,11 +507,16 @@ export const placeNotes = (
     if (!dropped) break;
   }
 
-  return ordered.map((target, i) => {
+  const lines = new Map<string, LevelLine>();
+  const placed = ordered.map((target, i): PlacedNote => {
     const top = tops[i] ?? strip.top;
     const at = { left: strip.left, top, width: strip.width };
     const end = shown(endOf(target));
-    if (!fixed[i] || end === null) return dotted(target, at);
+    const line = levelAt[i]?.line;
+    if (!fixed[i] || end === null || line === undefined) {
+      return dotted(target, at);
+    }
+    lines.set(String(target.index), line);
     return {
       key: String(target.index),
       text: target.note.text,
@@ -487,4 +525,5 @@ export const placeNotes = (
       pin: end,
     };
   });
+  return { placed, lines };
 };

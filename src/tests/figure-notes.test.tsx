@@ -773,6 +773,50 @@ describe("placeNotes", () => {
       }
     });
 
+    // A two-line note on C's row: at a view that sets the row's end near the
+    // strip's foot only its last line fits level with it; at the identity
+    // view its first line does.
+    it("keeps the line it meets its leader with at the landed view, through the whole ease", () => {
+      const words =
+        "Oat milk shows on A at once. It waits in A's outbox as #6.";
+      const row = [note({ kind: "row", where: "C", itemId: "1" }, words)];
+      const low = { x: 500, y: 300 - (570 - 310), scale: 1 };
+      const lastLine = (end: number) => end + LINE_PX / 2 - 2 * LINE_PX;
+      const firstLine = (end: number) => end - LINE_PX / 2;
+      // Each view alone: the last line at the low view, the first at rest.
+      expect(placeNotes(row, ANCHORS, low, WIDE)[0]?.at?.top).toBeCloseTo(
+        lastLine(570),
+      );
+      expect(placeNotes(row, ANCHORS, IDENTITY, WIDE)[0]?.at?.top).toBeCloseTo(
+        firstLine(310),
+      );
+      const toward = (from: typeof low, to: typeof low, t: number) => ({
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+        scale: 1,
+      });
+      for (const t of STEPS) {
+        // Easing to the low view: its last line meets the leader all along,
+        // though its first would fit the strip.
+        const easing = toward(IDENTITY, low, t);
+        const end = project(easing, WIDE, { x: 610, y: 310 }).y;
+        const [toLow] = placeNotes(row, ANCHORS, easing, WIDE, {
+          landed: low,
+        });
+        expect(toLow?.leader?.[0]?.y, `${t}`).toBeCloseTo(end);
+        expect(toLow?.at?.top, `${t}`).toBeCloseTo(lastLine(end));
+        // Easing to the identity view: its first line, all along, though it
+        // runs past the strip's foot near the ease's start.
+        const rising = toward(low, IDENTITY, t);
+        const from = project(rising, WIDE, { x: 610, y: 310 }).y;
+        const [toRest] = placeNotes(row, ANCHORS, rising, WIDE, {
+          landed: IDENTITY,
+        });
+        expect(toRest?.leader?.[0]?.y, `${t}`).toBeCloseTo(from);
+        expect(toRest?.at?.top, `${t}`).toBeCloseTo(firstLine(from));
+      }
+    });
+
     it("draws no dot where the landed view leaves the subject's end outside the window", () => {
       const away = { x: 900, y: 310, scale: 1 };
       for (const spot of [
