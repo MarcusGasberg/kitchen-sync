@@ -633,6 +633,18 @@ describe("placeNotes", () => {
       { x: 324, y: 72 },
       { x: SHARE + EDGE_PX - 6, y: 72 },
     ]);
+    // The ring's version label is text: a run across it keeps only the dot
+    // at the ring.
+    const labelled: Anchors = {
+      ...server(box(SHARE + 40, 64, SHARE + 140, 80)),
+      boxes: new Map([
+        ...server(box(SHARE + 40, 64, SHARE + 140, 80)).boxes,
+        ["label:server:0", box(334, 64, 350, 80)],
+      ]),
+    };
+    const [crossed] = placeNotes([applies], labelled, IDENTITY, WIDE);
+    expect(crossed?.pin).toEqual({ x: 324, y: 72 });
+    expect(crossed?.leader).toBeNull();
     // Where the row's end shows, the note keeps it.
     const [rowed] = placeNotes(
       [applies],

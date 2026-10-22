@@ -836,6 +836,23 @@ describe("Stage", () => {
     }
   });
 
+  // A leader may not touch text: the server's basin labels its rings with
+  // their versions.
+  it("measures each basin's version label as text, by its place", () => {
+    const plane = document.createElement("div");
+    plane.innerHTML = `
+      <div data-place="server">
+        <span data-word="version">v5</span>
+        <span data-word="version">v6</span>
+      </div>
+      <div data-place="A"><span data-word="behind">1 behind</span></div>`;
+    const keys = [...measureWorld(plane).boxes.keys()];
+    expect(keys.filter((key) => key.startsWith("label:"))).toEqual([
+      "label:server:0",
+      "label:server:1",
+    ]);
+  });
+
   // An add's typing frames the device's field.
   it("measures each device's add field, and none on the server", async () => {
     const { container, restore } = await staged(FREE);

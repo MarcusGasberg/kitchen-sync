@@ -67,6 +67,18 @@ export const measureWorld = (plane: HTMLElement): Measured => {
     const box = within(element.getBoundingClientRect());
     boxes.set(n === 0 ? `header:${place}` : `text:${place}:${n - 1}`, box);
   }
+  // Each basin's version labels (the server's rings', `label:<place>:<n>`):
+  // text a leader may not touch either.
+  const labels = new Map<string, number>();
+  for (const element of plane.querySelectorAll<HTMLElement>(
+    "[data-place] [data-word='version']",
+  )) {
+    const place = element.closest<HTMLElement>("[data-place]")?.dataset.place;
+    if (place === undefined) continue;
+    const n = labels.get(place) ?? 0;
+    labels.set(place, n + 1);
+    boxes.set(`label:${place}:${n}`, within(element.getBoundingClientRect()));
+  }
   // Each device's add field (its Quick Add, live or a scene's replica): an
   // add's typing frames it.
   for (const device of plane.querySelectorAll<HTMLElement>(

@@ -412,11 +412,12 @@ const placeWithLines = (
   const into = strip.left - LEADER_GAP_PX;
   const heights = ordered.map((target) => heightFor(target, strip.width));
   // What a leader may not touch, on screen: text (each row, list heading,
-  // pane header and add field) in a pane the spotlight keeps lit, and basin
-  // water anywhere.
+  // pane header, basin version label and add field) in a pane the spotlight
+  // keeps lit, and basin water anywhere.
   const isText = (key: string) =>
     key.startsWith("row:") ||
     key.startsWith("text:") ||
+    key.startsWith("label:") ||
     key.startsWith("header:") ||
     key.startsWith("field:");
   const obstacles = [...anchors.boxes]
