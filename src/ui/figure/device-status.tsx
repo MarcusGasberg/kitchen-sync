@@ -46,7 +46,13 @@ export function DeviceStatus({
           style={{ opacity: behind.shown }}
         >
           {(version !== null || shown !== null) && " · "}
-          <span className={styles.behind}>{tag}</span>
+          <span
+            className={styles.behind}
+            data-word="behind"
+            data-grow-from="right"
+          >
+            {tag}
+          </span>
         </span>
       )}
     </span>

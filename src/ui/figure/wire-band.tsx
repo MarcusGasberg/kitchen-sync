@@ -44,14 +44,20 @@ function Label({
   placed,
   text,
   opacity,
+  word = "message",
 }: {
   readonly placed: Placed;
   readonly text: string;
   readonly opacity?: number;
+  // What kind of word it is, for a phone's word floor (`useWordFloor`).
+  readonly word?: "message" | "wire";
 }) {
   const start = placed.side === "start";
   return (
     <text
+      data-word={word}
+      // It grows from the side that faces its dot.
+      data-grow-from={start ? "right" : "left"}
       x={placed.x + (start ? -LABEL_GAP : LABEL_GAP)}
       y={placed.y}
       textAnchor={start ? "end" : "start"}
@@ -172,7 +178,11 @@ export function WireBand({
             className={styles.lost}
             style={{ opacity: 1 - (placed.age ?? 0) / LOST_MARK_MILLIS }}
           >
-            <Label placed={placed} text={`${placed.message.label} · lost`} />
+            <Label
+              placed={placed}
+              text={`${placed.message.label} · lost`}
+              word="wire"
+            />
           </g>
         </g>
       ))}
@@ -180,6 +190,8 @@ export function WireBand({
         <g data-dim={dim(armed.client)}>
           <text
             className={styles.armed}
+            data-word="wire"
+            data-grow-from="left"
             x={(armedWire.server.x + armedWire.device.x) / 2 + LABEL_GAP}
             y={(armedWire.server.y + armedWire.device.y) / 2}
             dominantBaseline="middle"

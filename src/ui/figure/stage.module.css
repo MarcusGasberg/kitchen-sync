@@ -171,6 +171,23 @@
   box-sizing: content-box;
 }
 
+/* A behind tag grown to a narrow window's word floor (`useWordFloor`) covers
+   the rest of its own state line: it takes the page's halo, as a wire's label
+   does, so the small words under it do not print through. */
+.plane [data-word="behind"][data-grown] {
+  text-shadow:
+    0 0 3px var(--page),
+    0 0 3px var(--page),
+    0 0 3px var(--page);
+}
+
+@media (forced-colors: active) {
+  .plane [data-word="behind"][data-grown] {
+    text-shadow: none;
+    background-color: Canvas;
+  }
+}
+
 /* Free play's camera glides to a device and back; a scene's moves are drawn
    frame by frame from its cut. */
 .gliding {

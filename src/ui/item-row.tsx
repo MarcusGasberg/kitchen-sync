@@ -108,8 +108,13 @@ export function ItemRow({
       )}
       {presence === "ghost" ? (
         // A row the server holds that this device has not pulled: its place
-        // kept until the pull fills it with ink.
-        <span className={styles.ghost}>
+        // kept until the pull fills it with ink. A figure's word, which a
+        // phone's wide frame grows (`data-word`).
+        <span
+          className={styles.ghost}
+          data-word="ghost"
+          data-grow-from="center"
+        >
           <span className="visually-hidden">, </span>
           not here yet
         </span>

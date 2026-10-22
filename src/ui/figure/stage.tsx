@@ -55,6 +55,7 @@ import {
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import { type StageView, withRows } from "./stage-view";
 import { useCamera } from "./use-camera";
+import { useWordFloor } from "./use-word-floor";
 import { WireBand } from "./wire-band";
 import {
   DEVICE_INSET_PX,
@@ -369,6 +370,8 @@ export function Stage({
   } = useCamera(cue, anchors, size, reduced, {
     jumpKey: cue.kind === "shot" ? jumpKey : null,
   });
+  // A narrow window's words never drop below the floor on screen.
+  useWordFloor(plane, camera?.scale ?? null, !besideIn(size));
 
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
   const lit = shot === undefined ? null : litOf(shot);

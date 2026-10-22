@@ -229,6 +229,7 @@ export function Basin({
           key={id}
           className={styles.label}
           data-side={spot.side}
+          data-word="version"
           style={{
             left: `${(spot.x / WORLD_WIDTH) * 100}%`,
             top: `${(spot.y / WORLD_HEIGHT) * 100}%`,
