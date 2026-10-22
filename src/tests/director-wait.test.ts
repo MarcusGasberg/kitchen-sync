@@ -38,7 +38,7 @@ const recorded = Effect.gen(function* () {
   yield* world.clock.advance("3 seconds");
   marks.cut = yield* world.clock.now;
   yield* classic.change({ kind: "add", name: "Cut" });
-  // The request lands at 80 ms; the reply is on the wire until 160 ms.
+  // The request lands at 100 ms; the reply is on the wire until 200 ms.
   yield* world.clock.advance("100 millis");
   yield* setWeather(PHONES, "tunnel")(world);
   yield* world.clock.advance("1 second");
@@ -61,7 +61,7 @@ const recorded = Effect.gen(function* () {
       clients: ["classic", "kitchen", "C"],
       classic: ["classic"],
       seed: "waits",
-      latency: "80 millis",
+      latency: "100 millis",
     }),
   ),
 );
@@ -78,7 +78,7 @@ describe("waitsOf", () => {
       const { inputs, timeline } = yield* recorded;
       const waits = waitsOf(inputs, timeline);
       expect(waits.map(brief)).toEqual([
-        // 2 × 80 ms, each leg landing on the next 50 ms quantum: 200 ms.
+        // 2 × 100 ms: 200 ms.
         ["classic", 200, "shown"],
         ["kitchen", 0, "shown"],
         ["classic", 1800, "shown"],

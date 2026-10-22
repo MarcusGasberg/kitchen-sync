@@ -251,7 +251,7 @@ describe("classicGhostsOf", () => {
         clients: ["classic", "kitchen", "C"],
         classic: ["classic"],
         seed: "classic-ghosts",
-        latency: "80 millis",
+        latency: "100 millis",
       }),
     ),
   );

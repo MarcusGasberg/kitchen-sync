@@ -9,12 +9,15 @@ import type { WorldHandle } from "./world";
 
 export type Weather = "office" | "cafe" | "train" | "tunnel";
 
-// One-way link latency; the tunnel is offline.
+// One-way link latency; the tunnel is offline. Each is a whole number of
+// the world's 50 ms quanta, so a reply lands, and the handler that awaited it
+// sets its rows, at the instant its card says: office 200 ms round trip, café
+// 600 ms, train 1.8 s.
 export const WEATHERS: Record<
   Weather,
   { readonly label: string; readonly latencyMillis: number | null }
 > = {
-  office: { label: "office", latencyMillis: 80 },
+  office: { label: "office", latencyMillis: 100 },
   cafe: { label: "café", latencyMillis: 300 },
   train: { label: "train", latencyMillis: 900 },
   tunnel: { label: "tunnel", latencyMillis: null },

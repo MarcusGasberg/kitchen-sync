@@ -17,7 +17,7 @@ const options: WorldOptions = {
   clients: ["classic", "kitchen", "C"],
   classic: ["classic"],
   seed: "weather",
-  latency: "80 millis",
+  latency: "100 millis",
 };
 
 const PHONES = ["classic", "kitchen"];
@@ -64,7 +64,7 @@ describe("WEATHERS", () => {
         latencyMillis,
       ]),
     ).toEqual([
-      ["office", "office", 80],
+      ["office", "office", 100],
       ["cafe", "café", 300],
       ["train", "train", 900],
       ["tunnel", "tunnel", null],
@@ -116,9 +116,9 @@ describe("setWeather", () => {
           yield* setWeather(PHONES, "office")(world);
 
           expect(yield* issued(world, from)).toEqual([
-            ["classic", "Latency", 80],
+            ["classic", "Latency", 100],
             ["classic", "Offline", false],
-            ["kitchen", "Latency", 80],
+            ["kitchen", "Latency", 100],
             ["kitchen", "Offline", false],
           ]);
           expect((yield* world.snapshot).offline.size).toBe(0);
@@ -133,7 +133,7 @@ describe("setWeather", () => {
             (event) => event.message.kind === "request",
           );
           expect(request?.message.arriveAt).toBe(
-            (request?.message.sentAt ?? 0) + 80,
+            (request?.message.sentAt ?? 0) + 100,
           );
         }),
       ),
@@ -152,6 +152,31 @@ describe("setWeather", () => {
         ]);
       }),
     ),
+  );
+
+  it.effect(
+    "in the office, a classic round trip takes 200 ms, and the rows land with the reply",
+    () =>
+      inWorld((world) =>
+        Effect.gen(function* () {
+          yield* world.clock.advance("1 second");
+          yield* setWeather(PHONES, "office")(world);
+          const at = yield* world.clock.now;
+          yield* world.classic("classic").change({ kind: "add", name: "Eggs" });
+          yield* world.clock.advance("1 second");
+          const timeline = yield* world.currentTimeline;
+          const [saved] = tagged(timeline, "Saved");
+          expect(saved?.at).toBe(at + 200);
+          // The handler's continuation runs at the end of the quantum the
+          // reply lands in; on a 50 ms grid that is the reply's own instant,
+          // so the card's arrival and the saved rows agree.
+          const reply = tagged(timeline, "Delivered").find(
+            (event) => event.message.kind === "response",
+          );
+          expect(reply?.at).toBe(reply?.message.arriveAt);
+          expect(saved?.at).toBe(reply?.at);
+        }),
+      ),
   );
 
   it.effect("on the train, a classic round trip takes 1800 ms", () =>
@@ -180,7 +205,7 @@ describe("weatherAt", () => {
   });
 
   it("names the world's starting latency before any input", () => {
-    expect(weatherAt([], PHONES, 0, 80)).toBe("office");
+    expect(weatherAt([], PHONES, 0, 100)).toBe("office");
     // Free play starts at 150 ms, which names no weather.
     expect(weatherAt([], PHONES, 0, 150)).toBe("mixed");
   });
@@ -196,20 +221,20 @@ describe("weatherAt", () => {
       latency(3000, "kitchen", 300),
       offline(3000, "kitchen", false),
     ];
-    expect(weatherAt(inputs, PHONES, 999, 80)).toBe("office");
-    expect(weatherAt(inputs, PHONES, 1000, 80)).toBe("train");
-    expect(weatherAt(inputs, PHONES, 2500, 80)).toBe("tunnel");
-    expect(weatherAt(inputs, PHONES, 3000, 80)).toBe("cafe");
+    expect(weatherAt(inputs, PHONES, 999, 100)).toBe("office");
+    expect(weatherAt(inputs, PHONES, 1000, 100)).toBe("train");
+    expect(weatherAt(inputs, PHONES, 2500, 100)).toBe("tunnel");
+    expect(weatherAt(inputs, PHONES, 3000, 100)).toBe("cafe");
   });
 
   it("is mixed when the phones disagree", () => {
     const inputs = [latency(1000, "classic", 900), latency(1000, "C", 300)];
     expect(weatherAt(inputs, PHONES, 1000, 900)).toBe("train");
     expect(weatherAt(inputs, [...PHONES, "C"], 1000, 900)).toBe("mixed");
-    expect(weatherAt([offline(5, "kitchen", true)], PHONES, 5, 80)).toBe(
+    expect(weatherAt([offline(5, "kitchen", true)], PHONES, 5, 100)).toBe(
       "mixed",
     );
-    expect(weatherAt([], [], 0, 80)).toBe("mixed");
+    expect(weatherAt([], [], 0, 100)).toBe("mixed");
   });
 
   it.effect("reads what setWeather did", () =>
@@ -222,11 +247,11 @@ describe("weatherAt", () => {
         yield* setWeather(PHONES, "tunnel")(world);
         const inputs = yield* world.inputs;
         const now = yield* world.clock.now;
-        expect(weatherAt(inputs, PHONES, train - 50, 80)).toBe("office");
-        expect(weatherAt(inputs, PHONES, train, 80)).toBe("train");
-        expect(weatherAt(inputs, PHONES, now, 80)).toBe("tunnel");
+        expect(weatherAt(inputs, PHONES, train - 50, 100)).toBe("office");
+        expect(weatherAt(inputs, PHONES, train, 100)).toBe("train");
+        expect(weatherAt(inputs, PHONES, now, 100)).toBe("tunnel");
         // C stays in the office.
-        expect(weatherAt(inputs, ["C"], now, 80)).toBe("office");
+        expect(weatherAt(inputs, ["C"], now, 100)).toBe("office");
       }),
     ),
   );

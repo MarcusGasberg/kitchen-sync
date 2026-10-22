@@ -267,7 +267,7 @@ describe("convergence beside a classic phone", () => {
             clients: ["classic", "kitchen", "C"],
             classic: ["classic"],
             seed: "convergence",
-            latency: "80 millis",
+            latency: "100 millis",
           }),
         ),
       ),
