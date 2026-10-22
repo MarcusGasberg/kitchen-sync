@@ -59,6 +59,17 @@ export const measureWorld = (plane: HTMLElement): Measured => {
     const box = within(element.getBoundingClientRect());
     boxes.set(n === 0 ? `header:${place}` : `text:${place}:${n - 1}`, box);
   }
+  // Each device's add field (its Quick Add, live or a scene's replica): an
+  // add's typing frames it.
+  for (const device of plane.querySelectorAll<HTMLElement>(
+    "[data-anchor='device']",
+  )) {
+    const client = device.dataset.client;
+    const field = [...device.querySelectorAll("form")].at(-1);
+    if (client !== undefined && field !== undefined) {
+      boxes.set(`field:${client}`, within(field.getBoundingClientRect()));
+    }
+  }
   // The devices' basins together: what a light-table note is about. The
   // light table itself frames the world's band, as wide does.
   const table = union(

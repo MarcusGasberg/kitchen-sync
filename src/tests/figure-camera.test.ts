@@ -293,6 +293,89 @@ describe("framing", () => {
     expect(project(roomy, long, centreOf(both)).x).toBeCloseTo(1000);
   });
 
+  // A's list as it stands while A types: its tray, its basin, four rows
+  // under a heading, and its add field, on a plane tall enough to centre it.
+  const TYPING: Anchors = {
+    ...anchorsOf({
+      "device:A": A,
+      "outbox:A": box(40, 400, 360, 424),
+      "basin:A": box(40, 430, 360, 558),
+      "text:A:0": box(44, 570, 356, 590),
+      "row:A:1": box(44, 590, 356, 636),
+      "row:A:2": box(44, 636, 356, 682),
+      "row:A:3": box(44, 682, 356, 728),
+      "row:A:4": box(44, 728, 356, 774),
+      "field:A": box(44, 790, 356, 846),
+      "device:B": B,
+      "row:B:1": box(404, 590, 716, 636),
+    }),
+    plane: { width: 1200, height: 1200 },
+  };
+  const typing = shot({
+    framing: "close",
+    subjects: [{ kind: "device", client: "A" }],
+    enact: { kind: "type", client: "A", text: "Oat milk" },
+  });
+
+  it("frames an add's typing on the field and the list's last rows above it, up to the cap, with no tray", () => {
+    const view = frameFor(typing, TYPING, viewport);
+    if (view === null) throw new Error("no view");
+    // 552 px of room at 1.25 holds 441.6 plane px, from 16 px under the
+    // field: the heading and all four rows fit, the basin and tray do not.
+    expect(view.scale).toBe(MAX_SCALE);
+    const framed = pad(
+      unionOf(box(44, 570, 356, 590), box(44, 790, 356, 846)),
+      DETAIL_PAD_PX,
+    );
+    expect(project(view, viewport, centreOf(framed)).y).toBeCloseTo(300);
+    const seen = visibleBox(view, viewport);
+    expect(inside(framed, seen)).toBe(true);
+    expect(intersects(box(40, 400, 360, 424), seen)).toBe(false);
+    // A short window keeps fewer rows, never slicing the field.
+    const short = { width: 1000, height: 300 };
+    const low = frameFor(typing, TYPING, short);
+    if (low === null) throw new Error("no view");
+    expect(low.scale).toBe(MAX_SCALE);
+    expect(inside(box(44, 790, 356, 846), visibleBox(low, short))).toBe(true);
+    // 252 px of room holds 201.6 plane px: rows 3 and 4, not row 2.
+    expect(inside(box(44, 682, 356, 774), visibleBox(low, short))).toBe(true);
+    expect(inside(box(44, 636, 356, 682), visibleBox(low, short))).toBe(false);
+    // With its field unmeasured, the pane, as any close-up on a device.
+    const paneOnly = anchorsOf({ "device:A": A });
+    expect(frameFor(typing, paneOnly, viewport)).toEqual(
+      frameFor({ ...typing, enact: null }, paneOnly, viewport),
+    );
+  });
+
+  it("moves into an add's typing on the typing's own frame, so the shot does not cut", () => {
+    const cut: Cut = {
+      shots: [
+        shot({ framing: "wide" }),
+        { ...typing, enact: null, move: true, screen: 800 },
+        typing,
+      ],
+      steps: [],
+    };
+    const options = { reduced: false, fallback: null };
+    const end = cameraAt(
+      cut,
+      { shot: 1, offset: 800 },
+      TYPING,
+      viewport,
+      options,
+    );
+    const typed = cameraAt(
+      cut,
+      { shot: 2, offset: 0 },
+      TYPING,
+      viewport,
+      options,
+    );
+    expect(end.x).toBeCloseTo(typed.x);
+    expect(end.y).toBeCloseTo(typed.y);
+    expect(end.scale).toBeCloseTo(typed.scale);
+  });
+
   it("keeps a share of the viewport for notes beside the subjects, and none under them", () => {
     const area = fitArea(viewport, true);
     expect(area.right).toBeCloseTo(1000 * (1 - NOTE_SHARE));

@@ -66,7 +66,7 @@ export const SERVER_RING_PAD_PX = 64;
 export const PAN_SHARE = 0.2;
 // Screen milliseconds over which a shot eases from the view of the shot
 // before it, when the two share a frame but not a view (an add acted out on
-// a pane, then held on its new row beside a note).
+// its field, then held on its new row and tray beside a note).
 export const EASE_MILLIS = 400;
 // Plane pixels kept around a message when its wire was not measured.
 const MESSAGE_PAD_PX = 48;
@@ -432,6 +432,38 @@ const groupBox = (
   return union(measured(subjects.filter(isContainer), anchors));
 };
 
+// What an add's typing frames: the device's add field and the list's last
+// rows (and headings) above it, as many whole ones as fit at the scale the
+// field is framed at, never past MAX_SCALE, padded DETAIL_PAD_PX. Not its
+// tray, which is empty while it types. Null with no field measured.
+const typingBox = (
+  client: string,
+  anchors: Anchors,
+  viewport: Size,
+  notes: boolean,
+): Box | null => {
+  const field = anchors.boxes.get(`field:${client}`);
+  if (field === undefined) return null;
+  const padded = pad(field, DETAIL_PAD_PX);
+  const area = fitArea(viewport, notes);
+  const roomX = Math.max(1, area.right - area.left - 2 * MARGIN_PX);
+  const roomY = Math.max(1, area.bottom - area.top - 2 * MARGIN_PX);
+  const scale = Math.min(
+    MAX_SCALE,
+    roomX / Math.max(1, padded.right - padded.left),
+  );
+  const highest = padded.bottom - roomY / scale + DETAIL_PAD_PX;
+  const above = [...anchors.boxes].flatMap(([key, b]) =>
+    (key.startsWith(`row:${client}:`) || key.startsWith(`text:${client}:`)) &&
+    b.bottom <= field.top &&
+    b.top >= highest
+      ? [b]
+      : [],
+  );
+  const all = union([field, ...above]);
+  return all === null ? null : pad(all, DETAIL_PAD_PX);
+};
+
 // The boxes a close-up or a split frames, one per place that was
 // measured.
 const groupBoxes = (
@@ -489,7 +521,7 @@ const pans = (
 // pans it across the rest, and gives every shot of a frame run the share or
 // the room any of them needs.
 export const frameFor = (
-  shot: Pick<Shot, "framing" | "subjects" | "notes">,
+  shot: Framable & Pick<Shot, "notes">,
   anchors: Anchors,
   viewport: Size,
 ): View | null => framed(shot, shot.notes.length, anchors, viewport);
@@ -511,12 +543,19 @@ export const frameBoxOf = (
   }
 };
 
+// What the camera reads of a shot to frame it: its framing and subjects, and
+// whether it acts out an add's typing (free play's views have none).
+type Framable = Pick<Shot, "framing" | "subjects"> &
+  Partial<Pick<Shot, "enact">>;
+
 // A shot's view, for `notes` notes in its frame run. A close-up, split or
-// follow with notes takes the notes' share. Wide and table holds frame the
-// world's band alike and never take the share: their notes go in the room
-// under their frame, which a wide viewport keeps tall enough for them.
+// follow with notes takes the notes' share; a close-up acting out an add's
+// typing frames its field and the rows above it (`typingBox`). Wide and
+// table holds frame the world's band alike and never take the share: their
+// notes go in the room under their frame, which a wide viewport keeps tall
+// enough for them.
 const framed = (
-  shot: Pick<Shot, "framing" | "subjects">,
+  shot: Framable,
   notes: number,
   anchors: Anchors,
   viewport: Size,
@@ -539,6 +578,11 @@ const framed = (
     }
     case "close":
     case "split": {
+      const typing =
+        shot.framing === "close" && shot.enact?.kind === "type"
+          ? typingBox(shot.enact.client, anchors, viewport, notes > 0)
+          : null;
+      if (typing !== null) return frame(typing, anchors, viewport, notes > 0);
       const b = pans(shot, anchors, viewport)
         ? (panBoxes(shot, anchors)[0] ?? null)
         : union(groupBoxes(shot, anchors, fitOf(viewport, notes > 0)));
@@ -726,7 +770,9 @@ const runNotesOf = (cut: Cut): ReadonlyArray<number> => {
 // its own framing says: paused there, the camera shows the frame the reader
 // last saw, and the move after it starts from there. The first step's
 // opening, with no shot before it, takes its own frame. A move's view is the
-// frame it moves to.
+// frame it moves to: the view of the shot it leads into, when that shot is
+// of its run (not a move or an opening, in its step, of its frame), so a
+// move into an add's typing ends on the typing's frame.
 const viewOf = (
   cut: Cut,
   index: number,
@@ -753,7 +799,16 @@ const viewOf = (
   if (!shot.move) {
     return heldAt(shot, notes, offset, anchors, viewport, reduced);
   }
-  const target = framed(shot, notes, anchors, viewport);
+  const next = cut.shots[index + 1];
+  const into =
+    next !== undefined &&
+    !next.move &&
+    !next.opening &&
+    next.step === shot.step &&
+    frameKey(next) === frameKey(shot)
+      ? next
+      : shot;
+  const target = framed(into, notes, anchors, viewport);
   return target === null ? null : still(target);
 };
 

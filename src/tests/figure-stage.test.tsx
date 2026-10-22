@@ -822,6 +822,17 @@ describe("Stage", () => {
     }
   });
 
+  // An add's typing frames the device's field.
+  it("measures each device's add field, and none on the server", async () => {
+    const { container, restore } = await staged(FREE);
+    const plane = container.querySelector<HTMLElement>("[data-anchor='plane']");
+    const keys = plane === null ? [] : [...measureWorld(plane).boxes.keys()];
+    restore();
+    expect(keys).toContain("field:A");
+    expect(keys).toContain("field:B");
+    expect(keys).not.toContain("field:server");
+  });
+
   it("places the world by the camera: wide in free play, close on a shot's device", async () => {
     const wide = await staged(FREE);
     const wideScale = scaleOf(wide.container);
