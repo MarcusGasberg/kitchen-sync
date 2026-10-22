@@ -234,12 +234,21 @@ const ownOf = (on: Note["on"]): ReadonlySet<string> => {
 // the camera comes to rest on in the shot (`landedAt`), when it is easing
 // there: a note keeps a leader, or a dot, only where it would keep it there,
 // so none is drawn and then drops out mid-ease, and a leader it keeps is
-// drawn through the whole ease.
+// drawn through the whole ease. `lit`: the containers the shot's spotlight
+// keeps lit (`litOf`), null when it dims nothing: a leader may run over the
+// text of a pane the spotlight dims, never over its water.
 export interface NoteOptions {
   readonly spot?: NoteSpot;
   readonly marked?: number | null;
   readonly landed?: View | null;
+  readonly lit?: ReadonlySet<string> | null;
 }
+
+// The container an obstacle's key is in: its place's pane.
+const containerOfKey = (key: string): string => {
+  const place = key.split(":")[1] ?? "";
+  return place === SERVER ? SERVER : `device:${place}`;
+};
 
 export const placeNotes = (
   notes: ReadonlyArray<Note>,
@@ -250,6 +259,7 @@ export const placeNotes = (
     spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
     marked = null,
     landed = null,
+    lit = null,
   }: NoteOptions = {},
 ): ReadonlyArray<PlacedNote> => {
   // Each note as it is placed at the landed view, by its key.
@@ -257,9 +267,11 @@ export const placeNotes = (
     landed === null
       ? null
       : new Map(
-          placeNotes(notes, anchors, landed, viewport, { spot, marked }).map(
-            (p) => [p.key, p] as const,
-          ),
+          placeNotes(notes, anchors, landed, viewport, {
+            spot,
+            marked,
+            lit,
+          }).map((p) => [p.key, p] as const),
         );
   const restsWith = (index: number, what: "leader" | "pin") =>
     atRest === null || (atRest.get(String(index))?.[what] ?? null) !== null;
@@ -356,37 +368,53 @@ export const placeNotes = (
   };
   const into = strip.left - LEADER_GAP_PX;
   const heights = ordered.map((target) => heightFor(target, strip.width));
-  // What a leader may not touch, on screen: text (each row, list heading and
-  // pane header) and basin water.
+  // What a leader may not touch, on screen: text (each row, list heading,
+  // pane header and add field) in a pane the spotlight keeps lit, and basin
+  // water anywhere.
+  const isText = (key: string) =>
+    key.startsWith("row:") ||
+    key.startsWith("text:") ||
+    key.startsWith("header:") ||
+    key.startsWith("field:");
   const obstacles = [...anchors.boxes]
     .filter(
       ([key]) =>
-        key.startsWith("row:") ||
-        key.startsWith("text:") ||
-        key.startsWith("header:") ||
-        key.startsWith("basin:"),
+        key.startsWith("basin:") ||
+        (isText(key) && (lit === null || lit.has(containerOfKey(key)))),
     )
     .map(([key, b]) => [key, onScreen(b, view, viewport)] as const);
+  // Where a note sits level with its subject: its first line level with the
+  // subject's end, or where that would leave the strip its last line, the
+  // leader running into that line; null where neither fits the strip.
+  const levelTops = ordered.map((target, i) => {
+    const end = shown(endOf(target));
+    if (end === null) return null;
+    const height = heights[i] ?? 0;
+    const fits = (top: number) =>
+      top >= strip.top && top + height <= strip.bottom;
+    const first = end.y - LINE_PX / 2;
+    if (fits(first)) return first;
+    const last = end.y + LINE_PX / 2 - height;
+    return fits(last) ? last : null;
+  });
   // Whether a note can sit level with its subject and run straight into it:
-  // its subject's end shows, its level top fits the strip, and the run from
-  // that end into the note touches nothing (or, easing to a landed view, it
-  // keeps its leader there).
+  // its subject's end shows, it fits the strip level with it, and the run
+  // from that end into the note touches nothing (or, easing to a landed
+  // view, it keeps its leader there).
   const level = ordered.map((target, i) => {
     const end = shown(endOf(target));
     if (end === null || !restsWith(target.index, "leader")) return false;
-    const top = end.y - LINE_PX / 2;
-    if (top < strip.top || top + (heights[i] ?? 0) > strip.bottom) {
-      return false;
-    }
+    if (levelTops[i] === null) return false;
     if (atRest !== null) return true;
     const own = ownOf(target.note.on);
     return obstacles.every(
       ([key, b]) => own.has(key) || !crosses(end.y, end.x, into, b, share),
     );
   });
-  const wanted = ordered.map((target) => {
+  const wanted = ordered.map((target, i) => {
     const end = endOf(target);
-    return end === null ? strip.top : end.y - LINE_PX / 2;
+    if (end === null) return strip.top;
+    return (level[i] ? levelTops[i] : null) ?? end.y - LINE_PX / 2;
   });
   // Level notes keep their subjects' heights, a later one that would
   // overlap the one before dropping to a dot. The dotted notes stack in the

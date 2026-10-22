@@ -512,6 +512,8 @@ export function Stage({
       : placeNotes(shot.notes, anchors, camera, size, {
           spot,
           marked: shared === null ? null : 0,
+          // A leader may run over a pane the spotlight dims.
+          lit,
           // Leaders and dots are decided where an ease within the frame
           // lands, so none drops out while the camera eases there.
           landed:

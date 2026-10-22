@@ -337,6 +337,41 @@ describe("placeNotes", () => {
     }
   });
 
+  it("runs a leader over the text of a pane the spotlight dims, never over a lit pane's, basin water or its own device's field", () => {
+    const onA = note({ kind: "row", where: "A", itemId: "1" }, "Shows on A.");
+    // A's run at y 310 crosses B's and C's rows.
+    const [all] = placeNotes([onA], ANCHORS, IDENTITY, WIDE);
+    expect(all?.leader).toBeNull();
+    // A close-up on A dims B and C: their rows no longer take it.
+    const lit = new Set(["device:A"]);
+    const [dimmed] = placeNotes([onA], ANCHORS, IDENTITY, WIDE, { lit });
+    expect(dimmed?.leader).not.toBeNull();
+    expect(dimmed?.pin).toEqual({ x: 190, y: 310 });
+    // A split lighting A and B: B's row takes it again.
+    const [split] = placeNotes([onA], ANCHORS, IDENTITY, WIDE, {
+      lit: new Set(["device:A", "device:B"]),
+    });
+    expect(split?.leader).toBeNull();
+    const withBox = (key: string, b: Box): Anchors => ({
+      ...ANCHORS,
+      boxes: new Map([...ANCHORS.boxes, [key, b]]),
+    });
+    // A dimmed pane's basin water still takes it.
+    const water = withBox("basin:B", box(230, 290, 410, 330));
+    expect(
+      placeNotes([onA], water, IDENTITY, WIDE, { lit })[0]?.leader,
+    ).toBeNull();
+    // So does its own device's add field, and a dimmed device's does not.
+    const field = withBox("field:A", box(192, 300, 198, 320));
+    expect(
+      placeNotes([onA], field, IDENTITY, WIDE, { lit })[0]?.leader,
+    ).toBeNull();
+    const other = withBox("field:B", box(240, 300, 400, 320));
+    expect(
+      placeNotes([onA], other, IDENTITY, WIDE, { lit })[0]?.leader,
+    ).not.toBeNull();
+  });
+
   describe("under a wide or table hold's frame", () => {
     // The hold frames a band whose foot lands at y 400 on a 600 px window.
     const frame = box(40, 40, 960, 400);
@@ -567,6 +602,33 @@ describe("placeNotes", () => {
     const [kept] = placeNotes([row], ANCHORS, short, WIDE);
     expect(kept?.pin?.x).toBeCloseTo(SHARE - 20);
     expect(kept?.leader).not.toBeNull();
+  });
+
+  it("sets a level note with its last line level with its subject where its first line would leave the strip", () => {
+    // Two lines of words; C's row end moved to y 570, 14 px over the strip's
+    // foot (584): first-line level, the note would run to 600.
+    const words = "Oat milk shows on A at once. It waits in A's outbox as #6.";
+    const row = note({ kind: "row", where: "C", itemId: "1" }, words);
+    const low = { x: 500, y: 300 - (570 - 310), scale: 1 };
+    const [placed] = placeNotes([row], ANCHORS, low, WIDE);
+    expect(placed?.at?.top).toBeCloseTo(570 + LINE_PX / 2 - 2 * LINE_PX);
+    expect(placed?.pin).toEqual({ x: 610, y: 570 });
+    expect(placed?.leader?.at(-1)).toEqual({
+      x: SHARE + EDGE_PX - 6,
+      y: 570,
+    });
+    // Its first line still level where it fits.
+    const [high] = placeNotes([row], ANCHORS, IDENTITY, WIDE);
+    expect(high?.at?.top).toBeCloseTo(310 - LINE_PX / 2);
+    // Where neither fits (a strip shorter than the note), only its dot.
+    const tiny = { width: 1000, height: 60 };
+    const [neither] = placeNotes(
+      [row],
+      ANCHORS,
+      { x: 500, y: 310, scale: 1 },
+      tiny,
+    );
+    expect(neither?.leader).toBeNull();
   });
 
   it("never lets notes overlap in a short strip: the extras run off its foot", () => {
