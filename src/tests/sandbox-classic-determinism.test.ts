@@ -13,7 +13,7 @@ import {
   type WorldHandle,
   type WorldOptions,
 } from "#/lib/sandbox/world";
-import { add, events } from "./sandbox-helpers";
+import { add, events, remove } from "./sandbox-helpers";
 
 // One server, one network: a classic phone, a Kitchen Sync phone and C.
 const options: WorldOptions = {
@@ -235,8 +235,9 @@ describe("a classic client", () => {
 });
 
 // Classic and engine changes, latency changes, both phones offline and back,
-// a reply cut mid-flight and a refresh: everything the bridge between the
-// world's fibers and the handler's Promises has to keep in order.
+// a reply cut mid-flight, a refresh and a change the server refuses:
+// everything the bridge between the world's fibers and the handler's
+// Promises has to keep in order.
 const script = (world: WorldHandle) =>
   Effect.gen(function* () {
     const classic = world.classic("classic");
@@ -271,6 +272,21 @@ const script = (world: WorldHandle) =>
     yield* world.clock.advance("300 millis");
     yield* classic.refresh;
     yield* world.clock.advance("3 seconds");
+    // C removes Butter, which the classic phone still shows: its toggle is
+    // refused by the server's rules and comes back 409.
+    const butter = (yield* classic.state).items.find(
+      (i) => i.name === "Butter",
+    );
+    if (butter !== undefined) {
+      yield* world.client("C").apply(yield* remove(world, butter.id));
+      yield* world.clock.advance("1 second");
+      yield* classic.change({
+        kind: "toggle",
+        itemId: butter.id,
+        checked: true,
+      });
+    }
+    yield* world.clock.advance("1 second");
   });
 
 const recorded = inWorld((world) =>
@@ -295,6 +311,9 @@ describe("a classic client is deterministic", () => {
       // The script did reach every path it means to.
       const tags = events(first.timeline).map((event) => event._tag);
       for (const tag of CLASSIC_TAGS) expect(tags).toContain(tag);
+      expect(classicStory(first.timeline, 0)).toEqual(
+        expect.arrayContaining(["Decided rejected", "Sent response 409"]),
+      );
     }),
   );
 
@@ -327,7 +346,13 @@ describe("a classic client is deterministic", () => {
         [start + 2000, "idle"],
         [start + 4300, "request"], // the toggle in flight
         [start + 7000, "idle"],
+        [start + 8700, "response"], // the refused toggle's 409 in flight
       ];
+      const refusal = [...timeline.entries]
+        .reverse()
+        .find((entry) => entry.event.at <= start + 8700)
+        ?.snapshot.messages.find((message) => message.client === "classic");
+      expect(refusal?.label).toBe("409");
       for (const [instant, doing] of instants) {
         const expected = [...timeline.entries]
           .reverse()
