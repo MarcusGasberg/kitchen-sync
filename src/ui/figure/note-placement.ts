@@ -305,11 +305,13 @@ export const placeNotes = (
     const bottom = clamp(b.bottom, 0, viewport.height);
     return { x: facing(b.right), y: (top + bottom) / 2 };
   };
-  // A subject's end shows a dot only inside the window, less its feather.
+  // A subject's end shows a dot only inside the window, less its feather,
+  // and beside the subjects, short of the notes' share, where the plane is
+  // faded out (the server's close-up leaves its list's rows there).
   const shown = (p: Point | null): Point | null =>
     p !== null &&
     p.x >= FEATHER_PX &&
-    p.x <= viewport.width - FEATHER_PX &&
+    p.x <= (beside ? share : viewport.width - FEATHER_PX) &&
     p.y >= FEATHER_PX &&
     p.y <= viewport.height - FEATHER_PX
       ? p

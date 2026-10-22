@@ -553,6 +553,22 @@ describe("placeNotes", () => {
     expect(inside?.pin).not.toBeNull();
   });
 
+  it("drops a dot whose subject ends under the notes' share, and its leader, keeping the words", () => {
+    // The server's close-up frames its whole basin and leaves its list's row
+    // under the share, where the plane is faded out.
+    const row = note({ kind: "row", where: "C", itemId: "1" }, "Applies.");
+    const past = { x: 500 - (SHARE + 20 - 610), y: 300, scale: 1 };
+    const [under] = placeNotes([row], ANCHORS, past, WIDE);
+    expect(under?.pin).toBeNull();
+    expect(under?.leader).toBeNull();
+    expect(under?.at?.left).toBeCloseTo(SHARE + EDGE_PX);
+    // Short of the share, it keeps both.
+    const short = { x: 500 - (SHARE - 20 - 610), y: 300, scale: 1 };
+    const [kept] = placeNotes([row], ANCHORS, short, WIDE);
+    expect(kept?.pin?.x).toBeCloseTo(SHARE - 20);
+    expect(kept?.leader).not.toBeNull();
+  });
+
   it("never lets notes overlap in a short strip: the extras run off its foot", () => {
     const short = { width: 1000, height: 120 };
     const placed = placeNotes(

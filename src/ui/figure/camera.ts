@@ -56,8 +56,9 @@ export const NOTES_BESIDE_FROM_PX = 600;
 // Plane pixels kept around a followed wire, whose whole length a follow
 // frames.
 export const FOLLOW_PAD_PX = 48;
-// Plane pixels kept around a close-up's basin, rows and rings; around the
-// server's ring, which stands for its basin (as wide as most of the plane).
+// Plane pixels kept around a close-up's basin, rows and rings; on a narrow
+// viewport, around the server's ring, which stands for its basin there (as
+// wide as most of the plane, so framed whole it would be too small to read).
 export const DETAIL_PAD_PX = 16;
 export const SERVER_RING_PAD_PX = 64;
 // A split on a narrow viewport pans from one device to the next: each takes
@@ -357,13 +358,38 @@ const groupsOf = (
   return [...groups.values()];
 };
 
+// Where a close-up is framed, when it is framed whole: the viewport, and
+// whether the shot keeps the notes' share. Null on a narrow viewport.
+interface Fit {
+  readonly viewport: Size;
+  readonly notes: boolean;
+}
+
+const fitOf = (viewport: Size, notes: boolean): Fit | null =>
+  besideIn(viewport) ? { viewport, notes } : null;
+
+// The server's close-up from a wide viewport: its whole basin, padded, so a
+// drop's shove is seen where it happens, with its rows (padded) where they
+// fit beside it at the basin's own scale.
+const serverWhole = (basin: Box, rows: ReadonlyArray<Box>, fit: Fit): Box => {
+  const whole = pad(basin, DETAIL_PAD_PX);
+  const withRows = union([whole, ...rows.map((b) => pad(b, DETAIL_PAD_PX))]);
+  if (withRows === null) return whole;
+  const area = fitArea(fit.viewport, fit.notes);
+  const scaleOf = (b: Box) => fitView(b, area, fit.viewport).scale;
+  return scaleOf(withRows) >= scaleOf(whole) - 1e-9 ? withRows : whole;
+};
+
 // What a close-up frames of one place's subjects: what they name, not the
-// whole device. Its rows, rings and tray with its basin, padded; for the
-// server, its rings (padded 64, standing for its basin) with its rows. With
-// no row or ring measured, its containers; with none of those, nothing.
+// whole device. Its rows, rings and tray with its basin, padded. For the
+// server, from a wide viewport, its whole basin with its rows where they
+// fit (`serverWhole`); on a narrow one its rings (padded 64, standing for its
+// basin) with its rows. With no row or ring measured, its containers; with
+// none of those, nothing.
 const groupBox = (
   subjects: ReadonlyArray<Subject>,
   anchors: Anchors,
+  fit: Fit | null,
 ): Box | null => {
   const details = subjects.flatMap((subject) =>
     subject.kind === "row" || subject.kind === "ring" ? [subject] : [],
@@ -385,6 +411,10 @@ const groupBox = (
   const place = details[0]?.where;
   if (place !== undefined && rows.length + rings.length > 0) {
     if (place === SERVER && rings.length > 0) {
+      const basin = anchors.boxes.get(`basin:${SERVER}`);
+      if (fit !== null && basin !== undefined) {
+        return serverWhole(basin, rows, fit);
+      }
       return union([
         ...rings.map((b) => pad(b, SERVER_RING_PAD_PX)),
         ...rows.map((b) => pad(b, DETAIL_PAD_PX)),
@@ -407,16 +437,17 @@ const groupBox = (
 const groupBoxes = (
   shot: Pick<Shot, "subjects">,
   anchors: Anchors,
+  fit: Fit | null,
 ): ReadonlyArray<Box> =>
   groupsOf(shot.subjects).flatMap((group) => {
-    const b = groupBox(group, anchors);
+    const b = groupBox(group, anchors, fit);
     return b === null ? [] : [b];
   });
 
 // What a narrow viewport pans across, in order, for a shot that pans: a
 // split's devices one at a time, or the server's close-up from its ring
 // (padded 64) to its applied row (padded 16). Otherwise its one frame's
-// boxes.
+// boxes. Only a narrow viewport pans, so it frames its boxes as one does.
 const panBoxes = (
   shot: Pick<Shot, "framing" | "subjects">,
   anchors: Anchors,
@@ -438,7 +469,7 @@ const panBoxes = (
     );
     if (rings !== null && rows !== null) return [rings, rows];
   }
-  return groupBoxes(shot, anchors);
+  return groupBoxes(shot, anchors, null);
 };
 
 // Whether a narrow viewport pans across a shot: a split, or the server's
@@ -510,7 +541,7 @@ const framed = (
     case "split": {
       const b = pans(shot, anchors, viewport)
         ? (panBoxes(shot, anchors)[0] ?? null)
-        : union(groupBoxes(shot, anchors));
+        : union(groupBoxes(shot, anchors, fitOf(viewport, notes > 0)));
       return b === null ? null : frame(b, anchors, viewport, notes > 0);
     }
   }

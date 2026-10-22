@@ -259,32 +259,38 @@ describe("framing", () => {
     expect(centre?.y).toBeCloseTo(300);
   });
 
-  it("frames the server's close-up on its ring, padded 64, with its row", () => {
-    const view = frameFor(
-      shot({
-        framing: "close",
-        subjects: [
-          { kind: "server" },
-          { kind: "row", where: "server", itemId: "1" },
-          { kind: "ring", where: "server", itemId: "1" },
-        ],
-      }),
-      DETAIL,
-      viewport,
-    );
-    const framed = unionOf(
-      pad(RING_SERVER, SERVER_RING_PAD_PX),
-      pad(ROW_SERVER, DETAIL_PAD_PX),
-    );
+  it("frames the server's close-up on its whole basin, padded 16, with its newest rows only where they fit", () => {
+    const server = shot({
+      framing: "close",
+      subjects: [
+        { kind: "server" },
+        { kind: "row", where: "server", itemId: "1" },
+        { kind: "ring", where: "server", itemId: "1" },
+      ],
+    });
+    const basin = pad(box(40, 40, 700, 300), DETAIL_PAD_PX);
+    const view = frameFor(server, DETAIL, viewport);
     expect(view?.scale).toBeCloseTo(
       Math.min(
         MAX_SCALE,
-        (1000 - 48) / (framed.right - framed.left),
-        (600 - 48) / (framed.bottom - framed.top),
+        (1000 - 48) / (basin.right - basin.left),
+        (600 - 48) / (basin.bottom - basin.top),
       ),
     );
     if (view === null) return;
-    expect(inside(framed, visibleBox(view, viewport))).toBe(true);
+    const seen = visibleBox(view, viewport);
+    expect(inside(basin, seen)).toBe(true);
+    // Its row would make the basin smaller: it is left out.
+    expect(inside(ROW_SERVER, seen)).toBe(false);
+    // Where the basin is framed by its height, its row fits beside it at the
+    // same scale, and is framed with it.
+    const long = { width: 2000, height: 400 };
+    const both = unionOf(basin, pad(ROW_SERVER, DETAIL_PAD_PX));
+    const roomy = frameFor(server, DETAIL, long);
+    expect(roomy?.scale).toBeCloseTo((400 - 48) / (basin.bottom - basin.top));
+    if (roomy === null) return;
+    expect(inside(both, visibleBox(roomy, long))).toBe(true);
+    expect(project(roomy, long, centreOf(both)).x).toBeCloseTo(1000);
   });
 
   it("keeps a share of the viewport for notes beside the subjects, and none under them", () => {
@@ -761,7 +767,7 @@ describe("framing", () => {
         expect(moving(550, true)).toBe(false);
       });
 
-      it("is moved into on its ring, and keeps the union on a wide viewport", () => {
+      it("is moved into on its ring, and keeps its whole basin on a wide viewport", () => {
         const moving: Cut = {
           shots: [
             shot({ framing: "wide" }),
@@ -776,9 +782,12 @@ describe("framing", () => {
         expect(end.scale).toBeCloseTo(onRing.scale);
         const wide = frameFor(server, DETAIL, viewport);
         if (wide === null) return;
-        expect(inside(unionOf(ring, row), visibleBox(wide, viewport))).toBe(
-          true,
-        );
+        expect(
+          inside(
+            pad(box(40, 40, 700, 300), DETAIL_PAD_PX),
+            visibleBox(wide, viewport),
+          ),
+        ).toBe(true);
       });
     });
 
