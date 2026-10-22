@@ -65,22 +65,26 @@ export function WaitingStrip({
             {change.acked ? "acked" : "pending"}
           </span>
         )}
-        <span className={styles.ring} aria-hidden="true" />
-        {VERB[change.intent]} #{change.clientMutationId}
+        {/* The slot proper, which a push's copy rises from: not the run's
+            word heading it. */}
+        <span className={styles.slot}>
+          <span className={styles.ring} aria-hidden="true" />
+          {VERB[change.intent]} #{change.clientMutationId}
+          {look !== undefined && look.copy !== null && (
+            <span
+              className={styles.copy}
+              data-copy=""
+              aria-hidden="true"
+              style={{ "--slot-copy": look.copy } as CSSProperties}
+            >
+              <span className={styles.ring} />
+              {VERB[change.intent]} #{change.clientMutationId}
+            </span>
+          )}
+        </span>
         <span className="visually-hidden">
           {change.acked ? ", acked" : ", pending"}
         </span>
-        {look !== undefined && look.copy !== null && (
-          <span
-            className={styles.copy}
-            data-copy=""
-            aria-hidden="true"
-            style={{ "--slot-copy": look.copy } as CSSProperties}
-          >
-            <span className={styles.ring} />
-            {VERB[change.intent]} #{change.clientMutationId}
-          </span>
-        )}
       </li>
     );
   };

@@ -72,6 +72,26 @@ describe("WaitingStrip as a figure's tray", () => {
     expect(slot === undefined ? null : spoken(slot)).toBe("Add #3, pending");
   });
 
+  // The copy lifts off the slot's ring, verb and id, not off the run's word
+  // that heads the slot, so it rises from what it copies.
+  it("sends the copy up from the slot's ring, verb and id, clear of the run's word", () => {
+    render(
+      <WaitingStrip
+        changes={[change(3)]}
+        looks={new Map([[3, look(3, { copy: 0.25 })]])}
+      />,
+    );
+    const [slot] = slots();
+    expect(slot?.textContent).toContain("pending");
+    const over = slot
+      ?.querySelector<HTMLElement>("[data-copy]")
+      ?.parentElement?.cloneNode(true) as HTMLElement | undefined;
+    for (const copy of over?.querySelectorAll("[data-copy]") ?? []) {
+      copy.remove();
+    }
+    expect(over?.textContent).toBe("Add #3");
+  });
+
   it("keeps to its most changes with looks, counting the rest", () => {
     const twelve = Array.from({ length: 12 }, (_, i) => change(i + 1));
     render(
