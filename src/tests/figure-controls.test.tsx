@@ -1,11 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { Cut, Shot } from "#/lib/director/shots";
 import type { PlayerView } from "#/lib/sandbox/player";
 import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { BreakingControls } from "#/ui/figure/breaking-controls";
 import {
   PaceControls,
   PlayerControls,
+  slowRateOf,
   whereIs,
 } from "#/ui/figure/player-controls";
 
@@ -87,6 +89,46 @@ describe("PlayerControls", () => {
     expect(whereIs(viewOf({ mode: "free", beat: null }))).toBe(
       "your turn · 1.25 s",
     );
+  });
+
+  it("says slow motion's rate after where it is, only while the shot under the playhead plays slower than 1×", () => {
+    const shot = (rate: number): Shot => ({
+      framing: rate === 0 ? "wide" : "follow",
+      subjects: [],
+      from: 0,
+      to: 0,
+      rate,
+      screen: 1000,
+      through: 0,
+      enact: null,
+      notes: [],
+      move: false,
+      opening: false,
+      step: 0,
+    });
+    const cut: Cut = {
+      shots: [shot(0), shot(0.5), shot(0.25), shot(1), shot(10)],
+      steps: [{ label: "Go.", first: 0, end: 5, startedAt: 0, endedAt: 0 }],
+    };
+    const on = (index: number | null) => viewOf({ cut, shot: index });
+    expect([0, 1, 2, 3, 4].map((index) => slowRateOf(on(index)))).toEqual([
+      null,
+      0.5,
+      0.25,
+      null,
+      null,
+    ]);
+    expect(slowRateOf(viewOf())).toBeNull();
+    expect(whereIs(on(1))).toBe("beat 2 of 2 · 1.25 s · 0.5×");
+    expect(whereIs(on(0))).toBe("beat 2 of 2 · 1.25 s");
+    const { rerender } = render(
+      <PlayerControls view={on(2)} {...handlers()} />,
+    );
+    // Read as the line it is part of, not hidden from assistive technology.
+    const line = screen.getByText("beat 2 of 2 · 1.25 s · 0.25×");
+    expect(line.closest("[aria-hidden]")).toBeNull();
+    rerender(<PlayerControls view={on(3)} {...handlers()} />);
+    expect(screen.queryByText(/×/)).toBeNull();
   });
 
   it("waits while a fork is built", () => {

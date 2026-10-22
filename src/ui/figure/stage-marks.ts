@@ -139,10 +139,6 @@ export interface StageMarks {
   readonly ripple: number | null;
   readonly behind: ReadonlyMap<ClientName, BehindLook>;
   readonly rolls: ReadonlyMap<Place, RollLook>;
-  // Slow motion's rate while the shot under the cursor plays between 0 and
-  // 1× (a follow at 0.5×, slowing to 0.25×); null at 1×, in a hold, a skip,
-  // or free play.
-  readonly rate: number | null;
   // How far the devices' basins have slid to the light table's stack, 0–1.
   readonly table: number;
 }
@@ -158,7 +154,6 @@ export const NO_MARKS: StageMarks = {
   ripple: null,
   behind: new Map(),
   rolls: new Map(),
-  rate: null,
   table: 0,
 };
 
@@ -426,13 +421,6 @@ const rollLooks = ({
   return looks;
 };
 
-// The rate a slow shot plays the world at, to show beside it.
-const rateAt = ({ cut, cursor }: MarkInput): number | null => {
-  const rate =
-    cut === null || cursor === null ? undefined : cut.shots[cursor.shot]?.rate;
-  return rate !== undefined && rate > 0 && rate < 1 ? rate : null;
-};
-
 // How long a basin's next change settles, in screen milliseconds. A basin a
 // close or split shot lights (`container` is its `litOf` key: `server` or
 // `device:<client>`) settles over SETTLE_MS / FOLLOW_RATE, so the drop shoves
@@ -463,7 +451,6 @@ export const stageMarksAt = (input: MarkInput): StageMarks => ({
   ripple: rippleLook(input),
   behind: behindLooks(input),
   rolls: rollLooks(input),
-  rate: rateAt(input),
   table:
     input.cut === null || input.cursor === null
       ? 0

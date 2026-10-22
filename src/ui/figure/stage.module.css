@@ -109,21 +109,6 @@
   }
 }
 
-/* Slow motion's rate, in the window's top-left corner just inside its
-   feathered edge: on the window, not the plane, so the camera never moves
-   it. */
-.rate {
-  position: absolute;
-  inset-block-start: var(--space-5);
-  inset-inline-start: var(--space-5);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  color: var(--ink-2);
-  pointer-events: none;
-}
-
 /* Under the window, never over the plane, and at least `--foot-min` tall (set
    by the stage), so the controls under it hold still. During a scene on a
    narrow viewport it holds the hold's notes, and keeps two notes and the gap

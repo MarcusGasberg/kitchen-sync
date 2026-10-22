@@ -11,6 +11,7 @@ import { freeAges, sceneAges } from "#/lib/director/reveal";
 import type { Cut, Shot } from "#/lib/director/shots";
 import { type CutCursor, indexAt, virtualAt } from "#/lib/director/timing";
 import { runHeadless, type SceneResult } from "#/lib/sandbox/scene";
+import { slowRateOf } from "#/ui/figure/player-controls";
 import {
   NO_MARKS,
   settleMillisFor,
@@ -95,22 +96,15 @@ describe("slow motion's rate", () => {
         expect(follow).toBeGreaterThanOrEqual(0);
         expect(slow).toBeGreaterThanOrEqual(0);
         expect(hold).toBeGreaterThanOrEqual(0);
-        expect(marksOn(result, cut, { shot: follow, offset: 10 }).rate).toBe(
-          FOLLOW_RATE,
-        );
-        expect(marksOn(result, cut, { shot: slow, offset: 10 }).rate).toBe(
-          SLOW_RATE,
-        );
-        expect(marksOn(result, cut, { shot: hold, offset: 0 }).rate).toBeNull();
+        expect(slowRateOf({ cut, shot: follow })).toBe(FOLLOW_RATE);
+        expect(slowRateOf({ cut, shot: slow })).toBe(SLOW_RATE);
+        expect(slowRateOf({ cut, shot: hold })).toBeNull();
         for (const [index, played] of cut.shots.entries()) {
           if (played.rate >= 1) {
-            expect(
-              marksOn(result, cut, { shot: index, offset: 0 }).rate,
-            ).toBeNull();
+            expect(slowRateOf({ cut, shot: index })).toBeNull();
           }
         }
-        expect(freeMarksOf(result).rate).toBeNull();
-        expect(NO_MARKS.rate).toBeNull();
+        expect(slowRateOf({ cut: null, shot: null })).toBeNull();
       }),
   );
 });

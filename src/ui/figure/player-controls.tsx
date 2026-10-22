@@ -24,13 +24,28 @@ interface PaceControlsProps {
 
 const seconds = (millis: number) => `${(millis / 1000).toFixed(2)} s`;
 
+// Slow motion's rate while the shot under the playhead plays the world
+// between 0 and 1× (a follow at 0.5×, slowing to 0.25×); null at 1×, in a
+// hold, a skip, or free play, which is not shot.
+export const slowRateOf = ({
+  cut,
+  shot,
+}: Pick<PlayerView, "cut" | "shot">): number | null => {
+  const rate =
+    cut === null || shot === null ? undefined : cut.shots[shot]?.rate;
+  return rate !== undefined && rate > 0 && rate < 1 ? rate : null;
+};
+
 // Where the figure is, in a few words: its beat in a scene, or free play,
-// and how far in.
+// and how far in; then slow motion's rate, while the scene plays slow.
 export const whereIs = (view: PlayerView): string => {
   const time = seconds(view.at - view.start);
-  return view.mode === "scene" && view.beat !== null
-    ? `beat ${view.beat + 1} of ${view.beats.length} · ${time}`
-    : `your turn · ${time}`;
+  if (view.mode !== "scene" || view.beat === null) {
+    return `your turn · ${time}`;
+  }
+  const where = `beat ${view.beat + 1} of ${view.beats.length} · ${time}`;
+  const rate = slowRateOf(view);
+  return rate === null ? where : `${where} · ${rate}×`;
 };
 
 // A control waits while a fork is built, and on a stopped figure.

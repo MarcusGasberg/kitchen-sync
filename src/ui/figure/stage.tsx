@@ -821,14 +821,6 @@ export function Stage({
             />
           </div>
         </div>
-        {/* Slow motion's rate, while the world plays slower than 1×. The
-            caption and the player's controls say the rest; this is for the
-            eye. */}
-        {marks.rate !== null && (
-          <span className={styles.rate} aria-hidden="true">
-            {`${marks.rate}×`}
-          </span>
-        )}
         {placed.length > 0 && (
           <StageNotes
             key={noteKey}
