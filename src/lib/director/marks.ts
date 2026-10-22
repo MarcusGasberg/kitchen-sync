@@ -305,3 +305,24 @@ export const ghostsAt = (
     ? []
     : ghostsWithin(snapshot, client, toldAt(timeline, index).get(client));
 };
+
+// The server's rows a classic phone lacks, drawn as ghosts. A classic phone
+// never hears a poke, so it would never know it lacks a row: it shows them by
+// the figure's view instead, from the instant the server has them until a
+// reply brings them (its own add included, while the reply is on the wire).
+// The reader sees what the phone itself cannot. Its rows are always some past
+// server list, so a version that has caught up lacks nothing.
+export const classicGhostsOf = (
+  snapshot: WorldSnapshot,
+  client: ClientName,
+): ReadonlyArray<GroceryItem> => {
+  const state = snapshot.classic.get(client);
+  if (
+    state === undefined ||
+    (state.version !== null && state.version >= snapshot.server.serverVersion)
+  ) {
+    return [];
+  }
+  const held = new Set(state.items.map((item) => item.id));
+  return snapshot.server.items.filter((item) => !held.has(item.id));
+};

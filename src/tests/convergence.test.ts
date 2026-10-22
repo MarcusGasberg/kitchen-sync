@@ -13,9 +13,12 @@ import { TestClock } from "effect/testing";
 import { describe, expect } from "vitest";
 import type { MutationIntent } from "#/domain/mutation";
 import { SyncClient } from "#/lib/client";
+import { isConverged, sameRows } from "#/lib/sandbox/trace";
+import { World } from "#/lib/sandbox/world";
 import { StoreService, type StoreState } from "#/lib/store";
 import { SyncEngineService } from "#/lib/sync";
 import { SyncTransportService } from "#/lib/transport";
+import { add } from "./sandbox-helpers";
 
 // Several tabs against one server: each client has its own store and engine,
 // and they share nothing but the Fake transport.
@@ -201,5 +204,72 @@ describe("convergence", () => {
           expect(state.outbox).toEqual([]);
         }
       }),
+  );
+});
+
+// A classic phone shares the server and the network, not the engine's
+// agreement: Converged and Diverged are about the Kitchen Sync clients.
+describe("convergence beside a classic phone", () => {
+  it.effect(
+    "records Converged while the classic phone lacks a row, and the classic phone never flips it",
+    () =>
+      Effect.gen(function* () {
+        const world = yield* World;
+        yield* world.clock.advance("1 second");
+        yield* world.client("C").apply(yield* add(world, "Butter"));
+        yield* world.clock.advance("2 seconds");
+
+        const timeline = yield* world.currentTimeline;
+        const converged = timeline.entries
+          .map((entry) => entry.event._tag)
+          .lastIndexOf("Converged");
+        const snapshot = timeline.entries[converged]?.snapshot;
+        expect(snapshot?.server.items.map((item) => item.name)).toEqual([
+          "Butter",
+        ]);
+        // The engine's clients agree with the server; the classic phone
+        // does not hold Butter, and it does not count.
+        for (const name of ["kitchen", "C"]) {
+          expect(
+            sameRows(
+              snapshot?.clients.get(name)?.items.values() ?? [],
+              snapshot?.server.items ?? [],
+            ),
+          ).toBe(true);
+        }
+        expect(snapshot?.classic.get("classic")?.items).toEqual([]);
+
+        // Offline, a failed save, back online, a refresh: the classic phone
+        // lacks, saves, fails and catches up, and agreement never moves.
+        const classic = world.classic("classic");
+        yield* world.net.offline("classic", true);
+        yield* classic.change({ kind: "add", name: "Eggs" });
+        yield* world.clock.advance("1 second");
+        yield* world.net.offline("classic", false);
+        yield* world.clock.advance("1 second");
+        yield* classic.refresh;
+        yield* world.clock.advance("1 second");
+
+        const after = (yield* world.currentTimeline).entries.slice(converged);
+        const tags = after.map((entry) => entry.event._tag);
+        expect(tags).toContain("SaveFailed");
+        expect(tags).toContain("Refreshed");
+        expect(tags).not.toContain("Diverged");
+        for (const entry of after) {
+          expect(isConverged(entry.snapshot)).toBe(true);
+        }
+        expect((yield* classic.state).items.map((item) => item.name)).toEqual([
+          "Butter",
+        ]);
+      }).pipe(
+        Effect.provide(
+          World.layer({
+            clients: ["classic", "kitchen", "C"],
+            classic: ["classic"],
+            seed: "convergence",
+            latency: "80 millis",
+          }),
+        ),
+      ),
   );
 });

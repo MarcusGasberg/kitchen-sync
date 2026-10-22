@@ -5,6 +5,7 @@ import type { GroceryItem } from "#/domain/grocery-item";
 import {
   type Change,
   changesOf,
+  classicGhostsOf,
   diffItems,
   entryBeforeUpdate,
   ghostsAt,
@@ -17,7 +18,10 @@ import {
   wetKey,
 } from "#/lib/director/marks";
 import { toldAt } from "#/lib/director/versions";
+import { EMPTY_CLASSIC } from "#/lib/sandbox/classic/state";
 import { runHeadless } from "#/lib/sandbox/scene";
+import type { TraceEvent } from "#/lib/sandbox/trace";
+import { World } from "#/lib/sandbox/world";
 import {
   entryWhere,
   lastEntryWhere,
@@ -25,6 +29,7 @@ import {
   REMOVE_FIRST_SCENE,
   TWO_WRITERS_SCENE,
 } from "./director-helpers";
+import { add } from "./sandbox-helpers";
 
 describe("changesOf", () => {
   it.effect(
@@ -216,6 +221,118 @@ describe("ghostsOf", () => {
       );
       expect(ghostsOf(entry.snapshot, "Z")).toEqual([]);
     }),
+  );
+});
+
+describe("classicGhostsOf", () => {
+  // A classic phone refreshes and adds Eggs; the Kitchen Sync phone adds
+  // Lemons in the tunnel while C adds Butter; the Kitchen Sync phone comes
+  // out; the classic phone refreshes.
+  const recorded = Effect.gen(function* () {
+    const world = yield* World;
+    const classic = world.classic("classic");
+    yield* world.clock.advance("1 second");
+    yield* classic.refresh;
+    yield* world.clock.advance("500 millis");
+    yield* classic.change({ kind: "add", name: "Eggs" });
+    yield* world.clock.advance("500 millis");
+    yield* world.net.offline("kitchen", true);
+    yield* world.client("kitchen").apply(yield* add(world, "Lemons"));
+    yield* world.client("C").apply(yield* add(world, "Butter"));
+    yield* world.clock.advance("1 second");
+    yield* world.net.offline("kitchen", false);
+    yield* world.clock.advance("5 seconds");
+    yield* classic.refresh;
+    yield* world.clock.advance("1 second");
+    return yield* world.currentTimeline;
+  }).pipe(
+    Effect.provide(
+      World.layer({
+        clients: ["classic", "kitchen", "C"],
+        classic: ["classic"],
+        seed: "classic-ghosts",
+        latency: "80 millis",
+      }),
+    ),
+  );
+
+  it.effect(
+    "shows the classic phone the server's rows it lacks, from the instant the server has them until a reply brings them",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recorded;
+        const names = (index: number) => {
+          const snapshot = timeline.entries[index]?.snapshot;
+          if (snapshot === undefined) throw new Error(`no entry ${index}`);
+          return classicGhostsOf(snapshot, "classic").map((item) => item.name);
+        };
+        const decided = (client: string) =>
+          entryWhere(
+            timeline,
+            (e) =>
+              e._tag === "Decided" &&
+              e.client === client &&
+              e.classification === "applied",
+          ).index;
+        const first = (tag: TraceEvent["_tag"]) =>
+          entryWhere(timeline, (e) => e._tag === tag).index;
+
+        expect(names(first("Refreshed"))).toEqual([]);
+
+        // Its own add: the server holds Eggs while the reply is on the wire,
+        // and its save brings it.
+        const eggs = decided("classic");
+        expect(names(eggs - 1)).toEqual([]);
+        expect(names(eggs)).toEqual(["Eggs"]);
+        expect(names(first("Saved"))).toEqual([]);
+
+        // C's butter, from the instant the server applies it. It never
+        // hears a poke.
+        const butter = decided("C");
+        expect(names(butter - 1)).toEqual([]);
+        expect(names(butter)).toEqual(["Butter"]);
+
+        // The Kitchen Sync phone's tunnel add reaches the server too: the
+        // truth stays, in the server's order.
+        const lemons = decided("kitchen");
+        const { server } = timeline.entries[lemons]?.snapshot ?? {};
+        expect([...names(lemons)].sort()).toEqual(["Butter", "Lemons"]);
+        expect(names(lemons)).toEqual(
+          (server?.items ?? [])
+            .map((item) => item.name)
+            .filter((name) => name !== "Eggs"),
+        );
+
+        // The refresh fills every ghost.
+        const refreshed = lastEntryWhere(
+          timeline,
+          (e) => e._tag === "Refreshed",
+        ).index;
+        expect([...names(refreshed - 1)].sort()).toEqual(["Butter", "Lemons"]);
+        expect(names(refreshed)).toEqual([]);
+        expect(names(timeline.entries.length - 1)).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    "shows none for a name that is not a classic phone, and every row before its first reply",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recorded;
+        const { entry } = entryWhere(
+          timeline,
+          (e) => e._tag === "Decided" && e.client === "C",
+        );
+        expect(classicGhostsOf(entry.snapshot, "kitchen")).toEqual([]);
+        expect(classicGhostsOf(entry.snapshot, "Z")).toEqual([]);
+        const unanswered = {
+          ...entry.snapshot,
+          classic: new Map([["classic", EMPTY_CLASSIC]]),
+        };
+        expect(classicGhostsOf(unanswered, "classic")).toEqual(
+          entry.snapshot.server.items,
+        );
+      }),
   );
 });
 
