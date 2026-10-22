@@ -35,6 +35,13 @@
   color: var(--ink-fresh);
 }
 
+/* While a narrow window's word floor grows the tag over its own line
+   (`useWordFloor`), the rest of the line steps back to the spotlight's 35%,
+   so it never reads on into the tag. */
+.status:has(.behind[data-grown]) [data-rest] {
+  opacity: 0.35;
+}
+
 @media (forced-colors: active) {
   .behind {
     color: CanvasText;

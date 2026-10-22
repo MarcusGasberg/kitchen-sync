@@ -15,7 +15,8 @@ interface DeviceStatusProps {
 // changes, the state's words, and, from the poke that tells a device until
 // the pull that catches it up, a fresh-ink tag saying how far behind it is.
 // "Behind" takes the place of "synced", never sits beside it. Screen readers
-// read the one plain line, tag included.
+// read the one plain line, tag included. The rest of the line (`data-rest`)
+// steps back while a phone's word floor grows the tag over it.
 export function DeviceStatus({
   version,
   words,
@@ -30,7 +31,7 @@ export function DeviceStatus({
   return (
     <span className={styles.status}>
       <span className="visually-hidden">{line}</span>
-      <span aria-hidden="true">
+      <span aria-hidden="true" data-rest="">
         {version !== null && (
           <>
             v<Odometer value={version} roll={roll} />
@@ -45,7 +46,9 @@ export function DeviceStatus({
           aria-hidden="true"
           style={{ opacity: behind.shown }}
         >
-          {(version !== null || shown !== null) && " · "}
+          {(version !== null || shown !== null) && (
+            <span data-rest=""> · </span>
+          )}
           <span
             className={styles.behind}
             data-word="behind"

@@ -133,6 +133,23 @@ describe("DeviceStatus", () => {
     expect(drawn(plain.container)).not.toContain("· ·");
   });
 
+  // A phone's word floor grows the tag over its own line: the rest of the
+  // line, separator and all, is what steps back while it is grown.
+  it("marks the line's rest, and not the tag's words, as what steps back from a grown tag", () => {
+    const { container } = render(
+      <DeviceStatus
+        version={5}
+        words="1 acked"
+        behind={{ versions: 1, shown: 1 }}
+      />,
+    );
+    const rest = [...container.querySelectorAll<HTMLElement>("[data-rest]")];
+    expect(rest.map((part) => drawn(part)).join("")).toBe("v5 · 1 acked · ");
+    for (const part of rest) {
+      expect(part.querySelector("[data-word='behind']")).toBeNull();
+    }
+  });
+
   it("says only its words while connecting, and nothing of behind unless told", () => {
     const { container } = render(
       <DeviceStatus version={null} words="connecting" />,
