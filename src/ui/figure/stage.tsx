@@ -28,6 +28,7 @@ import {
   besideIn,
   frameBoxOf,
   intersects,
+  landedAt,
   litOf,
   MARGIN_PX,
   type MessageAnchor,
@@ -511,6 +512,12 @@ export function Stage({
       : placeNotes(shot.notes, anchors, camera, size, {
           spot,
           marked: shared === null ? null : 0,
+          // Leaders and dots are decided where an ease within the frame
+          // lands, so none drops out while the camera eases there.
+          landed:
+            cue.kind === "shot"
+              ? landedAt(cue.cut, cue.cursor, anchors, size, reduced)
+              : null,
         });
   const fade = spot?.kind === "beside";
   // A followed message's card, beside its dot on screen, over the window and

@@ -230,10 +230,15 @@ const ownOf = (on: Note["on"]): ReadonlySet<string> => {
 // How a shot's notes are placed: where they go (`spotFor`); by default beside
 // the subjects on a wide viewport, in the foot on a narrow one. `marked`: the
 // note (by its index in `notes`) that carries the shared mark, a mono line
-// over its words, which it is counted a line taller for.
+// over its words, which it is counted a line taller for. `landed`: the view
+// the camera comes to rest on in the shot (`landedAt`), when it is easing
+// there: a note keeps a leader, or a dot, only where it would keep it there,
+// so none is drawn and then drops out mid-ease, and a leader it keeps is
+// drawn through the whole ease.
 export interface NoteOptions {
   readonly spot?: NoteSpot;
   readonly marked?: number | null;
+  readonly landed?: View | null;
 }
 
 export const placeNotes = (
@@ -244,8 +249,20 @@ export const placeNotes = (
   {
     spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
     marked = null,
+    landed = null,
   }: NoteOptions = {},
 ): ReadonlyArray<PlacedNote> => {
+  // Each note as it is placed at the landed view, by its key.
+  const atRest =
+    landed === null
+      ? null
+      : new Map(
+          placeNotes(notes, anchors, landed, viewport, { spot, marked }).map(
+            (p) => [p.key, p] as const,
+          ),
+        );
+  const restsWith = (index: number, what: "leader" | "pin") =>
+    atRest === null || (atRest.get(String(index))?.[what] ?? null) !== null;
   const beside = spot.kind === "beside";
   const share = shareFrom(viewport);
   // A note's height at `width`: a line taller for the one that carries the
@@ -314,7 +331,7 @@ export const placeNotes = (
     text: target.note.text,
     at,
     leader: null,
-    pin: shown(endOf(target)),
+    pin: restsWith(target.index, "pin") ? shown(endOf(target)) : null,
   });
 
   if (spot.kind === "foot") return ordered.map((t) => dotted(t, null));
@@ -350,14 +367,16 @@ export const placeNotes = (
     .map(([key, b]) => [key, onScreen(b, view, viewport)] as const);
   // Whether a note can sit level with its subject and run straight into it:
   // its subject's end shows, its level top fits the strip, and the run from
-  // that end into the note touches nothing.
+  // that end into the note touches nothing (or, easing to a landed view, it
+  // keeps its leader there).
   const level = ordered.map((target, i) => {
     const end = shown(endOf(target));
-    if (end === null) return false;
+    if (end === null || !restsWith(target.index, "leader")) return false;
     const top = end.y - LINE_PX / 2;
     if (top < strip.top || top + (heights[i] ?? 0) > strip.bottom) {
       return false;
     }
+    if (atRest !== null) return true;
     const own = ownOf(target.note.on);
     return obstacles.every(
       ([key, b]) => own.has(key) || !crosses(end.y, end.x, into, b, share),

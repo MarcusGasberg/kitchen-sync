@@ -802,6 +802,21 @@ export const framedAt = (
   return { view: along(from, target, t, anchors, viewport), moving: true };
 };
 
+// The view the camera comes to rest on in the cursor's shot: a hold's own
+// view, which an ease within a frame ends on (a narrow viewport's pan, as it
+// is at the cursor), or the frame a move goes to; null when none of its
+// subjects was measured. A hold's notes decide their leaders and dots here,
+// so none drops out while the camera eases in.
+export const landedAt = (
+  cut: Cut,
+  cursor: CutCursor,
+  anchors: Anchors,
+  viewport: Size,
+  reduced: boolean,
+): View | null =>
+  viewOf(cut, cursor.shot, cursor.offset, anchors, viewport, reduced)?.view ??
+  null;
+
 // The view at the cursor (`framedAt`).
 export const cameraAt = (
   cut: Cut,

@@ -645,6 +645,72 @@ describe("placeNotes", () => {
       expect(only(marked, "First.")).toEqual(only(plain, "First."));
     }
   });
+
+  // An ease within a frame (an add's hold easing in from its typing shot's
+  // view) moves the camera under its notes. A's row runs level past B's: at
+  // the close view the ease starts from, B's row lies in the notes' faded
+  // share, so the run clears it; at the view it lands on, it does not.
+  describe("while the camera eases to the view it lands on", () => {
+    const anchors: Anchors = {
+      plane: { width: 1000, height: 600 },
+      boxes: new Map([
+        ["row:A:1", box(30, 300, 190, 320)],
+        ["row:B:1", box(240, 300, 400, 320)],
+      ]),
+      messages: new Map(),
+    };
+    const CLOSE = { x: 150, y: 310, scale: 3 };
+    const notes = [note({ kind: "row", where: "A", itemId: "1" }, "Lands.")];
+    const between = (t: number) => ({
+      x: CLOSE.x + (IDENTITY.x - CLOSE.x) * t,
+      y: CLOSE.y + (IDENTITY.y - CLOSE.y) * t,
+      scale: CLOSE.scale + (IDENTITY.scale - CLOSE.scale) * t,
+    });
+    const STEPS = [0, 0.25, 0.5, 0.75, 1];
+
+    it("draws no leader the landed view would drop, from the ease's first frame", () => {
+      // Each view alone: the run clears B's row at the start, not at rest.
+      expect(placeNotes(notes, anchors, CLOSE, WIDE)[0]?.leader).not.toBeNull();
+      expect(placeNotes(notes, anchors, IDENTITY, WIDE)[0]?.leader).toBeNull();
+      for (const t of STEPS) {
+        const [placed] = placeNotes(notes, anchors, between(t), WIDE, {
+          landed: IDENTITY,
+        });
+        expect(placed?.leader, `${t}`).toBeNull();
+        // The dot stays at the row's end as the camera draws it.
+        expect(placed?.pin, `${t}`).toEqual(
+          project(between(t), WIDE, { x: 190, y: 310 }),
+        );
+      }
+    });
+
+    it("keeps a leader the landed view keeps, through the whole ease", () => {
+      for (const t of STEPS) {
+        const view = between(1 - t);
+        const [placed] = placeNotes(notes, anchors, view, WIDE, {
+          landed: CLOSE,
+        });
+        const end = project(view, WIDE, { x: 190, y: 310 });
+        expect(placed?.leader?.[0], `${t}`).toEqual(end);
+      }
+    });
+
+    it("draws no dot where the landed view leaves the subject's end outside the window", () => {
+      const away = { x: 900, y: 310, scale: 1 };
+      for (const spot of [
+        { kind: "beside" } as const,
+        { kind: "room", top: 420, left: 40, right: 960 } as const,
+        { kind: "foot" } as const,
+      ]) {
+        const [placed] = placeNotes(notes, anchors, CLOSE, WIDE, {
+          spot,
+          landed: away,
+        });
+        expect(placed?.pin, spot.kind).toBeNull();
+        expect(placed?.leader, spot.kind).toBeNull();
+      }
+    });
+  });
 });
 
 describe("StageNotes", () => {

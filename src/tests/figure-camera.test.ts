@@ -14,6 +14,7 @@ import {
   frameFor,
   intersects,
   LINE_PX,
+  landedAt,
   litOf,
   MARGIN_PX,
   MAX_SCALE,
@@ -1014,6 +1015,17 @@ describe("moving", () => {
         steps: [],
       };
       expect(at(brief, 1, 200)).toEqual(to);
+    });
+
+    it("lands on the hold's own view from the ease's first instant", () => {
+      const cut: Cut = { shots: [enact, hold], steps: [] };
+      for (const offset of [0, EASE_MILLIS / 2, EASE_MILLIS, 2000]) {
+        expect(
+          landedAt(cut, { shot: 1, offset }, DETAIL, viewport, false),
+          `${offset}`,
+        ).toEqual(to);
+      }
+      expect(at(cut, 1, 0)).not.toEqual(to);
     });
 
     it("says the camera moves through the ease, and is still after it", () => {
