@@ -197,6 +197,9 @@ const crosses = (
 interface Target {
   readonly note: Note;
   readonly index: number;
+  // What its end is at: its subject, or for the server's row whose end is
+  // dropped, the row's ring (`tiedTo`).
+  readonly on: Note["on"];
   // The subject's box on screen, and whether it is a container (a device,
   // the server, the light table, a message; `isContainer`) rather than
   // something in a pane.
@@ -301,13 +304,14 @@ const placeWithLines = (
   // shared mark over its words.
   const heightFor = ({ note, index }: Target, width: number) =>
     heightOf(note.text, width) + (index === marked ? LINE_PX : 0);
-  const targets: ReadonlyArray<Target> = notes.map((note, index) => {
+  const subjects: ReadonlyArray<Target> = notes.map((note, index) => {
     const b = boxOf(note.on, anchors);
     const key = headerKeyOf(note.on);
     const header = key === null ? undefined : anchors.boxes.get(key);
     return {
       note,
       index,
+      on: note.on,
       box: b === null ? null : onScreen(b, view, viewport),
       container: isContainer(note.on),
       header: header === undefined ? null : onScreen(header, view, viewport),
@@ -348,6 +352,21 @@ const placeWithLines = (
     p.y <= viewport.height - FEATHER_PX
       ? p
       : null;
+  // The server's close-up frames its whole basin and may leave its list's
+  // rows under the notes' share: a note on a server row whose end is dropped
+  // is tied to that row's ring in the basin instead, which the shot names,
+  // where it shows.
+  const tiedTo = (target: Target): Target => {
+    const { on } = target.note;
+    if (on.kind !== "row" || on.where !== SERVER) return target;
+    if (shown(endOf(target)) !== null) return target;
+    const ring = { kind: "ring", where: SERVER, itemId: on.itemId } as const;
+    const b = boxOf(ring, anchors);
+    if (b === null) return target;
+    const tied = { ...target, on: ring, box: onScreen(b, view, viewport) };
+    return shown(endOf(tied)) === null ? target : tied;
+  };
+  const targets = subjects.map(tiedTo);
   // Notes whose subject was measured come first, in the order of their
   // subjects (down the share beside them, across otherwise); those with
   // none sort last.
@@ -439,7 +458,7 @@ const placeWithLines = (
     if (end === null || !restsWith(target.index, "leader")) return false;
     if (levelTops[i] === null) return false;
     if (atRest !== null) return true;
-    const own = ownOf(target.note.on);
+    const own = ownOf(target.on);
     return obstacles.every(
       ([key, b]) => own.has(key) || !crosses(end.y, end.x, into, b, share),
     );

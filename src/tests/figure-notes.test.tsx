@@ -604,6 +604,53 @@ describe("placeNotes", () => {
     expect(kept?.leader).not.toBeNull();
   });
 
+  // The server's close-up frames its whole basin and leaves its list's rows
+  // under the share: a note on the server's row is tied to the row's ring in
+  // the basin instead, which the shot names.
+  it("ties a note on the server's row to its ring where the row's end is dropped", () => {
+    const server = (row: Box): Anchors => ({
+      ...ANCHORS,
+      boxes: new Map([
+        ...ANCHORS.boxes,
+        ["basin:server", box(40, 30, 450, 130)],
+        ["ring:server:6", box(300, 60, 324, 84)],
+        ["row:server:6", row],
+      ]),
+    });
+    const applies = note(
+      { kind: "row", where: "server", itemId: "6" },
+      "The server applies A's #6.",
+    );
+    const [ringed] = placeNotes(
+      [applies],
+      server(box(SHARE + 40, 64, SHARE + 140, 80)),
+      IDENTITY,
+      WIDE,
+    );
+    // From the ring's end, across its own basin, into the note.
+    expect(ringed?.pin).toEqual({ x: 324, y: 72 });
+    expect(ringed?.leader).toEqual([
+      { x: 324, y: 72 },
+      { x: SHARE + EDGE_PX - 6, y: 72 },
+    ]);
+    // Where the row's end shows, the note keeps it.
+    const [rowed] = placeNotes(
+      [applies],
+      server(box(460, 64, 560, 80)),
+      IDENTITY,
+      WIDE,
+    );
+    expect(rowed?.pin).toEqual({ x: 560, y: 72 });
+    // A device's row under the share keeps only its words.
+    const [device] = placeNotes(
+      [note({ kind: "row", where: "C", itemId: "1" }, "Applies.")],
+      server(box(460, 64, 560, 80)),
+      { x: 500 - (SHARE + 20 - 610), y: 300, scale: 1 },
+      WIDE,
+    );
+    expect(device?.pin).toBeNull();
+  });
+
   it("sets a level note with its last line level with its subject where its first line would leave the strip", () => {
     // Two lines of words; C's row end moved to y 570, 14 px over the strip's
     // foot (584): first-line level, the note would run to 600.
