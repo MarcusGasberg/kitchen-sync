@@ -15,6 +15,7 @@ import { add, check, remove } from "./sandbox-helpers";
 const EMPTY: WorldSnapshot = {
   at: 0,
   clients: new Map(),
+  classic: new Map(),
   offline: new Set(),
   server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
   messages: [],

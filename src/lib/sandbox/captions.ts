@@ -28,6 +28,8 @@ export const said = (message: Message): string => {
     case "ack":
     case "pull":
     case "poke":
+    case "request":
+    case "response":
       return message.label;
   }
 };
@@ -95,6 +97,10 @@ const sent = (message: Message): string | null => {
       return `The server answers ${client} with the list at ${label}.`;
     case "poke":
       return null;
+    case "request":
+      return `${client} sends ${label}.`;
+    case "response":
+      return `The server answers ${client}: ${label}.`;
   }
 };
 
@@ -188,6 +194,11 @@ export const narrate = (entry: Entry): string | null => {
     case "Converged":
       return "Every outbox is empty, and every online device shows the server's list.";
     case "Diverged":
+    case "SavingBegan":
+    case "Saved":
+    case "SaveFailed":
+    case "Refreshed":
+    case "SavingEnded":
       return null;
   }
 };

@@ -193,6 +193,7 @@ describe("noteFor", () => {
       snapshot: {
         at: 0,
         clients: new Map(),
+        classic: new Map(),
         offline: new Set(["C", "B"]),
         server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
         messages: [],
@@ -222,6 +223,7 @@ describe("noteFor", () => {
       snapshot: {
         at: 0,
         clients: new Map(),
+        classic: new Map(),
         offline: new Set(),
         server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
         messages: [],

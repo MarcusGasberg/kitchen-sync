@@ -30,7 +30,24 @@ export type Input =
   | { readonly _tag: "Release"; readonly messageId: number }
   // A script minted an item id. Replaying it keeps the world's id stream in
   // step, so ids minted after a replay match the original's.
-  | { readonly _tag: "Mint" };
+  | { readonly _tag: "Mint" }
+  // A classic client's handler, started.
+  | {
+      readonly _tag: "ClassicChange";
+      readonly client: ClientName;
+      readonly change: ClassicChange;
+    }
+  | { readonly _tag: "ClassicRefresh"; readonly client: ClientName };
+
+// What a classic client's user did: one handler, one request.
+export type ClassicChange =
+  | { readonly kind: "add"; readonly name: string }
+  | {
+      readonly kind: "toggle";
+      readonly itemId: string;
+      readonly checked: boolean;
+    }
+  | { readonly kind: "remove"; readonly itemId: string };
 
 export interface RecordedInput {
   readonly at: number;
@@ -64,6 +81,10 @@ export const applyInput = (
     // world's id stream where the original's was.
     case "Mint":
       return Effect.asVoid(world.newId);
+    case "ClassicChange":
+      return world.classic(input.client).change(input.change);
+    case "ClassicRefresh":
+      return world.classic(input.client).refresh;
   }
 };
 

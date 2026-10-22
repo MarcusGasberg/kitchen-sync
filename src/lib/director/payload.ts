@@ -102,5 +102,8 @@ export const payloadOf = (
     }
     case "poke":
       return [head, "something changed"];
+    case "request":
+    case "response":
+      return [head];
   }
 };

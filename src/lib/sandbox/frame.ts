@@ -22,7 +22,9 @@ export interface Frame {
 // Requests go up from a client; responses and pokes come down from the
 // server.
 export const senderOf = (kind: MessageKind): "client" | "server" =>
-  kind === "push" || kind === "pull" ? "client" : "server";
+  kind === "push" || kind === "pull" || kind === "request"
+    ? "client"
+    : "server";
 
 // The last entry at or before `at`, or -1 when there is none. Entries are in
 // time order, so a binary search finds it.

@@ -24,6 +24,7 @@ import { add } from "./sandbox-helpers";
 const snapshot = (at: number): WorldSnapshot => ({
   at,
   clients: new Map(),
+  classic: new Map(),
   offline: new Set(),
   server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
   messages: [],

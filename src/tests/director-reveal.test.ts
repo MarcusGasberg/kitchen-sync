@@ -85,6 +85,7 @@ describe("freeAges", () => {
         snapshot: {
           at,
           clients: new Map(),
+          classic: new Map(),
           offline: new Set(),
           server: { serverVersion: i, items: [], lastMutationIds: new Map() },
           messages: [],
@@ -115,6 +116,7 @@ describe("free play's opening", () => {
         snapshot: {
           at,
           clients: new Map(),
+          classic: new Map(),
           offline: new Set(),
           server: { serverVersion: seq, items: [], lastMutationIds: new Map() },
           messages: [],

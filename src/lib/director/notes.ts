@@ -126,6 +126,11 @@ export const noteFor = (
         : `The server sends ${event.message.client} ${said(event.message)}.`;
     case "Delivered":
     case "Diverged":
+    case "SavingBegan":
+    case "Saved":
+    case "SaveFailed":
+    case "Refreshed":
+    case "SavingEnded":
       return null;
     case "Dropped":
       return `The network loses ${event.message.client}'s ${said(event.message)}.`;

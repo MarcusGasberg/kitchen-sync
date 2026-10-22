@@ -67,6 +67,8 @@ const MESSAGE_NOUN: Record<MessageKind, string> = {
   pull: "pull",
   pullResponse: "pull response",
   poke: "poke",
+  request: "request",
+  response: "response",
 };
 
 export const breakLabel = (b: Break, offline: boolean): string => {

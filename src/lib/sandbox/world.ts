@@ -24,12 +24,20 @@ import { StoreService, type StoreState } from "#/lib/store";
 import { SyncEngineService } from "#/lib/sync";
 import { makeSyncServer } from "#/lib/sync-server";
 import { makeInMemorySyncStore } from "#/lib/sync-store";
+import { type ClassicClient, makeClassicClient } from "./classic/client";
+import { makeClassicRoute } from "./classic/route";
 import { makeIds, seededRandom } from "./ids";
-import type { Input, RecordedInput } from "./inputs";
+import type { ClassicChange, Input, RecordedInput } from "./inputs";
 import { type MessageRule, makeNetwork } from "./network";
 import { makeRecorder } from "./recorder";
 import { simulatedTransport } from "./simulated-transport";
-import type { ClientName, ServerView, Timeline, WorldSnapshot } from "./trace";
+import type {
+  ClassicState,
+  ClientName,
+  ServerView,
+  Timeline,
+  WorldSnapshot,
+} from "./trace";
 import { traceStore } from "./traced-store";
 
 export interface WorldOptions {
@@ -41,6 +49,9 @@ export interface WorldOptions {
   // Timeline entries kept, 2,000 by default (free play); older ones are
   // trimmed. A scene run headless keeps every entry unless this is set.
   readonly limit?: number;
+  // The clients, of `clients`, that are classic: no store and no engine,
+  // only async/await handlers making one request per change.
+  readonly classic?: ReadonlyArray<ClientName>;
 }
 
 // The world's clock only ever moves in steps of this size.
@@ -64,11 +75,25 @@ export interface ClientHandle {
   readonly state: Effect.Effect<StoreState>;
 }
 
+export interface ClassicHandle {
+  readonly name: ClientName;
+  readonly clientId: string;
+  // Logs the input and starts the handler; returns once the handler has run
+  // to its first await (saving is set and the request is on the wire, or it
+  // has already failed offline). It does not wait for the reply. A toggle or
+  // a removal of a row the phone does not show dies, unlogged.
+  readonly change: (change: ClassicChange) => Effect.Effect<void>;
+  readonly refresh: Effect.Effect<void>;
+  readonly state: Effect.Effect<ClassicState>;
+}
+
 export interface WorldHandle {
   readonly options: WorldOptions;
-  // Throws for a name that is not in the world: a script with a typo should
-  // fail where the typo is.
+  // Throws for a name that is not in the world, or that is a classic
+  // client's: a script with a typo should fail where the typo is.
   readonly client: (name: ClientName) => ClientHandle;
+  // Throws for a name that is not a classic client in the world.
+  readonly classic: (name: ClientName) => ClassicHandle;
   readonly net: {
     readonly offline: (
       name: ClientName,
@@ -152,6 +177,13 @@ const make = (options: WorldOptions) =>
         new Error("a world has 1 to 6 clients with distinct names"),
       );
     }
+    const classicNames = options.classic ?? [];
+    if (classicNames.some((name) => !names.includes(name))) {
+      return yield* Effect.die(
+        new Error("a world's classic clients are some of its clients"),
+      );
+    }
+    const engineNames = names.filter((name) => !classicNames.includes(name));
 
     const testClock = yield* TestClock.testClockWith(Effect.succeed);
     // Setting the time also tells TestClock that time is being driven, which
@@ -179,7 +211,8 @@ const make = (options: WorldOptions) =>
     });
 
     const recorder = yield* makeRecorder({
-      clients: names,
+      clients: engineNames,
+      classic: classicNames,
       readServer,
       now: testClock.currentTimeMillis,
       limit: options.limit ?? FREE_PLAY_LIMIT,
@@ -285,6 +318,7 @@ const make = (options: WorldOptions) =>
 
     const clients = new Map<ClientName, ClientHandle>();
     for (const [name, clientId] of clientIds) {
+      if (classicNames.includes(name)) continue;
       let running = yield* boot(name, clientId);
 
       clients.set(name, {
@@ -328,6 +362,80 @@ const make = (options: WorldOptions) =>
             yield* Scope.close(running.scope, Exit.void);
             running = yield* boot(name, clientId);
           }),
+        ),
+      });
+    }
+
+    // A classic client: its handlers are Promises; the world runs each one as
+    // a fiber (`Effect.promise`), and the route under its `api` as an Effect
+    // on the world's runtime. Every Promise continuation is a microtask, and
+    // a quantum and an input both end on `nextMacrotask`, after every
+    // microtask: so a settled request's handler, and the setters it calls,
+    // run inside the quantum that settled it.
+    const runInWorld = Effect.runPromiseWith(context);
+    const observeInWorld = Effect.runForkWith(context);
+    const classics = new Map<ClientName, ClassicHandle>();
+    for (const [name, clientId] of clientIds) {
+      if (!classicNames.includes(name)) continue;
+      const route = makeClassicRoute({
+        client: name,
+        clientId,
+        network,
+        server,
+        lastMutationId: Effect.map(
+          store.read(clientId, () => false),
+          (read) => read.lastMutationId,
+        ),
+        mint,
+      });
+      const classic: ClassicClient = makeClassicClient({
+        send: (request) =>
+          runInWorld(
+            Effect.forkIn(route(request), worldScope).pipe(
+              Effect.flatMap(Fiber.join),
+            ),
+          ),
+        // Runs at once while the recorder is free, so a setter's events land
+        // before anything the handler does next.
+        observe: (state) => {
+          observeInWorld(recorder.observeClassic(name, state));
+        },
+        now: () => testClock.currentTimeMillisUnsafe(),
+      });
+      const handler = (run: () => Promise<void>) =>
+        Effect.forkIn(Effect.promise(run), worldScope).pipe(Effect.asVoid);
+      // The row a toggle or a removal taps, when the phone does not show it.
+      const missingRow = (change: ClassicChange): string | null =>
+        change.kind !== "add" && classic.rowOf(change.itemId) === undefined
+          ? change.itemId
+          : null;
+      classics.set(name, {
+        name,
+        clientId,
+        state: Effect.sync(classic.state),
+        // Checked again once the input holds the gate: a reply that landed
+        // while it waited may have taken the row, and then the tap does
+        // nothing, in the replay too.
+        change: (change) =>
+          Effect.suspend(() => {
+            const missing = missingRow(change);
+            if (missing !== null) {
+              return Effect.die(
+                new Error(`no row ${missing} on ${name}'s screen`),
+              );
+            }
+            return input(
+              { _tag: "ClassicChange", client: name, change },
+              Effect.suspend(() =>
+                missingRow(change) === null
+                  ? handler(() => classic.change(change))
+                  : Effect.void,
+              ),
+            );
+          }),
+        refresh: input(
+          { _tag: "ClassicRefresh", client: name },
+          handler(() => classic.refresh()),
         ),
       });
     }
@@ -383,7 +491,22 @@ const make = (options: WorldOptions) =>
       client: (name) => {
         const handle = clients.get(name);
         if (handle === undefined) {
-          throw new Error(`no client named ${name} in this world`);
+          throw new Error(
+            classics.has(name)
+              ? `${name} is a classic client: use world.classic`
+              : `no client named ${name} in this world`,
+          );
+        }
+        return handle;
+      },
+      classic: (name) => {
+        const handle = classics.get(name);
+        if (handle === undefined) {
+          throw new Error(
+            clients.has(name)
+              ? `${name} is a Kitchen Sync client: use world.client`
+              : `no classic client named ${name} in this world`,
+          );
         }
         return handle;
       },

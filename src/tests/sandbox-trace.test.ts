@@ -193,6 +193,7 @@ const snapshot = (
 ): WorldSnapshot => ({
   at: 0,
   clients: new Map(Object.entries(clients)),
+  classic: new Map(),
   offline: new Set(offline),
   server,
   messages: [],

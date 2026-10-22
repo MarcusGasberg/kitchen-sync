@@ -143,6 +143,11 @@ const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
     case "SyncRetried":
     case "Retrying":
     case "Recovered":
+    case "SavingBegan":
+    case "Saved":
+    case "SaveFailed":
+    case "Refreshed":
+    case "SavingEnded":
       return device(event.client);
     case "Rejected":
     case "Renumbered":
@@ -233,6 +238,8 @@ const enactmentOf = (input: Input): Enactment | null => {
     case "Latency":
     case "Release":
     case "Mint":
+    case "ClassicChange":
+    case "ClassicRefresh":
       return null;
   }
 };

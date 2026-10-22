@@ -31,6 +31,7 @@ const entry = (at: number, inFlight = false): Entry => {
     snapshot: {
       at,
       clients: new Map(),
+      classic: new Map(),
       offline: new Set(),
       server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
       messages: inFlight ? [flying(at)] : [],

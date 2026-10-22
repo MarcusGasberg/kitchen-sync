@@ -27,6 +27,7 @@ const timeline = (...instants: ReadonlyArray<number>): Timeline => ({
       snapshot: {
         at,
         clients: new Map(),
+        classic: new Map(),
         offline: new Set(),
         server: { serverVersion: seq, items: [], lastMutationIds: new Map() },
         messages: [],

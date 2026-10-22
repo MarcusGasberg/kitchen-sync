@@ -109,7 +109,7 @@ export interface ClassicState {
 // added to TraceEventBody
 | { _tag: "SavingBegan"; client; label: string; name: string | null }
 | { _tag: "Saved"; client; version: number }          // reply in, rows set
-| { _tag: "SaveFailed"; client; message: string }     // setError with text
+| { _tag: "SaveFailed"; client; error: string }       // setError with text
 | { _tag: "Refreshed"; client; version: number; changed: boolean }
 | { _tag: "SavingEnded"; client }                  // setSaving(false): lights `finally`
 
@@ -198,11 +198,11 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
 
 **Files:** `src/lib/sandbox/trace.ts`, `recorder.ts`, `world.ts`, `inputs.ts`, `classic/{state,api,route,handlers,client}.ts`; tests `src/tests/sandbox-classic.test.ts`, `sandbox-classic-determinism.test.ts`.
 
-- [ ] **Step 1: Widen the types.** `MessageKind` gains `request` and `response`; `TraceEventBody` gains the five classic events; `WorldSnapshot` gains `classic`; `Input` gains `ClassicChange` and `ClassicRefresh`. Run `tsc` and fix every exhaustive switch the widening breaks, wherever it is (`compile.ts`'s `enactmentOf` and `answers`, `lit.ts`'s `noteOf`, and so on). Each gets the smallest honest case, the one an unknown device event gets today. The real handling comes in Tasks 6 and 11. List each switch you touch in the task's notes.
-- [ ] **Step 2: `classic/state.ts`.** `EMPTY_CLASSIC` and `diffClassicState(client, prev, next)`: `saving` null→set gives `SavingBegan`; `items`/`version` changed while `saving` was set gives `Saved` (a change) or `Refreshed` (a refresh, `changed` from `rowsKey`); `error` null→text gives `SaveFailed`; `saving` set→null gives `SavingEnded`. Each setter call is its own observation, so `setItems` and `setSaving(false)` are two entries in one instant, in source order. Unit-test each transition as data.
-- [ ] **Step 3: The recorder.** `observeClassic(client, state)` mirrors `observe`: under the lock, set the map, append the diff's events, then `checkFlip` (which never changes, since `isConverged` ignores `classic`). `snapshotNow` carries `classic`. `snapshotDifference` compares `classic`.
-- [ ] **Step 4: `api.ts` and `route.ts`.** `route` is an Effect: decode the request as it would arrive over HTTP (the same encode-JSON-decode trick as `overTheWire`), `network.carry(client, "request", label)`, then for a change build the intent (minting an add's id from the world's `mint`), `server.push(classicClientId, [mutation])` with the next mutation id, then `server.pull(classicClientId, 0)`, rebuild the list in order, `network.carry(client, "response", "200 · v<n>")`, answer. A rejected mutation (the server's `Decided` is `rejected`) answers 409 with the server's reason, read off the push response. `api.ts` wraps it: `Runtime.runPromise` in the world's context, mapping a `TransportFailure` to `ClassicHttpError { status: null }` and recording `version` on the classic state. No timeout, no retry.
-- [ ] **Step 5: `handlers.ts` and `world.ts`.** The handler file is plain TypeScript with no Effect import:
+- [x] **Step 1: Widen the types.** `MessageKind` gains `request` and `response`; `TraceEventBody` gains the five classic events; `WorldSnapshot` gains `classic`; `Input` gains `ClassicChange` and `ClassicRefresh`. Run `tsc` and fix every exhaustive switch the widening breaks, wherever it is (`compile.ts`'s `enactmentOf` and `answers`, `lit.ts`'s `noteOf`, and so on). Each gets the smallest honest case, the one an unknown device event gets today. The real handling comes in Tasks 6 and 11. List each switch you touch in the task's notes.
+- [x] **Step 2: `classic/state.ts`.** `EMPTY_CLASSIC` and `diffClassicState(client, prev, next)`: `saving` null→set gives `SavingBegan`; `items`/`version` changed while `saving` was set gives `Saved` (a change) or `Refreshed` (a refresh, `changed` from `rowsKey`); `error` null→text gives `SaveFailed`; `saving` set→null gives `SavingEnded`. Each setter call is its own observation, so `setItems` and `setSaving(false)` are two entries in one instant, in source order. Unit-test each transition as data.
+- [x] **Step 3: The recorder.** `observeClassic(client, state)` mirrors `observe`: under the lock, set the map, append the diff's events, then `checkFlip` (which never changes, since `isConverged` ignores `classic`). `snapshotNow` carries `classic`. `snapshotDifference` compares `classic`.
+- [x] **Step 4: `api.ts` and `route.ts`.** `route` is an Effect: decode the request as it would arrive over HTTP (the same encode-JSON-decode trick as `overTheWire`), `network.carry(client, "request", label)`, then for a change build the intent (minting an add's id from the world's `mint`), `server.push(classicClientId, [mutation])` with the next mutation id, then `server.pull(classicClientId, 0)`, rebuild the list in order, `network.carry(client, "response", "200 · v<n>")`, answer. A rejected mutation (the server's `Decided` is `rejected`) answers 409 with the server's reason, read off the push response. `api.ts` wraps it: `Runtime.runPromise` in the world's context, mapping a `TransportFailure` to `ClassicHttpError { status: null }` and recording `version` on the classic state. No timeout, no retry.
+- [x] **Step 5: `handlers.ts` and `world.ts`.** The handler file is plain TypeScript with no Effect import:
   ```ts
   // #region classic-add
   async function addItem(name: string) {
@@ -231,7 +231,7 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
   ```
   The span markers are comments the snippet plugin strips, so the reader sees the spec's 13 lines. Span names are unique in the file, so `toggleItem` and `removeItem` use prefixed spans (`toggle-await`, …) or none.
   inside `makeClassicHandlers({ api, setSaving, setError, setItems })` (formatted by Biome; the region is what step 5 shows, so keep it this short). `setSaving(true)` reads the pending request's label and name from a module-private "current request" the api sets as it is called, so the shown signature stays `setSaving(boolean)`. `world.ts`: build each classic client in `make`; `ClassicHandle.change` is `input({ _tag: "ClassicChange", … }, Effect.forkIn(Effect.promise(() => handler(…)), worldScope))`, so the input returns after the handler's synchronous part and the macrotask; `readServer` iterates classic client ids too, so `lastMutationIds` names them. `applyInput` replays both new inputs.
-- [ ] **Step 6: Prove determinism (the gate for the rest of the plan).** Tests:
+- [x] **Step 6: Prove determinism (the gate for the rest of the plan).** Tests:
   - one round trip per change, decided by the real server: a classic add on a fresh world shows `SavingBegan`, one `request` Sent/Delivered, `Decided applied`, one `response`, `Saved`, in that order, and the classic rows equal the server's;
   - offline: `SaveFailed` at the input's own instant, nothing on the wire, rows unchanged, no mutation on the server;
   - cut mid-flight: going offline while the response is on the wire gives `SaveFailed` **and** the server holds the item; a second add of the same name adds a second item;
@@ -240,9 +240,52 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
   - **replay:** `fork(recording, t)` at ten instants, including mid-flight and mid-handler, has `snapshotDifference(expected, actual) === null`.
 
   If either of the last two fails and cannot be fixed by ordering inside the world (e.g. awaiting `nextMacrotask` after each classic Effect settles), stop and ask the user: the fallback is the spec's (write the client in Effect; step 5 labels its snippet "the same handler as async/await"). Do not ship a separate async/await copy silently.
-- [ ] **Step 7:** Commit `feat(sandbox): a classic client, plain async/await over the world's network`.
+- [x] **Step 7:** Commit `feat(sandbox): a classic client, plain async/await over the world's network`.
 
 **Acceptance:** all six tests green on three repeated runs of the file (`--repeat 3` or three calls).
+
+#### Task 2, code-level steps (written against `ccd9470`)
+
+**Notes found against the code.**
+- `SaveFailed`'s text is `error`, not `message`: the trace's message events carry `message: Message`, and `compile.ts`'s `featured` (and any `"message" in event` guard) would read a string as a `Message`. `error` is also `ClassicState.error`'s name and `setError`'s word. The Interfaces block above is updated to match.
+- `ClassicSaving` and `ClassicState` live in `trace.ts` beside `WorldSnapshot` (the Interfaces block's home for them); `classic/state.ts` holds `EMPTY_CLASSIC` and `diffClassicState`.
+- `readServer` already iterates every `clientIds` entry, so `lastMutationIds` names a classic client without an edit; ids are still minted for every name in `clients` order, so an engine-only world's ids do not move.
+- `frame.ts`'s `senderOf` is not a switch, but it reads every kind other than `push`/`pull` as the server's; `request` gets added to the client's side.
+- `lit.ts`'s `noteOf` has a `default` (`event.client`), so it needs no case now.
+
+**Step 1 (switches the widening breaks; each gets the smallest honest case):**
+- `src/lib/sandbox/inputs.ts` `applyInput`: `ClassicChange` → `world.classic(c).change(change)`, `ClassicRefresh` → `world.classic(c).refresh` (the real replay, not a stub).
+- `src/lib/sandbox/captions.ts`: `said` → the label (it already says the method or the status); `sent` → `"<c> sends POST /items."` / `"The server answers <c>: 200 · v7."`, the pull's and the ack's sentences; `narrate` → null for the five classic events.
+- `src/lib/sandbox/frame.ts` `senderOf`: `request` is the client's.
+- `src/lib/director/compile.ts`: `foundOf` → `device(event.client)` for the five classic events (as `RefusedLocally`, `Reloaded`…); `enactmentOf` → null for both new inputs (as `Latency`); `answers` already has `default: false`.
+- `src/lib/director/notes.ts` `noteFor` → null for the five (as `Delivered`).
+- `src/lib/director/payload.ts` `payloadOf` → `[head]` for `request`/`response` (a classic client has no store state, so the function already returns `[head]` before the switch).
+- `src/ui/figure/actions.ts` `MESSAGE_NOUN`: `request: "request"`, `response: "response"`.
+- Test fixtures that build a `WorldSnapshot` by hand gain `classic: new Map()`: `code-lit`, `director-compile`, `director-notes`, `director-reveal`, `director-timing`, `sandbox-captions`, `sandbox-frame`, `sandbox-pacing`, `sandbox-trace`.
+
+**Step 2 (`classic/state.ts`, tested first in `sandbox-classic.test.ts`):** `EMPTY_CLASSIC = { items: [], version: null, saving: null, error: null }`. `diffClassicState(client, prev, next)` returns, in this order: `SavingBegan { label, name }` when `saving` goes null→set; when `saving` was set and `next.items !== prev.items` (the `setItems` setter always writes a fresh list, so a reply that changed nothing still counts), `Refreshed { version, changed: rowsKey(prev) !== rowsKey(next) }` if the saving label is a `GET`, else `Saved { version }`; `SaveFailed { error }` when `error` goes null→text; `SavingEnded` when `saving` goes set→null. Tests: each transition as data, `changed` false on an equal list, no event for `setError(null)` or for a `setItems` with nothing saving.
+
+**Step 3 (`recorder.ts`):** `makeRecorder` takes `classic?: ReadonlyArray<ClientName>` (default none; `clients` stays the engine's); a `classic` map seeded with `EMPTY_CLASSIC`; `snapshotNow` carries `classic: new Map(classic)`; `observeClassic(client, state)` under the lock: set, append `diffClassicState`'s events, `checkFlip`. `trace.ts` `snapshotDifference` compares `classic` per name (`"classic client <name>"`). Tests: `observeClassic` records each event with the classic map in its snapshot; a classic client never flips `Converged`; `snapshotDifference` names a classic difference.
+
+**Step 4 (`classic/route.ts`, `classic/api.ts`):**
+- `route.ts`: `ClassicRequest` (`GET /items`, `POST /items {name}`, `PATCH /items/:id {checked}`, `DELETE /items/:id`) as a Schema union, `ClassicReply { items, version }`, `ClassicHttpError` (`Data.TaggedError`, `{ status: number | null, message }`), `requestLabel` (`"POST /items"`), and `makeClassicRoute({ client, clientId, network, server, lastMutationId, mint })` returning `(request) => Effect<ClassicReply, ClassicHttpError>`: encode-JSON-decode the request (400 before the wire, as `overTheWire`); carry `request` (offline → `status: null, "network error"`; dropped → wait for the link to go down, then that failure: no timeout); for a change, read `lastMutationId + 1` and mint an add's id right before `server.push(clientId, [mutation])`; a rejection carries a `response` labelled `409` and fails 409 with the server's reason; then `server.pull(clientId, 0)` over the wire (`PullResponse`), carry `response` labelled `200 · v<n>`, answer the list in the server's order.
+- `api.ts`: `ClassicApi` (get, post, patch, delete), `makeClassicApi(send)` where `send: (request) => Promise<ClassicReply>` (the world runs the route on its runtime). Each method is one `send`. The version is kept by the client from the reply (Step 5), not by the handler.
+
+**Step 5 (`classic/handlers.ts`, `classic/client.ts`, `world.ts`):**
+- `handlers.ts`: `makeClassicHandlers({ api, setSaving, setError, setItems })` returning `{ addItem, toggleItem, removeItem, refresh }`; `addItem` inside `#region classic-add` with the five spans of Step 5 above; the other three in the same shape, without spans. No Effect import.
+- `client.ts`: `makeClassicClient({ send, observe, now })`: holds `ClassicState`; a private `current` (label and name, set before a handler starts, read by `setSaving(true)`) and `replied` (the last reply's version, read by `setItems`); the setters write the state and call `observe(state)` once each; `change(change, item)` and `refresh()` set `current` and call the handler, returning its Promise.
+- `world.ts`: `WorldOptions.classic` (dies unless a subset of `clients`); engine clients are `clients` minus `classic`; the recorder takes both lists, the network every name. Each classic client's `send` runs the route forked in the world's scope and joined, by `Effect.runPromiseWith(context)`; `observe` runs `recorder.observeClassic` by `Effect.runForkWith(context)` (it starts at once, so the setters' events land in source order and before the request's `Sent`). `ClassicHandle.change` looks up a toggle's or removal's row (dies, unlogged, if the phone does not show it; checked again once the input holds the gate, where a row a reply took meanwhile makes the tap do nothing, in the replay too), then `input({ _tag: "ClassicChange" }, Effect.forkIn(Effect.promise(() => client.change(…)), worldScope))`; `refresh` likewise. `world.client(name)` throws for a classic name and `world.classic(name)` for an engine one.
+
+**Step 6 (`sandbox-classic-determinism.test.ts`, written before Step 5's world wiring and seen failing):** the six tests as listed, in a world `{ clients: ["classic", "kitchen", "C"], classic: ["classic"] }`; the two-run test compares `textOf`-style JSON of every entry (event and snapshot, maps as entry lists); the replay test forks at ten instants including one with the request in flight and one with the response in flight, and checks `snapshotDifference` against the last recorded snapshot at or before each. Run the file three times.
+
+**What the build found (2026-10-22).**
+- Step 6 passed on the first build with no reordering in the world: `SavingBegan` precedes the request's `Sent` because `observe` starts its fiber at once, and `Saved` lands at the input's instant + 2 × latency. The replay test asserts what the classic phone is doing at each fork instant (idle, request or response on the wire, saving or not), so the ten instants are the ones the comments name. Six of six on three sequential runs of the file. No fallback needed.
+- Two handlers in flight at once share one `saving` flag, as they would in an app: a refresh started while a toggle saves overwrites `saving`, and the toggle's reply is then traced as `Refreshed`. The world does not refuse it; the classic pane disables its controls while saving (Task 7), so a reader cannot reach it, and the determinism script waits for each reply.
+- A dropped classic message waits for the link to go down (then fails as a network error), as the “no timeout” decision says; the route does that, not the network.
+- `PATCH` and `DELETE` labels carry the whole item id (`PATCH /items/<uuid>`), as a network panel would; Task 7's card may shorten it for display.
+- Error words: `Couldn't save <name>` (add, toggle), `Couldn't remove <name>`, `Couldn't refresh the list`.
+- `route.ts` has its own six-line encode-JSON-decode (`overTheWire`, failing as a `ClassicHttpError`), so `simulated-transport.ts` is untouched.
+- Extra tests beyond the six, in `sandbox-classic.test.ts`: the diff as data, the recorder's classic map, the handles kept apart, a 409 the server decides, and a tap on a missing row dying unlogged.
 
 ---
 

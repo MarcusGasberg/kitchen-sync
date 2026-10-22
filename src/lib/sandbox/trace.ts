@@ -10,8 +10,16 @@ import type { StoreState, SyncLoop } from "#/lib/store";
 export type ClientName = string;
 
 // A push and a pull are two messages each: the request up and the response
-// down. A poke is one message down.
-export type MessageKind = "push" | "ack" | "pull" | "pullResponse" | "poke";
+// down. A poke is one message down. A classic client's round trip is a
+// `request` up and a `response` down, labelled HTTP-style.
+export type MessageKind =
+  | "push"
+  | "ack"
+  | "pull"
+  | "pullResponse"
+  | "poke"
+  | "request"
+  | "response";
 
 export type MessageFate =
   | "inFlight"
@@ -129,7 +137,34 @@ export type TraceEventBody =
   | { readonly _tag: "WentOffline"; readonly client: ClientName }
   | { readonly _tag: "CameOnline"; readonly client: ClientName }
   | { readonly _tag: "Converged" }
-  | { readonly _tag: "Diverged" };
+  | { readonly _tag: "Diverged" }
+  // A classic client's handler, one setter call at a time (`diffClassicState`).
+  | {
+      readonly _tag: "SavingBegan";
+      readonly client: ClientName;
+      readonly label: string;
+      readonly name: string | null;
+    }
+  // The reply came in and the handler set its rows from it.
+  | {
+      readonly _tag: "Saved";
+      readonly client: ClientName;
+      readonly version: number;
+    }
+  // `setError` with text. Not `message`: that names a wire message here.
+  | {
+      readonly _tag: "SaveFailed";
+      readonly client: ClientName;
+      readonly error: string;
+    }
+  | {
+      readonly _tag: "Refreshed";
+      readonly client: ClientName;
+      readonly version: number;
+      readonly changed: boolean;
+    }
+  // `setSaving(false)`, the handler's `finally`.
+  | { readonly _tag: "SavingEnded"; readonly client: ClientName };
 
 export type TraceEvent = TraceEventBody & {
   readonly at: number;
@@ -143,9 +178,33 @@ export interface ServerView {
   readonly lastMutationIds: ReadonlyMap<ClientName, number>;
 }
 
+// What a classic client's request is waiting on.
+export interface ClassicSaving {
+  // The request, HTTP-style: "POST /items", "GET /items".
+  readonly label: string;
+  // The item the change names, for the error.
+  readonly name: string | null;
+  // Virtual ms.
+  readonly since: number;
+}
+
+// A classic client's whole state: no store, no outbox, only what its
+// handlers set.
+export interface ClassicState {
+  // In order, as the server sent them.
+  readonly items: ReadonlyArray<GroceryItem>;
+  // Null until its first reply.
+  readonly version: number | null;
+  readonly saving: ClassicSaving | null;
+  // "Couldn't save butter".
+  readonly error: string | null;
+}
+
 export interface WorldSnapshot {
   readonly at: number;
+  // The engine's clients. A classic client is in `classic` instead.
   readonly clients: ReadonlyMap<ClientName, StoreState>;
+  readonly classic: ReadonlyMap<ClientName, ClassicState>;
   readonly offline: ReadonlySet<ClientName>;
   readonly server: ServerView;
   // Messages still on the wire: in flight or held.
@@ -337,6 +396,17 @@ export const snapshotDifference = (
       textOf(expected.clients.get(name)) !== textOf(actual.clients.get(name))
     ) {
       return `client ${name}`;
+    }
+  }
+  const classic = new Set([
+    ...expected.classic.keys(),
+    ...actual.classic.keys(),
+  ]);
+  for (const name of classic) {
+    if (
+      textOf(expected.classic.get(name)) !== textOf(actual.classic.get(name))
+    ) {
+      return `classic client ${name}`;
     }
   }
   if (textOf(expected.offline) !== textOf(actual.offline)) {
