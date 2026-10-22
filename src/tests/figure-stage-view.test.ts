@@ -153,7 +153,15 @@ describe("a device's ghosts", () => {
             ?.ghosts,
         ).toEqual([]);
         // Told of the server's version, it does.
-        const told = new Map([["B", behind.server.serverVersion]]);
+        const told = new Map([
+          [
+            "B",
+            {
+              version: behind.server.serverVersion,
+              ids: new Set(behind.server.items.map((item) => item.id)),
+            },
+          ],
+        ]);
         const first = stage(behind, ids, told);
         const b = first.devices.find((device) => device.name === "B");
         expect(b?.ghosts.map((ghost) => ghost.name)).toEqual(["Milk"]);

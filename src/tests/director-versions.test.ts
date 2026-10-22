@@ -126,7 +126,7 @@ describe("toldAt", () => {
             e.message.kind === "poke" &&
             e.message.client === "B",
         );
-        expect(toldAt(timeline, told).get("B")).toBe(final);
+        expect(toldAt(timeline, told).get("B")?.version).toBe(final);
         // Told and behind are one span.
         expect([...toldAt(timeline, told).keys()].sort()).toEqual(
           [...behindAt(timeline, told, agesAt(timeline, told)).keys()].sort(),

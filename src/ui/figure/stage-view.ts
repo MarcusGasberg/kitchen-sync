@@ -5,6 +5,7 @@ import {
   type GroceryItem,
 } from "#/domain/grocery-item";
 import { ghostsWithin } from "#/lib/director/marks";
+import type { Told } from "#/lib/director/versions";
 import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { type Group, type ListView, listView, type Row } from "#/ui/list-view";
@@ -119,7 +120,7 @@ const rowsKey = (items: ReadonlyArray<GroceryItem>) =>
   items.map((item) => `${item.id}@${item.version}`).join(",");
 
 const NO_GHOSTS: ReadonlyArray<GroceryItem> = [];
-const NO_TOLD: ReadonlyMap<ClientName, number> = new Map();
+const NO_TOLD: ReadonlyMap<ClientName, Told> = new Map();
 
 // Builds a figure's stage from a snapshot. A snapshot keeps each client's
 // state by reference, so a device that did nothing keeps its arrays (and its
@@ -143,9 +144,10 @@ export const makeStageView = () => {
     name: ClientName,
     state: StoreState,
     serverKey: string,
-    told: number | undefined,
+    told: Told | undefined,
   ): ReadonlyArray<GroceryItem> => {
-    const key = `${serverKey}:${told ?? "-"}`;
+    // The server's rows at a version are one set: the version keys them.
+    const key = `${serverKey}:${told?.version ?? "-"}`;
     const known = ghostParts.get(state);
     if (known !== undefined && known.key === key) return known.ghosts;
     const found = ghostsWithin(snapshot, name, told);
@@ -166,12 +168,12 @@ export const makeStageView = () => {
     return made;
   };
 
-  // `told`: the version a poke told each device of, while it has not pulled
-  // it (`toldAt`); a device without one shows no ghosts.
+  // `told`: what a poke told each device of, while it has not pulled it
+  // (`toldAt`); a device without one shows no ghosts.
   return (
     snapshot: WorldSnapshot,
     clientIds: ReadonlyMap<ClientName, string>,
-    told: ReadonlyMap<ClientName, number> = NO_TOLD,
+    told: ReadonlyMap<ClientName, Told> = NO_TOLD,
   ): StageView => {
     const { serverVersion, items } = snapshot.server;
     const key = rowsKey(items);

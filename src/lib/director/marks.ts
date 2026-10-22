@@ -8,7 +8,7 @@ import type {
 } from "#/lib/sandbox/trace";
 import type { AgeOf } from "./reveal";
 import { type Place, SERVER } from "./shots";
-import { toldAt } from "./versions";
+import { type Told, toldAt } from "./versions";
 
 // What changed where: marks a stage draws from the trace itself, whatever
 // shot is playing. Wet ink on a row that just changed; a ghost of a row a
@@ -282,17 +282,18 @@ export const ghostsOf = (
 };
 
 // The rows a device knows it lacks at entry `index`, drawn as ghosts ("not
-// here yet"): the server's rows it has not pulled (`ghostsOf`) up to the
-// version a poke told it of (`toldAt`), from that poke's delivery until the
-// pull that fills them. A device no poke has told shows none.
+// here yet"): of the server's rows it has not pulled (`ghostsOf`), those the
+// server held at the version a poke told it of (`toldAt`), by id, so a row
+// the server changes after the poke stays a ghost; from that poke's delivery
+// until the pull that fills them. A device no poke has told shows none.
 export const ghostsWithin = (
   snapshot: WorldSnapshot,
   client: ClientName,
-  told: number | undefined,
+  told: Told | undefined,
 ): ReadonlyArray<GroceryItem> =>
   told === undefined
     ? []
-    : ghostsOf(snapshot, client).filter((item) => item.version <= told);
+    : ghostsOf(snapshot, client).filter((item) => told.ids.has(item.id));
 
 export const ghostsAt = (
   timeline: Timeline,

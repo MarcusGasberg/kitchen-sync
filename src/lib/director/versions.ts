@@ -145,17 +145,31 @@ const toldOf = (
   return told;
 };
 
-// The version a poke told each device of, while it has not pulled it: what
-// the device knows it lacks (`ghostsAt`). A device the server is ahead of
-// but no poke has reached (offline, or its poke dropped) knows nothing.
+// What a poke told a device: the version the server held at its delivery,
+// and the ids of the rows it held then.
+export interface Told {
+  readonly version: number;
+  readonly ids: ReadonlySet<string>;
+}
+
+// What a poke told each device of, while it has not pulled it: what the
+// device knows it lacks (`ghostsAt`). A device the server is ahead of but no
+// poke has reached (offline, or its poke dropped) knows nothing.
 export const toldAt = (
   timeline: Timeline,
   index: number,
-): ReadonlyMap<ClientName, number> =>
+): ReadonlyMap<ClientName, Told> =>
   new Map(
-    [...toldOf(timeline, index)].map(([client, { version }]) => [
+    [...toldOf(timeline, index)].map(([client, { at, version }]) => [
       client,
-      version,
+      {
+        version,
+        ids: new Set(
+          (timeline.entries[at]?.snapshot.server.items ?? []).map(
+            (item) => item.id,
+          ),
+        ),
+      },
     ]),
   );
 

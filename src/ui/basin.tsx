@@ -59,8 +59,8 @@ interface BasinProps {
   // A figure's world: marks each item's rings with an anchor the camera can
   // frame and a note can point at (`ring:<place>:<item id>`).
   readonly ringAnchors?: string;
-  // A figure's device behind the server: the server's rows it has not pulled
-  // (`ghostsOf`). Each gets a dashed ring where its drop will land. Memoise
+  // A figure's device behind the server: the server's rows a poke has told
+  // it it lacks (`ghostsWithin`, `ghostsAt`). Each gets a dashed ring where its drop will land. Memoise
   // it on the state it comes from, as `waiting`.
   readonly ghosts?: ReadonlyArray<GroceryItem>;
   // A figure's items the shot its camera moves into lands here: no drop yet,

@@ -9,12 +9,14 @@ import {
   entryBeforeUpdate,
   ghostsAt,
   ghostsOf,
+  ghostsWithin,
   LEAVE_MILLIS,
   leavingAt,
   WET_MILLIS,
   wetAt,
   wetKey,
 } from "#/lib/director/marks";
+import { toldAt } from "#/lib/director/versions";
 import { runHeadless } from "#/lib/sandbox/scene";
 import {
   entryWhere,
@@ -153,6 +155,47 @@ describe("ghostsAt", () => {
         expect(names(told, "Z")).toEqual([]);
         // The pull fills them.
         expect(names(timeline.entries.length - 1, "B")).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    "keeps a ghost the server changes after the poke, and shows none it gained since",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(MILK_SCENE);
+        const { entry, index } = entryWhere(
+          timeline,
+          (e) =>
+            e._tag === "Delivered" &&
+            e.message.kind === "poke" &&
+            e.message.client === "B",
+        );
+        const told = toldAt(timeline, index).get("B");
+        const { server } = entry.snapshot;
+        const milk = server.items.find((item) => item.name === "Milk");
+        if (milk === undefined) throw new Error("no milk on the server");
+        // A checks milk, and adds bread, before B's pull lands: the server
+        // moves on past the version B was told of.
+        const next = server.serverVersion + 2;
+        const later = {
+          ...entry.snapshot,
+          server: {
+            ...server,
+            serverVersion: next,
+            items: [
+              ...server.items.map((item) =>
+                item.id === milk.id ? { ...item, version: next - 1 } : item,
+              ),
+              { ...milk, id: "bread", name: "Bread", version: next },
+            ],
+          },
+        };
+        expect(
+          ghostsWithin(later, "B", told).map((item) => [
+            item.name,
+            item.version,
+          ]),
+        ).toEqual([["Milk", next - 1]]);
       }),
   );
 });

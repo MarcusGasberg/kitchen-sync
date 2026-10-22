@@ -169,7 +169,15 @@ describe("Stage", () => {
     const view = makeStageView()(
       behind,
       new Map(),
-      new Map([["B", behind.server.serverVersion]]),
+      new Map([
+        [
+          "B",
+          {
+            version: behind.server.serverVersion,
+            ids: new Set(behind.server.items.map((item) => item.id)),
+          },
+        ],
+      ]),
     );
     const { container } = render(
       <Stage
