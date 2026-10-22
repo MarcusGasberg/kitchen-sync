@@ -1,4 +1,5 @@
 import { type RefObject, useLayoutEffect, useRef } from "react";
+import { shownScaleOf } from "./measure";
 import type { Box } from "./wires";
 import {
   type FloorWord,
@@ -113,77 +114,112 @@ const obstaclesIn = (plane: HTMLElement): ReadonlyArray<Box> => {
   return [...titles, ...texts];
 };
 
+// One pass of the floor over the plane's words at `scale`.
+const floorAt = (
+  root: HTMLElement,
+  scale: number | null,
+  narrow: boolean,
+  sizes: WeakMap<Element, number>,
+  drawn: Set<WordElement>,
+): void => {
+  // The largest word is 14 px: past its floor, none grows.
+  if (!narrow || scale === null || growthFor(14, scale) === 1) {
+    for (const element of drawn) reset(element);
+    drawn.clear();
+    return;
+  }
+  const elements = [
+    ...root.querySelectorAll<WordElement>("[data-word]"),
+  ].filter((element) => KINDS.has(element.dataset.word ?? ""));
+  const sizeOf = (element: WordElement) => {
+    const known = sizes.get(element);
+    if (known !== undefined) return known;
+    const size = Number.parseFloat(getComputedStyle(element).fontSize) || 12;
+    sizes.set(element, size);
+    return size;
+  };
+  const words: ReadonlyArray<FloorWord> = elements.map((element) => {
+    const origin = originOf(element);
+    const shown = Number.parseFloat(element.style.scale) || 1;
+    return {
+      kind: element.dataset.word as FloorWord["kind"],
+      box: laidOut(element.getBoundingClientRect(), origin, shown),
+      origin,
+      size: sizeOf(element),
+    };
+  });
+  const floored = floorWords(words, obstaclesIn(root), scale);
+  for (const element of drawn) {
+    if (!elements.includes(element)) drawn.delete(element);
+  }
+  for (const [i, element] of elements.entries()) {
+    const word = words[i];
+    const { grow, yielded } = floored[i] ?? { grow: 1, yielded: false };
+    if (word === undefined || (grow === 1 && !yielded)) {
+      reset(element);
+      drawn.delete(element);
+      continue;
+    }
+    const { style } = element;
+    style.setProperty("scale", String(grow));
+    style.setProperty(
+      "transform-origin",
+      `${word.origin.x * 100}% ${word.origin.y * 100}%`,
+    );
+    if (isSvg(element)) style.setProperty("transform-box", "fill-box");
+    if (grow > 1) element.dataset.grown = "";
+    else delete element.dataset.grown;
+    const dim = yielded ? String(YIELD_OPACITY) : null;
+    for (const property of isSvg(element)
+      ? ["fill-opacity", "stroke-opacity"]
+      : ["opacity"]) {
+      if (dim === null) style.removeProperty(property);
+      else style.setProperty(property, dim);
+    }
+    drawn.add(element);
+  }
+};
+
+// Whether a CSS transition (free play's glide) is carrying the plane's
+// transform. jsdom runs none.
+const glidingNow = (plane: HTMLElement) =>
+  typeof plane.getAnimations === "function" && plane.getAnimations().length > 0;
+
 // Holds the plane's words to WORD_FLOOR_PX on screen while a narrow window's
 // camera sets them smaller (`floorWords`), every render, by inline styles on
 // the words themselves: each grows from where it attaches, or yields at its
 // laid-out size, dimmed. A wide window, or a scale that keeps every word at
-// the floor, draws them as laid out. Nothing transitions.
+// the floor, draws them as laid out. Nothing transitions. `gliding`: free
+// play's glide may carry the plane, a CSS transition whose scale on screen
+// trails the camera's; while it runs, the floor follows the plane's scale
+// on screen (`shownScaleOf`) each frame, and takes the camera's once it ends.
 export const useWordFloor = (
   plane: RefObject<HTMLElement | null>,
   scale: number | null,
   narrow: boolean,
+  gliding = false,
 ): void => {
   const sizes = useRef(new WeakMap<Element, number>());
   const touched = useRef(new Set<WordElement>());
   useLayoutEffect(() => {
     const root = plane.current;
-    const drawn = touched.current;
     if (root === null) return;
-    // The largest word is 14 px: past its floor, none grows.
-    if (!narrow || scale === null || growthFor(14, scale) === 1) {
-      for (const element of drawn) reset(element);
-      drawn.clear();
+    const floor = (at: number | null) =>
+      floorAt(root, at, narrow, sizes.current, touched.current);
+    if (!gliding || !narrow || scale === null) {
+      floor(scale);
       return;
     }
-    const elements = [
-      ...root.querySelectorAll<WordElement>("[data-word]"),
-    ].filter((element) => KINDS.has(element.dataset.word ?? ""));
-    const sizeOf = (element: WordElement) => {
-      const known = sizes.current.get(element);
-      if (known !== undefined) return known;
-      const size = Number.parseFloat(getComputedStyle(element).fontSize) || 12;
-      sizes.current.set(element, size);
-      return size;
+    let frame = 0;
+    const follow = () => {
+      if (!glidingNow(root)) {
+        floor(scale);
+        return;
+      }
+      floor(shownScaleOf(root));
+      frame = requestAnimationFrame(follow);
     };
-    const words: ReadonlyArray<FloorWord> = elements.map((element) => {
-      const origin = originOf(element);
-      const shown = Number.parseFloat(element.style.scale) || 1;
-      return {
-        kind: element.dataset.word as FloorWord["kind"],
-        box: laidOut(element.getBoundingClientRect(), origin, shown),
-        origin,
-        size: sizeOf(element),
-      };
-    });
-    const floored = floorWords(words, obstaclesIn(root), scale);
-    for (const element of drawn) {
-      if (!elements.includes(element)) drawn.delete(element);
-    }
-    for (const [i, element] of elements.entries()) {
-      const word = words[i];
-      const { grow, yielded } = floored[i] ?? { grow: 1, yielded: false };
-      if (word === undefined || (grow === 1 && !yielded)) {
-        reset(element);
-        drawn.delete(element);
-        continue;
-      }
-      const { style } = element;
-      style.setProperty("scale", String(grow));
-      style.setProperty(
-        "transform-origin",
-        `${word.origin.x * 100}% ${word.origin.y * 100}%`,
-      );
-      if (isSvg(element)) style.setProperty("transform-box", "fill-box");
-      if (grow > 1) element.dataset.grown = "";
-      else delete element.dataset.grown;
-      const dim = yielded ? String(YIELD_OPACITY) : null;
-      for (const property of isSvg(element)
-        ? ["fill-opacity", "stroke-opacity"]
-        : ["opacity"]) {
-        if (dim === null) style.removeProperty(property);
-        else style.setProperty(property, dim);
-      }
-      drawn.add(element);
-    }
+    follow();
+    return () => cancelAnimationFrame(frame);
   });
 };

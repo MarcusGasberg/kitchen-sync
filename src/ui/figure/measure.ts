@@ -13,11 +13,19 @@ export interface Measured {
   readonly wires: ReadonlyArray<Wire>;
 }
 
+// The plane's scale on screen, whatever transform or transition is on it:
+// its measured width over its layout width; 1 where nothing is laid out.
+export const shownScaleOf = (plane: HTMLElement): number => {
+  const shown = plane.getBoundingClientRect().width;
+  const width = plane.offsetWidth || shown;
+  return width > 0 && shown > 0 ? shown / width : 1;
+};
+
 export const measureWorld = (plane: HTMLElement): Measured => {
   const shown = plane.getBoundingClientRect();
   const width = plane.offsetWidth || shown.width;
   const height = plane.offsetHeight || shown.height;
-  const scale = width > 0 && shown.width > 0 ? shown.width / width : 1;
+  const scale = shownScaleOf(plane);
   const within = (rect: DOMRect): Box => ({
     left: (rect.left - shown.left) / scale,
     top: (rect.top - shown.top) / scale,

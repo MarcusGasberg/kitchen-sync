@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useWordFloor } from "#/ui/figure/use-word-floor";
 
 // A plane holding a device's title, a behind tag and a message's label, each
@@ -70,5 +70,61 @@ describe("useWordFloor", () => {
       expect(element.dataset.grown).toBeUndefined();
     }
     plane.remove();
+  });
+
+  // Free play's glide is a CSS transition: back to wide, the camera's scale
+  // is a third at once, while the plane still shows at 1.25 on screen.
+  describe("through free play's glide", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("follows the plane's scale on screen each frame, not the camera's, until the glide ends", () => {
+      const plane = planeWith();
+      const ref = { current: plane };
+      let shown = 1.25;
+      let running = true;
+      Object.defineProperty(plane, "offsetWidth", { value: 300 });
+      plane.getBoundingClientRect = () =>
+        ({ left: 0, top: 0, width: 300 * shown, height: 0 }) as DOMRect;
+      plane.getAnimations = () => (running ? [{} as Animation] : []);
+      const frames: Array<FrameRequestCallback> = [];
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((step) => {
+        frames.push(step);
+        return frames.length;
+      });
+      vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+      const nextFrame = () => {
+        const step = frames.shift();
+        step?.(0);
+      };
+      renderHook(() => useWordFloor(ref, 1 / 3, true, true));
+      const behind = wordIn(plane, "1 behind");
+      // At 1.25 on screen a 12 px word is past the floor: none grows yet.
+      expect(behind?.style.scale ?? "").toBe("");
+      expect(behind?.dataset.grown).toBeUndefined();
+      // Halfway, at 0.6: it grows to the floor at that scale.
+      shown = 0.6;
+      nextFrame();
+      expect(Number(behind?.style.scale)).toBeCloseTo(10 / (12 * 0.6));
+      // At rest, at the camera's third, the glide over: no frame follows.
+      shown = 1 / 3;
+      running = false;
+      nextFrame();
+      expect(Number(behind?.style.scale)).toBeCloseTo(2.5);
+      expect(frames).toHaveLength(0);
+      plane.remove();
+    });
+
+    it("takes the camera's scale while the plane is not gliding", () => {
+      const plane = planeWith();
+      const ref = { current: plane };
+      plane.getAnimations = () => [];
+      const frame = vi.spyOn(window, "requestAnimationFrame");
+      renderHook(() => useWordFloor(ref, 1 / 3, true, true));
+      expect(Number(wordIn(plane, "1 behind")?.style.scale)).toBeCloseTo(2.5);
+      expect(frame).not.toHaveBeenCalled();
+      plane.remove();
+    });
   });
 });

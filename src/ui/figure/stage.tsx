@@ -370,8 +370,9 @@ export function Stage({
   } = useCamera(cue, anchors, size, reduced, {
     jumpKey: cue.kind === "shot" ? jumpKey : null,
   });
-  // A narrow window's words never drop below the floor on screen.
-  useWordFloor(plane, camera?.scale ?? null, !besideIn(size));
+  // A narrow window's words never drop below the floor on screen, through
+  // free play's glide too.
+  useWordFloor(plane, camera?.scale ?? null, !besideIn(size), gliding);
 
   const shot = cue.kind === "shot" ? cue.cut.shots[cue.cursor.shot] : undefined;
   const lit = shot === undefined ? null : litOf(shot);
