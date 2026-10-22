@@ -11658,7 +11658,7 @@ Visual work goes through Impeccable, as plan 2's Task 6 did. Plan 2 ran on a mac
   - the surface brief's "Hard cuts between scripted steps" predates the user's choice of the glide ("keep the glide", 2026-10-18); Task 12's glide is not a finding, and Task 15 rewrites the line. Dispatch a fresh finish reviewer with it. Its dispositions: recapture, rebuild, fix or ship. Two rounds at most.
 - [x] **Step 4: Fix** the reviewer's material findings in one batch, with the controller's rulings in `finish-fix-1.md`; review the batch's code; recapture; second round. Put anything left to the user.
 
-The finish ran on 2026-10-22 in 2 rounds; F3 (rate tag placement) awaits the user, as do four camera questions (U2–U5) and ghosts before the news (the leftovers sit in the gitignored `.impeccable/review/vocab-finish/finish-leftovers.md`).
+The finish ran on 2026-10-22 in 2 rounds. The user decided F3 (rate tag placement), the four camera questions (U2–U5) and ghosts before the news on 2026-10-22, and they were fixed: the rate on playback's position line (`942af79`), the server's whole basin (`119e82d`), the typing frame (`70a2e5a`), a phone's word floor (`e12f050`), leaders over dimmed panes (`ef43f7c`) and ghosts that wait for the poke (`0cd9337`). A third review's findings were fixed in `b59e53c`, `e7159d4`, `fc18aa2`, `ffac5cb`, `db1a053` and `fd66355`. The leftovers and rulings sit in the gitignored `.impeccable/review/vocab-finish/` (`finish-leftovers.md`, `finish-fix-3.md`).
 
 ### Task 15: DESIGN.md
 
