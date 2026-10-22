@@ -155,8 +155,11 @@ export type Weather = "office" | "cafe" | "train" | "tunnel";
 export const WEATHERS: Record<Weather, { label: string; latencyMillis: number | null }>;
 export const setWeather: (clients: ReadonlyArray<ClientName>, weather: Weather)
   => (world: WorldHandle) => Effect.Effect<void>;
-export const weatherAt: (inputs: ReadonlyArray<RecordedInput>, clients, at: number)
-  => Weather | "mixed";
+// startMillis: the world's starting latency (`options.latency`), which a
+// client with no Latency input yet still has. "mixed": the clients disagree,
+// or one's latency names no weather (free play's 150 ms). Offline is "tunnel".
+export const weatherAt: (inputs: ReadonlyArray<RecordedInput>, clients, at: number,
+  startMillis: number) => Weather | "mixed";
 
 // director/wait.ts
 export interface Wait {
@@ -293,10 +296,24 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
 
 **Files:** `src/lib/sandbox/weather.ts`; test `sandbox-weather.test.ts`.
 
-- [ ] **Step 1:** `WEATHERS` (office 80 ms, café 300 ms, train 900 ms, tunnel `null`), `setWeather(clients, weather)` issuing, per client, `Offline` (when entering or leaving the tunnel) and `Latency` inputs in one instant. Leaving the tunnel sets latency before coming online, so the first flight out travels at the new weather.
-- [ ] **Step 2:** `weatherAt(inputs, clients, at)`: the latest latency and offline per client at `at`, named if every client agrees, else `"mixed"`.
-- [ ] **Step 3:** Tests: entering and leaving the tunnel; a classic round trip in train weather takes 1800 ms; replay of a weather change reproduces the timeline.
-- [ ] **Step 4:** Commit `feat(sandbox): the weather sets every phone's link at once`.
+- [x] **Step 1:** `WEATHERS` (office 80 ms, café 300 ms, train 900 ms, tunnel `null`), `setWeather(clients, weather)` issuing, per client, `Offline` (when entering or leaving the tunnel) and `Latency` inputs in one instant. Leaving the tunnel sets latency before coming online, so the first flight out travels at the new weather.
+- [x] **Step 2:** `weatherAt(inputs, clients, at, startMillis)`: the latest latency and offline per client at `at` (a client with no Latency input yet has `startMillis`, the world's starting latency), named if every client agrees, else `"mixed"`. Offline wins (it is the tunnel); a latency that names no weather is `"mixed"` (decided 2026-10-22).
+- [x] **Step 3:** Tests: entering and leaving the tunnel; a classic round trip in train weather takes 1800 ms; replay of a weather change reproduces the timeline.
+- [x] **Step 4:** Commit `feat(sandbox): the weather sets every phone's link at once`.
+
+#### Task 3, code-level steps (written against `9cb00b5`)
+
+**Notes found against the code.**
+- A world's starting latency is in its options, not its inputs, so `weatherAt` takes it as a fourth argument, `startMillis` (decided 2026-10-22, over taking a `Recording`). A latency that names no weather (free play starts at 150 ms) gives `"mixed"`, read as "no one named weather"; there is no new return value.
+- Whether a phone is in the tunnel now is `world.snapshot`'s `offline` set (the recorder's, kept by `WentOffline`/`CameOnline`). The current latency is not in a snapshot, so `setWeather` always issues each phone's `Latency` outside the tunnel; a repeated latency is harmless and keeps the readout derivable from the inputs alone.
+- `network.setOffline` does nothing for a link already in that state, but the input is still logged; `setWeather` issues `Offline` only when a phone enters or leaves the tunnel, so its inputs say exactly what changed.
+- The tunnel keeps each phone's latency (the link is down, nothing travels), so leaving it always sets the latency of the weather it leaves into before `Offline false`.
+
+**Step 1 (`src/lib/sandbox/weather.ts`):** `type Weather = "office" | "cafe" | "train" | "tunnel"`; `WEATHERS: Record<Weather, { label; latencyMillis: number | null }>` with labels `office`, `café`, `train`, `tunnel` and 80, 300, 900, `null`. `setWeather(clients, weather)(world)`: read `offline` from `world.snapshot` once; for each client in order: tunnel → `world.net.offline(c, true)` unless already offline; otherwise `world.net.latency(c, millis)`, then `world.net.offline(c, false)` if it was offline. No clock advance, so every input lands in one instant.
+
+**Step 2:** `weatherAt(inputs, clients, at, startMillis)`: walk the inputs with `at` ≤ the given time, keeping per client the last `Latency` millis and `Offline` flag (starting at `startMillis` and online); each client's weather is `tunnel` if offline, else the weather whose latency matches, else none; the result is the weather every client shares, else `"mixed"`. No clients → `"mixed"`.
+
+**Step 3 (`src/tests/sandbox-weather.test.ts`, written first and seen failing):** the world of `sandbox-classic-determinism.test.ts` at 80 ms (`classic`, `kitchen`, `C`). Tests: `WEATHERS`' latencies; entering the tunnel issues one `Offline` per phone and no `Latency`, all at one instant, and records `WentOffline` for both, C untouched; a second tunnel issues nothing; leaving to office issues `Latency` then `Offline false` per phone, and a classic request sent at that instant arrives 80 ms later; café → train issues only `Latency`; a classic round trip on the train (`Saved` 1800 ms after its input); `weatherAt` before any input (80 ms start → `office`, 150 ms start → `mixed`), after each change, between two `setWeather`s (an earlier `at`), mixed when one phone differs (`C` left out by `clients`, then included); a fork after a weather change and a classic add matches the recording (`snapshotDifference` null) and replays the same inputs.
 
 ---
 
