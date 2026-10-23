@@ -1,4 +1,9 @@
-import type { Timeline, TraceEvent, WorldSnapshot } from "#/lib/sandbox/trace";
+import type {
+  Entry,
+  Timeline,
+  TraceEvent,
+  WorldSnapshot,
+} from "#/lib/sandbox/trace";
 import type { Subject } from "./shots";
 
 // Your turn's tasks: what a chapter asks the reader to try once the world is
@@ -9,6 +14,9 @@ export interface TaskView {
   // Events since the task before was done, or since the hand-over.
   readonly since: ReadonlyArray<TraceEvent>;
   readonly snapshot: WorldSnapshot;
+  // Every entry since the hand-over, through this one: what a task about
+  // something done earlier reads (a row added on one phone, now on another).
+  readonly history: ReadonlyArray<Entry>;
 }
 
 // What the next task's note points at: something on the stage, or one of
@@ -46,10 +54,13 @@ export const taskProgress = (
   const doneAt: Array<number | null> = tasks.map(() => null);
   let current = 0;
   let since: Array<TraceEvent> = [];
+  const history: Array<Entry> = [];
   const check = (seq: number, snapshot: WorldSnapshot) => {
     while (current < tasks.length) {
       const task = tasks[current];
-      if (task === undefined || !task.done({ since, snapshot })) return;
+      if (task === undefined || !task.done({ since, snapshot, history })) {
+        return;
+      }
       doneAt[current] = seq;
       current += 1;
       since = [];
@@ -61,6 +72,7 @@ export const taskProgress = (
   if (handed !== undefined) check(handed.event.seq, handed.snapshot);
   for (const entry of timeline.entries.slice(first)) {
     since.push(entry.event);
+    history.push(entry);
     check(entry.event.seq, entry.snapshot);
   }
   return { doneAt, next: current < tasks.length ? current : null };

@@ -1,4 +1,4 @@
-// Synthetic content only: three figures for the finish review's screenshots and
+// Synthetic content only: four figures for the finish review's screenshots and
 // for anyone working on the figure. Mounted by the development-only route in
 // src/routes/lab.tsx.
 import { CodePanel } from "#/ui/code/code-panel";
@@ -7,6 +7,11 @@ import { Figure } from "#/ui/figure/figure";
 import styles from "./lab.module.css";
 import { HTTP_PUSH, PUSH_LOOP, PUSH_LOOP_HISTORY } from "./lab-code";
 import { CHECK_SCENE, DROP_SCENE, FREE_SCENE } from "./lab-scenes";
+import {
+  PROLOGUE_CODE,
+  PROLOGUE_PHONES,
+  PROLOGUE_SCENE,
+} from "./prologue-scene";
 
 export { CHECK_SCENE, DROP_SCENE, FREE_SCENE };
 
@@ -28,6 +33,14 @@ export function Lab() {
       <Figure
         scene={CHECK_SCENE}
         title="A check is a stroke through the drop"
+      />
+      {/* The prologue's figure, to watch before its post exists. Fourth, so
+          free play stays second. */}
+      <Figure
+        scene={PROLOGUE_SCENE}
+        code={PROLOGUE_CODE}
+        weather={PROLOGUE_PHONES}
+        title="A classic phone beside a Kitchen Sync phone"
       />
       <section className={styles.aside} aria-label="Code beside a post">
         <ThenAndNow

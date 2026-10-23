@@ -65,7 +65,7 @@ describe("the lab", () => {
       }),
   );
 
-  it("shows its three figures, free play second", () => {
+  it("shows its four figures, free play second", () => {
     render(<Lab />);
     expect(
       screen
@@ -75,6 +75,7 @@ describe("the lab", () => {
       "Every change is a drop, and the server's order is the pattern",
       "Three phones, one list",
       "A check is a stroke through the drop",
+      "A classic phone beside a Kitchen Sync phone",
     ]);
     // The captures address free play as the second figure.
     expect(document.querySelectorAll("figure")[1]?.textContent).toContain(

@@ -750,16 +750,16 @@ Files change from the task's list: the lights go in `src/app/prologue-code.ts` (
 
 **Files:** `src/app/prologue-scene.ts`, `src/app/lab-scenes.ts` / `lab.tsx` (a lab entry to watch it before the post exists); test `prologue-scene.test.ts`.
 
-- [ ] **Step 1: The scene.** World `{ clients: ["classic", "kitchen", "C"], classic: ["classic"], seed: "prologue", latency: 100 ms }` (the office, so `weatherAt` names it from the start), a starting list without butter. Beats, one or more per step (captions are placeholders; the rail's prose is Task 14's):
+- [x] **Step 1: The scene.** World `{ clients: ["classic", "kitchen", "C"], classic: ["classic"], seed: "prologue", latency: 100 ms }` (the office, so `weatherAt` names it from the start), a starting list without butter. Beats, one or more per step (captions are placeholders; the rail's prose is Task 14's):
   1. quiet setup: both phones and C hold the list; converged and the classic phone refreshed;
   2. the tap: `classic` adds "Eggs", `kitchen` adds "Lemons" in one instant (split); until the classic `Saved`;
   3. the weather: for café and train, `setWeather(["classic","kitchen"], …)` then one add on each; then tunnel, one add on each (classic `SaveFailed`; kitchen's waits in the outbox); then back to office; until kitchen's push is acked;
   4. butter: `C` adds "Butter"; until kitchen has reconciled it and `Converged`; a beat on the table; then `classic` refreshes; until `Refreshed`;
   5–6. quiet holds for the code shot and the prose (no world inputs);
   7. Your turn begins at the end of the last beat.
-- [ ] **Step 2: `PROLOGUE_TASKS`.** Add on both phones; go into the tunnel and add on both; come back out; get an item added on `kitchen` onto `classic` (a `Refreshed`/`Saved` whose rows contain an item first `Applied` on `kitchen` since the fork). Each `point` names its control or device.
-- [ ] **Step 3: The claim, headless.** `runHeadless(PROLOGUE_SCENE)` and assert: every Kitchen Sync wait is 0 ms; classic waits are 200, 600, 1800 ms (2 × latency); the classic phone's tunnel add `SaveFailed` and the server never holds it; kitchen's tunnel add reached the server exactly once (one `Decided applied` for it); at the table the engine clients agree with the server and `classicGhostsOf` contains Butter; after the refresh it does not. Also the director's cut as data: split on the tap, slow follow of the request, a hold on the failure, the table.
-- [ ] **Step 4:** Commit `feat(app): the prologue's scene, and its claim tested headless`.
+- [x] **Step 2: `PROLOGUE_TASKS`.** Add on both phones; go into the tunnel and add on both; come back out; get an item added on `kitchen` onto `classic` (a `Refreshed`/`Saved` whose rows contain an item first `Applied` on `kitchen` since the fork). Each `point` names its control or device.
+- [x] **Step 3: The claim, headless.** `runHeadless(PROLOGUE_SCENE)` and assert: every Kitchen Sync wait is 0 ms; classic waits are 200, 600, 1800 ms (2 × latency); the classic phone's tunnel add `SaveFailed` and the server never holds it; kitchen's tunnel add reached the server exactly once (one `Decided applied` for it); at the table the engine clients agree with the server and `classicGhostsOf` contains Butter; after the refresh it does not. Also the director's cut as data: split on the tap, slow follow of the request, a hold on the failure, the table.
+- [x] **Step 4:** Commit `feat(app): the prologue's scene, and its claim tested headless`.
 
 #### Task 12, code-level steps (written against `3824bbd`)
 
@@ -770,7 +770,7 @@ Notes:
 
 Steps:
 
-- [ ] **Step 1: The scene** (`src/app/prologue-scene.ts`). The world: `{ clients: ["Classic", "Kitchen Sync", "C"], classic: ["Classic"], seed: "prologue", latency: "100 millis" }`. Beats:
+- [x] **Step 1: The scene** (`src/app/prologue-scene.ts`). The world: `{ clients: ["Classic", "Kitchen Sync", "C"], classic: ["Classic"], seed: "prologue", latency: "100 millis" }`. Beats:
   1. Setup (quiet): C adds four rows in the app's categories, none of them butter. Classic refreshes. Until `Converged` and `Refreshed`.
   2. The tap: Classic adds Eggs and Kitchen Sync adds Lemons in one instant. Until Classic's `Saved`, then `SavingEnded`.
   3. The weather, one beat per weather: `setWeather(PHONES, w)`, then one add on each, until Classic's `Saved`, for café then train.
@@ -781,7 +781,7 @@ Steps:
   8. and 9. Quiet holds for steps 5 and 6 (`run: Effect.void`, `until: () => true`, `direct: { quiet: true }`).
 
   Export `PROLOGUE_SCENE`, `PROLOGUE_PHONES` and `PROLOGUE_CODE = classicAddCode("Classic")`.
-- [ ] **Step 2: Tasks.**
+- [x] **Step 2: Tasks.**
   - `tasks.ts` `TaskView` gains `history: ReadonlyArray<Entry>`, the entries since the hand-over. `taskProgress` fills it, and the existing tests pass with it added.
   - `PROLOGUE_TASKS`:
     1. "Add something on both phones": a classic `SavingBegan` with `POST` and a Kitchen Sync `Applied` with `AddItem`. Point: Classic's device.
@@ -789,7 +789,7 @@ Steps:
     3. "Come back out": both `CameOnline`. Point: control "office".
     4. "Get something you added on Kitchen Sync onto Classic": the last event is Classic's `Saved` or `Refreshed`, and its rows hold an id that a Kitchen Sync `AddItem` in `history` added (read from that entry's outbox). Point: Classic's device.
   - Each is tested on a free-play fork as data (`prologue-scene.test.ts`).
-- [ ] **Step 3: The claim, headless** (`prologue-scene.test.ts`):
+- [x] **Step 3: The claim, headless** (`prologue-scene.test.ts`):
   - every Kitchen Sync wait is 0 ms;
   - Classic's shown waits are `[200, 600, 1800]`;
   - Classic's tunnel add is a `SaveFailed`, and no server row has its name;
@@ -797,7 +797,18 @@ Steps:
   - at the table, `isConverged` holds and `classicGhostsOf` names Butter;
   - after `Refreshed` there are no ghosts;
   - the cut: the tap step is split, the request is followed at `SLOW_RATE`, the tunnel step holds on `SaveFailed`, and the butter step has a `table` hold.
-- [ ] **Step 4: Lab.** `lab.tsx` gains a fourth figure, after the three, so free play stays second: `PROLOGUE_SCENE` with `code={PROLOGUE_CODE}` and `weather={PROLOGUE_PHONES}`. `lab.test.tsx`'s "three figures" test says four and keeps free play second.
+- [x] **Step 4: Lab.** `lab.tsx` gains a fourth figure, after the three, so free play stays second: `PROLOGUE_SCENE` with `code={PROLOGUE_CODE}` and `weather={PROLOGUE_PHONES}`. `lab.test.tsx`'s "three figures" test says four and keeps free play second.
+
+**What the build found (2026-10-22).**
+- **The waits come out as claimed.** Kitchen Sync's four changes each wait 0 ms. Classic's waits are 200 ms, 600 ms and 1.8 s, then a failure in the tunnel. Rice never reaches the server. Oats (Kitchen Sync's #4) is decided once, applied.
+- **The tunnel beat holds on screen.** Offline, nothing follows the tunnel's instant: Kitchen Sync's push loop does not retry while the network is down. So the beat cannot run "until Kitchen Sync's `Retrying`", as Task 6's finding hoped. It ends on Classic's `SavingEnded` and holds 2.4 s on its last shot (`direct.hold`).
+- **The setup is two beats.** C's four rows converge first, then Classic loads them. A refresh made in the same instant would race C's pushes. Both beats are quiet (the first by rule, the second by `direct`).
+- **The weather beats fold the pulls too.** Folding only the pokes and Kitchen Sync's `Decided` left C's and Kitchen Sync's pulls each with a close-up in the café and train steps. Each step read as three stories. Folding `Reconciled` and the pull messages leaves Classic's request, the server's save and Classic's reply. Kitchen Sync's push still flies, folded or not.
+- **The weather beat sets the weather and adds in its own `run`.** The readout and the tally take the weather from the recorded Latency inputs, so the readout changes as each step opens.
+- **Task 4 reads the Kitchen Sync phone's add from its outbox entry.** An `Applied` names its mutation id but not its item. The id comes from the entry's snapshot (`TaskView.history`).
+- **The tasks are tested on a live player.** `makePlayer(..., { free: true })` stands in for the reader: add on both, the tunnel, back out, then a refresh that brings Honey to Classic.
+- **What the tasks don't do yet.** No figure renders the tasks yet: `Figure` has no `tasks` prop. They are data for the post's Your turn (Task 14).
+- **The lab's fourth figure.** It plays the scene with the classic handler lit and the weather control, readout and tallies. `pnpm build` answers the file morph's import too.
 
 ---
 
