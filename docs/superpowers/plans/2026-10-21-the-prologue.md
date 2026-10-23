@@ -27,7 +27,7 @@
 | **B** | 6–12 (director, vocabulary, code panel and its lights, scene) | Phase A | Builds on A; edits plan 3's files. |
 | **C** | 13–16 (aside, post, QA, docs) | Phase B, **and** the director's plan 4 (the chapter) **and** the blog routes have landed | The post is a chapter; the aside lives in the chapter's rail. |
 
-Before Phase A starts, the controller confirms the gate: `git log` shows plan 3's finish (`finish-fix-*` work) committed and the vocabulary plan's Task 14 checkboxes ticked, and `npx vitest run --project unit` is green on that head. Status at writing (2026-10-21, head `7c5e300`): Task 15 (DESIGN.md) has landed as `0cce0ed`; Task 14 steps 2–4 are unchecked and fix commits are still arriving. **Phase A is blocked.** Update (2026-10-22, head `2fb1cec`): plan 3's finish is committed, Task 14 is ticked, and its leftovers were decided and fixed. Unit tests are green (90 files, 1054 tests). **Phase A is open.** The dev-capture port is now 3002, not 3001; never touch 3000 or 3001. Engine ghosts now wait for the poke: `ghostsAt` / `ghostsWithin` / `toldAt` in `src/lib/director/{marks,versions}.ts`. `ghostsOf` keeps the figure's-view meaning that `classicGhostsOf` builds on.
+Before Phase A starts, the controller confirms the gate: `git log` shows plan 3's finish (`finish-fix-*` work) committed and the vocabulary plan's Task 14 checkboxes ticked, and `npx vitest run --project unit` is green on that head. Status at writing (2026-10-21, head `7c5e300`): Task 15 (DESIGN.md) has landed as `0cce0ed`; Task 14 steps 2–4 are unchecked and fix commits are still arriving. **Phase A is blocked.** Update (2026-10-22, head `2fb1cec`): plan 3's finish is committed, Task 14 is ticked, and its leftovers were decided and fixed. Unit tests are green (90 files, 1054 tests). **Phase A is open.** The dev-capture port is now 3002, not 3001; never touch 3000 or 3001. Engine ghosts now wait for the poke: `ghostsAt` / `ghostsWithin` / `toldAt` in `src/lib/director/{marks,versions}.ts`. `ghostsOf` keeps the figure's-view meaning that `classicGhostsOf` builds on. Update (2026-10-22, head `3824bbd`): Phase A is committed (Tasks 2–5, review fixes F1, F2, F4; F3 goes to Task 7). **Phase B is open.** Unit suite: 94 files, 1093 tests. On a machine at load average ~360, 15 tests in 8 files time out at 5 s, but the same 8 files pass when run alone (89/89). Under load, re-run the failing files alone before you trust a red.
 
 ## Global Constraints
 
@@ -50,7 +50,7 @@ Before Phase A starts, the controller confirms the gate: `git log` shows plan 3'
 
 Each fills a gap the spec leaves to the builder or forces a choice the spec implies. The ones marked **(confirmed)** the user settled on 2026-10-21; the rest the user can flip at review.
 
-- **Names.** Module `src/lib/sandbox/classic/`. World option `classic: ReadonlyArray<ClientName>` (a subset of `clients`). Handle `world.classic(name): ClassicHandle`, separate from `world.client(name)` (which throws for a classic name, and vice versa), so neither handle's type grows a union. Message kinds `"request"` and `"response"`. Trace events `SavingBegan`, `Saved`, `SaveFailed`, `Refreshed`. Inputs `ClassicChange` and `ClassicRefresh`. Pane title "Classic app" over the Kitchen Sync phone's "Kitchen Sync"; the prologue's world names its clients `classic`, `kitchen` and `C` (the device mark still shows each client's id).
+- **Names.** Module `src/lib/sandbox/classic/`. World option `classic: ReadonlyArray<ClientName>` (a subset of `clients`). Handle `world.classic(name): ClassicHandle`, separate from `world.client(name)` (which throws for a classic name, and vice versa), so neither handle's type grows a union. Message kinds `"request"` and `"response"`. Trace events `SavingBegan`, `Saved`, `SaveFailed`, `Refreshed`. Inputs `ClassicChange` and `ClassicRefresh`. Pane title "Classic app" over the Kitchen Sync phone's "Kitchen Sync"; the prologue's world names its clients `classic`, `kitchen` and `C` (the device mark still shows each client's id). **Superseded 2026-10-22 (Q2):** the prologue's clients are `Classic`, `Kitchen Sync` and `C`, and each pane is titled with its client's name.
 - **The classic phone's changes (confirmed).** The spec scripts only adds. A reader in Your turn will tap a checkbox or a cross on the classic phone, so it has three handlers in the shape of `addItem` (`toggleItem`, `removeItem`) plus `refresh`, each one request: `POST /items`, `PATCH /items/:id`, `DELETE /items/:id`, `GET /items`. Step 5 shows `addItem` only. The other way (adds only, other controls inert on the classic phone) is smaller but reads as a strawman.
 - **What the route sends to the server.** A `MutationIntent` built from the request, its `clientMutationId` the server's `lastMutationIds[classic] + 1` read at the moment the route runs, and for an add, an item id minted from the world's seeded ids inside the route. So a repeated add after a cut reply is a new mutation and a new item: the duplicate the spec wants reachable. The mint happens in the world's fibers in clock order, so a replay mints the same ids.
 - **The version.** The handler shown destructures only `{ items }`. The response also carries `version`; the sandbox's `api` records it on the classic state as it hands the body back (what a browser's network panel would show), so the basin can label a version. The shown handler is unchanged. Ghosts do not need it: a classic phone's rows are always some past server list, so `classicGhostsOf` is the server's rows it lacks whenever its version trails.
@@ -382,6 +382,105 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
 - [ ] **Step 5:** Test the prologue's cut as data, from a small fixture scene: split on the tap; the request's follow at a slowed rate; a hold on the failure; the table after C's butter, with the classic phone's basin on it.
 - [ ] **Step 6:** Commit `feat(director): the classic phone's saves, failures and refreshes are shot`.
 
+#### Phase B, notes and calls made against `3824bbd` (read before any Phase B task)
+
+A probe of a world at 100 ms (`classic` adds Eggs and `kitchen` adds Lemons at t, then both go into the tunnel and add) records this:
+- **The tap, t:** `SavingBegan classic`, `Sent request POST /items`, `Applied kitchen`, `Diverged`, `Sent push #1`. Both wires fly at once.
+- **t+100:** `Delivered request`, `Decided classic applied`, `Poked`, two `Sent poke`, `Sent response 200 · v1`, `Delivered push`, `Decided kitchen applied`, `Poked`, `Sent ack`.
+- **t+200:** pokes land, pulls go out, `Delivered response`, `Delivered ack`, `Acked kitchen`, `Saved classic`, `SavingEnded classic`.
+- **The tunnel, one instant:** `WentOffline` ×2, `Retrying kitchen`, `SavingBegan`, `SaveFailed`, `SavingEnded`, `Applied kitchen`, `Diverged`, `Retrying kitchen`.
+- **Out of the tunnel:** kitchen's push waits for its backoff (about 500 ms, jittered, so not on a quantum).
+
+What that means for the rules today:
+- The two adds are **four close shots**, not a split. Each paired act flushes the holds before it.
+- **Both flights play wide**, because two wires move.
+- Every classic event joins one hold per device, and a folded `Sent request` stretches that hold's `through`. So the code panel would never show `start`, `set-items` or `catch`: each hold ends on a later line.
+
+The calls below follow from that. The user can flip any of them at review. Q1–Q3 were answered on 2026-10-22, as recommended.
+
+- **Q1. Two devices acting in one moment: in turn, in one split frame.** `Shot.enact` stays a single enactment. In a moment whose acts are on two or more devices, every shot of that moment is framed `split` over those devices: each act shot and each hold on one of those devices or their wires. The acts play in input order, each just before its own events, as now. So the reader watches the classic phone type and say "saving" and the request leave, then the Kitchen Sync phone type and its row land, with no camera move. The other way, both typing at once, turns `enact` into a list across `acting.ts`, `camera.ts`, `stage-marks.ts`, `shared-mark.ts` and about 60 test lines, and two fields typing at once are hard to watch. Recommended: in turn. **(Answered 2026-10-22: in turn.)**
+- **Q2. Names.** The Decisions above keep client names `classic` and `kitchen` under pane titles "Classic app" and "Kitchen Sync". But notes, captions, aria labels ("Add to kitchen's list") and the tally all say the client's name, so the reader would meet two names for each phone. Recommended: the prologue's world names its clients by what the reader sees, `Classic` and `Kitchen Sync` (and `C`). No title map is needed. The Phase A tests keep their own worlds. Spaces are safe: the stage quotes `data-client` in its selectors, and anchor keys are strings. The other way is a `titles` prop through Figure, Stage and Pane, with the notes still saying `classic`. **(Answered 2026-10-22: `Classic` and `Kitchen Sync`. This replaces the Decisions entry's names and "Classic app" title.)**
+- **Q3. "Latency simulated".** Task 6 Step 4 and Task 8 Step 1 both ask for it, as a one-off note. Recommended: the weather readout always says it ("train · 900 ms · simulated"), and each tally's accessible text says "simulated latency". It is true at every instant, it is derived from nothing, and no rule has to decide which tally came first. The director writes no note for it. **(Answered 2026-10-22: "simulated" on the readout.)**
+- **Follow the classic wire.** While a classic `request` or `response` is on exactly one wire, a flight follows that wire even when engine messages move on others. They are still drawn, just not framed. This changes nothing in an engine-only scene. A flight also slows into `Saved`, `SaveFailed` and `Refreshed`, as it does into `Decided`.
+- **Line by line.** The five classic events never join each other's hold. A `Sent` of a `request` gets a hold of its own, on its wire, instead of being folded. `SavingEnded` gets a short noteless hold, `LINE_HOLD_MILLIS = 600`. So each line the handler runs gets screen time, and Task 11 can light all five spans. `Saved` and `Refreshed` find the classic phone's changed rows and rings, as `Reconciled` does.
+- **`SaveFailed` and `SavingEnded` carry the request's `label`.** It comes from `prev.saving` in `diffClassicState`: when `setError` and `setSaving(false)` run, saving is still set. This lets a refresh's or a toggle's events light nothing in the `addItem` panel, and lets a note say "couldn't refresh". It is a small sandbox change, made in Task 6 Step 0.
+- **A classic decision has no id in its note.** The route numbers the mutation, but the classic phone sent no id, so "classic's #1" would mislead. `decisionNote` takes `classic: boolean` and says "The server saves Classic's change." or "The server refuses Classic's change: …".
+- **The lights live in `src/app/prologue-code.ts`, not in `src/lib/sandbox/classic/lights.ts`.** `Light` is a `src/ui/code` type, and every `FigureCode` lives in `src/app` (as `lab-code.ts` does). `src/lib` must not import `src/ui`.
+- **F3 is closed by the pane.** Free play's classic actions re-read the phone's state and do nothing while it is saving, and the pane's controls are disabled while it saves. So a reader cannot log a tap that does nothing. The world's API is unchanged: a scene can still overlap two changes, and Task 5's notes keep that case.
+- **Tasks need the hand-over's entries.** "Get something you added on Kitchen Sync onto Classic" needs to know which rows Kitchen Sync added since the hand-over. Today a `TaskView` has the events since the last task, with no snapshots. It gains `history`: every entry since the hand-over (Task 12).
+- **Who gets a tally and the weather.** One new optional Figure prop, `weather: ReadonlyArray<ClientName>`, names the reader's phones. They get the tallies and the weather control. Without the prop, a figure draws as today.
+
+#### Task 6, code-level steps (written against `3824bbd`)
+
+Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `src/lib/director/{shots,compile,acting,notes}.ts`; tests `sandbox-classic.test.ts`, `sandbox-scene.test.ts`, `director-acting.test.ts`, `director-compile.test.ts`, `director-notes.test.ts`, fixture in `src/tests/director-helpers.ts`.
+
+- [ ] **Step 0: What the director needs from the sandbox.**
+  - `trace.ts`: `SaveFailed` and `SavingEnded` gain `label: string`.
+  - `classic/state.ts` `diffClassicState`: take `label` from `prev.saving?.label ?? next.saving?.label ?? ""`.
+  - `sandbox-classic.test.ts`: the diff-as-data tests gain the label; then run the determinism file three times.
+  - `scene.ts` `runHeadless`: `clientIds` reads `world.classic(name).clientId` for a name in `scene.world.classic`, and `world.client(name)` otherwise.
+  - `sandbox-scene.test.ts`: a scene with a classic client runs headless and names every client's id.
+- [ ] **Step 1: Enactments** (tests first, in `director-acting.test.ts` and `director-compile.test.ts`).
+  - `shots.ts`: `Enactment` gains `{ kind: "refresh"; client }`.
+  - `compile.ts` `enactmentOf`:
+    - `ClassicChange` add → `{ kind: "type", client, text: name }`;
+    - toggle → `{ kind: "tap", client, itemId, intent: "SetItemChecked" }`;
+    - remove → `{ kind: "tap", client, itemId, intent: "RemoveItem" }`;
+    - `ClassicRefresh` → `{ kind: "refresh", client }`.
+  - `enactMillis`: `refresh` is `TAP_MILLIS`.
+  - `answers`: a `ClassicChange` is answered by its client's `SavingBegan` or `SaveFailed`; a `ClassicRefresh` by its client's `SavingBegan`.
+  - `acting.ts`: `Acting` gains `{ kind: "refresh"; client; touch }`, the same as `retry` (`touchAt(offset, TAP_LEAD_MILLIS, reduced)`).
+- [ ] **Step 2: Salience** (tests first).
+  - `foundOf`:
+    - `SavingBegan`, `SaveFailed` and `SavingEnded` → `device(client)`;
+    - `Saved` → `device(client, …rowAndRing(client, id))` for each row whose classic items changed (`diffItems(byId(before), byId(after))`, `before` from the entry before);
+    - `Refreshed` → the same when `changed`, else `null`;
+    - `Sent` whose message is a `request` → `wire(message)`. Every other `Sent` stays folded.
+  - `featured`: a classic client's event features its device alone, with no outbox subject.
+  - `momentShots`: add `LINE_BY_LINE` (the five classic tags). A group joins the last one only if neither tag is in it. A group of only `SavingEnded` holds `LINE_HOLD_MILLIS` (600 ms, exported).
+  - `flights`:
+    - Moving `request`/`response` messages on exactly one wire → follow those messages, whatever else moves.
+    - `directedShots`' `slowInto` also counts `Saved`, `SaveFailed` and `Refreshed` that are not folded.
+- [ ] **Step 3: Split** (tests first).
+  - In `momentShots`, `together` is the distinct clients of the moment's acts, when there are two or more.
+  - A group whose spot is a device in `together`, or a wire one of them rides, holds with framing `split`. Its subjects are those devices plus the group's rows, rings and outboxes. Its message subjects are dropped, so the frame key stays one.
+  - `actShot` takes `together` and frames each act `split` over the same devices, keeping a tap's row.
+  - `splits` is unchanged: same-tag events on two devices still share one hold.
+  - Test: two `Apply`s on A and B in one instant shoot as split act, split hold, split act, split hold, with no move between. Plan 3's scenes, with no such moment, compile as before (the existing cut tests are the canary).
+- [ ] **Step 4: Notes** (tests first, `director-notes.test.ts`, on hand-built entries).
+  - `notes.ts`:
+    - extract `changedWords(before: Items | undefined, after: Items)` from `pulled`, and let `pulled` call it;
+    - `noteFor` gains an optional third argument `history: { timeline, index }`;
+    - `compile.ts`'s `Write` passes it.
+  - The words:
+    - `SavingBegan`: POST/PATCH/DELETE → "`<c>` is saving: it waits for the server's answer."; GET → "`<c>` asks the server for the list."
+    - `Saved`: "`<c>` sets its list from the reply, v`<n>`: `<changedWords>`." (without the colon part when nothing visible changed).
+    - `SaveFailed`: "`<c>` gives up: `<why>`."
+      - `why` is "it is offline; nothing reached the server" when offline and no `Decided` for `<c>` since its last `SavingBegan`;
+      - "its reply was cut, though the server saved it" when offline after an applied `Decided`;
+      - "the server refused it" after a `409` response;
+      - else "the request failed".
+      - A GET says "`<c>` couldn't refresh: …".
+    - `Refreshed` (changed): "`<c>` refreshes to v`<n>`: `<changedWords>`."
+    - `SavingEnded`: null.
+  - `decisionNote` takes `classic: boolean` (`entry.snapshot.classic.has(client)`), as the calls above say. `compile.ts`'s run of decisions passes it too.
+  - The Converged note is Task 9's.
+- [ ] **Step 5: The cut as data.**
+  - `director-helpers.ts` gains `CLASSIC_SCENE`: world `{ clients: ["Classic", "Kitchen Sync", "C"], classic: ["Classic"], seed: "director-classic", latency: "100 millis" }`, plus helpers `classicAdds(client, name)` and `classicRefreshes(client)`. Its beats:
+    1. setup: C adds Milk, then Classic refreshes; until `Converged` and `Refreshed`;
+    2. the tap: Classic adds Eggs and Kitchen Sync adds Lemons in one instant; until Classic's `Saved`;
+    3. the tunnel: `setWeather` tunnel on both, then one add each; until `SaveFailed`;
+    4. butter: office, then C adds Butter; until `Converged` after Butter's `Decided`;
+    5. Classic refreshes; until `Refreshed`.
+  - `director-compile.test.ts`, by label and by subjects:
+    - the tap step's shots up to the first flight are all `split` over Classic and Kitchen Sync: type, hold (SavingBegan), hold (Sent request), type, hold (Applied);
+    - the first flight follows the request at `SLOW_RATE` (100 ms is shorter than the slow stretch) and holds on the server's `Decided`;
+    - the response's flight is followed and slows into `Saved`;
+    - then a hold on `Saved` with the Eggs row and ring, then a 600 ms hold on `SavingEnded`;
+    - the tunnel step holds on `SaveFailed` with its note, and no shot follows a classic message;
+    - the butter step has a `table` hold;
+    - the refresh step acts out a `refresh` and holds on `Refreshed` with Butter.
+
 ---
 
 ### Task 7: The classic phone's pane (Phase B)
@@ -397,6 +496,64 @@ Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impe
 - [ ] **Step 5:** Tests: the pane in each state, as data and as DOM; the specimen and `app.test.tsx` unchanged.
 - [ ] **Step 6:** Commit `feat(figure): the classic phone, drawn with the app's own list`.
 
+#### Task 7, code-level steps (written against `3824bbd`)
+
+Notes:
+- Today the stage draws only `snapshot.clients`. A classic client has no pane, no wire and no anchors, so its messages fly on no wire.
+- Once the classic pane is a `[data-anchor='device']` in the same `.devices` strip, with `data-place`, `data-anchor-key="device:<c>"` and a `basin:<c>` anchor, `measureWorld` gives it a wire, and the camera and the light table take it as they take any device.
+- Wet ink, leaving rows, version rolls and `mostRows` read only engine clients today; each gains the classic map.
+
+Steps:
+
+- [ ] **Step 1: Data first** (`figure-stage-view.test.ts`, `director-marks.test.ts`, `figure-marks.test.ts`).
+  - `stage-view.ts`:
+    - `DeviceView` becomes `EngineDeviceView | ClassicDeviceView`, keyed by `kind`. The engine one is today's, plus `kind: "engine"`.
+    - `ClassicDeviceView` is `{ kind: "classic", name, clientId, items, ghosts, list, offline, version, words, saving, error, draft }`:
+      - `list` is `listView({ items: byId, outbox: [], ackedThrough: 0, rejected: [] })`;
+      - `ghosts` is `classicGhostsOf`;
+      - `words` is "saving" while saving, "couldn't save" after a failure and "loaded" otherwise (Impeccable may reword);
+      - `draft` comes from a new `drafts` argument.
+    - Devices come in `clientIds`' order (the world's), then any snapshot name it lacks, and a classic state is kept by reference, as the engine's is.
+    - `mostRows` counts classic rows.
+  - `src/lib/director/marks.ts`:
+    - `changesOf` diffs each classic phone's items (`byId`) as a place;
+    - `leavingAt` looks a row up in `before.classic` too;
+    - new `classicDraftAt(timeline, index, client): string` is the name of the client's latest add (`SavingBegan` with a `POST` label) while it saves or once it failed, and `""` once a later `Saved`, `Refreshed` or `SavingBegan` came.
+  - `versions.ts` `read`: a classic phone's version change rolls (null → n is no roll).
+  - `stage-marks.ts`:
+    - `heldBy` reads classic rows;
+    - `arrivingOf` skips a classic row that was a ghost (`classicGhostsOf`);
+    - `traysAt` stays engine-only.
+- [ ] **Step 2: Shared components, optional props only** (tests: `quick-add.test.tsx`, `grocery-list.test.tsx`; `app.test.tsx` and `specimen.test.tsx` untouched and green).
+  - `QuickAdd` gains:
+    - `disabled?: boolean`: the field and Add get `aria-disabled`, and a submit does nothing;
+    - `draft?: string`: when given, a live add does not clear on submit and takes `draft` whenever it changes, so the field keeps a failed name and empties on save. A replay shows `draft` when not typing.
+  - `GroceryList` and `ItemRow` gain `disabled?: boolean`: the check and remove controls get `aria-disabled` and ignore presses.
+  - `Pane` is unchanged.
+- [ ] **Step 3: `classic-pane.tsx`** (+ `.module.css`). Load `emil-design-eng` and `apple-design` first.
+  - The pane: `Pane` titled with the client name and its `clientId` mark, a `DeviceStatus` with version, words and roll, no tray, and a `Basin` with `items`, `ghosts`, `ringAnchors` and `arriving`, wrapped in the same stack div so the table moves it.
+  - The band:
+    - while saving: a dashed `Band`, "Saving Eggs…", with a still ring;
+    - after a failure: a solid `Band` in ink, never `tone="seal"`, with the error.
+  - The list: `GroceryList` with `listOf(list, name, ghosts)` and `disabled` while saving. Live, it takes intents; in a scene its controls are inert and it takes a `touch`.
+  - Then `QuickAdd` with `disabled` and `draft`, and a **Refresh** secondary button: live, or in a scene an inert replica that takes the `refresh` acting's touch (as `StatusBand`'s Retry does).
+  - Forced colours: rings and lines in `CanvasText`.
+  - `stage.tsx`'s device map renders `ClassicPane` for `kind === "classic"` inside the same wrapper div, with every anchor attribute, the dip and the Show button.
+  - `gaps` still reads `device.offline`.
+- [ ] **Step 4: Free play** (`figure-actions.test.ts`).
+  - `actions.ts` gains `classicChange(client, change)` and `classicRefresh(client)`. Each reads `world.classic(client).state` and does nothing while `saving` is set; otherwise it runs the handle's call.
+  - `Stage` gains optional `onClassicChange` and `onClassicRefresh`. `Figure` wires them through `player.act`.
+  - In the pane, a live `ListIntent` maps to `toggle` or `remove`.
+- [ ] **Step 5: Wires and cards** (`director-payload.test.ts`, `figure-wires.test.tsx`).
+  - `payloadOf` answers `request` and `response` before its engine-state guard, from the snapshot at the message's `Sent`:
+    - a request: its label, then the body from `classic.get(c).saving`. A POST is `{ name: "Eggs" }`, a PATCH is `{ checked: true }`, and GET and DELETE have no body;
+    - a response: its label, then "`<n>` items" (the server's rows at that entry), or for a `409`, "refused".
+  - Labels shorten an item path to `/items/<first 4 of id>…` on the wire and the card. `said` keeps the whole label for captions.
+- [ ] **Step 6: Tests.**
+  - `figure-classic.test.tsx` renders `Stage` from a recorded classic world at four instants (idle, saving, failed with the field keeping its text, with ghosts), as DOM: words, `aria-disabled`, no seal, a Refresh, a `basin:<c>` anchor.
+  - `figure-stage-view.test.ts`: the view as data.
+  - `app.test.tsx` and the specimen pass unchanged.
+
 ---
 
 ### Task 8: The tally, the weather readout and the weather control (Phase B)
@@ -408,6 +565,38 @@ Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impe
 - [ ] **Step 3:** The weather as a breaking control in free play (a four-way choice using `choice.module.css`), applying `setWeather` to the reader's phones; it replaces per-device offline for a figure whose scene says `weather: [...]` (a new optional figure prop).
 - [ ] **Step 4:** Commit `feat(figure): the wait tally and the weather`.
 
+#### Task 8, code-level steps (written against `3824bbd`)
+
+Notes:
+- `PlayerView` has no inputs today, and `waitsOf` and `weatherAt` read them.
+- `weatherAt` needs the world's starting latency, which is `scene.world.latency` (`Duration.Input`, default per `World.layer`).
+- The tally must respect the frame's `index`, not only its instant. Otherwise Kitchen Sync's tally says "waited 0 ms" while it is still typing.
+
+Steps:
+
+- [ ] **Step 1: Inputs on the view** (`sandbox-player.test.ts`).
+  - `PlayerView` gains `inputs: ReadonlyArray<RecordedInput>`: in a scene `result.inputs`, and in free play the live world's.
+  - `player.ts` keeps `let inputs` beside `timeline` and sets it wherever free play sets `timeline` (four places).
+  - Test: inputs grow with a free-play act.
+- [ ] **Step 2: The words, pure** (`director-wait.test.ts`).
+  - `wait.ts` gains `tallyWords(tally): { last: string; rest: string | null }`:
+    - "waited 1.8 s", "waited 0 ms", "waiting 0.9 s", "gave up after 0 ms";
+    - `rest` is "4 changes, 6.2 s in all" once `count ≥ 2`;
+    - under 1000 ms in whole ms, from 1000 in tenths of a second.
+  - It also gains `waitsThrough(inputs, timeline, index, at)`: `waitsOf` over the entries through `index` and the inputs at or before `at`, so a change waits until its own entry shows.
+- [ ] **Step 3: `wait-tally.tsx`** (+ css; `figure-wait-tally.test.tsx`).
+  - The numbers are mono and the words in the text face.
+  - Under reduced motion, a wait still running reads "waiting" with no number, and its value appears once it ends.
+  - Its accessible text adds "simulated latency" (Q3).
+  - It is rendered under a device's header, for the clients in Figure's `weather` prop, through a new optional `Pane` prop `meta?: ReactNode`, drawn between the header and the tray. The app passes none.
+- [ ] **Step 4: `weather-readout.tsx`** (+ css; `figure-weather.test.tsx`).
+  - Four words, the current one inked (`weatherAt` over the `weather` clients at the frame's instant). Then its latency in mono with "simulated": "train · 900 ms · simulated", "tunnel · offline". "mixed" inks none.
+  - The stage draws it in the viewport, over the wire band and not on the plane (as `MessageCard` is), so the camera's scale never touches it.
+- [ ] **Step 5: The control.**
+  - A `WeatherControl` in `breaking-controls.tsx`: a four-way radio group on `choice.module.css`, in the breaking fieldset. Choosing one runs `handOver(player.act(setWeather(weather, w)))`, and it is disabled while busy.
+  - `FigureProps.weather` given → `offered` defaults to `[]`, so there are no per-device offline toggles unless `breaks` names some.
+  - Test that a figure without `weather` renders exactly as today (`figure.test.tsx`, `figure-controls.test.tsx`).
+
 ---
 
 ### Task 9: The light table stacks the classic basin (Phase B)
@@ -416,6 +605,19 @@ Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impe
 
 - [ ] **Step 1:** The table stacks every device's basin, the classic one included; the engine's register as one pattern and the classic one's lacking rows show doubled rings (that falls out of the drawing; the test asserts the classic basin is on the table and its pattern key differs).
 - [ ] **Step 2:** Commit `feat(figure): the light table stacks the classic phone's basin too`.
+
+#### Task 9, code-level steps (written against `3824bbd`)
+
+Notes:
+- After Task 7 the classic basin is a `basin:<c>` anchor in the stack div, so `deviceBasins`, `stackBox` and `stackShiftOf` take it already.
+- The Converged note ("Every basin shows one pattern.") becomes false once a classic phone disagrees.
+
+Steps:
+
+- [ ] **Step 1** (`figure-stage.test.tsx`, `figure-marks.test.ts`). On `CLASSIC_SCENE`'s table hold:
+  - the classic basin carries `data-stacked` and a transform;
+  - `patternOf` of its items differs from Kitchen Sync's, while Kitchen Sync's and C's are equal.
+- [ ] **Step 2** (`director-notes.test.ts`). `noteFor` Converged, when some classic phone's rows differ from the server's, says "Every Kitchen Sync phone shows the server's list; `<c>`'s rings come out doubled." Without one, it is unchanged.
 
 ---
 
@@ -426,6 +628,31 @@ Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impe
 - [ ] **Step 1:** A query form `?region=<now>&from=<path>:<region>&morph`: "then" is a region of another file at HEAD, "now" the importing file's region. `Morph.then` becomes a union: `{ source: "commit"; commit; date; lines }` or `{ source: "file"; path; region }`; `then-and-now.tsx`'s head names the file instead of a commit for the second. Existing commit morphs render exactly as before (test).
 - [ ] **Step 2:** Add `// #region add-intent` / `// #endregion` around the app's `onAdd` that applies the `AddItem` intent in `grocery-app.tsx`. Check the app renders identically (it is a comment).
 - [ ] **Step 3:** Commit `feat(code): a morph from one file's region to another's`.
+
+#### Task 10, code-level steps (written against `3824bbd`)
+
+Notes:
+- The import is `#/app/grocery-app.tsx?region=add-intent&from=src/lib/sandbox/classic/handlers.ts:classic-add&morph`. "Now" is the importing file's region; "then" is the other file's.
+- Both are read from the working tree, not from HEAD, so both are the code that runs. Both files are watched.
+- `morphSteps` takes one language: the "now" file's (`tsx`), a superset of the handler's TypeScript.
+- The region in `grocery-app.tsx` has to go **between JSX attributes**: a `//` comment among JSX children would render as text. TypeScript and Biome allow line comments between attributes. Check this first with `tsc`, `biome check` and `app.test.tsx`. If either refuses, stop and ask the user: the alternative edits the app beyond a comment.
+
+Steps:
+
+- [ ] **Step 1** (`snippet-plugin.test.ts`, first).
+  - `loadSnippet` with `from=<path>:<region>`: the "then" text comes from `extractRegion(readFileSync(join(root, path)), region, path).code`. Its spans are stripped by the extractor already.
+  - `Morph.then` becomes `{ source: "commit"; commit; date; lines; tokens } | { source: "file"; path; region; tokens }`.
+  - A commit morph gains `source: "commit"` and nothing else changes.
+  - Errors: `from` with no `:`, a missing file, a missing region.
+  - `snippet-references.test.ts` resolves the new import as it resolves all.
+- [ ] **Step 2** (`then-and-now.test.tsx`).
+  - The Then label shows the date and commit for a commit morph, as now. For a file morph it shows the file's name in mono (`handlers.ts`), with the path in its title.
+  - The existing tests pass untouched, apart from the fixture's `source: "commit"`.
+  - `lab-code.ts` needs no change: its import is a commit morph.
+- [ ] **Step 3.** In `grocery-app.tsx`, put `// #region add-intent` and `// #endregion add-intent` on their own lines inside `<AddItemForm`, around `onAdd={…}`.
+  - `git diff` shows two comment lines.
+  - `app.test.tsx` is green.
+  - A `snippet-plugin` test loads the morph and checks that "now" holds `_tag: "AddItem"` and "then" holds `await api.post`.
 
 ---
 
@@ -439,6 +666,36 @@ Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impe
 - [ ] **Step 4: The lit note.** `noteOf` gives the five events' mono words (`classic · POST /items`, `classic · couldn't save`, …). Every new event gets a case and the switch stays exhaustive.
 - [ ] **Step 5: Free play.** In Your turn the same panel lights the reader's own classic adds. Test with an `act` in free play.
 - [ ] **Step 6:** Commit `feat(code): the classic handler lights line by line as it runs`.
+
+#### Task 11, code-level steps (written against `3824bbd`)
+
+Files change from the task's list: the lights go in `src/app/prologue-code.ts` (see the calls above), and `src/lib/sandbox/classic/lights.ts` is not made.
+
+- [ ] **Step 1.** `prologue-code.ts`:
+  - `import classicAdd from "#/lib/sandbox/classic/handlers.ts?region=classic-add&snippet"`;
+  - `classicAddCode(client): FigureCode` with the five lights in the task's order, each requiring `event.client === client`;
+  - `start`, `catch` and `finally` also require a label starting with `POST ` (`SavingBegan`, `SaveFailed` and `SavingEnded` carry it after Task 6 Step 0);
+  - `await` is a `Sent` of a `request` whose label starts with `POST `.
+  - Tests, in `code-lit.test.ts`:
+    - `missingSpans` is empty;
+    - a refresh's and a toggle's events light nothing;
+    - the snippet's text is the spec's 13 lines.
+- [ ] **Step 2.** On `CLASSIC_SCENE`'s cut, for the tap step, collect `litAt(timeline, indexAt(cut, timeline, cursor), lights)` at each shot's start and end:
+  - the spans appear in source order `start`, `await`, `set-items`, `finally`;
+  - each of the four appears in at least one shot.
+  - (`catch` is Step 3's.)
+- [ ] **Step 3.** The tunnel step:
+  - `catch` is lit in at least one hold;
+  - `await` is never lit between its `SavingBegan` and `SavingEnded`;
+  - its last hold shows `finally`.
+- [ ] **Step 4.** `lit.ts` `noteOf`:
+  - `SavingBegan` → "`<c>` · `<label>`";
+  - `Saved` → "`<c>` · v`<n>`";
+  - `SaveFailed` → "`<c>` · couldn't save";
+  - `Refreshed` → "`<c>` · v`<n>`";
+  - `SavingEnded` → "`<c>` · saved" or "`<c>` · done" (Impeccable picks).
+  - No `default` reaches a classic event. Test each.
+- [ ] **Step 5.** `figure-classic-code.test.tsx`: a `Figure` on `CLASSIC_SCENE` with `free` and `code={classicAddCode("Classic")}`. Act a classic add with the fake host, advance, and the panel's lit span goes `await` → `set-items` → `finally`.
 
 ---
 
@@ -456,6 +713,44 @@ Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impe
 - [ ] **Step 2: `PROLOGUE_TASKS`.** Add on both phones; go into the tunnel and add on both; come back out; get an item added on `kitchen` onto `classic` (a `Refreshed`/`Saved` whose rows contain an item first `Applied` on `kitchen` since the fork). Each `point` names its control or device.
 - [ ] **Step 3: The claim, headless.** `runHeadless(PROLOGUE_SCENE)` and assert: every Kitchen Sync wait is 0 ms; classic waits are 200, 600, 1800 ms (2 × latency); the classic phone's tunnel add `SaveFailed` and the server never holds it; kitchen's tunnel add reached the server exactly once (one `Decided applied` for it); at the table the engine clients agree with the server and `classicGhostsOf` contains Butter; after the refresh it does not. Also the director's cut as data: split on the tap, slow follow of the request, a hold on the failure, the table.
 - [ ] **Step 4:** Commit `feat(app): the prologue's scene, and its claim tested headless`.
+
+#### Task 12, code-level steps (written against `3824bbd`)
+
+Notes:
+- Client names are `Classic` and `Kitchen Sync` (Q2).
+- At t+100 of a tap the server decides both changes and pokes twice, which the rules shoot as server, wide, server, wide. Steps 2 and 3 fold the pokes and Kitchen Sync's `Decided` (`direct.fold`), so the classic wait is the story. Step 4 keeps its poke (the ripple is the point).
+- The cut-as-data test pins the result.
+
+Steps:
+
+- [ ] **Step 1: The scene** (`src/app/prologue-scene.ts`). The world: `{ clients: ["Classic", "Kitchen Sync", "C"], classic: ["Classic"], seed: "prologue", latency: "100 millis" }`. Beats:
+  1. Setup (quiet): C adds four rows in the app's categories, none of them butter. Classic refreshes. Until `Converged` and `Refreshed`.
+  2. The tap: Classic adds Eggs and Kitchen Sync adds Lemons in one instant. Until Classic's `Saved`, then `SavingEnded`.
+  3. The weather, one beat per weather: `setWeather(PHONES, w)`, then one add on each, until Classic's `Saved`, for café then train.
+  4. The tunnel: `setWeather(PHONES, "tunnel")`, then one add each, until `SaveFailed`.
+  5. Back out: `setWeather(PHONES, "office")`. Until Kitchen Sync's `Acked` covers its tunnel add.
+  6. Butter: C adds Butter. Until `Converged` after Butter's `Decided` (the table).
+  7. Classic refreshes. Until `Refreshed`.
+  8. and 9. Quiet holds for steps 5 and 6 (`run: Effect.void`, `until: () => true`, `direct: { quiet: true }`).
+
+  Export `PROLOGUE_SCENE`, `PROLOGUE_PHONES` and `PROLOGUE_CODE = classicAddCode("Classic")`.
+- [ ] **Step 2: Tasks.**
+  - `tasks.ts` `TaskView` gains `history: ReadonlyArray<Entry>`, the entries since the hand-over. `taskProgress` fills it, and the existing tests pass with it added.
+  - `PROLOGUE_TASKS`:
+    1. "Add something on both phones": a classic `SavingBegan` with `POST` and a Kitchen Sync `Applied` with `AddItem`. Point: Classic's device.
+    2. "Go into the tunnel and add on both": both `WentOffline`, then a classic `SaveFailed` and a Kitchen Sync `Applied`. Point: control "tunnel".
+    3. "Come back out": both `CameOnline`. Point: control "office".
+    4. "Get something you added on Kitchen Sync onto Classic": the last event is Classic's `Saved` or `Refreshed`, and its rows hold an id that a Kitchen Sync `AddItem` in `history` added (read from that entry's outbox). Point: Classic's device.
+  - Each is tested on a free-play fork as data (`prologue-scene.test.ts`).
+- [ ] **Step 3: The claim, headless** (`prologue-scene.test.ts`):
+  - every Kitchen Sync wait is 0 ms;
+  - Classic's shown waits are `[200, 600, 1800]`;
+  - Classic's tunnel add is a `SaveFailed`, and no server row has its name;
+  - Kitchen Sync's tunnel add has exactly one `Decided applied`;
+  - at the table, `isConverged` holds and `classicGhostsOf` names Butter;
+  - after `Refreshed` there are no ghosts;
+  - the cut: the tap step is split, the request is followed at `SLOW_RATE`, the tunnel step holds on `SaveFailed`, and the butter step has a `table` hold.
+- [ ] **Step 4: Lab.** `lab.tsx` gains a fourth figure, after the three, so free play stays second: `PROLOGUE_SCENE` with `code={PROLOGUE_CODE}` and `weather={PROLOGUE_PHONES}`. `lab.test.tsx`'s "three figures" test says four and keeps free play second.
 
 ---
 
@@ -501,3 +796,6 @@ As plan 3's Task 14: captures on a dev server at port 3001, desktop 1440 × 900 
 2. The tally shows the last wait with a quiet total. **Yes.**
 3. The weather latencies are 80 / 300 / 900 ms one-way. **Yes.** (The office moved to 100 ms on 2026-10-22, for the world's 50 ms quantum; see Decisions.)
 4. The classic handler is lit line by line while it runs. **Yes** (Task 11).
+5. Phase B: two devices acting in one moment act one after the other in one split frame. **Yes** (Q1, 2026-10-22).
+6. Phase B: the prologue's clients are named `Classic` and `Kitchen Sync`, with no separate pane titles. **Yes** (Q2, 2026-10-22).
+7. Phase B: the weather readout always says "simulated"; there is no one-off note. **Yes** (Q3, 2026-10-22).
