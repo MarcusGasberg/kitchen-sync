@@ -40,6 +40,9 @@ interface ItemRowProps {
   // in the button's box, so it is laid out as a reader will use it, and a
   // tap has a control to land on.
   readonly inertControls?: boolean;
+  // A classic phone while it saves: the check and the remove control take
+  // nothing, and say so (`aria-disabled`).
+  readonly disabled?: boolean;
 }
 
 // A look as the custom properties the row's CSS draws it by.
@@ -66,6 +69,7 @@ export function ItemRow({
   presence,
   touch,
   inertControls = false,
+  disabled = false,
 }: ItemRowProps) {
   const replica = inertControls && onRemove === undefined;
   const text = (
@@ -84,6 +88,7 @@ export function ItemRow({
       data-controls={replica ? "inert" : undefined}
       data-change={look?.kind}
       data-presence={presence}
+      data-disabled={disabled ? "" : undefined}
       aria-hidden={
         presence === "leaving" || presence === "arriving" || undefined
       }
@@ -95,7 +100,10 @@ export function ItemRow({
             type="checkbox"
             className={styles.check}
             checked={item.checked}
-            onChange={(event) => onCheck(event.currentTarget.checked)}
+            aria-disabled={disabled || undefined}
+            onChange={(event) => {
+              if (!disabled) onCheck(event.currentTarget.checked);
+            }}
           />
           {text}
         </label>
@@ -136,7 +144,8 @@ export function ItemRow({
           type="button"
           className={styles.remove}
           aria-label={`Remove ${item.name}`}
-          onClick={onRemove}
+          aria-disabled={disabled || undefined}
+          onClick={disabled ? undefined : onRemove}
         >
           <span className={styles.removeLabel} aria-hidden="true">
             Remove

@@ -159,6 +159,21 @@ label.label {
   cursor: default;
 }
 
+/* A classic phone while it saves: its controls recede as a disabled
+   button does, and take nothing. */
+.row[data-disabled] .check,
+.row[data-disabled] .remove {
+  border-color: var(--line);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .row[data-disabled] .remove:hover {
+    color: var(--text-3);
+  }
+}
+
 /* Where a touch lands: a point on the control, with the ring centred on
    it. */
 .touch {

@@ -115,6 +115,41 @@ describe("ItemRow", () => {
     expect(onRemove).toHaveBeenCalledOnce();
   });
 
+  it("takes nothing while disabled, and says so", () => {
+    const onCheck = vi.fn();
+    const onRemove = vi.fn();
+    render(
+      <ul>
+        <ItemRow
+          item={milk}
+          sync={{ kind: "synced" }}
+          onCheck={onCheck}
+          onRemove={onRemove}
+          disabled
+        />
+      </ul>,
+    );
+    const check = screen.getByRole("checkbox", { name: "2 l Oat milk" });
+    const remove = screen.getByRole("button", { name: "Remove Oat milk" });
+    expect(check.getAttribute("aria-disabled")).toBe("true");
+    expect(remove.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(check);
+    fireEvent.click(remove);
+    expect(onCheck).not.toHaveBeenCalled();
+    expect(onRemove).not.toHaveBeenCalled();
+    expect((check as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("draws no disabled mark without the prop", () => {
+    const { container } = render(
+      <ul>
+        <ItemRow item={milk} sync={{ kind: "synced" }} onCheck={vi.fn()} />
+      </ul>,
+    );
+    expect(container.querySelector("[data-disabled]")).toBeNull();
+    expect(container.querySelector("[aria-disabled]")).toBeNull();
+  });
+
   it("is struck through when checked, and says so when read-only", () => {
     render(
       <ul>

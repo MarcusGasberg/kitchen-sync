@@ -10,6 +10,8 @@ import {
   armedWords,
   breakAction,
   breakLabel,
+  classicChange,
+  classicRefresh,
   offlineToggles,
 } from "#/ui/figure/actions";
 
@@ -34,6 +36,39 @@ describe("a reader's actions", () => {
     }).pipe(
       Effect.provide(World.layer({ clients: ["A", "B"], seed: "actions" })),
     ),
+  );
+
+  it.effect(
+    "change a classic phone and refresh it, and do nothing while it saves",
+    () =>
+      Effect.gen(function* () {
+        const world = yield* World;
+        yield* world.clock.advance("1 second");
+        yield* classicChange("Classic", { kind: "add", name: "Eggs" })(world);
+        // Saving: a second add and a refresh do nothing, and log nothing.
+        yield* classicChange("Classic", { kind: "add", name: "Rice" })(world);
+        yield* classicRefresh("Classic")(world);
+        expect((yield* world.inputs).map((i) => i.input._tag)).toEqual([
+          "ClassicChange",
+        ]);
+        yield* world.clock.advance("1 second");
+        yield* classicRefresh("Classic")(world);
+        yield* world.clock.advance("1 second");
+        expect((yield* world.inputs).map((i) => i.input._tag)).toEqual([
+          "ClassicChange",
+          "ClassicRefresh",
+        ]);
+        const state = yield* world.classic("Classic").state;
+        expect(state.items.map((i) => i.name)).toEqual(["Eggs"]);
+      }).pipe(
+        Effect.provide(
+          World.layer({
+            clients: ["Classic", "Kitchen Sync"],
+            classic: ["Classic"],
+            seed: "actions-classic",
+          }),
+        ),
+      ),
   );
 
   it.effect("break the network, and undo an outage", () =>

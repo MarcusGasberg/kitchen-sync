@@ -12,7 +12,11 @@ import {
 } from "#/lib/director/versions";
 import { runHeadless } from "#/lib/sandbox/scene";
 import type { Timeline } from "#/lib/sandbox/trace";
-import { lastEntryWhere, OAT_SCENE } from "./director-helpers";
+import {
+  lastEntryWhere,
+  OAT_SCENE,
+  recordClassicLife,
+} from "./director-helpers";
 
 // Ages as free play reads them: world time since each entry, at `index`'s
 // instant plus `later` milliseconds.
@@ -59,6 +63,27 @@ describe("rollsAt", () => {
           rollsAt(timeline, pulled - 1, agesAt(timeline, pulled - 1)).get("B")
             ?.to,
         ).not.toBe(final);
+      }),
+  );
+});
+
+describe("rollsAt, a classic phone", () => {
+  it.effect(
+    "rolls its version as a reply moves it, and not at its first reply",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recordClassicLife;
+        const versions = timeline.entries.flatMap((_entry, index) => {
+          const roll = rollsAt(timeline, index, agesAt(timeline, index)).get(
+            "Classic",
+          );
+          return roll === undefined || roll.age > 0
+            ? []
+            : [`${roll.from}→${roll.to}`];
+        });
+        // The first refresh brings v0, no roll; the add's reply v2; the
+        // refresh after the failure nothing new; the removal's reply v3.
+        expect([...new Set(versions)]).toEqual(["0→2", "2→3"]);
       }),
   );
 });

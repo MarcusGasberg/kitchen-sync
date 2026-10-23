@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import type { Scene } from "#/lib/sandbox/scene";
 import type { Entry, Timeline, TraceEvent } from "#/lib/sandbox/trace";
 import { setWeather } from "#/lib/sandbox/weather";
-import type { WorldHandle } from "#/lib/sandbox/world";
+import { World, type WorldHandle } from "#/lib/sandbox/world";
 import { add, check, remove } from "./sandbox-helpers";
 
 // Scenes and lookups the director's tests share.
@@ -308,3 +308,37 @@ export const CLASSIC_SCENE: Scene = {
     },
   ],
 };
+
+// A classic phone's life, for its marks: it loads an empty list; C adds
+// milk; it adds eggs, whose reply brings milk too; it fails to add rice in
+// the tunnel; it refreshes; it removes the eggs.
+export const recordClassicLife = Effect.gen(function* () {
+  const world = yield* World;
+  const classic = world.classic("Classic");
+  yield* classic.refresh;
+  yield* world.clock.advance("1 second");
+  yield* adds("C", "Milk")(world);
+  yield* world.clock.advance("1 second");
+  yield* classic.change({ kind: "add", name: "Eggs" });
+  yield* world.clock.advance("1 second");
+  yield* setWeather(["Classic"], "tunnel")(world);
+  yield* classic.change({ kind: "add", name: "Rice" });
+  yield* setWeather(["Classic"], "office")(world);
+  yield* world.clock.advance("1 second");
+  yield* classic.refresh;
+  yield* world.clock.advance("1 second");
+  const eggs = (yield* classic.state).items.find((i) => i.name === "Eggs");
+  if (eggs === undefined) return yield* Effect.die(new Error("no eggs"));
+  yield* classic.change({ kind: "remove", itemId: eggs.id });
+  yield* world.clock.advance("1 second");
+  return yield* world.currentTimeline;
+}).pipe(
+  Effect.provide(
+    World.layer({
+      clients: ["Classic", "C"],
+      classic: ["Classic"],
+      seed: "classic-life",
+      latency: "100 millis",
+    }),
+  ),
+);

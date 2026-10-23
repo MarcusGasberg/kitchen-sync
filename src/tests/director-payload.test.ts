@@ -1,10 +1,15 @@
 import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect, it as plain } from "vitest";
-import { payloadOf } from "#/lib/director/payload";
+import { payloadOf, shownLabel } from "#/lib/director/payload";
 import { runHeadless } from "#/lib/sandbox/scene";
 import { EMPTY_TIMELINE, type Message } from "#/lib/sandbox/trace";
-import { entryWhere, MILK_SCENE, REMOVE_FIRST_SCENE } from "./director-helpers";
+import {
+  entryWhere,
+  MILK_SCENE,
+  REMOVE_FIRST_SCENE,
+  recordClassicLife,
+} from "./director-helpers";
 
 describe("payloadOf", () => {
   it.effect("reads what a message carries from the world as it left", () =>
@@ -104,4 +109,40 @@ describe("payloadOf", () => {
     };
     expect(payloadOf(message, EMPTY_TIMELINE)).toEqual(["push #9"]);
   });
+});
+
+describe("a classic phone's messages", () => {
+  it.effect(
+    "carry the request's body, and the reply's whole list, with item ids cut short",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recordClassicLife;
+        const cards = timeline.entries.flatMap(({ event }) =>
+          event._tag === "Sent" &&
+          (event.message.kind === "request" ||
+            event.message.kind === "response")
+            ? [payloadOf(event.message, timeline)]
+            : [],
+        );
+        expect(cards[0]).toEqual(["GET /items", "asks for the list"]);
+        expect(cards[1]).toEqual(["200 · v0", "0 items, the whole list"]);
+        expect(cards[2]).toEqual(["POST /items", '{ name: "Eggs" }']);
+        expect(cards[3]).toEqual(["200 · v2", "2 items, the whole list"]);
+        const removal = cards.find((card) => card[0]?.startsWith("DELETE"));
+        expect(removal?.[0]).toMatch(/^DELETE \/items\/[0-9a-f]{4}…$/);
+        expect(removal?.[1]).toBe("Eggs");
+      }),
+  );
+
+  plain(
+    "cuts an item path's id to four characters, and leaves other labels",
+    () => {
+      expect(
+        shownLabel("PATCH /items/3f2a9c1e-0b5d-4a2e-8f00-123456789abc"),
+      ).toBe("PATCH /items/3f2a…");
+      expect(shownLabel("POST /items")).toBe("POST /items");
+      expect(shownLabel("200 · v7")).toBe("200 · v7");
+      expect(shownLabel("#3–#5")).toBe("#3–#5");
+    },
+  );
 });

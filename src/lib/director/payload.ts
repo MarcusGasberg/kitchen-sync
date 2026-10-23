@@ -1,6 +1,6 @@
 import type { ItemMutation } from "#/domain/mutation";
 import { nameIn, said } from "#/lib/sandbox/captions";
-import type { Message, Timeline } from "#/lib/sandbox/trace";
+import type { Message, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { byId, diffItems } from "./marks";
 
@@ -52,6 +52,35 @@ const change = (mutation: ItemMutation, state: StoreState): string => {
   }
 };
 
+// A label as a wire or a card shows it: a classic request's item path cut to
+// the id's first four characters, "PATCH /items/3f2a…", as no reader can
+// place a whole id. Captions keep the whole label (`said`).
+export const shownLabel = (label: string): string =>
+  label.replace(/^(\w+ \/items\/)([0-9a-f]{4})[0-9a-f-]{5,}$/, "$1$2…");
+
+// What a classic request carries and its reply brings, read from the world
+// as the message left: the request's body from what its phone was saving,
+// the reply's rows from the server's.
+const classicPayload = (
+  message: Message,
+  snapshot: WorldSnapshot | undefined,
+): ReadonlyArray<string> => {
+  const head = shownLabel(message.label);
+  if (message.kind === "request") {
+    const saving = snapshot?.classic.get(message.client)?.saving;
+    if (message.label.startsWith("GET ")) return [head, "asks for the list"];
+    if (message.label.startsWith("POST ") && saving?.name != null) {
+      return [head, `{ name: "${saving.name}" }`];
+    }
+    return saving?.name == null ? [head] : [head, saving.name];
+  }
+  if (message.label.startsWith("409")) return [head, "refused"];
+  const rows = snapshot?.server.items.length;
+  return rows === undefined
+    ? [head]
+    : [head, `${rows} ${rows === 1 ? "item" : "items"}, the whole list`];
+};
+
 export const payloadOf = (
   message: Message,
   timeline: Timeline,
@@ -60,6 +89,9 @@ export const payloadOf = (
   const index = sentIndex(timeline, message.id);
   const snapshot =
     index === undefined ? undefined : timeline.entries[index]?.snapshot;
+  if (message.kind === "request" || message.kind === "response") {
+    return classicPayload(message, snapshot);
+  }
   const state = snapshot?.clients.get(message.client);
   if (snapshot === undefined || state === undefined) return [head];
   switch (message.kind) {
@@ -102,8 +134,5 @@ export const payloadOf = (
     }
     case "poke":
       return [head, "something changed"];
-    case "request":
-    case "response":
-      return [head];
   }
 };

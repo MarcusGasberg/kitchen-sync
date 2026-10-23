@@ -2,6 +2,7 @@ import { it } from "@effect/vitest";
 import { DateTime, Effect, Option } from "effect";
 import { describe, expect } from "vitest";
 import { type Category, GroceryItem } from "#/domain/grocery-item";
+import { classicDraftAt } from "#/lib/director/marks";
 import { runHeadless } from "#/lib/sandbox/scene";
 import { EMPTY_TIMELINE } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
@@ -15,7 +16,7 @@ import {
 } from "#/ui/figure/stage-view";
 import { listView } from "#/ui/list-view";
 import { syncStatus } from "#/ui/sync-status";
-import { OAT_SCENE } from "./director-helpers";
+import { OAT_SCENE, recordClassicLife } from "./director-helpers";
 import { add } from "./sandbox-helpers";
 
 describe("deviceWords", () => {
@@ -40,6 +41,7 @@ describe("a pane's version and words", () => {
           const view = stage(snapshot, new Map());
           expect(view.server.version).toBe(snapshot.server.serverVersion);
           for (const device of view.devices) {
+            if (device.kind !== "engine") throw new Error("not an engine");
             const state = snapshot.clients.get(device.name);
             expect(device.version).toBe(
               device.status.kind === "connecting"
@@ -49,6 +51,70 @@ describe("a pane's version and words", () => {
             expect(device.words).not.toMatch(/behind/);
           }
         }
+      }),
+  );
+});
+
+describe("a classic phone's view", () => {
+  it.effect(
+    "draws it in the world's order with its rows, ghosts, words and field",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recordClassicLife;
+        const stage = makeStageView();
+        const ids = new Map([
+          ["Classic", "id-classic"],
+          ["C", "id-c"],
+        ]);
+        const at = (
+          found: (e: (typeof timeline.entries)[number]["event"]) => boolean,
+        ) => {
+          const index = timeline.entries.findIndex((e) => found(e.event));
+          const entry = timeline.entries[index];
+          if (entry === undefined) throw new Error("no such entry");
+          const view = stage(
+            entry.snapshot,
+            ids,
+            new Map(),
+            new Map([["Classic", classicDraftAt(timeline, index, "Classic")]]),
+          );
+          expect(view.devices.map((d) => [d.kind, d.name])).toEqual([
+            ["classic", "Classic"],
+            ["engine", "C"],
+          ]);
+          const classic = view.devices[0];
+          if (classic?.kind !== "classic") throw new Error("not classic");
+          return classic;
+        };
+
+        // C's milk is on the server; the classic phone has not asked.
+        const milk = at((e) => e._tag === "Decided" && e.client === "C");
+        expect(milk.ghosts.map((g) => g.name)).toEqual(["Milk"]);
+        expect(milk.words).toBe("loaded");
+        expect(milk.clientId).toBe("id-classic");
+
+        const saving = at(
+          (e) => e._tag === "SavingBegan" && e.label === "POST /items",
+        );
+        expect(saving.words).toBe("saving");
+        expect(saving.saving?.name).toBe("Eggs");
+        expect(saving.draft).toBe("Eggs");
+
+        const saved = at((e) => e._tag === "Saved");
+        expect(saved.items.map((i) => i.name)).toEqual(["Milk", "Eggs"]);
+        expect(saved.list.groups.flatMap((g) => g.rows).length).toBe(2);
+        expect(saved.version).toBe(2);
+
+        // After the tunnel's failure: the error and the typed name stay.
+        let failedOnce = false;
+        const failed = at((e) => {
+          if (e._tag === "SaveFailed") failedOnce = true;
+          return failedOnce && e._tag === "SavingEnded";
+        });
+        expect(failed.words).toBe("couldn't save");
+        expect(failed.error).toBe("Couldn't save Rice");
+        expect(failed.saving).toBeNull();
+        expect(failed.draft).toBe("Rice");
       }),
   );
 });
@@ -96,7 +162,7 @@ describe("makeStageView", () => {
         expect(b2?.items).not.toBe(b1?.items);
         expect(b2?.version).toBe(6);
         expect(b2?.words).toBe("offline · 1 waiting");
-        expect(b2?.waiting.size).toBe(1);
+        expect(b2?.kind === "engine" && b2.waiting.size).toBe(1);
         // The server did not change either.
         expect(second.server).toBe(first.server);
       }).pipe(

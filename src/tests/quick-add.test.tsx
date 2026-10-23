@@ -18,6 +18,50 @@ describe("QuickAdd", () => {
     expect((field as HTMLInputElement).value).toBe("");
   });
 
+  it("takes no add while disabled, and says so", () => {
+    const onAdd = vi.fn();
+    render(<QuickAdd label="Add to Classic's list" onAdd={onAdd} disabled />);
+    const field = screen.getByRole("textbox", {
+      name: "Add to Classic's list",
+    });
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(field.getAttribute("aria-disabled")).toBe("true");
+    expect(add.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(add);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("keeps a drafted field's text on add, and takes each new draft", () => {
+    const onAdd = vi.fn();
+    const { rerender } = render(
+      <QuickAdd label="Add to Classic's list" onAdd={onAdd} draft="" />,
+    );
+    const field = screen.getByRole("textbox", {
+      name: "Add to Classic's list",
+    }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "Eggs" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(onAdd).toHaveBeenCalledWith("Eggs");
+    expect(field.value).toBe("Eggs");
+    // Saving, then failed: the draft is the name, and the field keeps it.
+    rerender(
+      <QuickAdd label="Add to Classic's list" onAdd={onAdd} draft="Eggs" />,
+    );
+    expect(field.value).toBe("Eggs");
+    // Saved: the draft empties, and so does the field.
+    rerender(<QuickAdd label="Add to Classic's list" onAdd={onAdd} draft="" />);
+    expect(field.value).toBe("");
+  });
+
+  it("marks nothing disabled without the prop", () => {
+    const { container } = render(
+      <QuickAdd label="Add to A's list" onAdd={vi.fn()} />,
+    );
+    expect(
+      container.querySelector("[aria-disabled], [data-disabled]"),
+    ).toBeNull();
+  });
+
   it("refuses an empty name, or one over 50 characters, and says why", () => {
     const onAdd = vi.fn();
     render(<QuickAdd label="Add to A's list" onAdd={onAdd} />);

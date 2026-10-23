@@ -13,6 +13,7 @@ import type { GroceryItem } from "#/domain/grocery-item";
 import { type Cut, type Place, SERVER } from "#/lib/director/shots";
 import type { CutCursor } from "#/lib/director/timing";
 import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
+import type { ClassicChange } from "#/lib/sandbox/inputs";
 import type { ClientName } from "#/lib/sandbox/trace";
 import { Basin } from "#/ui/basin";
 import { Button } from "#/ui/button";
@@ -40,6 +41,7 @@ import {
   visibleBox,
   wideView,
 } from "./camera";
+import { ClassicPane } from "./classic-pane";
 import { DeviceStatus } from "./device-status";
 import { type Measured, measureWorld, sameMeasure } from "./measure";
 import { MessageCard } from "./message-card";
@@ -53,7 +55,7 @@ import {
   settleMillisFor,
 } from "./stage-marks";
 import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
-import { type StageView, withRows } from "./stage-view";
+import { type DeviceView, type StageView, withRows } from "./stage-view";
 import { useCamera } from "./use-camera";
 import { useWordFloor } from "./use-word-floor";
 import { WireBand } from "./wire-band";
@@ -142,6 +144,12 @@ interface StageProps {
   readonly onIntent: (client: ClientName, intent: ListIntent) => void;
   readonly onAdd: (client: ClientName, name: string) => void;
   readonly onRetry: (client: ClientName) => void;
+  // Free play's changes on a classic phone, and its Refresh.
+  readonly onClassicChange?: (
+    client: ClientName,
+    change: ClassicChange,
+  ) => void;
+  readonly onClassicRefresh?: (client: ClientName) => void;
 }
 
 const EMPTY: Measured = {
@@ -275,6 +283,8 @@ export function Stage({
   onIntent,
   onAdd,
   onRetry,
+  onClassicChange,
+  onClassicRefresh,
 }: StageProps) {
   // The device acting out the shot's input, in its own controls.
   const { acting } = marks;
@@ -311,6 +321,11 @@ export function Stage({
   // scene, so each stopped band shows its inert Retry, as free play's.
   const retryTouchOf = (client: ClientName) =>
     acting?.kind === "retry" && acting.client === client ? acting.touch : null;
+  // A classic phone's Refresh, touched as the scene acts it out.
+  const refreshTouchOf = (client: ClientName) =>
+    acting?.kind === "refresh" && acting.client === client
+      ? acting.touch
+      : null;
   // A reloading device's pane dips and comes back. The dip is a custom
   // property, so the CSS can multiply it by the spotlight's dim.
   const dipOf = (client: ClientName): CSSProperties | undefined =>
@@ -571,6 +586,37 @@ export function Stage({
         ? "free"
         : null;
 
+  // A device's basin, which the light table slides to its stack: every
+  // device's, the classic phone's too.
+  const basinOf = (device: DeviceView) => (
+    <div data-anchor-key={`basin:${device.name}`}>
+      {/* The light table: the basin slides to the stack and
+                            blends with the others there, while its anchor
+                            stays where the plane laid it out. On the table
+                            every basin draws, wherever it was laid. */}
+      <div
+        className={styles.stack}
+        data-stacked={table > 0 ? "" : undefined}
+        style={{ transform: stackTransform(device.name) }}
+      >
+        <Basin
+          items={device.items}
+          waiting={device.kind === "engine" ? device.waiting : undefined}
+          label={`${device.name}'s list`}
+          settle={settle}
+          scale={scale}
+          density={density}
+          active={table > 0 || inView(`basin:${device.name}`)}
+          ringAnchors={device.name}
+          settleMillis={settleMillisFor(shot, `device:${device.name}`, speed)}
+          paused={paused}
+          ghosts={device.ghosts}
+          arriving={arriving.get(device.name)}
+        />
+      </div>
+    </div>
+  );
+
   const { server } = view;
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Escape returns a close-up to every device; the stage is not itself a control
@@ -713,97 +759,100 @@ export function Stage({
                       : undefined
                   }
                 >
-                  <Pane
-                    level={3}
-                    title={device.name}
-                    clientId={device.clientId}
-                    tray={
-                      <Tray
-                        client={device.name}
-                        waiting={device.list.waiting}
-                        slots={marks.trays.get(device.name)}
-                      />
-                    }
-                    status={
-                      <DeviceStatus
-                        version={device.version}
-                        words={device.words}
-                        roll={marks.rolls.get(device.name)}
-                        behind={marks.behind.get(device.name)}
-                      />
-                    }
-                    basin={
-                      <div data-anchor-key={`basin:${device.name}`}>
-                        {/* The light table: the basin slides to the stack and
-                            blends with the others there, while its anchor
-                            stays where the plane laid it out. On the table
-                            every basin draws, wherever it was laid. */}
-                        <div
-                          className={styles.stack}
-                          data-stacked={table > 0 ? "" : undefined}
-                          style={{ transform: stackTransform(device.name) }}
-                        >
-                          <Basin
-                            items={device.items}
-                            waiting={device.waiting}
-                            label={`${device.name}'s list`}
-                            settle={settle}
-                            scale={scale}
-                            density={density}
-                            active={table > 0 || inView(`basin:${device.name}`)}
-                            ringAnchors={device.name}
-                            settleMillis={settleMillisFor(
-                              shot,
-                              `device:${device.name}`,
-                              speed,
-                            )}
-                            paused={paused}
-                            ghosts={device.ghosts}
-                            arriving={arriving.get(device.name)}
-                          />
-                        </div>
-                      </div>
-                    }
-                    band={
-                      <StatusBand
-                        status={device.status}
-                        onRetry={live ? () => onRetry(device.name) : undefined}
-                        touch={live ? undefined : retryTouchOf(device.name)}
-                      />
-                    }
-                  >
-                    {/* The app's own rows: read-only in a scene, taking
-                        checks and removals from the hand-over. */}
-                    {live ? (
-                      <GroceryList
-                        groups={
-                          listOf(device.list, device.name, device.ghosts).groups
-                        }
-                        rejected={device.list.rejected}
-                        headingLevel={4}
-                        looks={looksFor(marks, device.name)}
-                        onIntent={(intent) => onIntent(device.name, intent)}
-                      />
-                    ) : (
-                      <GroceryList
-                        groups={
-                          listOf(device.list, device.name, device.ghosts).groups
-                        }
-                        rejected={device.list.rejected}
-                        headingLevel={4}
-                        looks={looksFor(marks, device.name)}
-                        inertControls
-                        touch={touchOf(device.name)}
-                      />
-                    )}
-                    {/* Free play's field, or in a scene the same field acting
-                        out the scene's adds: the hand-over moves nothing. */}
-                    <QuickAdd
-                      label={`Add to ${device.name}'s list`}
-                      onAdd={(name) => onAdd(device.name, name)}
-                      replay={live ? undefined : replayOf(device.name)}
+                  {device.kind === "classic" ? (
+                    <ClassicPane
+                      device={device}
+                      groups={
+                        listOf(device.list, device.name, device.ghosts).groups
+                      }
+                      status={
+                        <DeviceStatus
+                          version={device.version}
+                          words={device.words}
+                          roll={marks.rolls.get(device.name)}
+                        />
+                      }
+                      basin={basinOf(device)}
+                      looks={looksFor(marks, device.name)}
+                      live={live}
+                      touch={touchOf(device.name)}
+                      replay={
+                        acting?.kind === "type" && acting.client === device.name
+                          ? replayOf(device.name)
+                          : { ...IDLE, typed: device.draft }
+                      }
+                      refreshTouch={refreshTouchOf(device.name)}
+                      onChange={(change) =>
+                        onClassicChange?.(device.name, change)
+                      }
+                      onRefresh={() => onClassicRefresh?.(device.name)}
                     />
-                  </Pane>
+                  ) : (
+                    <Pane
+                      level={3}
+                      title={device.name}
+                      clientId={device.clientId}
+                      tray={
+                        <Tray
+                          client={device.name}
+                          waiting={device.list.waiting}
+                          slots={marks.trays.get(device.name)}
+                        />
+                      }
+                      status={
+                        <DeviceStatus
+                          version={device.version}
+                          words={device.words}
+                          roll={marks.rolls.get(device.name)}
+                          behind={marks.behind.get(device.name)}
+                        />
+                      }
+                      basin={basinOf(device)}
+                      band={
+                        <StatusBand
+                          status={device.status}
+                          onRetry={
+                            live ? () => onRetry(device.name) : undefined
+                          }
+                          touch={live ? undefined : retryTouchOf(device.name)}
+                        />
+                      }
+                    >
+                      {/* The app's own rows: read-only in a scene, taking
+                        checks and removals from the hand-over. */}
+                      {live ? (
+                        <GroceryList
+                          groups={
+                            listOf(device.list, device.name, device.ghosts)
+                              .groups
+                          }
+                          rejected={device.list.rejected}
+                          headingLevel={4}
+                          looks={looksFor(marks, device.name)}
+                          onIntent={(intent) => onIntent(device.name, intent)}
+                        />
+                      ) : (
+                        <GroceryList
+                          groups={
+                            listOf(device.list, device.name, device.ghosts)
+                              .groups
+                          }
+                          rejected={device.list.rejected}
+                          headingLevel={4}
+                          looks={looksFor(marks, device.name)}
+                          inertControls
+                          touch={touchOf(device.name)}
+                        />
+                      )}
+                      {/* Free play's field, or in a scene the same field acting
+                        out the scene's adds: the hand-over moves nothing. */}
+                      <QuickAdd
+                        label={`Add to ${device.name}'s list`}
+                        onAdd={(name) => onAdd(device.name, name)}
+                        replay={live ? undefined : replayOf(device.name)}
+                      />
+                    </Pane>
+                  )}
                   {showButton(
                     deviceFocus(device.name),
                     `Show ${device.name} up close`,

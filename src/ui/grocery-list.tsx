@@ -41,6 +41,8 @@ interface ListBase {
   } | null;
   // A scene: every row shows its controls as inert replicas.
   readonly inertControls?: boolean;
+  // A classic phone while it saves: every row's controls take nothing.
+  readonly disabled?: boolean;
 }
 
 // A compact list takes no intents: with no targets on it, its rows can drop
@@ -77,6 +79,7 @@ export function GroceryList({
   looks,
   touch = null,
   inertControls = false,
+  disabled = false,
   empty = "Nothing on the list yet.",
   headingLevel = 2,
   density = "regular",
@@ -110,6 +113,7 @@ export function GroceryList({
             looks={looks}
             touch={touch}
             inertControls={inertControls}
+            disabled={disabled}
           />
         ))
       )}
@@ -125,6 +129,7 @@ interface GroupSectionProps {
   readonly looks: ReadonlyMap<string, RowLook> | undefined;
   readonly touch: ListBase["touch"];
   readonly inertControls: boolean;
+  readonly disabled: boolean;
 }
 
 function GroupSection({
@@ -135,6 +140,7 @@ function GroupSection({
   looks,
   touch,
   inertControls,
+  disabled,
 }: GroupSectionProps) {
   const id = useId();
   const Heading = headingLevel === 4 ? "h4" : headingLevel === 3 ? "h3" : "h2";
@@ -178,6 +184,7 @@ function GroupSection({
               inertControls ||
               (presence !== undefined && onIntent !== undefined)
             }
+            disabled={disabled}
             // A row the list does not hold takes nothing.
             onCheck={
               onIntent && presence === undefined

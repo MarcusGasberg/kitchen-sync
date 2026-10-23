@@ -68,6 +68,13 @@
   color: var(--text);
 }
 
+/* A classic phone while it saves: the field's text and edge recede, as a
+   disabled button's do, and its text stays where it was typed. */
+.form[data-disabled] .field {
+  border-color: var(--line);
+  color: var(--text-3);
+}
+
 @media (forced-colors: active) {
   .caret {
     forced-color-adjust: none;

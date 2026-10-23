@@ -497,12 +497,12 @@ Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `
 
 Load the `emil-design-eng` and `apple-design` skills for the states' looks; Impeccable judges them in Task 15.
 
-- [ ] **Step 1:** `DeviceView` gains `kind: "engine" | "classic"`; `stageOf` adds one per `snapshot.classic` entry, in the world's client order: items, `classicGhostsOf`, no `waiting`, a status of its own (`saving` | `couldn't save` | `up to date as of v7`), its version.
-- [ ] **Step 2:** `ClassicPane`: the app's `GroceryList` and `ItemRow` (same app look), no outbox tray, no pending/acked rings; a basin from the rows it holds (ghosts drawn as the vocabulary draws them). While saving: the add field and controls disabled (`aria-disabled`), a still ring with the word "saving" (its form under reduced motion is the same still ring); after a failure: the error line in ink, not seal, the field keeping the typed text (from `saving.name` / the failed input's name); a "Refresh" control. Forced colours: every ring and line in `CanvasText`.
-- [ ] **Step 3:** Free-play actions: `classicChange(client, change)` and `classicRefresh(client)` in `actions.ts`; the pane wires them in free play, inert replicas in a scene (as plan 3 does for the engine's controls).
-- [ ] **Step 4:** Wires and cards: `request`/`response` drawn and labelled as other messages; the card for a followed request shows the method, path and body; for a response, the status, version and row count.
-- [ ] **Step 5:** Tests: the pane in each state, as data and as DOM; the specimen and `app.test.tsx` unchanged.
-- [ ] **Step 6:** Commit `feat(figure): the classic phone, drawn with the app's own list`.
+- [x] **Step 1:** `DeviceView` gains `kind: "engine" | "classic"`; `stageOf` adds one per `snapshot.classic` entry, in the world's client order: items, `classicGhostsOf`, no `waiting`, a status of its own (`saving` | `couldn't save` | `up to date as of v7`), its version.
+- [x] **Step 2:** `ClassicPane`: the app's `GroceryList` and `ItemRow` (same app look), no outbox tray, no pending/acked rings; a basin from the rows it holds (ghosts drawn as the vocabulary draws them). While saving: the add field and controls disabled (`aria-disabled`), a still ring with the word "saving" (its form under reduced motion is the same still ring); after a failure: the error line in ink, not seal, the field keeping the typed text (from `saving.name` / the failed input's name); a "Refresh" control. Forced colours: every ring and line in `CanvasText`.
+- [x] **Step 3:** Free-play actions: `classicChange(client, change)` and `classicRefresh(client)` in `actions.ts`; the pane wires them in free play, inert replicas in a scene (as plan 3 does for the engine's controls).
+- [x] **Step 4:** Wires and cards: `request`/`response` drawn and labelled as other messages; the card for a followed request shows the method, path and body; for a response, the status, version and row count.
+- [x] **Step 5:** Tests: the pane in each state, as data and as DOM; the specimen and `app.test.tsx` unchanged.
+- [x] **Step 6:** Commit `feat(figure): the classic phone, drawn with the app's own list`.
 
 #### Task 7, code-level steps (written against `3824bbd`)
 
@@ -513,7 +513,7 @@ Notes:
 
 Steps:
 
-- [ ] **Step 1: Data first** (`figure-stage-view.test.ts`, `director-marks.test.ts`, `figure-marks.test.ts`).
+- [x] **Step 1: Data first** (`figure-stage-view.test.ts`, `director-marks.test.ts`, `figure-marks.test.ts`).
   - `stage-view.ts`:
     - `DeviceView` becomes `EngineDeviceView | ClassicDeviceView`, keyed by `kind`. The engine one is today's, plus `kind: "engine"`.
     - `ClassicDeviceView` is `{ kind: "classic", name, clientId, items, ghosts, list, offline, version, words, saving, error, draft }`:
@@ -532,13 +532,13 @@ Steps:
     - `heldBy` reads classic rows;
     - `arrivingOf` skips a classic row that was a ghost (`classicGhostsOf`);
     - `traysAt` stays engine-only.
-- [ ] **Step 2: Shared components, optional props only** (tests: `quick-add.test.tsx`, `grocery-list.test.tsx`; `app.test.tsx` and `specimen.test.tsx` untouched and green).
+- [x] **Step 2: Shared components, optional props only** (tests: `quick-add.test.tsx`, `grocery-list.test.tsx`; `app.test.tsx` and `specimen.test.tsx` untouched and green).
   - `QuickAdd` gains:
     - `disabled?: boolean`: the field and Add get `aria-disabled`, and a submit does nothing;
     - `draft?: string`: when given, a live add does not clear on submit and takes `draft` whenever it changes, so the field keeps a failed name and empties on save. A replay shows `draft` when not typing.
   - `GroceryList` and `ItemRow` gain `disabled?: boolean`: the check and remove controls get `aria-disabled` and ignore presses.
   - `Pane` is unchanged.
-- [ ] **Step 3: `classic-pane.tsx`** (+ `.module.css`). Load `emil-design-eng` and `apple-design` first.
+- [x] **Step 3: `classic-pane.tsx`** (+ `.module.css`). Load `emil-design-eng` and `apple-design` first.
   - The pane: `Pane` titled with the client name and its `clientId` mark, a `DeviceStatus` with version, words and roll, no tray, and a `Basin` with `items`, `ghosts`, `ringAnchors` and `arriving`, wrapped in the same stack div so the table moves it.
   - The band:
     - while saving: a dashed `Band`, "Saving Eggs…", with a still ring;
@@ -548,19 +548,32 @@ Steps:
   - Forced colours: rings and lines in `CanvasText`.
   - `stage.tsx`'s device map renders `ClassicPane` for `kind === "classic"` inside the same wrapper div, with every anchor attribute, the dip and the Show button.
   - `gaps` still reads `device.offline`.
-- [ ] **Step 4: Free play** (`figure-actions.test.ts`).
+- [x] **Step 4: Free play** (`figure-actions.test.ts`).
   - `actions.ts` gains `classicChange(client, change)` and `classicRefresh(client)`. Each reads `world.classic(client).state` and does nothing while `saving` is set; otherwise it runs the handle's call.
   - `Stage` gains optional `onClassicChange` and `onClassicRefresh`. `Figure` wires them through `player.act`.
   - In the pane, a live `ListIntent` maps to `toggle` or `remove`.
-- [ ] **Step 5: Wires and cards** (`director-payload.test.ts`, `figure-wires.test.tsx`).
+- [x] **Step 5: Wires and cards** (`director-payload.test.ts`, `figure-wires.test.tsx`).
   - `payloadOf` answers `request` and `response` before its engine-state guard, from the snapshot at the message's `Sent`:
     - a request: its label, then the body from `classic.get(c).saving`. A POST is `{ name: "Eggs" }`, a PATCH is `{ checked: true }`, and GET and DELETE have no body;
     - a response: its label, then "`<n>` items" (the server's rows at that entry), or for a `409`, "refused".
   - Labels shorten an item path to `/items/<first 4 of id>…` on the wire and the card. `said` keeps the whole label for captions.
-- [ ] **Step 6: Tests.**
+- [x] **Step 6: Tests.**
   - `figure-classic.test.tsx` renders `Stage` from a recorded classic world at four instants (idle, saving, failed with the field keeping its text, with ghosts), as DOM: words, `aria-disabled`, no seal, a Refresh, a `basin:<c>` anchor.
   - `figure-stage-view.test.ts`: the view as data.
   - `app.test.tsx` and the specimen pass unchanged.
+
+**What the build found (2026-10-22).**
+- **`Saved` lands while the phone is still saving.** The handler runs `setItems` before `setSaving(false)`, so at the `Saved` entry the pane still reads "saving", with its controls disabled. They free up one entry on, at `SavingEnded`, which is what the handler does. Tests that drive free play pick the `SavingEnded` entry.
+- **Refresh keeps a failed name.** `classicDraftAt` empties the field only when an add saves. A refresh, a check or a removal leaves it as it was, as a real form would: a failed "Rice" stays in the field through the refresh that follows. Step 1 said a later `Refreshed` or `SavingBegan` would empty it; that is changed.
+- **The first reply is not a roll.** It gives the phone v0 from no version at all. The next reply rolls 0→2.
+- **Disabled controls use `aria-disabled`, not `disabled`.** They keep their place in the tab order and say why they take nothing. `button.module.css` styles `[aria-disabled="true"]` like `:disabled`: a selector added, nothing that renders today changes.
+- **Card wording.**
+  - A POST card reads `{ name: "Eggs" }`.
+  - A PATCH or DELETE card names the item (its body is not kept in the state).
+  - A GET card reads "asks for the list".
+  - A reply reads "`<n>` items, the whole list", or "refused" for a 409.
+  - Item paths show as `/items/3f2a…` on wires and cards.
+- **No visual check yet.** The lab gets a classic figure only in Task 12; Impeccable judges the looks in Task 15.
 
 ---
 

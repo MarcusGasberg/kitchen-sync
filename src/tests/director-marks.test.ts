@@ -5,6 +5,7 @@ import type { GroceryItem } from "#/domain/grocery-item";
 import {
   type Change,
   changesOf,
+  classicDraftAt,
   classicGhostsOf,
   diffItems,
   entryBeforeUpdate,
@@ -20,13 +21,14 @@ import {
 import { toldAt } from "#/lib/director/versions";
 import { EMPTY_CLASSIC } from "#/lib/sandbox/classic/state";
 import { runHeadless } from "#/lib/sandbox/scene";
-import type { TraceEvent } from "#/lib/sandbox/trace";
+import type { Timeline, TraceEvent } from "#/lib/sandbox/trace";
 import { World } from "#/lib/sandbox/world";
 import {
   entryWhere,
   lastEntryWhere,
   MILK_SCENE,
   REMOVE_FIRST_SCENE,
+  recordClassicLife,
   TWO_WRITERS_SCENE,
 } from "./director-helpers";
 import { add } from "./sandbox-helpers";
@@ -396,5 +398,58 @@ describe("leavingAt", () => {
         ["server", "Bananas", false, 0],
       ]);
     }),
+  );
+});
+
+describe("a classic phone's marks", () => {
+  const indexOf = (
+    timeline: Timeline,
+    found: (event: TraceEvent) => boolean,
+    nth = 0,
+  ) =>
+    timeline.entries
+      .map((entry, index) => (found(entry.event) ? index : -1))
+      .filter((index) => index >= 0)[nth] ?? -1;
+  const saved = (e: TraceEvent) => e._tag === "Saved" && e.client === "Classic";
+
+  it.effect("inks the rows a reply brings, and the row a reply takes", () =>
+    Effect.gen(function* () {
+      const timeline = yield* recordClassicLife;
+      const at = (index: number) =>
+        changesOf(timeline)
+          .filter((c) => c.index === index && c.where === "Classic")
+          .map((c) => c.kind);
+      expect(at(indexOf(timeline, saved))).toEqual(["added", "added"]);
+      const removed = indexOf(timeline, saved, 1);
+      expect(at(removed)).toEqual(["removed"]);
+      const going = leavingAt(timeline, removed, () => 0);
+      expect(
+        going.filter((g) => g.where === "Classic").map((g) => g.item.name),
+      ).toEqual(["Eggs"]);
+    }),
+  );
+
+  it.effect(
+    "keeps an add's name in the field while it saves and once it failed, and empties it once one saved",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recordClassicLife;
+        const draft = (index: number) =>
+          classicDraftAt(timeline, index, "Classic");
+        const began = (nth: number) =>
+          indexOf(
+            timeline,
+            (e) => e._tag === "SavingBegan" && e.client === "Classic",
+            nth,
+          );
+        expect(draft(began(0))).toBe("");
+        expect(draft(began(1))).toBe("Eggs");
+        expect(draft(indexOf(timeline, saved))).toBe("");
+        const failed = indexOf(timeline, (e) => e._tag === "SaveFailed");
+        expect(draft(failed)).toBe("Rice");
+        // A refresh leaves the field as it was; so does a removal's save.
+        expect(draft(began(3))).toBe("Rice");
+        expect(draft(timeline.entries.length - 1)).toBe("Rice");
+      }),
   );
 });

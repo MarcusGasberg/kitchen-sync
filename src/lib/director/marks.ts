@@ -173,6 +173,12 @@ export const changesOf = (timeline: Timeline): ReadonlyArray<Change> => {
         if (before === undefined || before.items === state.items) continue;
         record(index, client, diffItems(before.items, state.items));
       }
+      // A classic phone's rows change only as a reply sets them.
+      for (const [client, state] of snapshot.classic) {
+        const before = previous.classic.get(client);
+        if (before === undefined || before.items === state.items) continue;
+        record(index, client, diffItems(byId(before.items), byId(state.items)));
+      }
       if (previous.server.items !== snapshot.server.items) {
         record(
           index,
@@ -256,7 +262,10 @@ export const leavingAt = (
     const item =
       change.where === SERVER
         ? before?.server.items.find((row) => row.id === change.itemId)
-        : before?.clients.get(change.where)?.items.get(change.itemId);
+        : (before?.clients.get(change.where)?.items.get(change.itemId) ??
+          before?.classic
+            .get(change.where)
+            ?.items.find((row) => row.id === change.itemId));
     if (item !== undefined) leaving.push({ where: change.where, item, age });
   }
   return leaving.reverse();
@@ -325,4 +334,30 @@ export const classicGhostsOf = (
   }
   const held = new Set(state.items.map((item) => item.id));
   return snapshot.server.items.filter((item) => !held.has(item.id));
+};
+
+// What a classic phone's add field holds at entry `index`: the name of its
+// latest add while that add saves and once it failed, as a careful form
+// keeps what was typed; empty once an add saved, and before any. A refresh,
+// a check or a removal leaves the field as it was.
+export const classicDraftAt = (
+  timeline: Timeline,
+  index: number,
+  client: ClientName,
+): string => {
+  let draft = "";
+  let adding = false;
+  const last = Math.min(index, timeline.entries.length - 1);
+  for (let i = 0; i <= last; i++) {
+    const event = timeline.entries[i]?.event;
+    if (event === undefined || !("client" in event)) continue;
+    if (event.client !== client) continue;
+    if (event._tag === "SavingBegan") {
+      adding = event.label.startsWith("POST ");
+      if (adding) draft = event.name ?? "";
+    } else if (event._tag === "Saved" && adding) {
+      draft = "";
+    }
+  }
+  return draft;
 };

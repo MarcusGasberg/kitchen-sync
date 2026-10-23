@@ -4,9 +4,15 @@ import {
   type Category,
   type GroceryItem,
 } from "#/domain/grocery-item";
-import { ghostsWithin } from "#/lib/director/marks";
+import { classicGhostsOf, ghostsWithin } from "#/lib/director/marks";
 import type { Told } from "#/lib/director/versions";
-import type { ClientName, Timeline, WorldSnapshot } from "#/lib/sandbox/trace";
+import type {
+  ClassicSaving,
+  ClassicState,
+  ClientName,
+  Timeline,
+  WorldSnapshot,
+} from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { type Group, type ListView, listView, type Row } from "#/ui/list-view";
 import { waitingOf } from "#/ui/marbling/pattern";
@@ -15,7 +21,8 @@ import { type SyncStatus, syncStatus } from "#/ui/sync-status";
 // One instant of a world as a figure draws it: each device's list, basin and
 // state, and the server's.
 
-export interface DeviceView {
+export interface EngineDeviceView {
+  readonly kind: "engine";
   readonly name: ClientName;
   readonly clientId: string | undefined;
   readonly items: ReadonlyArray<GroceryItem>;
@@ -34,6 +41,30 @@ export interface DeviceView {
   // Its state after the version, as "synced" or "1 pending · 1 acked".
   readonly words: string;
 }
+
+// A classic phone: no store, no outbox, only what its handlers set.
+export interface ClassicDeviceView {
+  readonly kind: "classic";
+  readonly name: ClientName;
+  readonly clientId: string | undefined;
+  readonly items: ReadonlyArray<GroceryItem>;
+  // The server's rows it lacks (`classicGhostsOf`): the figure's view, since
+  // it never hears a poke.
+  readonly ghosts: ReadonlyArray<GroceryItem>;
+  readonly list: ListView;
+  readonly offline: boolean;
+  // The last reply's version, or null before any.
+  readonly version: number | null;
+  // "saving", "couldn't save" or "loaded".
+  readonly words: string;
+  readonly saving: ClassicSaving | null;
+  readonly error: string | null;
+  // What its add field holds: a change's name while it saves and once it
+  // failed (`classicDraftAt`), else empty.
+  readonly draft: string;
+}
+
+export type DeviceView = EngineDeviceView | ClassicDeviceView;
 
 export interface ServerPaneView {
   readonly items: ReadonlyArray<GroceryItem>;
@@ -101,6 +132,14 @@ const serverPane = (
   ),
 });
 
+// What a classic phone's state line says after its version.
+export const classicWords = (state: ClassicState): string =>
+  state.saving !== null
+    ? "saving"
+    : state.error !== null
+      ? "couldn't save"
+      : "loaded";
+
 // The most rows the server or any device holds at any instant of a timeline:
 // what a figure sizes its basins' one scale by.
 export const mostRows = (timeline: Timeline): number => {
@@ -109,6 +148,9 @@ export const mostRows = (timeline: Timeline): number => {
     most = Math.max(most, snapshot.server.items.length);
     for (const state of snapshot.clients.values()) {
       most = Math.max(most, state.items.size);
+    }
+    for (const state of snapshot.classic.values()) {
+      most = Math.max(most, state.items.length);
     }
   }
   return most;
@@ -121,6 +163,7 @@ const rowsKey = (items: ReadonlyArray<GroceryItem>) =>
 
 const NO_GHOSTS: ReadonlyArray<GroceryItem> = [];
 const NO_TOLD: ReadonlyMap<ClientName, Told> = new Map();
+const NO_DRAFTS: ReadonlyMap<ClientName, string> = new Map();
 
 // Builds a figure's stage from a snapshot. A snapshot keeps each client's
 // state by reference, so a device that did nothing keeps its arrays (and its
@@ -128,7 +171,7 @@ const NO_TOLD: ReadonlyMap<ClientName, Told> = new Map();
 export const makeStageView = () => {
   const parts = new WeakMap<
     StoreState,
-    Pick<DeviceView, "items" | "waiting" | "list">
+    Pick<EngineDeviceView, "items" | "waiting" | "list">
   >();
   let server: { readonly key: string; readonly view: ServerPaneView } | null =
     null;
@@ -156,6 +199,61 @@ export const makeStageView = () => {
     return ghosts;
   };
 
+  // A classic phone's list, kept while its state is; its ghosts while
+  // neither its state nor the server's rows change.
+  const classicParts = new WeakMap<
+    ClassicState,
+    Pick<ClassicDeviceView, "list">
+  >();
+  const classicGhostParts = new WeakMap<
+    ClassicState,
+    { readonly key: string; readonly ghosts: ReadonlyArray<GroceryItem> }
+  >();
+  const classicView = (
+    snapshot: WorldSnapshot,
+    name: ClientName,
+    state: ClassicState,
+    clientIds: ReadonlyMap<ClientName, string>,
+    serverKey: string,
+    draft: string,
+  ): ClassicDeviceView => {
+    let parts = classicParts.get(state);
+    if (parts === undefined) {
+      parts = {
+        list: listView({
+          items: new Map(state.items.map((item) => [item.id, item])),
+          outbox: [],
+          ackedThrough: 0,
+          rejected: [],
+        }),
+      };
+      classicParts.set(state, parts);
+    }
+    let ghosts = classicGhostParts.get(state);
+    if (ghosts === undefined || ghosts.key !== serverKey) {
+      const found = classicGhostsOf(snapshot, name);
+      ghosts = {
+        key: serverKey,
+        ghosts: found.length === 0 ? NO_GHOSTS : found,
+      };
+      classicGhostParts.set(state, ghosts);
+    }
+    return {
+      kind: "classic",
+      name,
+      clientId: clientIds.get(name),
+      items: state.items,
+      ghosts: ghosts.ghosts,
+      list: parts.list,
+      offline: snapshot.offline.has(name),
+      version: state.version,
+      words: classicWords(state),
+      saving: state.saving,
+      error: state.error,
+      draft,
+    };
+  };
+
   const partsOf = (state: StoreState) => {
     const known = parts.get(state);
     if (known !== undefined) return known;
@@ -169,11 +267,13 @@ export const makeStageView = () => {
   };
 
   // `told`: what a poke told each device of, while it has not pulled it
-  // (`toldAt`); a device without one shows no ghosts.
+  // (`toldAt`); a device without one shows no ghosts. `drafts`: what each
+  // classic phone's add field holds (`classicDraftAt`).
   return (
     snapshot: WorldSnapshot,
     clientIds: ReadonlyMap<ClientName, string>,
     told: ReadonlyMap<ClientName, Told> = NO_TOLD,
+    drafts: ReadonlyMap<ClientName, string> = NO_DRAFTS,
   ): StageView => {
     const { serverVersion, items } = snapshot.server;
     const key = rowsKey(items);
@@ -181,21 +281,47 @@ export const makeStageView = () => {
     if (server === null || server.key !== key) {
       server = { key, view: serverPane(serverVersion, items) };
     }
+    // The world's order: the client ids', then any device they lack.
+    const names = [
+      ...new Set([
+        ...clientIds.keys(),
+        ...snapshot.clients.keys(),
+        ...snapshot.classic.keys(),
+      ]),
+    ];
     return {
       server: server.view,
-      devices: [...snapshot.clients].map(([name, state]) => {
+      devices: names.flatMap((name): Array<DeviceView> => {
+        const classic = snapshot.classic.get(name);
+        if (classic !== undefined) {
+          return [
+            classicView(
+              snapshot,
+              name,
+              classic,
+              clientIds,
+              serverKey,
+              drafts.get(name) ?? "",
+            ),
+          ];
+        }
+        const state = snapshot.clients.get(name);
+        if (state === undefined) return [];
         const offline = snapshot.offline.has(name);
         const status = syncStatus(state, { offline });
-        return {
-          name,
-          clientId: clientIds.get(name),
-          ...partsOf(state),
-          ghosts: ghostsFor(snapshot, name, state, serverKey, told.get(name)),
-          status,
-          offline,
-          version: status.kind === "connecting" ? null : state.appliedVersion,
-          words: deviceWords(status),
-        };
+        return [
+          {
+            kind: "engine",
+            name,
+            clientId: clientIds.get(name),
+            ...partsOf(state),
+            ghosts: ghostsFor(snapshot, name, state, serverKey, told.get(name)),
+            status,
+            offline,
+            version: status.kind === "connecting" ? null : state.appliedVersion,
+            words: deviceWords(status),
+          },
+        ];
       }),
     };
   };

@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { classicDraftAt } from "#/lib/director/marks";
 import {
   type AgeOf,
   type FreeOpening,
@@ -33,6 +34,8 @@ import {
   applyIntent,
   type Break,
   breakAction,
+  classicChange,
+  classicRefresh,
   offlineToggles,
   retrySync,
 } from "./actions";
@@ -150,12 +153,23 @@ function FigureBody({
   const clientIds = view?.clientIds;
   const timeline = view?.timeline;
   const index = frame?.index ?? -1;
-  // A device's ghosts are what a poke has told it it lacks (`toldAt`).
+  // A device's ghosts are what a poke has told it it lacks (`toldAt`); a
+  // classic phone's field holds what its last add typed (`classicDraftAt`).
   const stage = useMemo(
     () =>
       snapshot === null || clientIds === undefined || timeline === undefined
         ? null
-        : stageOf(snapshot, clientIds, toldAt(timeline, index)),
+        : stageOf(
+            snapshot,
+            clientIds,
+            toldAt(timeline, index),
+            new Map(
+              [...snapshot.classic.keys()].map((name) => [
+                name,
+                classicDraftAt(timeline, index, name),
+              ]),
+            ),
+          ),
     [stageOf, snapshot, clientIds, timeline, index],
   );
   // The code's lit span follows the frame's entry, not every instant.
@@ -404,6 +418,12 @@ function FigureBody({
             }
             onAdd={(client, name) => run(player.act(addItem(client, name)))}
             onRetry={(client) => run(player.act(retrySync(client)))}
+            onClassicChange={(client, change) =>
+              run(player.act(classicChange(client, change)))
+            }
+            onClassicRefresh={(client) =>
+              run(player.act(classicRefresh(client)))
+            }
           />
         )}
       </div>

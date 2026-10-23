@@ -1,6 +1,7 @@
 import { DateTime, Effect } from "effect";
 import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
 import type { MutationIntent } from "#/domain/mutation";
+import type { ClassicChange } from "#/lib/sandbox/inputs";
 import type { ClientName, MessageKind } from "#/lib/sandbox/trace";
 import type { WorldHandle } from "#/lib/sandbox/world";
 import { type ListIntent, stamp } from "#/ui/grocery-list";
@@ -50,6 +51,25 @@ export const retrySync =
   (client: ClientName): Action =>
   (world) =>
     world.client(client).retry;
+
+// A classic phone's change or Refresh, as its user makes it. While it
+// saves, its pane takes nothing: an act queued as a reply lands does
+// nothing either, so a reader never makes a change the phone ignores.
+const unlessSaving =
+  (client: ClientName, run: (world: WorldHandle) => Effect.Effect<void>) =>
+  (world: WorldHandle): Effect.Effect<void> =>
+    Effect.flatMap(world.classic(client).state, (state) =>
+      state.saving === null ? run(world) : Effect.void,
+    );
+
+export const classicChange = (
+  client: ClientName,
+  change: ClassicChange,
+): Action =>
+  unlessSaving(client, (world) => world.classic(client).change(change));
+
+export const classicRefresh = (client: ClientName): Action =>
+  unlessSaving(client, (world) => world.classic(client).refresh);
 
 // A control that breaks the network: take a device offline (and back), or
 // lose the next message of one kind on its wire.

@@ -35,19 +35,20 @@
 }
 
 @media (hover: hover) {
-  .button[data-kind="primary"]:hover:not(:disabled) {
+  .button[data-kind="primary"]:hover:not(:disabled, [aria-disabled="true"]) {
     border-color: var(--text-2);
     background: var(--text-2);
   }
 
-  .button[data-kind="secondary"]:hover:not(:disabled),
-  .button[data-kind="breaking"]:hover:not(:disabled) {
+  .button[data-kind="secondary"]:hover:not(:disabled, [aria-disabled="true"]),
+  .button[data-kind="breaking"]:hover:not(:disabled, [aria-disabled="true"]) {
     border-color: var(--text);
     color: var(--text);
   }
 }
 
-.button:disabled {
+.button:disabled,
+.button[aria-disabled="true"] {
   border-color: var(--line);
   background: transparent;
   color: var(--text-3);

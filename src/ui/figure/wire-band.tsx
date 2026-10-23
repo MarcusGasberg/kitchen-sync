@@ -1,3 +1,4 @@
+import { shownLabel } from "#/lib/director/payload";
 import { LOST_MARK_MILLIS } from "#/lib/sandbox/frame";
 import type { ClientName } from "#/lib/sandbox/trace";
 import styles from "./wire-band.module.css";
@@ -161,8 +162,8 @@ export function WireBand({
             placed={placed}
             text={
               placed.held
-                ? `${placed.message.label} · held`
-                : placed.message.label
+                ? `${shownLabel(placed.message.label)} · held`
+                : shownLabel(placed.message.label)
             }
             opacity={
               card !== null && card.messageId === placed.message.id
@@ -180,7 +181,7 @@ export function WireBand({
           >
             <Label
               placed={placed}
-              text={`${placed.message.label} · lost`}
+              text={`${shownLabel(placed.message.label)} · lost`}
               word="wire"
             />
           </g>

@@ -4,6 +4,7 @@ import { FOLLOW_RATE } from "#/lib/director/compile";
 import {
   type ChangeKind,
   changesOf,
+  classicGhostsOf,
   ghostsAt,
   LEAVE_MILLIS,
   leavingAt,
@@ -235,7 +236,8 @@ const heldBy = (
 ): GroceryItem | undefined =>
   where === SERVER
     ? snapshot.server.items.find((item) => item.id === itemId)
-    : snapshot.clients.get(where)?.items.get(itemId);
+    : (snapshot.clients.get(where)?.items.get(itemId) ??
+      snapshot.classic.get(where)?.items.find((item) => item.id === itemId));
 
 // The rows a move is about to land: each row the shot it moves into is
 // about that the row's place does not hold yet, as that shot first shows
@@ -267,7 +269,10 @@ const arrivingOf = ({
     if (heldBy(snapshot, where, itemId) !== undefined) continue;
     if (
       where !== SERVER &&
-      ghostsAt(timeline, index, where).some((ghost) => ghost.id === itemId)
+      (snapshot.classic.has(where)
+        ? classicGhostsOf(snapshot, where)
+        : ghostsAt(timeline, index, where)
+      ).some((ghost) => ghost.id === itemId)
     ) {
       continue;
     }

@@ -70,6 +70,25 @@ const read = (timeline: Timeline): Read => {
           });
         }
       }
+      // A classic phone's version moves only with a reply; its first reply
+      // gives it one, which is no roll.
+      for (const [client, state] of snapshot.classic) {
+        const was = previous.classic.get(client);
+        if (
+          was === undefined ||
+          was.version === null ||
+          state.version === null ||
+          was.version === state.version
+        ) {
+          continue;
+        }
+        versions.push({
+          index,
+          where: client,
+          from: was.version,
+          to: state.version,
+        });
+      }
     }
     if (event._tag === "Delivered" && event.message.kind === "poke") {
       const list = told.get(event.message.client) ?? [];
