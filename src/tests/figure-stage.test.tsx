@@ -22,6 +22,7 @@ import {
 } from "#/ui/figure/stage-marks";
 import { FOOT_MIN } from "#/ui/figure/stage-notes";
 import { makeStageView, type StageView } from "#/ui/figure/stage-view";
+import { patternOf } from "#/ui/marbling/pattern";
 import { rect, stubLayout } from "./figure-helpers";
 import { add } from "./sandbox-helpers";
 
@@ -2057,6 +2058,49 @@ describe("Stage", () => {
     rerender(markedStage(view, onTable(), NO_MARKS));
     expect(stackOf("A")?.style.transform).toBe("");
     expect(container.querySelector("[data-stacked]")).toBeNull();
+    restore();
+  });
+
+  // A classic phone's basin goes to the table with the rest: where it lacks
+  // rows the engine's phones hold, its pattern differs and its rings come
+  // out doubled in the blend.
+  it("stacks a classic phone's basin on the table too, its pattern apart", async () => {
+    const classicSnapshot = await Effect.runPromise(
+      Effect.gen(function* () {
+        const world = yield* World;
+        yield* world.clock.advance("1 second");
+        yield* world.classic("B").refresh;
+        yield* world.clock.advance("1 second");
+        yield* world.client("A").apply(yield* add(world, "Milk"));
+        yield* world.clock.advance("1 second");
+        return yield* world.snapshot;
+      }).pipe(
+        Effect.provide(
+          World.layer({
+            clients: ["A", "B"],
+            classic: ["B"],
+            seed: "stage-ui",
+          }),
+        ),
+      ),
+    );
+    const view = makeStageView()(classicSnapshot, new Map());
+    const [a, b] = view.devices;
+    expect(a?.kind).toBe("engine");
+    expect(b?.kind).toBe("classic");
+    const key = (items: ReadonlyArray<GroceryItem>) =>
+      JSON.stringify(patternOf({ items }));
+    expect(key(b?.items ?? [])).not.toBe(key(a?.items ?? []));
+    expect(key(a?.items ?? [])).toBe(key(classicSnapshot.server.items));
+    const restore = stubLayout(LAYOUT);
+    const { container } = render(
+      markedStage(view, onTable(), { ...NO_MARKS, table: 0.5 }),
+    );
+    const stack = container.querySelector<HTMLElement>(
+      "[data-anchor-key='basin:B'] > div",
+    );
+    expect(stack?.dataset.stacked).toBe("");
+    expect(stack?.style.transform).toBe("translate(-205px, 0px)");
     restore();
   });
 

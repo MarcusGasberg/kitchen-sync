@@ -10,6 +10,7 @@ import { World } from "#/lib/sandbox/world";
 import {
   adds,
   BACK_ONLINE_SCENE,
+  CLASSIC_SCENE,
   entryWhere,
   lastEntryWhere,
   MILK_SCENE,
@@ -189,6 +190,40 @@ describe("noteFor", () => {
         );
       }),
   );
+
+  it.effect(
+    "says a classic phone that has not caught up comes out doubled",
+    () =>
+      Effect.gen(function* () {
+        const { timeline } = yield* runHeadless(CLASSIC_SCENE);
+        // C adds milk; Classic has not refreshed.
+        const first = timeline.entries.find(
+          (entry) => entry.event._tag === "Converged",
+        );
+        expect(first === undefined ? null : noteFor(first, undefined)).toBe(
+          "Every Kitchen Sync phone shows the server's list; Classic's rings come out doubled.",
+        );
+      }),
+  );
+
+  plain("says nothing of a classic phone that shows the server's list", () => {
+    const entry: Entry = {
+      event: { _tag: "Converged", at: 0, seq: 0 },
+      snapshot: {
+        at: 0,
+        clients: new Map(),
+        classic: new Map([
+          ["Classic", { items: [], version: 0, saving: null, error: null }],
+        ]),
+        offline: new Set(),
+        server: { serverVersion: 0, items: [], lastMutationIds: new Map() },
+        messages: [],
+      },
+    };
+    expect(noteFor(entry, undefined)).toBe(
+      "Every outbox is empty. Every basin shows one pattern.",
+    );
+  });
 
   plain("names every offline device when several are", () => {
     const entry: Entry = {

@@ -1,11 +1,12 @@
 import type { ItemMutation } from "#/domain/mutation";
 import { NOUN, nameIn, said, why } from "#/lib/sandbox/captions";
 import { senderOf } from "#/lib/sandbox/frame";
-import type {
-  Classification,
-  ClientName,
-  Entry,
-  Timeline,
+import {
+  type Classification,
+  type ClientName,
+  type Entry,
+  sameRows,
+  type Timeline,
 } from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
 import { byId, type ChangeKind, diffItems } from "./marks";
@@ -285,9 +286,27 @@ export const noteFor = (
       // An offline device's rows are not compared: it may still show an old
       // list, so only the online phones are said to agree.
       const away = [...snapshot.offline].sort();
+      // A classic phone has no outbox and does not pull: convergence is the
+      // engine's, so an online classic phone still showing another list is
+      // named apart, its basin's rings out of register on the table.
+      const doubled = [...snapshot.classic]
+        .filter(
+          ([name, state]) =>
+            !snapshot.offline.has(name) &&
+            !sameRows(state.items, snapshot.server.items),
+        )
+        .map(([name]) => name)
+        .sort();
+      const offline = `${listed(away)} ${away.length === 1 ? "is" : "are"} offline.`;
+      if (doubled.length > 0) {
+        const rings = `${listed(doubled.map((name) => `${name}'s`))} rings come out doubled.`;
+        return away.length === 0
+          ? `Every Kitchen Sync phone shows the server's list; ${rings}`
+          : `Every online Kitchen Sync phone shows the server's list; ${rings} ${offline}`;
+      }
       return away.length === 0
         ? "Every outbox is empty. Every basin shows one pattern."
-        : `Every online phone shows the server's list; ${listed(away)} ${away.length === 1 ? "is" : "are"} offline.`;
+        : `Every online phone shows the server's list; ${offline}`;
     }
   }
 };

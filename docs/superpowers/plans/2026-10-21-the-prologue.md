@@ -631,8 +631,8 @@ Steps:
 
 **Files:** `src/ui/figure/stage.tsx` (table layout), `stage-marks.ts`; tests `figure-marks.test.ts`.
 
-- [ ] **Step 1:** The table stacks every device's basin, the classic one included; the engine's register as one pattern and the classic one's lacking rows show doubled rings (that falls out of the drawing; the test asserts the classic basin is on the table and its pattern key differs).
-- [ ] **Step 2:** Commit `feat(figure): the light table stacks the classic phone's basin too`.
+- [x] **Step 1:** The table stacks every device's basin, the classic one included; the engine's register as one pattern and the classic one's lacking rows show doubled rings (that falls out of the drawing; the test asserts the classic basin is on the table and its pattern key differs).
+- [x] **Step 2:** Commit `feat(figure): the light table stacks the classic phone's basin too`.
 
 #### Task 9, code-level steps (written against `3824bbd`)
 
@@ -642,10 +642,15 @@ Notes:
 
 Steps:
 
-- [ ] **Step 1** (`figure-stage.test.tsx`, `figure-marks.test.ts`). On `CLASSIC_SCENE`'s table hold:
+- [x] **Step 1** (`figure-stage.test.tsx`, `figure-marks.test.ts`). On `CLASSIC_SCENE`'s table hold:
   - the classic basin carries `data-stacked` and a transform;
   - `patternOf` of its items differs from Kitchen Sync's, while Kitchen Sync's and C's are equal.
-- [ ] **Step 2** (`director-notes.test.ts`). `noteFor` Converged, when some classic phone's rows differ from the server's, says "Every Kitchen Sync phone shows the server's list; `<c>`'s rings come out doubled." Without one, it is unchanged.
+- [x] **Step 2** (`director-notes.test.ts`). `noteFor` Converged, when some classic phone's rows differ from the server's, says "Every Kitchen Sync phone shows the server's list; `<c>`'s rings come out doubled." Without one, it is unchanged.
+
+**What the build found (2026-10-22).**
+- **The stage needed no change.** Since Task 7 the classic basin sits in the same stack div as the engine phones' basins, so the table slides it to the stack too. The new test pins that down (`data-stacked` and its shift), along with its pattern differing while it lacks a row.
+- **What "doubled" means.** A classic phone counts as doubled when it is online and its rows differ from the server's (`sameRows`, in order). An offline classic phone is only called offline, as an offline engine phone is. When both apply, the note names both: "Every online Kitchen Sync phone shows the server's list; Classic's rings come out doubled. B is offline."
+- **The scene's first convergence already shows it.** `CLASSIC_SCENE`'s first Converged (C adds milk, and Classic has not refreshed) now reads "Every Kitchen Sync phone shows the server's list; Classic's rings come out doubled."
 
 ---
 
