@@ -109,3 +109,50 @@ export const waitTallyAt = (
   }
   return { last, count, totalMillis };
 };
+
+// Every change's wait as a frame shows it: the inputs at or before its
+// instant `at`, answered only by entries through its `index`, so within one
+// instant a change waits until its own entry shows (a Kitchen Sync phone's
+// add is waiting while it is typed, and shown once it lands).
+export const waitsThrough = (
+  inputs: ReadonlyArray<RecordedInput>,
+  timeline: Timeline,
+  index: number,
+  at: number,
+): ReadonlyArray<Wait> =>
+  waitsOf(
+    inputs.filter((input) => input.at <= at),
+    { ...timeline, entries: timeline.entries.slice(0, index + 1) },
+  );
+
+// A length as a tally says it: whole milliseconds below a second, then
+// seconds to a tenth.
+export const lengthWords = (millis: number): string =>
+  millis < 1000
+    ? `${Math.max(0, Math.round(millis))} ms`
+    : `${(millis / 1000).toFixed(1)} s`;
+
+// A phone's tally in words: its last wait ("waited 1.8 s", "waiting 900 ms",
+// "gave up after 0 ms"), and once it has made two changes or more, how many
+// and their time in all. Null before its first change.
+export const tallyWords = (
+  tally: WaitTally,
+  at: number,
+): { readonly last: string; readonly rest: string | null } | null => {
+  const { last } = tally;
+  if (last === null) return null;
+  const length = (last.to ?? at) - last.from;
+  const words =
+    last.outcome === "shown"
+      ? `waited ${lengthWords(length)}`
+      : last.outcome === "failed"
+        ? `gave up after ${lengthWords(length)}`
+        : `waiting ${lengthWords(length)}`;
+  return {
+    last: words,
+    rest:
+      tally.count < 2
+        ? null
+        : `${tally.count} changes, ${lengthWords(tally.totalMillis)} in all`,
+  };
+};

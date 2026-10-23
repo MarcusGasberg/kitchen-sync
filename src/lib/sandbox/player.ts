@@ -23,7 +23,7 @@ import {
   previousInstant,
   snapToQuantum,
 } from "./frame";
-import type { Recording } from "./inputs";
+import type { RecordedInput, Recording } from "./inputs";
 import { type Live, startLive } from "./live";
 import { freeRate, quietGap, SKIP_SCREEN_MILLIS } from "./pacing";
 import {
@@ -49,6 +49,9 @@ export const NEXT_EVENT_LIMIT_MILLIS = 35_000;
 export interface PlayerView {
   readonly mode: "scene" | "free";
   readonly timeline: Timeline;
+  // Every input the world has taken: the scene's, or free play's world's.
+  // What a wait or the weather is read from.
+  readonly inputs: ReadonlyArray<RecordedInput>;
   // Beat ticks: the scene's, or in free play those before the hand-over.
   readonly beats: ReadonlyArray<BeatResult>;
   // The instants the scrub bar spans.
@@ -189,6 +192,7 @@ export const makePlayer = (
     let live: Live | null = null;
     // Free play's timeline, playhead and world clock.
     let timeline: Timeline = result.timeline;
+    let inputs: ReadonlyArray<RecordedInput> = result.inputs;
     let at = opening;
     let now = opening;
     let fastSince: number | null = null;
@@ -227,6 +231,7 @@ export const makePlayer = (
           ...shared,
           mode: "scene",
           timeline: result.timeline,
+          inputs: result.inputs,
           beats: result.beats,
           start: sceneStart,
           end: sceneEnd,
@@ -246,6 +251,7 @@ export const makePlayer = (
         ...shared,
         mode: "free",
         timeline,
+        inputs,
         beats: handedBeats,
         start: timeline.entries[0]?.event.at ?? at,
         end: Math.max(now, at),
@@ -341,6 +347,7 @@ export const makePlayer = (
             const forked = yield* next.timeline;
             live = next;
             timeline = forked;
+            inputs = yield* next.world.inputs;
             at = forkedAt;
             jumped = true;
             now = forkedAt;
@@ -437,6 +444,7 @@ export const makePlayer = (
             } else {
               yield* live.untilNextEvent(NEXT_EVENT_LIMIT_MILLIS);
               timeline = yield* live.timeline;
+              inputs = yield* live.world.inputs;
               now = yield* live.now;
               at = now;
             }
@@ -535,6 +543,7 @@ export const makePlayer = (
                 }),
               );
               timeline = yield* session.timeline;
+              inputs = yield* session.world.inputs;
               now = yield* session.now;
               jumped = false;
             }
@@ -582,6 +591,7 @@ export const makePlayer = (
                     stopAtEvent: rate > 1,
                   });
                   timeline = yield* live.timeline;
+                  inputs = yield* live.world.inputs;
                   now = yield* live.now;
                   at = stopped ? now : target;
                 }

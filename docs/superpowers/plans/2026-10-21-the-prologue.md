@@ -581,10 +581,10 @@ Steps:
 
 **Files:** `wait-tally.tsx`, `weather-readout.tsx` (+ css), `breaking-controls.tsx`, `figure.tsx`; tests `figure-wait-tally.test.tsx`, `figure-weather.test.tsx`.
 
-- [ ] **Step 1:** The tally under each phone's header: "waited 1.8 s" in mono for the number, words in the text face; counts up while waiting in motion, appears at its value under reduced motion; its first appearance carries the note "latency simulated".
-- [ ] **Step 2:** The weather readout over the wire band: four words, the current one inked, its latency in mono ("train · 900 ms"; "tunnel · offline").
-- [ ] **Step 3:** The weather as a breaking control in free play (a four-way choice using `choice.module.css`), applying `setWeather` to the reader's phones; it replaces per-device offline for a figure whose scene says `weather: [...]` (a new optional figure prop).
-- [ ] **Step 4:** Commit `feat(figure): the wait tally and the weather`.
+- [x] **Step 1:** The tally under each phone's header: "waited 1.8 s" in mono for the number, words in the text face; counts up while waiting in motion, appears at its value under reduced motion; its first appearance carries the note "latency simulated".
+- [x] **Step 2:** The weather readout over the wire band: four words, the current one inked, its latency in mono ("train · 900 ms"; "tunnel · offline").
+- [x] **Step 3:** The weather as a breaking control in free play (a four-way choice using `choice.module.css`), applying `setWeather` to the reader's phones; it replaces per-device offline for a figure whose scene says `weather: [...]` (a new optional figure prop).
+- [x] **Step 4:** Commit `feat(figure): the wait tally and the weather`.
 
 #### Task 8, code-level steps (written against `3824bbd`)
 
@@ -595,28 +595,35 @@ Notes:
 
 Steps:
 
-- [ ] **Step 1: Inputs on the view** (`sandbox-player.test.ts`).
+- [x] **Step 1: Inputs on the view** (`sandbox-player.test.ts`).
   - `PlayerView` gains `inputs: ReadonlyArray<RecordedInput>`: in a scene `result.inputs`, and in free play the live world's.
   - `player.ts` keeps `let inputs` beside `timeline` and sets it wherever free play sets `timeline` (four places).
   - Test: inputs grow with a free-play act.
-- [ ] **Step 2: The words, pure** (`director-wait.test.ts`).
+- [x] **Step 2: The words, pure** (`director-wait.test.ts`).
   - `wait.ts` gains `tallyWords(tally): { last: string; rest: string | null }`:
     - "waited 1.8 s", "waited 0 ms", "waiting 0.9 s", "gave up after 0 ms";
     - `rest` is "4 changes, 6.2 s in all" once `count ≥ 2`;
     - under 1000 ms in whole ms, from 1000 in tenths of a second.
   - It also gains `waitsThrough(inputs, timeline, index, at)`: `waitsOf` over the entries through `index` and the inputs at or before `at`, so a change waits until its own entry shows.
-- [ ] **Step 3: `wait-tally.tsx`** (+ css; `figure-wait-tally.test.tsx`).
+- [x] **Step 3: `wait-tally.tsx`** (+ css; `figure-wait-tally.test.tsx`).
   - The numbers are mono and the words in the text face.
   - Under reduced motion, a wait still running reads "waiting" with no number, and its value appears once it ends.
   - Its accessible text adds "simulated latency" (Q3).
   - It is rendered under a device's header, for the clients in Figure's `weather` prop, through a new optional `Pane` prop `meta?: ReactNode`, drawn between the header and the tray. The app passes none.
-- [ ] **Step 4: `weather-readout.tsx`** (+ css; `figure-weather.test.tsx`).
+- [x] **Step 4: `weather-readout.tsx`** (+ css; `figure-weather.test.tsx`).
   - Four words, the current one inked (`weatherAt` over the `weather` clients at the frame's instant). Then its latency in mono with "simulated": "train · 900 ms · simulated", "tunnel · offline". "mixed" inks none.
   - The stage draws it in the viewport, over the wire band and not on the plane (as `MessageCard` is), so the camera's scale never touches it.
-- [ ] **Step 5: The control.**
+- [x] **Step 5: The control.**
   - A `WeatherControl` in `breaking-controls.tsx`: a four-way radio group on `choice.module.css`, in the breaking fieldset. Choosing one runs `handOver(player.act(setWeather(weather, w)))`, and it is disabled while busy.
   - `FigureProps.weather` given → `offered` defaults to `[]`, so there are no per-device offline toggles unless `breaks` names some.
   - Test that a figure without `weather` renders exactly as today (`figure.test.tsx`, `figure-controls.test.tsx`).
+
+**What the build found (2026-10-22).**
+- **The readout sits above the camera's window, not on the plane.** It is a quiet line at the top of the stage, so the camera's scale never touches it and it never covers a pane. The window keeps its aspect ratio, so the stage grows by one line. Impeccable judges the placement in Task 15.
+- **The control and the readout are both derived.** The weather control's checked option and the readout both come from `weatherAt` over the recorded inputs. "mixed" (free play's 150 ms start, or phones that disagree) checks and inks nothing.
+- **The tally counts with the world's clock.** It counts up in slow motion at the cut's rate, since it measures world time. Under reduced motion, a running wait says "waiting" with no number.
+- **New export: `DEFAULT_LATENCY`.** `world.ts` exports the default link latency (150 ms), so a figure can name the weather of a scene that sets none.
+- **The scene's inputs stay in a free-play fork.** `PlayerView.inputs` is the live world's whole input log, the replayed scene inputs included, so a tally after the hand-over counts the scene's changes too.
 
 ---
 

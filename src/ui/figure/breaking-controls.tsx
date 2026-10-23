@@ -1,5 +1,8 @@
+import { useId } from "react";
 import type { ClientName } from "#/lib/sandbox/trace";
+import { WEATHERS, type Weather } from "#/lib/sandbox/weather";
 import { Button } from "#/ui/button";
+import choice from "#/ui/choice.module.css";
 import { type Break, breakLabel } from "./actions";
 import styles from "./breaking-controls.module.css";
 
@@ -36,6 +39,48 @@ export function BreakingControls({
         >
           {breakLabel(b, offline.has(b.client))}
         </Button>
+      ))}
+    </fieldset>
+  );
+}
+
+const WEATHER_ORDER: ReadonlyArray<Weather> = [
+  "office",
+  "cafe",
+  "train",
+  "tunnel",
+];
+
+interface WeatherControlProps {
+  // The weather the reader's phones share now, or "mixed".
+  readonly weather: Weather | "mixed";
+  readonly disabled: boolean;
+  readonly onWeather: (weather: Weather) => void;
+}
+
+// The weather as a breaking control: one choice of four, each setting every
+// reader's phone's link at once (`setWeather`). It takes the place of each
+// device's offline toggle: the tunnel is offline.
+export function WeatherControl({
+  weather,
+  disabled,
+  onWeather,
+}: WeatherControlProps) {
+  const name = useId();
+  return (
+    <fieldset className={choice.choices} disabled={disabled}>
+      <legend className={choice.legend}>Weather</legend>
+      {WEATHER_ORDER.map((w) => (
+        <label key={w} className={choice.option}>
+          <input
+            type="radio"
+            name={name}
+            value={w}
+            checked={w === weather}
+            onChange={() => onWeather(w)}
+          />
+          <span>{WEATHERS[w].label}</span>
+        </label>
       ))}
     </fieldset>
   );

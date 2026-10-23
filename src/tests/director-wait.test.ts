@@ -1,7 +1,13 @@
 import { it } from "@effect/vitest";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
-import { type Wait, waitsOf, waitTallyAt } from "#/lib/director/wait";
+import {
+  tallyWords,
+  type Wait,
+  waitsOf,
+  waitsThrough,
+  waitTallyAt,
+} from "#/lib/director/wait";
 import type { RecordedInput } from "#/lib/sandbox/inputs";
 import type { Timeline } from "#/lib/sandbox/trace";
 import { setWeather } from "#/lib/sandbox/weather";
@@ -262,4 +268,67 @@ describe("waitTallyAt", () => {
       });
     }),
   );
+});
+
+describe("waitsThrough", () => {
+  it.effect(
+    "sees a change wait until its own entry shows, within its instant too",
+    () =>
+      Effect.gen(function* () {
+        const { marks, inputs, timeline } = yield* recorded;
+        const office = marks.office ?? 0;
+        // The Kitchen Sync phone's add at the office instant, before and at
+        // its own Applied.
+        const applied = timeline.entries.findIndex(
+          (e) => e.event._tag === "Applied" && e.event.client === "kitchen",
+        );
+        const before = waitsThrough(inputs, timeline, applied - 1, office);
+        const at = waitsThrough(inputs, timeline, applied, office);
+        expect(before.map(brief)).toEqual([
+          ["classic", null, "waiting"],
+          ["kitchen", null, "waiting"],
+        ]);
+        expect(at.map(brief)).toEqual([
+          ["classic", null, "waiting"],
+          ["kitchen", 0, "shown"],
+        ]);
+      }),
+  );
+});
+
+describe("tallyWords", () => {
+  const wait = (
+    from: number,
+    to: number | null,
+    outcome: Wait["outcome"],
+  ): Wait => ({ client: "classic", from, to, outcome });
+
+  it("says the last wait, in ms below a second and tenths above", () => {
+    const one = (last: Wait, at: number) =>
+      tallyWords({ last, count: 1, totalMillis: 0 }, at);
+    expect(one(wait(0, 0, "shown"), 0)).toEqual({
+      last: "waited 0 ms",
+      rest: null,
+    });
+    expect(one(wait(0, 200, "shown"), 500)?.last).toBe("waited 200 ms");
+    expect(one(wait(0, 1800, "shown"), 2000)?.last).toBe("waited 1.8 s");
+    expect(one(wait(100, null, "waiting"), 1000)?.last).toBe("waiting 900 ms");
+    expect(one(wait(0, 0, "failed"), 0)?.last).toBe("gave up after 0 ms");
+    expect(one(wait(0, 1800, "failed"), 1800)?.last).toBe(
+      "gave up after 1.8 s",
+    );
+  });
+
+  it("adds the changes and their time in all once there are two", () => {
+    expect(
+      tallyWords(
+        { last: wait(0, 1800, "shown"), count: 4, totalMillis: 6200 },
+        2000,
+      ),
+    ).toEqual({ last: "waited 1.8 s", rest: "4 changes, 6.2 s in all" });
+  });
+
+  it("says nothing before any change", () => {
+    expect(tallyWords({ last: null, count: 0, totalMillis: 0 }, 0)).toBeNull();
+  });
 });

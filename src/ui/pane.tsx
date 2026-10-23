@@ -9,6 +9,8 @@ interface PaneProps {
   // The device's state in a few words, as "v7 · synced": a string, or a
   // figure's `DeviceStatus`, whose version rolls.
   readonly status?: ReactNode;
+  // A line under its header: a figure's wait tally.
+  readonly meta?: ReactNode;
   // The device's outbox tray, under its header: a figure's.
   readonly tray?: ReactNode;
   // The device's `Basin`, above its list.
@@ -27,6 +29,7 @@ export function Pane({
   title,
   clientId,
   status,
+  meta,
   tray,
   basin,
   band,
@@ -46,6 +49,7 @@ export function Pane({
         )}
         {clientId !== undefined && <Mark clientId={clientId} />}
       </header>
+      {meta}
       {tray}
       {basin}
       {band}

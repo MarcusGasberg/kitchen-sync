@@ -40,6 +40,9 @@ import type {
 } from "./trace";
 import { traceStore } from "./traced-store";
 
+// A link's one-way latency when a world names none.
+export const DEFAULT_LATENCY: Duration.Input = "150 millis";
+
 export interface WorldOptions {
   readonly clients: ReadonlyArray<ClientName>;
   readonly seed: string;
@@ -245,7 +248,7 @@ const make = (options: WorldOptions) =>
     );
     const network = yield* makeNetwork({
       clients: names,
-      latency: options.latency ?? "150 millis",
+      latency: options.latency ?? DEFAULT_LATENCY,
       recorder,
     });
 

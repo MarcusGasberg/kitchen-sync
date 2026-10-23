@@ -14,6 +14,7 @@ import {
 const viewOf = (overrides: Partial<PlayerView> = {}): PlayerView => ({
   mode: "scene",
   timeline: EMPTY_TIMELINE,
+  inputs: [],
   beats: [
     {
       caption: "Setup.",

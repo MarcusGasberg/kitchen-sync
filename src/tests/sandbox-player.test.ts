@@ -526,6 +526,19 @@ describe("makePlayer", () => {
       }),
   );
 
+  it.effect("carries the world's inputs: the scene's, then free play's", () =>
+    Effect.gen(function* () {
+      const player = yield* makePlayer(scene, { autoplay: false });
+      const recorded = player.view().inputs;
+      expect(recorded.length).toBeGreaterThan(0);
+      yield* player.act(addOn("B", "Eggs"));
+      const free = player.view().inputs;
+      expect(free.length).toBeGreaterThan(recorded.length);
+      expect(free.at(-1)?.input._tag).toBe("Apply");
+      yield* player.close;
+    }),
+  );
+
   it.effect("a reader's change during a scene hands the world over first", () =>
     Effect.gen(function* () {
       const player = yield* makePlayer(scene, { autoplay: false });

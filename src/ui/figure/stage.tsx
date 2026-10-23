@@ -12,9 +12,11 @@ import {
 import type { GroceryItem } from "#/domain/grocery-item";
 import { type Cut, type Place, SERVER } from "#/lib/director/shots";
 import type { CutCursor } from "#/lib/director/timing";
+import type { WaitTally as WaitTallyData } from "#/lib/director/wait";
 import { type Flight, type Lost, senderOf } from "#/lib/sandbox/frame";
 import type { ClassicChange } from "#/lib/sandbox/inputs";
 import type { ClientName } from "#/lib/sandbox/trace";
+import type { Weather } from "#/lib/sandbox/weather";
 import { Basin } from "#/ui/basin";
 import { Button } from "#/ui/button";
 import { GroceryList, type ListIntent } from "#/ui/grocery-list";
@@ -58,6 +60,8 @@ import { FOOT_MIN, FootNotes, StageNotes } from "./stage-notes";
 import { type DeviceView, type StageView, withRows } from "./stage-view";
 import { useCamera } from "./use-camera";
 import { useWordFloor } from "./use-word-floor";
+import { WaitTally } from "./wait-tally";
+import { WeatherReadout } from "./weather-readout";
 import { WireBand } from "./wire-band";
 import {
   DEVICE_INSET_PX,
@@ -66,6 +70,12 @@ import {
   placeLost,
   type Wire,
 } from "./wires";
+
+// A phone's wait tally at a frame (`waitTallyAt`), and the frame's instant.
+export interface WaitTallyLook {
+  readonly tally: WaitTallyData;
+  readonly at: number;
+}
 
 // What the camera follows: a scene's cut at the playhead, or free play, where
 // it rests wide or on what the reader chose to see up close.
@@ -150,6 +160,12 @@ interface StageProps {
     change: ClassicChange,
   ) => void;
   readonly onClassicRefresh?: (client: ClientName) => void;
+  // The reader's phones' wait tallies, by client, at the frame (a figure
+  // whose scene names its weather).
+  readonly tallies?: ReadonlyMap<ClientName, WaitTallyLook>;
+  // The weather the reader's phones share, over the world; absent, no
+  // readout.
+  readonly weather?: Weather | "mixed";
 }
 
 const EMPTY: Measured = {
@@ -285,7 +301,16 @@ export function Stage({
   onRetry,
   onClassicChange,
   onClassicRefresh,
+  tallies,
+  weather,
 }: StageProps) {
+  // A device's tally line, if the figure keeps one for it.
+  const tallyOf = (client: ClientName) => {
+    const tally = tallies?.get(client);
+    return tally === undefined ? undefined : (
+      <WaitTally tally={tally.tally} at={tally.at} reduced={reduced} />
+    );
+  };
   // The device acting out the shot's input, in its own controls.
   const { acting } = marks;
   const replayOf = (client: ClientName): QuickAddReplay =>
@@ -621,6 +646,7 @@ export function Stage({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Escape returns a close-up to every device; the stage is not itself a control
     <div className={styles.stage} onKeyDown={onKeyDown}>
+      {weather !== undefined && <WeatherReadout weather={weather} />}
       <div ref={viewport} className={styles.viewport} data-anchor="viewport">
         {/* The camera's lens: the window's edges feathered, and the notes'
             share or room faded, over the plane alone. */}
@@ -773,6 +799,7 @@ export function Stage({
                         />
                       }
                       basin={basinOf(device)}
+                      meta={tallyOf(device.name)}
                       looks={looksFor(marks, device.name)}
                       live={live}
                       touch={touchOf(device.name)}
@@ -792,6 +819,7 @@ export function Stage({
                       level={3}
                       title={device.name}
                       clientId={device.clientId}
+                      meta={tallyOf(device.name)}
                       tray={
                         <Tray
                           client={device.name}

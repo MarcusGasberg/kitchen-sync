@@ -1,0 +1,32 @@
+/* One quiet line over the world: the four weathers, the current one in the
+   text's own ink and underlined by a rule so it holds without colour, then
+   its latency. */
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.2 var(--font-text);
+}
+
+.words {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.word[data-current] {
+  color: var(--text);
+  text-decoration: underline var(--rule) currentColor;
+  text-underline-offset: 0.25em;
+}
+
+.latency {
+  color: var(--text-2);
+}
+
+.number {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

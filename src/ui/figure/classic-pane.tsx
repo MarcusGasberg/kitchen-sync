@@ -20,6 +20,8 @@ interface ClassicPaneProps {
   // The pane's state line and its basin, drawn as every device's are.
   readonly status: ReactNode;
   readonly basin: ReactNode;
+  // Its wait tally, under its header.
+  readonly meta?: ReactNode;
   readonly looks: ReadonlyMap<string, RowLook>;
   // Free play: the reader's own controls. In a scene, inert replicas acting
   // out the scene's inputs.
@@ -53,6 +55,7 @@ export function ClassicPane({
   groups,
   status,
   basin,
+  meta,
   looks,
   live,
   touch,
@@ -68,6 +71,7 @@ export function ClassicPane({
       title={device.name}
       clientId={device.clientId}
       status={status}
+      meta={meta}
       basin={basin}
       band={<ClassicBand device={device} />}
     >

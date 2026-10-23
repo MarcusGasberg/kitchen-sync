@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Duration, Effect } from "effect";
 import {
   Component,
   type KeyboardEvent,
@@ -18,10 +18,13 @@ import {
   sceneAges,
 } from "#/lib/director/reveal";
 import { toldAt } from "#/lib/director/versions";
+import { waitsThrough, waitTallyAt } from "#/lib/director/wait";
 import { frameAt, lostAt } from "#/lib/sandbox/frame";
 import type { Player } from "#/lib/sandbox/player";
 import type { Scene } from "#/lib/sandbox/scene";
-import type { Timeline } from "#/lib/sandbox/trace";
+import type { ClientName, Timeline } from "#/lib/sandbox/trace";
+import { setWeather, weatherAt } from "#/lib/sandbox/weather";
+import { DEFAULT_LATENCY } from "#/lib/sandbox/world";
 import { Band } from "#/ui/band";
 import { Button } from "#/ui/button";
 import { Caption } from "#/ui/caption";
@@ -39,7 +42,7 @@ import {
   offlineToggles,
   retrySync,
 } from "./actions";
-import { BreakingControls } from "./breaking-controls";
+import { BreakingControls, WeatherControl } from "./breaking-controls";
 import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PaceControls, PlayerControls } from "./player-controls";
@@ -72,6 +75,11 @@ export interface FigureProps {
   // The engine's code beside the world, lit as the world runs. A module-level
   // constant, as `scene` is.
   readonly code?: FigureCode;
+  // The reader's phones, under one weather: each gets a wait tally, the
+  // stage reads out their weather, and the weather is the breaking control
+  // in place of each device's offline toggle. A module-level constant, as
+  // `scene` is.
+  readonly weather?: ReadonlyArray<ClientName>;
   readonly host?: FigureHost;
 }
 
@@ -112,6 +120,7 @@ function FigureBody({
   free,
   breaks,
   code,
+  weather,
   host = browserFigureHost,
 }: FigureProps) {
   const element = useRef<HTMLElement>(null);
@@ -180,7 +189,42 @@ function FigureBody({
         : litAt(timeline, index, code.lights),
     [code, timeline, index],
   );
-  const offered = breaks ?? offlineToggles(scene.world.clients);
+  const offered =
+    breaks ??
+    (weather === undefined ? offlineToggles(scene.world.clients) : []);
+  // The reader's phones' weather and waits at the frame, read from the
+  // recorded inputs and the trace through the frame's entry.
+  const inputs = view?.inputs;
+  const frameAtTime = frame?.at;
+  const weatherNow = useMemo(
+    () =>
+      weather === undefined || inputs === undefined || frameAtTime === undefined
+        ? undefined
+        : weatherAt(
+            inputs,
+            weather,
+            frameAtTime,
+            Duration.toMillis(scene.world.latency ?? DEFAULT_LATENCY),
+          ),
+    [weather, inputs, frameAtTime, scene],
+  );
+  const tallies = useMemo(() => {
+    if (
+      weather === undefined ||
+      inputs === undefined ||
+      timeline === undefined ||
+      frameAtTime === undefined
+    ) {
+      return undefined;
+    }
+    const waits = waitsThrough(inputs, timeline, index, frameAtTime);
+    return new Map(
+      weather.map((client) => [
+        client,
+        { tally: waitTallyAt(waits, client, frameAtTime), at: frameAtTime },
+      ]),
+    );
+  }, [weather, inputs, timeline, index, frameAtTime]);
 
   // Where the playhead is in the scene's cut; null in free play, which is
   // not shot.
@@ -424,6 +468,8 @@ function FigureBody({
             onClassicRefresh={(client) =>
               run(player.act(classicRefresh(client)))
             }
+            tallies={tallies}
+            weather={weatherNow}
           />
         )}
       </div>
@@ -440,6 +486,16 @@ function FigureBody({
       </div>
 
       <div className={styles.breaking}>
+        {view !== null &&
+          player !== null &&
+          weather !== undefined &&
+          weatherNow !== undefined && (
+            <WeatherControl
+              weather={weatherNow}
+              disabled={view.busy}
+              onWeather={(w) => handOver(player.act(setWeather(weather, w)))}
+            />
+          )}
         {view !== null && player !== null && snapshot !== null && (
           <BreakingControls
             breaks={offered}
