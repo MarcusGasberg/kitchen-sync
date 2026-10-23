@@ -84,6 +84,7 @@ describe("the snippet plugin", () => {
       "region=push-loop&then=762215843370&lines=47-72&morph",
     );
     expect(morph.then).toMatchObject({
+      source: "commit",
       commit: "7622158",
       date: "2026-09-28",
       lines: "47–72",
@@ -108,5 +109,44 @@ describe("the snippet plugin", () => {
     await expect(
       loadSnippet(SYNC, "region=push-loop&then=7622158&lines=72&morph", ROOT),
     ).rejects.toThrow("lines=… takes a range");
+  });
+
+  const APP = `${ROOT}/src/app/grocery-app.tsx`;
+  const fileMorph = async (query: string) => {
+    const module = await loadSnippet(APP, query, ROOT);
+    if (module === null || !("then" in module)) {
+      throw new Error(`${query} is not a morph`);
+    }
+    return module;
+  };
+
+  it("morphs another file's region into the importing file's", async () => {
+    const morph = await fileMorph(
+      "region=add-intent&from=src/lib/sandbox/classic/handlers.ts:classic-add&morph",
+    );
+    expect(morph.path).toBe("src/app/grocery-app.tsx");
+    expect(morph.region).toBe("add-intent");
+    expect(morph.then).toMatchObject({
+      source: "file",
+      path: "src/lib/sandbox/classic/handlers.ts",
+      region: "classic-add",
+    });
+    expect(morph.then.tokens.code).toContain("await api.post");
+    // The handler's spans are stripped, as a snippet's are.
+    expect(morph.then.tokens.code).not.toContain("#region");
+    expect(morph.now.tokens.code).toContain('_tag: "AddItem"');
+    expect(morph.now.tokens.code).not.toContain("#endregion");
+  });
+
+  it("fails on a from= with no region, or a file or region not there", async () => {
+    await expect(
+      fileMorph("region=add-intent&from=src/lib/sync.ts&morph"),
+    ).rejects.toThrow("from=… takes a path and a region");
+    await expect(
+      fileMorph("region=add-intent&from=src/lib/nope.ts:x&morph"),
+    ).rejects.toThrow("src/lib/nope.ts");
+    await expect(
+      fileMorph("region=add-intent&from=src/lib/sync.ts:nope&morph"),
+    ).rejects.toThrow('src/lib/sync.ts has no region "nope"');
   });
 });

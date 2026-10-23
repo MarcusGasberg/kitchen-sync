@@ -70,6 +70,7 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
         }
       />
       <AddItemForm
+        // #region add-intent
         onAdd={(item) =>
           apply({
             _tag: "AddItem",
@@ -78,6 +79,7 @@ function Screen({ runtime }: { readonly runtime: ClientRuntime }) {
             item,
           })
         }
+        // #endregion add-intent
       />
       <main className={styles.list}>
         <GroceryList

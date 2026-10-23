@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { relative, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 import type { Plugin } from "vite";
 import type { Morph, Snippet } from "#/ui/code/snippet";
 import { highlight, langOf, morphSteps } from "./highlight";
@@ -16,7 +16,11 @@ import { extractRegion, sliceLines } from "./regions";
 //
 //   import history from "#/lib/sync.ts?region=push-loop&then=762215843370&lines=47-72&morph";
 //
-// `src/ui/code/modules.d.ts` types both. A region, commit or line range that
+// or another file's region today beside this one's, keyed the same way:
+//
+//   import add from "#/app/grocery-app.tsx?region=add-intent&from=src/lib/sandbox/classic/handlers.ts:classic-add&morph";
+//
+// `src/ui/code/modules.d.ts` types them. A region, commit or line range that
 // is not there fails the build.
 
 const COMMIT = /^[0-9a-f]{7,40}$/;
@@ -64,6 +68,40 @@ export const loadSnippet = async (
     return { path, region, lines: await highlight(code, lang), spans };
   }
 
+  const other = params.get("from");
+  if (other !== null) {
+    const colon = other.lastIndexOf(":");
+    const fromPath = colon === -1 ? "" : other.slice(0, colon);
+    const fromRegion = colon === -1 ? "" : other.slice(colon + 1);
+    if (fromPath === "" || fromRegion === "") {
+      throw new Error(
+        `${path}?${query}: from=… takes a path and a region, such as src/lib/sync.ts:push-loop`,
+      );
+    }
+    let source: string;
+    try {
+      source = readFileSync(join(root, fromPath), "utf8");
+    } catch (cause) {
+      throw new Error(`${path}?${query}: cannot read ${fromPath}`, { cause });
+    }
+    const then = extractRegion(source, fromRegion, fromPath).code;
+    // One language for both: the importing file's (tsx reads the handler's
+    // TypeScript too).
+    const steps = await morphSteps(then, code, lang);
+    return {
+      path,
+      region,
+      // biome-ignore lint/suspicious/noThenProperty: the module is data, never awaited as a promise
+      then: {
+        source: "file",
+        path: fromPath,
+        region: fromRegion,
+        tokens: steps.then,
+      },
+      now: { tokens: steps.now },
+    };
+  }
+
   const commit = params.get("then") ?? "";
   if (!COMMIT.test(commit)) {
     throw new Error(
@@ -88,6 +126,7 @@ export const loadSnippet = async (
     region,
     // biome-ignore lint/suspicious/noThenProperty: the module is data, never awaited as a promise
     then: {
+      source: "commit",
       commit: commit.slice(0, 7),
       date: git(root, ["log", "-1", "--format=%cs", commit]).trim(),
       lines: `${from}–${to}`,
@@ -112,8 +151,12 @@ export const snippets = (): Plugin => {
       const file = id.slice(0, at);
       const module = await loadSnippet(file, id.slice(at + 1), root);
       if (module === null) return null;
-      // An edit to today's file reloads the snippet.
+      // An edit to today's file reloads the snippet, as does one to the file
+      // a morph's "then" is read from.
       this.addWatchFile(file);
+      if ("then" in module && module.then.source === "file") {
+        this.addWatchFile(join(root, module.then.path));
+      }
       return `export default ${JSON.stringify(module)};`;
     },
   };

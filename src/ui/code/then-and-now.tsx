@@ -145,10 +145,18 @@ export function ThenAndNow({
             onChange={() => setVersion("then")}
           />
           <span>Then</span>
-          <span className={styles.when}>
-            {dateOf(morph.then.date)} ·{" "}
-            <span className={styles.commit}>{morph.then.commit}</span>
-          </span>
+          {morph.then.source === "commit" ? (
+            <span className={styles.when}>
+              {dateOf(morph.then.date)} ·{" "}
+              <span className={styles.commit}>{morph.then.commit}</span>
+            </span>
+          ) : (
+            <span className={styles.when}>
+              <span className={styles.commit} title={morph.then.path}>
+                {morph.then.path.split("/").at(-1)}
+              </span>
+            </span>
+          )}
         </label>
         <label className={`${choice.option} ${styles.version}`}>
           <input

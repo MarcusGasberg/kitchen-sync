@@ -29,17 +29,28 @@ export interface Snippet {
 }
 
 // A region's history: the file's lines at an old commit beside the region
-// today, as two magic-move steps whose matching tokens share keys.
+// today, or another file's region beside this one's (the classic handler
+// beside the app's add), as two magic-move steps whose matching tokens share
+// keys.
 export interface Morph {
   readonly path: string;
   readonly region: string;
-  readonly then: {
-    // The commit's short hash, and its date (YYYY-MM-DD).
-    readonly commit: string;
-    readonly date: string;
-    // The lines shown, in the file at that commit: "47–72".
-    readonly lines: string;
-    readonly tokens: KeyedTokensInfo;
-  };
+  readonly then:
+    | {
+        readonly source: "commit";
+        // The commit's short hash, and its date (YYYY-MM-DD).
+        readonly commit: string;
+        readonly date: string;
+        // The lines shown, in the file at that commit: "47–72".
+        readonly lines: string;
+        readonly tokens: KeyedTokensInfo;
+      }
+    | {
+        readonly source: "file";
+        // From the repository's root, as `path`; today's, as now's is.
+        readonly path: string;
+        readonly region: string;
+        readonly tokens: KeyedTokensInfo;
+      };
   readonly now: { readonly tokens: KeyedTokensInfo };
 }

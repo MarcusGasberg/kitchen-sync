@@ -29,6 +29,7 @@ const MORPH: Morph = {
   region: "push-loop",
   // biome-ignore lint/suspicious/noThenProperty: Morph's own field, not a thenable
   then: {
+    source: "commit",
     commit: "7622158",
     date: "2026-09-28",
     lines: "47–72",
@@ -58,6 +59,27 @@ describe("ThenAndNow", () => {
     expect(document.querySelector("pre")?.textContent).toContain(
       "send(outbox);",
     );
+  });
+
+  it("names another file's region by the file's name, its path in its title", () => {
+    const morph: Morph = {
+      ...MORPH,
+      // biome-ignore lint/suspicious/noThenProperty: Morph's own field, not a thenable
+      then: {
+        source: "file",
+        path: "src/lib/sandbox/classic/handlers.ts",
+        region: "classic-add",
+        tokens: steps.from,
+      },
+    };
+    render(<ThenAndNow title="One change" morph={morph} />);
+    const then = screen.getByRole("radio", { name: /^Then/ });
+    const file = then.closest("label")?.querySelector("[title]");
+    expect(file?.textContent).toBe("handlers.ts");
+    expect(file?.getAttribute("title")).toBe(
+      "src/lib/sandbox/classic/handlers.ts",
+    );
+    expect(then.closest("label")?.textContent).not.toMatch(/\d{4}/);
   });
 
   it("morphs to today's version when the reader chooses Now", () => {

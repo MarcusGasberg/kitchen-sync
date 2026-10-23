@@ -658,9 +658,9 @@ Steps:
 
 **Files:** `src/build/snippet-plugin.ts`, `src/build/regions.ts` if needed, `src/ui/code/{snippet.ts,modules.d.ts,then-and-now.tsx}`, `src/app/grocery-app.tsx` (`#region` only); tests `snippet-plugin.test.ts`, `then-and-now.test.tsx`.
 
-- [ ] **Step 1:** A query form `?region=<now>&from=<path>:<region>&morph`: "then" is a region of another file at HEAD, "now" the importing file's region. `Morph.then` becomes a union: `{ source: "commit"; commit; date; lines }` or `{ source: "file"; path; region }`; `then-and-now.tsx`'s head names the file instead of a commit for the second. Existing commit morphs render exactly as before (test).
-- [ ] **Step 2:** Add `// #region add-intent` / `// #endregion` around the app's `onAdd` that applies the `AddItem` intent in `grocery-app.tsx`. Check the app renders identically (it is a comment).
-- [ ] **Step 3:** Commit `feat(code): a morph from one file's region to another's`.
+- [x] **Step 1:** A query form `?region=<now>&from=<path>:<region>&morph`: "then" is a region of another file at HEAD, "now" the importing file's region. `Morph.then` becomes a union: `{ source: "commit"; commit; date; lines }` or `{ source: "file"; path; region }`; `then-and-now.tsx`'s head names the file instead of a commit for the second. Existing commit morphs render exactly as before (test).
+- [x] **Step 2:** Add `// #region add-intent` / `// #endregion` around the app's `onAdd` that applies the `AddItem` intent in `grocery-app.tsx`. Check the app renders identically (it is a comment).
+- [x] **Step 3:** Commit `feat(code): a morph from one file's region to another's`.
 
 #### Task 10, code-level steps (written against `3824bbd`)
 
@@ -672,20 +672,26 @@ Notes:
 
 Steps:
 
-- [ ] **Step 1** (`snippet-plugin.test.ts`, first).
+- [x] **Step 1** (`snippet-plugin.test.ts`, first).
   - `loadSnippet` with `from=<path>:<region>`: the "then" text comes from `extractRegion(readFileSync(join(root, path)), region, path).code`. Its spans are stripped by the extractor already.
   - `Morph.then` becomes `{ source: "commit"; commit; date; lines; tokens } | { source: "file"; path; region; tokens }`.
   - A commit morph gains `source: "commit"` and nothing else changes.
   - Errors: `from` with no `:`, a missing file, a missing region.
   - `snippet-references.test.ts` resolves the new import as it resolves all.
-- [ ] **Step 2** (`then-and-now.test.tsx`).
+- [x] **Step 2** (`then-and-now.test.tsx`).
   - The Then label shows the date and commit for a commit morph, as now. For a file morph it shows the file's name in mono (`handlers.ts`), with the path in its title.
   - The existing tests pass untouched, apart from the fixture's `source: "commit"`.
   - `lab-code.ts` needs no change: its import is a commit morph.
-- [ ] **Step 3.** In `grocery-app.tsx`, put `// #region add-intent` and `// #endregion add-intent` on their own lines inside `<AddItemForm`, around `onAdd={…}`.
+- [x] **Step 3.** In `grocery-app.tsx`, put `// #region add-intent` and `// #endregion add-intent` on their own lines inside `<AddItemForm`, around `onAdd={…}`.
   - `git diff` shows two comment lines.
   - `app.test.tsx` is green.
   - A `snippet-plugin` test loads the morph and checks that "now" holds `_tag: "AddItem"` and "then" holds `await api.post`.
+
+**What the build found (2026-10-22).**
+- **The region sits between JSX attributes, and both tools accept it.** `tsc` and Biome take `// #region add-intent` between `<AddItemForm` and `onAdd`, and Biome leaves it in place. The app's diff is the two comment lines. `app.test.tsx` stays green.
+- **"Then" is read from the working tree, not HEAD.** Step 1 (unticked above) said HEAD; the code-level steps chose the working tree. That way the morph shows the handler that runs, and an edit to it reloads the morph in dev.
+- **The `from=` path is split at its last colon.** The region name follows the last `:`, so a path with a colon in it still works. A missing file says which path it could not read.
+- **A file morph's label.** The Then label shows the file's base name in mono, the way a commit hash is shown, with the full path as its `title`. There is no date, because the code is today's.
 
 ---
 
