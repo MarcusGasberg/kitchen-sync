@@ -136,6 +136,19 @@ describe("actingAt", () => {
     expect(actingAt(retry, 0, true)).toMatchObject({ touch: 1 });
   });
 
+  it("touches a classic phone's Refresh after a beat, as Retry", () => {
+    const refresh: Enactment = { kind: "refresh", client: "Classic" };
+    expect(actingAt(refresh, 0, false)).toEqual({
+      kind: "refresh",
+      client: "Classic",
+      touch: null,
+    });
+    expect(
+      actingAt(refresh, TAP_LEAD_MILLIS + TOUCH_MILLIS, false),
+    ).toMatchObject({ touch: 1 });
+    expect(actingAt(refresh, 0, true)).toMatchObject({ touch: 1 });
+  });
+
   it("dips a reloading device to its lowest halfway, and not at all when still", () => {
     const reload: Enactment = { kind: "reload", client: "B" };
     expect(actingAt(reload, 0, false)).toEqual({

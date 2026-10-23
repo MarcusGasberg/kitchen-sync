@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { Scene } from "#/lib/sandbox/scene";
 import type { Entry, Timeline, TraceEvent } from "#/lib/sandbox/trace";
+import { setWeather } from "#/lib/sandbox/weather";
 import type { WorldHandle } from "#/lib/sandbox/world";
 import { add, check, remove } from "./sandbox-helpers";
 
@@ -215,5 +216,95 @@ export const DROP_RETRY_SCENE: Scene = {
     },
     { caption: "A tries again.", run: () => Effect.void, until: converged },
     { caption: "B checks the eggs.", run: checks("B", "Eggs"), until: applied },
+  ],
+};
+
+// A classic phone's add, as its user makes it.
+export const classicAdds =
+  (client: string, name: string) =>
+  (world: WorldHandle): Effect.Effect<void> =>
+    world.classic(client).change({ kind: "add", name });
+
+export const classicRefreshes =
+  (client: string) =>
+  (world: WorldHandle): Effect.Effect<void> =>
+    world.classic(client).refresh;
+
+const classicSaid =
+  (tag: "Saved" | "SaveFailed" | "Refreshed") =>
+  ({ since }: { since: ReadonlyArray<TraceEvent> }) =>
+    since.some((e) => e._tag === tag && e.client === "Classic");
+
+const PHONES = ["Classic", "Kitchen Sync"];
+
+// The prologue's world in small: a classic phone beside a Kitchen Sync phone,
+// and C. The two phones add in one instant, then in the tunnel; C adds
+// butter, which only the Kitchen Sync phone hears of; then the classic phone
+// refreshes.
+export const CLASSIC_SCENE: Scene = {
+  id: "test-director-classic",
+  world: {
+    clients: ["Classic", "Kitchen Sync", "C"],
+    classic: ["Classic"],
+    seed: "director-classic",
+    latency: "100 millis",
+  },
+  beats: [
+    {
+      caption: "C adds milk.",
+      run: adds("C", "Milk"),
+      until: converged,
+    },
+    {
+      caption: "The classic phone loads the list.",
+      run: classicRefreshes("Classic"),
+      until: classicSaid("Refreshed"),
+    },
+    {
+      caption: "Both phones add.",
+      run: (world) =>
+        Effect.andThen(
+          classicAdds("Classic", "Eggs")(world),
+          adds("Kitchen Sync", "Lemons")(world),
+        ),
+      until: classicSaid("Saved"),
+    },
+    {
+      caption: "Into the tunnel, and both phones add.",
+      run: (world) =>
+        Effect.gen(function* () {
+          yield* setWeather(PHONES, "tunnel")(world);
+          yield* classicAdds("Classic", "Rice")(world);
+          yield* adds("Kitchen Sync", "Oats")(world);
+        }),
+      until: classicSaid("SaveFailed"),
+    },
+    {
+      caption: "Out of the tunnel; C adds butter.",
+      run: (world) =>
+        Effect.andThen(
+          setWeather(PHONES, "office")(world),
+          adds("C", "Butter")(world),
+        ),
+      until: ({ since }) => {
+        const decided = since.findIndex(
+          (e) => e._tag === "Decided" && e.client === "C",
+        );
+        return (
+          decided >= 0 &&
+          since.slice(decided).some((e) => e._tag === "Converged")
+        );
+      },
+    },
+    {
+      caption: "The classic phone refreshes.",
+      run: classicRefreshes("Classic"),
+      until: classicSaid("Refreshed"),
+    },
+    {
+      caption: "It refreshes again: nothing new.",
+      run: classicRefreshes("Classic"),
+      until: classicSaid("Refreshed"),
+    },
   ],
 };

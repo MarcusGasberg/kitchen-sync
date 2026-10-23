@@ -27,6 +27,9 @@ export const diffClassicState = (
   next: ClassicState,
 ): ReadonlyArray<TraceEventBody> => {
   const events: Array<TraceEventBody> = [];
+  // The request the call is about: still saving when `setError` and
+  // `setSaving(false)` run, so a failure or an end names its request.
+  const label = prev.saving?.label ?? next.saving?.label ?? "";
   if (prev.saving === null && next.saving !== null) {
     events.push({
       _tag: "SavingBegan",
@@ -52,10 +55,10 @@ export const diffClassicState = (
     );
   }
   if (prev.error === null && next.error !== null) {
-    events.push({ _tag: "SaveFailed", client, error: next.error });
+    events.push({ _tag: "SaveFailed", client, label, error: next.error });
   }
   if (prev.saving !== null && next.saving === null) {
-    events.push({ _tag: "SavingEnded", client });
+    events.push({ _tag: "SavingEnded", client, label });
   }
   return events;
 };

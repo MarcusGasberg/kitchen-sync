@@ -1,9 +1,14 @@
 import type { ItemMutation } from "#/domain/mutation";
 import { NOUN, nameIn, said, why } from "#/lib/sandbox/captions";
 import { senderOf } from "#/lib/sandbox/frame";
-import type { Classification, Entry } from "#/lib/sandbox/trace";
+import type {
+  Classification,
+  ClientName,
+  Entry,
+  Timeline,
+} from "#/lib/sandbox/trace";
 import type { StoreState } from "#/lib/store";
-import { type ChangeKind, diffItems } from "./marks";
+import { byId, type ChangeKind, diffItems } from "./marks";
 
 // The director's notes: what a shot's moment means, said where it happens in
 // about a dozen words at most, in the series' vocabulary (CONTEXT.md). Free
@@ -29,13 +34,21 @@ export const idsOf = (ids: ReadonlyArray<number>): string => {
   return ids.map((id) => `#${id}`).join(", ");
 };
 
-// One client's ids, decided alike, in one note.
+// One client's ids, decided alike, in one note. A classic client sent no
+// id: the server numbered its change itself, so its note names no number.
 export const decisionNote = (
   client: string,
   ids: ReadonlyArray<number>,
   classification: Classification,
   reason: string | undefined,
+  classic = false,
 ): string => {
+  if (classic) {
+    const change = ids.length === 1 ? "change" : "changes";
+    return classification === "rejected" || classification === "gap"
+      ? `The server refuses ${client}'s ${change}: ${why(reason ?? "no reason given")}.`
+      : `The server saves ${client}'s ${change}.`;
+  }
   const which = `${client}'s ${idsOf(ids)}`;
   switch (classification) {
     case "applied":
@@ -83,16 +96,16 @@ const VERBS: Record<ChangeKind, readonly [one: string, many: string]> = {
   moved: ["moves", "move"],
 };
 
-// What a pull changed on a device's list, as "Oat milk arrives", or null when
-// it changed nothing a reader sees (a pull confirming the device's own
-// change).
-export const pulled = (
-  before: StoreState | undefined,
-  after: StoreState | undefined,
+type Items = Parameters<typeof diffItems>[1];
+
+// What changed between two of a place's lists, as "Oat milk arrives", or
+// null when nothing a reader sees did.
+export const changedWords = (
+  before: Items | undefined,
+  after: Items,
 ): string | null => {
-  if (after === undefined) return null;
   const byKind = new Map<ChangeKind, Array<string>>();
-  for (const { kind, name } of diffItems(before?.items, after.items)) {
+  for (const { kind, name } of diffItems(before, after)) {
     byKind.set(kind, [...(byKind.get(kind) ?? []), name]);
   }
   const parts = [...byKind].map(
@@ -102,12 +115,75 @@ export const pulled = (
   return parts.length === 0 ? null : parts.join("; ");
 };
 
+// What a pull changed on a device's list, or null when it changed nothing a
+// reader sees (a pull confirming the device's own change).
+export const pulled = (
+  before: StoreState | undefined,
+  after: StoreState | undefined,
+): string | null =>
+  after === undefined ? null : changedWords(before?.items, after.items);
+
+// Where a note's entry sits, for a note that reads back along the timeline.
+export interface History {
+  readonly timeline: Timeline;
+  readonly index: number;
+}
+
+// Why a classic handler gave up, read back to its request's start: offline
+// before the server decided anything, offline after it saved (the reply was
+// cut), or a refusal the server answered.
+const gaveUp = (
+  entry: Entry,
+  client: ClientName,
+  history: History | undefined,
+): string => {
+  const offline = entry.snapshot.offline.has(client);
+  let decided = false;
+  let refused = false;
+  if (history !== undefined) {
+    for (let i = history.index - 1; i >= 0; i--) {
+      const event = history.timeline.entries[i]?.event;
+      if (event === undefined) continue;
+      if (event._tag === "SavingBegan" && event.client === client) break;
+      if (
+        event._tag === "Decided" &&
+        event.client === client &&
+        event.classification === "applied"
+      ) {
+        decided = true;
+      }
+      if (
+        event._tag === "Sent" &&
+        event.message.client === client &&
+        event.message.kind === "response" &&
+        event.message.label.startsWith("409")
+      ) {
+        refused = true;
+      }
+    }
+  }
+  if (refused) return "the server refused it";
+  if (offline) {
+    return decided
+      ? "its reply was cut, though the server saved it"
+      : "it is offline; nothing reached the server";
+  }
+  return "the request failed";
+};
+
+const isRead = (label: string) => label.startsWith("GET ");
+
+// A classic phone's rows before and after an entry, by id.
+const classicItems = (entry: Entry | undefined, client: ClientName) =>
+  byId(entry?.snapshot.classic.get(client)?.items ?? []);
+
 // A moment's note, or null for one with nothing to say. `before` is the
 // entry before the pull's store update, for what a pull changed: the entry
 // just before it may already show its rows (`entryBeforeUpdate`).
 export const noteFor = (
   entry: Entry,
   before: Entry | undefined,
+  history?: History,
 ): string | null => {
   const { event, snapshot } = entry;
   switch (event._tag) {
@@ -126,12 +202,31 @@ export const noteFor = (
         : `The server sends ${event.message.client} ${said(event.message)}.`;
     case "Delivered":
     case "Diverged":
-    case "SavingBegan":
-    case "Saved":
-    case "SaveFailed":
-    case "Refreshed":
     case "SavingEnded":
       return null;
+    case "SavingBegan":
+      return isRead(event.label)
+        ? `${event.client} asks the server for the list.`
+        : `${event.client} is saving: it waits for the server's answer.`;
+    case "Saved": {
+      const what = changedWords(
+        classicItems(before, event.client),
+        classicItems(entry, event.client),
+      );
+      return `${event.client} sets its list from the reply, v${event.version}${what === null ? "" : `: ${what}`}.`;
+    }
+    case "SaveFailed":
+      return isRead(event.label)
+        ? `${event.client} couldn't refresh: ${gaveUp(entry, event.client, history)}.`
+        : `${event.client} gives up: ${gaveUp(entry, event.client, history)}.`;
+    case "Refreshed": {
+      if (!event.changed) return null;
+      const what = changedWords(
+        classicItems(before, event.client),
+        classicItems(entry, event.client),
+      );
+      return `${event.client} refreshes to v${event.version}${what === null ? "" : `: ${what}`}.`;
+    }
     case "Dropped":
       return `The network loses ${event.message.client}'s ${said(event.message)}.`;
     case "Held":
@@ -146,6 +241,7 @@ export const noteFor = (
         [event.clientMutationId],
         event.classification,
         event.reason,
+        snapshot.classic.has(event.client),
       );
     case "Poked":
       return `The server is at v${event.serverVersion}. It pokes every online phone.`;

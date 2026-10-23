@@ -146,7 +146,13 @@ export const runHeadless = (
       options: worldOptions,
       clientIds: new Map(
         scene.world.clients.map(
-          (name) => [name, world.client(name).clientId] as const,
+          (name) =>
+            [
+              name,
+              (scene.world.classic ?? []).includes(name)
+                ? world.classic(name).clientId
+                : world.client(name).clientId,
+            ] as const,
         ),
       ),
       timeline: yield* world.currentTimeline,

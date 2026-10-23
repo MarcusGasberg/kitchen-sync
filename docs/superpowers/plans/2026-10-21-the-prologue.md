@@ -375,12 +375,12 @@ Use the `research` skill. Primary sources only (the companies' own engineering p
 
 **Files:** `src/lib/director/compile.ts`, `notes.ts`, `shots.ts` (if a subject kind is needed); tests `director-compile.test.ts`, `director-notes.test.ts`.
 
-- [ ] **Step 1: Enactments.** `enactmentOf`: a `ClassicChange` add is a `type` enactment on its device; toggle/remove a `tap`; `ClassicRefresh` a new `refresh` enactment (a tap on the pane's refresh control). `answers`: `ClassicChange` is answered by `SavingBegan` or `SaveFailed` at its instant; `ClassicRefresh` by `SavingBegan`.
-- [ ] **Step 2: Salience.** `foundOf` for the classic events: `SavingBegan` and `Saved` find the device; `request`/`response` flights are followed like a push's and slowed the same way (the flight slows as the push's does); a close-up hold on `SavingBegan` through the flight; a hold on `SaveFailed`; a hold on `Refreshed` only when `changed`.
-- [ ] **Step 3: Split.** Two inputs on two devices in one moment compose one `split` with both enactments, even when their answering events differ in tag (`Applied` and `SavingBegan`): widen `splits` to treat "answers an input in this moment" as the same action.
-- [ ] **Step 4: Notes.** The director's own words for the four events ("saving…", "saved: the server's list, v7", "couldn't save: offline", "refreshed: 2 new rows"), and the wait note "latency simulated" on the first tally a cut shows.
-- [ ] **Step 5:** Test the prologue's cut as data, from a small fixture scene: split on the tap; the request's follow at a slowed rate; a hold on the failure; the table after C's butter, with the classic phone's basin on it.
-- [ ] **Step 6:** Commit `feat(director): the classic phone's saves, failures and refreshes are shot`.
+- [x] **Step 1: Enactments.** `enactmentOf`: a `ClassicChange` add is a `type` enactment on its device; toggle/remove a `tap`; `ClassicRefresh` a new `refresh` enactment (a tap on the pane's refresh control). `answers`: `ClassicChange` is answered by `SavingBegan` or `SaveFailed` at its instant; `ClassicRefresh` by `SavingBegan`.
+- [x] **Step 2: Salience.** `foundOf` for the classic events: `SavingBegan` and `Saved` find the device; `request`/`response` flights are followed like a push's and slowed the same way (the flight slows as the push's does); a close-up hold on `SavingBegan` through the flight; a hold on `SaveFailed`; a hold on `Refreshed` only when `changed`.
+- [x] **Step 3: Split.** Two inputs on two devices in one moment compose one `split` with both enactments, even when their answering events differ in tag (`Applied` and `SavingBegan`): widen `splits` to treat "answers an input in this moment" as the same action.
+- [x] **Step 4: Notes.** The director's own words for the four events ("saving…", "saved: the server's list, v7", "couldn't save: offline", "refreshed: 2 new rows"), and the wait note "latency simulated" on the first tally a cut shows.
+- [x] **Step 5:** Test the prologue's cut as data, from a small fixture scene: split on the tap; the request's follow at a slowed rate; a hold on the failure; the table after C's butter, with the classic phone's basin on it.
+- [x] **Step 6:** Commit `feat(director): the classic phone's saves, failures and refreshes are shot`.
 
 #### Phase B, notes and calls made against `3824bbd` (read before any Phase B task)
 
@@ -414,13 +414,13 @@ The calls below follow from that. The user can flip any of them at review. Q1–
 
 Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `src/lib/director/{shots,compile,acting,notes}.ts`; tests `sandbox-classic.test.ts`, `sandbox-scene.test.ts`, `director-acting.test.ts`, `director-compile.test.ts`, `director-notes.test.ts`, fixture in `src/tests/director-helpers.ts`.
 
-- [ ] **Step 0: What the director needs from the sandbox.**
+- [x] **Step 0: What the director needs from the sandbox.**
   - `trace.ts`: `SaveFailed` and `SavingEnded` gain `label: string`.
   - `classic/state.ts` `diffClassicState`: take `label` from `prev.saving?.label ?? next.saving?.label ?? ""`.
   - `sandbox-classic.test.ts`: the diff-as-data tests gain the label; then run the determinism file three times.
   - `scene.ts` `runHeadless`: `clientIds` reads `world.classic(name).clientId` for a name in `scene.world.classic`, and `world.client(name)` otherwise.
   - `sandbox-scene.test.ts`: a scene with a classic client runs headless and names every client's id.
-- [ ] **Step 1: Enactments** (tests first, in `director-acting.test.ts` and `director-compile.test.ts`).
+- [x] **Step 1: Enactments** (tests first, in `director-acting.test.ts` and `director-compile.test.ts`).
   - `shots.ts`: `Enactment` gains `{ kind: "refresh"; client }`.
   - `compile.ts` `enactmentOf`:
     - `ClassicChange` add → `{ kind: "type", client, text: name }`;
@@ -430,7 +430,7 @@ Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `
   - `enactMillis`: `refresh` is `TAP_MILLIS`.
   - `answers`: a `ClassicChange` is answered by its client's `SavingBegan` or `SaveFailed`; a `ClassicRefresh` by its client's `SavingBegan`.
   - `acting.ts`: `Acting` gains `{ kind: "refresh"; client; touch }`, the same as `retry` (`touchAt(offset, TAP_LEAD_MILLIS, reduced)`).
-- [ ] **Step 2: Salience** (tests first).
+- [x] **Step 2: Salience** (tests first).
   - `foundOf`:
     - `SavingBegan`, `SaveFailed` and `SavingEnded` → `device(client)`;
     - `Saved` → `device(client, …rowAndRing(client, id))` for each row whose classic items changed (`diffItems(byId(before), byId(after))`, `before` from the entry before);
@@ -441,13 +441,13 @@ Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `
   - `flights`:
     - Moving `request`/`response` messages on exactly one wire → follow those messages, whatever else moves.
     - `directedShots`' `slowInto` also counts `Saved`, `SaveFailed` and `Refreshed` that are not folded.
-- [ ] **Step 3: Split** (tests first).
+- [x] **Step 3: Split** (tests first).
   - In `momentShots`, `together` is the distinct clients of the moment's acts, when there are two or more.
   - A group whose spot is a device in `together`, or a wire one of them rides, holds with framing `split`. Its subjects are those devices plus the group's rows, rings and outboxes. Its message subjects are dropped, so the frame key stays one.
   - `actShot` takes `together` and frames each act `split` over the same devices, keeping a tap's row.
   - `splits` is unchanged: same-tag events on two devices still share one hold.
   - Test: two `Apply`s on A and B in one instant shoot as split act, split hold, split act, split hold, with no move between. Plan 3's scenes, with no such moment, compile as before (the existing cut tests are the canary).
-- [ ] **Step 4: Notes** (tests first, `director-notes.test.ts`, on hand-built entries).
+- [x] **Step 4: Notes** (tests first, `director-notes.test.ts`, on hand-built entries).
   - `notes.ts`:
     - extract `changedWords(before: Items | undefined, after: Items)` from `pulled`, and let `pulled` call it;
     - `noteFor` gains an optional third argument `history: { timeline, index }`;
@@ -465,7 +465,7 @@ Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `
     - `SavingEnded`: null.
   - `decisionNote` takes `classic: boolean` (`entry.snapshot.classic.has(client)`), as the calls above say. `compile.ts`'s run of decisions passes it too.
   - The Converged note is Task 9's.
-- [ ] **Step 5: The cut as data.**
+- [x] **Step 5: The cut as data.**
   - `director-helpers.ts` gains `CLASSIC_SCENE`: world `{ clients: ["Classic", "Kitchen Sync", "C"], classic: ["Classic"], seed: "director-classic", latency: "100 millis" }`, plus helpers `classicAdds(client, name)` and `classicRefreshes(client)`. Its beats:
     1. setup: C adds Milk, then Classic refreshes; until `Converged` and `Refreshed`;
     2. the tap: Classic adds Eggs and Kitchen Sync adds Lemons in one instant; until Classic's `Saved`;
@@ -482,6 +482,14 @@ Files: `src/lib/sandbox/{trace,scene}.ts`, `src/lib/sandbox/classic/state.ts`, `
     - the refresh step acts out a `refresh` and holds on `Refreshed` with Butter.
 
 ---
+
+**What the build found (2026-10-22).**
+- On `CLASSIC_SCENE` the tap step shoots as planned, all in one split frame with one move into it: Classic types, holds on "saving", holds on its request leaving, then Kitchen Sync types and its row lands. After that, the camera follows the request and the reply at `SLOW_RATE` (each 100 ms flight is shorter than the slow stretch), even though Kitchen Sync's push flies at the same time. It holds on `Saved` with the Eggs row and ring, then on `SavingEnded` for 600 ms.
+- **Two camera moves when the classic phone acts alone.** A classic request leaving holds `close` on its wire, and the follow that comes next is a different frame. So the phone acting alone (a refresh) moves twice: device to wire close-up, then wire close-up to follow. In a moment where two phones act together, both shots stay in the split frame. Left for Impeccable's finish to judge.
+- In the tunnel moment, the `Abandoned` and `Dropped` holds on Kitchen Sync's wire are framed split too, because their wire is one the acting devices ride.
+- `CLASSIC_SCENE` has a second, unchanged refresh beat, to pin "no hold on a refresh that changed nothing". It has no `Refreshed` hold and ends on the 600 ms `SavingEnded`.
+- The tunnel beat ends in the instant it starts (the classic add fails at once), so the next beat's "out of the tunnel" is the same instant. That is fine for a fixture. Task 12's scene should give the tunnel some screen time (its own beat until Kitchen Sync's `Retrying`, then the next beat).
+
 
 ### Task 7: The classic phone's pane (Phase B)
 

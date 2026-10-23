@@ -256,6 +256,7 @@ const actingLooks = (acting: Acting | null): ReadonlyArray<number> => {
     case "type":
     case "tap":
     case "retry":
+    case "refresh":
       return acting.touch === null ? [] : [acting.touch];
     case "network":
       return [acting.gap];

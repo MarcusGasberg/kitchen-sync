@@ -84,7 +84,8 @@ export interface Note {
 
 // A device's own UI acting out an input before its events land: typing an
 // item's name and pressing Add, tapping a row, the network going or coming
-// back, a sync restarting, a reload, or a rule the network arms.
+// back, a sync restarting, a reload, a classic phone's Refresh pressed, or a
+// rule the network arms.
 export type Enactment =
   | {
       readonly kind: "type";
@@ -108,6 +109,7 @@ export type Enactment =
     }
   | { readonly kind: "retry"; readonly client: ClientName }
   | { readonly kind: "reload"; readonly client: ClientName }
+  | { readonly kind: "refresh"; readonly client: ClientName }
   | {
       readonly kind: "arm";
       readonly rule: "drop" | "hold";

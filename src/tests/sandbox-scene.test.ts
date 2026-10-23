@@ -45,6 +45,30 @@ describe("runHeadless", () => {
     }),
   );
 
+  it.effect("names a classic client's id too", () =>
+    Effect.gen(function* () {
+      const result = yield* runHeadless({
+        id: "test-classic",
+        world: {
+          clients: ["Classic", "Kitchen Sync"],
+          classic: ["Classic"],
+          seed: "scene-classic",
+        },
+        beats: [
+          {
+            caption: "The classic phone loads the list.",
+            run: (world) => world.classic("Classic").refresh,
+            until: ({ since }) => since.some((e) => e._tag === "Refreshed"),
+          },
+        ],
+      });
+      expect([...result.clientIds.keys()]).toEqual(["Classic", "Kitchen Sync"]);
+      for (const id of result.clientIds.values()) {
+        expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4/);
+      }
+    }),
+  );
+
   it.effect("runs each beat until its condition holds", () =>
     Effect.gen(function* () {
       const result = yield* runHeadless(scene);

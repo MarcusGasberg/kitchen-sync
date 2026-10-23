@@ -54,6 +54,11 @@ export type Acting =
       readonly touch: number | null;
     }
   | {
+      readonly kind: "refresh";
+      readonly client: ClientName;
+      readonly touch: number | null;
+    }
+  | {
       readonly kind: "reload";
       readonly client: ClientName;
       // How far the device has dipped, 0 at rest to 1 at its lowest.
@@ -149,8 +154,9 @@ export const actingAt = (
       };
     }
     case "retry":
+    case "refresh":
       return {
-        kind: "retry",
+        kind: enact.kind,
         client: enact.client,
         touch: touchAt(offset, TAP_LEAD_MILLIS, reduced),
       };

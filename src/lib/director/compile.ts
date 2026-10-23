@@ -1,5 +1,5 @@
 import { entryIndexAt } from "#/lib/sandbox/frame";
-import type { Input, RecordedInput } from "#/lib/sandbox/inputs";
+import type { ClassicChange, Input, RecordedInput } from "#/lib/sandbox/inputs";
 import { dwellFor, isQuiet, SKIP_SCREEN_MILLIS } from "#/lib/sandbox/pacing";
 import type {
   BeatResult,
@@ -14,7 +14,7 @@ import type {
   Timeline,
   TraceEvent,
 } from "#/lib/sandbox/trace";
-import { diffItems, entryBeforeUpdate } from "./marks";
+import { byId, diffItems, entryBeforeUpdate } from "./marks";
 import { decisionNote, noteFor } from "./notes";
 import {
   type Cut,
@@ -46,6 +46,9 @@ export const TAP_MILLIS = 700;
 export const ARM_MILLIS = 900;
 // A hold with nothing to read still lasts this long.
 export const BARE_HOLD_MILLIS = 1200;
+// A classic handler's last line, `setSaving(false)`, held with no note: long
+// enough for the code beside the world to show it ran.
+export const LINE_HOLD_MILLIS = 600;
 // A followed message plays at half speed, and slows to a quarter for the
 // last stretch of world time before what it causes.
 export const FOLLOW_RATE = 0.5;
@@ -119,6 +122,27 @@ const rowAndRing = (
         { kind: "ring", where, itemId },
       ];
 
+// The rows a classic phone's reply changed, as the rows and rings to frame.
+const classicRows = (
+  entry: Entry,
+  before: Entry | undefined,
+  client: string,
+): ReadonlyArray<Subject> =>
+  diffItems(
+    byId(before?.snapshot.classic.get(client)?.items ?? []),
+    byId(entry.snapshot.classic.get(client)?.items ?? []),
+  ).flatMap((change) => rowAndRing(client, change.itemId));
+
+// A classic client's handler, one setter call at a time. Each is a line of
+// the handler the reader may be watching run, so none shares another's hold.
+const LINE_BY_LINE: ReadonlySet<TraceEvent["_tag"]> = new Set([
+  "SavingBegan",
+  "Saved",
+  "SaveFailed",
+  "Refreshed",
+  "SavingEnded",
+]);
+
 // What an entry is about if the rules give it a shot; null folds it into the
 // shot already running, where it is drawn but not shot. `before` is the
 // entry before its store update (`entryBeforeUpdate`), for what a pull
@@ -144,11 +168,15 @@ const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
     case "Retrying":
     case "Recovered":
     case "SavingBegan":
-    case "Saved":
     case "SaveFailed":
-    case "Refreshed":
     case "SavingEnded":
       return device(event.client);
+    case "Saved":
+      return device(event.client, ...classicRows(entry, before, event.client));
+    case "Refreshed":
+      return event.changed
+        ? device(event.client, ...classicRows(entry, before, event.client))
+        : null;
     case "Rejected":
     case "Renumbered":
       return device(event.client, { kind: "outbox", client: event.client });
@@ -186,7 +214,9 @@ const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
     }
     case "Converged":
       return TABLE;
+    // A classic request leaving is the handler's `await`: a line of its own.
     case "Sent":
+      return event.message.kind === "request" ? wire(event.message) : null;
     case "Delivered":
     case "Acked":
     case "Confirmed":
@@ -199,9 +229,33 @@ const foundOf = (entry: Entry, before: Entry | undefined): Found | null => {
 const featured = (event: TraceEvent): Found => {
   if ("message" in event) return wire(event.message);
   if ("client" in event) {
-    return device(event.client, { kind: "outbox", client: event.client });
+    return LINE_BY_LINE.has(event._tag)
+      ? device(event.client)
+      : device(event.client, { kind: "outbox", client: event.client });
   }
   return event._tag === "Converged" ? TABLE : WIDE;
+};
+
+// A classic phone's user typing an item and pressing Add, or tapping a row.
+const classicEnactment = (client: string, change: ClassicChange): Enactment => {
+  switch (change.kind) {
+    case "add":
+      return { kind: "type", client, text: change.name };
+    case "toggle":
+      return {
+        kind: "tap",
+        client,
+        itemId: change.itemId,
+        intent: "SetItemChecked",
+      };
+    case "remove":
+      return {
+        kind: "tap",
+        client,
+        itemId: change.itemId,
+        intent: "RemoveItem",
+      };
+  }
 };
 
 const enactmentOf = (input: Input): Enactment | null => {
@@ -235,11 +289,13 @@ const enactmentOf = (input: Input): Enactment | null => {
         client: input.rule.client,
         message: input.rule.kind,
       };
+    case "ClassicChange":
+      return classicEnactment(input.client, input.change);
+    case "ClassicRefresh":
+      return { kind: "refresh", client: input.client };
     case "Latency":
     case "Release":
     case "Mint":
-    case "ClassicChange":
-    case "ClassicRefresh":
       return null;
   }
 };
@@ -258,6 +314,7 @@ const enactMillis = (enact: Enactment): number => {
     case "network":
     case "retry":
     case "reload":
+    case "refresh":
       return TAP_MILLIS;
   }
 };
@@ -278,6 +335,14 @@ const answers = (input: Input, event: TraceEvent): boolean => {
       return event._tag === "SyncRetried" && event.client === input.client;
     case "Reload":
       return event._tag === "Reloaded" && event.client === input.client;
+    // A change begins saving, or fails at once while another saves.
+    case "ClassicChange":
+      return (
+        (event._tag === "SavingBegan" || event._tag === "SaveFailed") &&
+        event.client === input.client
+      );
+    case "ClassicRefresh":
+      return event._tag === "SavingBegan" && event.client === input.client;
     default:
       return false;
   }
@@ -372,7 +437,14 @@ const flights = (
   const moving = (
     timeline.entries[entryIndexAt(timeline, from)]?.snapshot.messages ?? []
   ).filter((m) => m.fate === "inFlight");
-  const wires = new Set(moving.map((m) => m.client));
+  // A classic phone's round trip is the wait a reader watches: on one wire,
+  // it is followed whatever else moves.
+  const classic = moving.filter(
+    (m) => m.kind === "request" || m.kind === "response",
+  );
+  const followed =
+    new Set(classic.map((m) => m.client)).size === 1 ? classic : moving;
+  const wires = new Set(followed.map((m) => m.client));
   if (how.quiet || moving.length === 0) {
     const { framing, subjects } = moving.length === 0 ? how.still : WIDE_FRAME;
     return [
@@ -391,7 +463,7 @@ const flights = (
     wires.size === 1
       ? {
           framing: "follow",
-          subjects: moving.map((m) => ({
+          subjects: followed.map((m) => ({
             kind: "message",
             messageId: m.id,
             client: m.client,
@@ -461,16 +533,59 @@ const splits = (group: Group, spot: Spot, event: TraceEvent): boolean =>
   group.tag === event._tag &&
   !clientsOf(group.spot).includes(spot.client);
 
-const holdOf = (group: Group, at: number, step: number): Shot => ({
+// The devices acting in one moment, when two or more do: every shot of the
+// moment on one of them, or on a wire one rides, frames them side by side,
+// so each acts and lands in turn with no camera move. Null for any other
+// moment.
+type Together = ReadonlyArray<string> | null;
+
+const togetherOf = (acts: ReadonlyArray<Act>): Together => {
+  const clients = [...new Set(acts.map((act) => act.enact.client))];
+  return clients.length >= 2 ? clients : null;
+};
+
+// A shot's frame in a moment of devices acting together: split over them,
+// keeping what it frames inside their panes. A shot about anything else (the
+// server, the table) keeps its own.
+const framedTogether = (
+  together: Together,
+  subjects: ReadonlyArray<Subject>,
+): Pick<Shot, "framing" | "subjects"> | null => {
+  if (together === null) return null;
+  const containers = subjects.filter(isContainer);
+  const inside = containers.every(
+    (s) =>
+      (s.kind === "device" || s.kind === "message") &&
+      together.includes(s.client),
+  );
+  if (containers.length === 0 || !inside) return null;
+  return {
+    framing: "split",
+    subjects: [
+      ...together.map((client): Subject => ({ kind: "device", client })),
+      ...subjects.filter((s) => !isContainer(s)),
+    ],
+  };
+};
+
+const holdOf = (
+  group: Group,
+  at: number,
+  step: number,
+  together: Together,
+): Shot => ({
   framing: FRAMING[group.spot.kind],
   subjects: group.subjects,
+  ...framedTogether(together, group.subjects),
   from: at,
   to: at,
   rate: 0,
   screen:
-    group.notes.length === 0
-      ? BARE_HOLD_MILLIS
-      : dwellFor(group.notes.map((note) => note.text).join(" ")),
+    group.notes.length > 0
+      ? dwellFor(group.notes.map((note) => note.text).join(" "))
+      : group.tag === "SavingEnded"
+        ? LINE_HOLD_MILLIS
+        : BARE_HOLD_MILLIS,
   through: group.through,
   enact: null,
   notes: group.notes,
@@ -479,7 +594,12 @@ const holdOf = (group: Group, at: number, step: number): Shot => ({
   step,
 });
 
-const actShot = (act: Act, through: number, step: number): Shot => {
+const actShot = (
+  act: Act,
+  through: number,
+  step: number,
+  together: Together,
+): Shot => {
   const { enact } = act;
   const subjects: Array<Subject> = [{ kind: "device", client: enact.client }];
   if (enact.kind === "tap") {
@@ -488,6 +608,7 @@ const actShot = (act: Act, through: number, step: number): Shot => {
   return {
     framing: "close",
     subjects,
+    ...framedTogether(together, subjects),
     from: act.at,
     to: act.at,
     rate: 0,
@@ -504,21 +625,25 @@ const actShot = (act: Act, through: number, step: number): Shot => {
 type Write = (
   entry: Entry,
   before: Entry | undefined,
+  index: number,
 ) => { readonly text: string | null; readonly overridden: boolean };
 
 // A beat's notes: its direction's, each for the first event it matches that
 // gets a shot (only those are written), else the director's own.
-const writerOf = (direct: Direction | undefined): Write => {
+const writerOf = (timeline: Timeline, direct: Direction | undefined): Write => {
   const overrides = direct?.notes ?? [];
   const used = new Set<number>();
-  return (entry, before) => {
+  return (entry, before, index) => {
     for (const [i, note] of overrides.entries()) {
       if (!used.has(i) && note.when(entry.event)) {
         used.add(i);
         return { text: note.text, overridden: true };
       }
     }
-    return { text: noteFor(entry, before), overridden: false };
+    return {
+      text: noteFor(entry, before, { timeline, index }),
+      overridden: false,
+    };
   };
 };
 
@@ -537,8 +662,9 @@ const momentShots = (
   const { entries } = timeline;
   const shots: Array<Shot> = [];
   let groups: Array<Group> = [];
+  const together = togetherOf(acts);
   const flush = () => {
-    for (const group of groups) shots.push(holdOf(group, at, step));
+    for (const group of groups) shots.push(holdOf(group, at, step, together));
     groups = [];
   };
   // Inputs that recorded nothing are acted out first.
@@ -548,7 +674,7 @@ const momentShots = (
       ? Math.min(entryIndexAt(timeline, at), ceiling)
       : first - 1;
   for (const act of acts) {
-    if (act.paired === null) shots.push(actShot(act, before, step));
+    if (act.paired === null) shots.push(actShot(act, before, step, together));
   }
   for (const index of here) {
     const entry = entries[index];
@@ -556,7 +682,7 @@ const momentShots = (
     const act = acts.find((a) => a.paired === index);
     if (act !== undefined) {
       flush();
-      shots.push(actShot(act, index - 1, step));
+      shots.push(actShot(act, index - 1, step, together));
     }
     const { event } = entry;
     // What a pull changed is read from before its store update, whose other
@@ -576,12 +702,16 @@ const momentShots = (
       if (last !== undefined) last.through = index;
       continue;
     }
-    const { text, overridden } = write(entry, previous);
+    const { text, overridden } = write(entry, previous, index);
     const on: Subject = found.subjects.find((s) => s.kind === "row") ??
       found.subjects[0] ?? { kind: "server" };
+    // A classic handler's lines never share a hold: each is a line run.
     const joins =
       last !== undefined &&
-      (sameSpot(last.spot, found.spot) || splits(last, found.spot, event));
+      ((sameSpot(last.spot, found.spot) &&
+        !LINE_BY_LINE.has(last.tag) &&
+        !LINE_BY_LINE.has(event._tag)) ||
+        splits(last, found.spot, event));
     const group: Group =
       joins && last !== undefined
         ? last
@@ -607,6 +737,7 @@ const momentShots = (
     }
     group.through = index;
     if (event._tag === "Decided" && !overridden) {
+      const classic = entry.snapshot.classic.has(event.client);
       const run = group.decided;
       if (
         run !== null &&
@@ -622,6 +753,7 @@ const momentShots = (
             run.ids,
             run.classification,
             run.reason,
+            classic,
           ),
         };
         continue;
@@ -663,6 +795,16 @@ const quietShots = (
   );
 };
 
+// What a flight slows into: what it causes at its end. A classic reply
+// slows into its rows landing, or the handler giving up.
+const SLOWS_INTO: ReadonlySet<TraceEvent["_tag"]> = new Set([
+  "Decided",
+  "Dropped",
+  "Saved",
+  "SaveFailed",
+  "Refreshed",
+]);
+
 // A directed beat's shots: its moments in order, with the world between
 // them. A wait with nothing moving keeps the frame before it: the step's
 // opening's, before its first shot.
@@ -684,7 +826,7 @@ const directedShots = (
       ...acts.map((a) => a.at),
     ]),
   ].sort((a, b) => a - b);
-  const write = writerOf(direct);
+  const write = writerOf(timeline, direct);
   const shots: Array<Shot> = [];
   let t = beat.startedAt;
   for (const moment of moments) {
@@ -694,7 +836,7 @@ const directedShots = (
         const event = entries[i]?.event;
         return (
           event !== undefined &&
-          (event._tag === "Decided" || event._tag === "Dropped") &&
+          SLOWS_INTO.has(event._tag) &&
           direct?.fold?.(event) !== true
         );
       });

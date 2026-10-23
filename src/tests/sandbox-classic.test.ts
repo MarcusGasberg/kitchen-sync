@@ -72,17 +72,22 @@ describe("diffClassicState", () => {
     ]);
   });
 
-  it("setError with text is SaveFailed; setError(null) says nothing", () => {
+  it("setError with text is SaveFailed, with its request; setError(null) says nothing", () => {
     const failed = { ...adding, error: "Couldn't save Eggs" };
     expect(diffClassicState("classic", adding, failed)).toEqual([
-      { _tag: "SaveFailed", client: "classic", error: "Couldn't save Eggs" },
+      {
+        _tag: "SaveFailed",
+        client: "classic",
+        label: "POST /items",
+        error: "Couldn't save Eggs",
+      },
     ]);
     expect(diffClassicState("classic", failed, adding)).toEqual([]);
   });
 
-  it("setSaving(false) ends saving", () => {
+  it("setSaving(false) ends saving, naming the request it ends", () => {
     expect(diffClassicState("classic", adding, EMPTY_CLASSIC)).toEqual([
-      { _tag: "SavingEnded", client: "classic" },
+      { _tag: "SavingEnded", client: "classic", label: "POST /items" },
     ]);
   });
 

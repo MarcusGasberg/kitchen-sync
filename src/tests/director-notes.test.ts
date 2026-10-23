@@ -4,7 +4,9 @@ import { describe, expect, it as plain } from "vitest";
 import { entryBeforeUpdate } from "#/lib/director/marks";
 import { decisionNote, idsOf, noteFor } from "#/lib/director/notes";
 import { runHeadless, type Scene } from "#/lib/sandbox/scene";
-import type { Entry, TraceEvent } from "#/lib/sandbox/trace";
+import type { Entry, Timeline, TraceEvent } from "#/lib/sandbox/trace";
+import { setWeather } from "#/lib/sandbox/weather";
+import { World } from "#/lib/sandbox/world";
 import {
   adds,
   BACK_ONLINE_SCENE,
@@ -12,6 +14,7 @@ import {
   lastEntryWhere,
   MILK_SCENE,
 } from "./director-helpers";
+import { remove } from "./sandbox-helpers";
 
 describe("noteFor", () => {
   it.effect("says what each moment means, in a dozen words or so", () =>
@@ -242,6 +245,15 @@ describe("idsOf and decisionNote", () => {
     expect(idsOf([4])).toBe("#4");
   });
 
+  plain("names no id for a classic client's change", () => {
+    expect(decisionNote("Classic", [3], "applied", undefined, true)).toBe(
+      "The server saves Classic's change.",
+    );
+    expect(decisionNote("Classic", [3], "rejected", "too long", true)).toBe(
+      "The server refuses Classic's change: too long.",
+    );
+  });
+
   plain("says each decision in one note", () => {
     expect(decisionNote("A", [1, 2], "applied", undefined)).toBe(
       "The server applies A's #1–#2.",
@@ -259,4 +271,122 @@ describe("idsOf and decisionNote", () => {
       "The server rejects B's #2: its item is gone.",
     );
   });
+});
+
+describe("noteFor, a classic phone", () => {
+  // The classic phone loads the list and adds eggs; fails offline; has a
+  // reply cut after the server saved its change; and has a check refused.
+  const recorded = Effect.gen(function* () {
+    const world = yield* World;
+    const classic = world.classic("Classic");
+    const phones = ["Classic"];
+    yield* classic.refresh;
+    yield* world.clock.advance("1 second");
+    yield* classic.change({ kind: "add", name: "Eggs" });
+    yield* world.clock.advance("1 second");
+    yield* setWeather(phones, "tunnel")(world);
+    yield* classic.change({ kind: "add", name: "Rice" });
+    yield* setWeather(phones, "office")(world);
+    yield* world.clock.advance("1 second");
+    yield* classic.change({ kind: "add", name: "Cut" });
+    // The request lands at 100 ms; the reply is on the wire until 200 ms.
+    yield* world.clock.advance("150 millis");
+    yield* setWeather(phones, "tunnel")(world);
+    yield* world.clock.advance("1 second");
+    yield* setWeather(phones, "office")(world);
+    yield* classic.refresh;
+    yield* world.clock.advance("1 second");
+    const eggs = (yield* classic.state).items.find((i) => i.name === "Eggs");
+    if (eggs === undefined) return yield* Effect.die("no eggs");
+    const kitchen = world.client("Kitchen Sync");
+    yield* world.clock.advance("1 second");
+    yield* kitchen.apply(yield* remove(world, eggs.id)).pipe(Effect.orDie);
+    yield* world.clock.advance("1 second");
+    yield* classic.change({ kind: "toggle", itemId: eggs.id, checked: true });
+    yield* world.clock.advance("1 second");
+    return yield* world.currentTimeline;
+  }).pipe(
+    Effect.provide(
+      World.layer({
+        clients: ["Classic", "Kitchen Sync"],
+        classic: ["Classic"],
+        seed: "notes-classic",
+        latency: "100 millis",
+      }),
+    ),
+  );
+
+  const notesOf = (
+    timeline: Timeline,
+    found: (event: TraceEvent) => boolean,
+  ): ReadonlyArray<string | null> =>
+    timeline.entries.flatMap((entry, index) =>
+      found(entry.event)
+        ? [
+            noteFor(entry, timeline.entries[index - 1], {
+              timeline,
+              index,
+            }),
+          ]
+        : [],
+    );
+
+  it.effect("says what the handler does, line by line", () =>
+    Effect.gen(function* () {
+      const timeline = yield* recorded;
+      expect(notesOf(timeline, (e) => e._tag === "SavingBegan")).toEqual([
+        "Classic asks the server for the list.",
+        "Classic is saving: it waits for the server's answer.",
+        "Classic is saving: it waits for the server's answer.",
+        "Classic is saving: it waits for the server's answer.",
+        "Classic asks the server for the list.",
+        "Classic is saving: it waits for the server's answer.",
+      ]);
+      expect(notesOf(timeline, (e) => e._tag === "Saved")).toEqual([
+        "Classic sets its list from the reply, v1: Eggs arrives.",
+      ]);
+      expect(notesOf(timeline, (e) => e._tag === "SavingEnded")).toEqual(
+        Array(6).fill(null),
+      );
+    }),
+  );
+
+  it.effect(
+    "says why it gave up: offline, a cut reply the server saved, a refusal",
+    () =>
+      Effect.gen(function* () {
+        const timeline = yield* recorded;
+        expect(notesOf(timeline, (e) => e._tag === "SaveFailed")).toEqual([
+          "Classic gives up: it is offline; nothing reached the server.",
+          "Classic gives up: its reply was cut, though the server saved it.",
+          "Classic gives up: the server refused it.",
+        ]);
+      }),
+  );
+
+  it.effect("says a refresh's changes, and nothing for one with none", () =>
+    Effect.gen(function* () {
+      const timeline = yield* recorded;
+      expect(notesOf(timeline, (e) => e._tag === "Refreshed")).toEqual([
+        null,
+        "Classic refreshes to v2: Cut arrives.",
+      ]);
+    }),
+  );
+
+  it.effect("says the server saves or refuses its change, with no id", () =>
+    Effect.gen(function* () {
+      const timeline = yield* recorded;
+      expect(
+        notesOf(
+          timeline,
+          (e) => e._tag === "Decided" && e.client === "Classic",
+        ),
+      ).toEqual([
+        "The server saves Classic's change.",
+        "The server saves Classic's change.",
+        "The server refuses Classic's change: its item is gone.",
+      ]);
+    }),
+  );
 });

@@ -6,6 +6,7 @@ import {
   compile,
   FOLLOW_RATE,
   frameKey,
+  LINE_HOLD_MILLIS,
   MOVE_MILLIS,
   SLOW_INTO_MILLIS,
   SLOW_RATE,
@@ -28,6 +29,7 @@ import type {
 import {
   adds,
   BACK_ONLINE_SCENE,
+  CLASSIC_SCENE,
   DROP_RETRY_SCENE,
   lastEntryWhere,
   MILK_SCENE,
@@ -717,5 +719,203 @@ describe("compile, hand-built", () => {
         }
       }
     }),
+  );
+});
+
+describe("compile, a classic phone", () => {
+  const recorded = Effect.cached(runHeadless(CLASSIC_SCENE));
+  const compiled = Effect.gen(function* () {
+    const result = yield* yield* recorded;
+    return { result, cut: compile(result, CLASSIC_SCENE) };
+  });
+  const containers = (shot: Shot | undefined) =>
+    [
+      ...new Set(
+        (shot?.subjects ?? [])
+          .filter((s) => s.kind === "device")
+          .map((s) => (s.kind === "device" ? s.client : "")),
+      ),
+    ].sort();
+  const indexOf = (
+    result: SceneResult,
+    found: (event: TraceEvent) => boolean,
+    from = 0,
+  ) => result.timeline.entries.findIndex((e, i) => i >= from && found(e.event));
+
+  it.effect("acts out a refresh on the classic phone's own control", () =>
+    Effect.gen(function* () {
+      const { cut } = yield* compiled;
+      const act = shotsOf(cut, 1).find((s) => s.enact !== null);
+      expect(act?.enact).toEqual({ kind: "refresh", client: "Classic" });
+      expect(act?.framing).toBe("close");
+    }),
+  );
+
+  it.effect(
+    "shoots two phones adding in one moment as one split, each in turn",
+    () =>
+      Effect.gen(function* () {
+        const { result, cut } = yield* compiled;
+        const tap = shotsOf(cut, 2);
+        const firstFlight = tap.findIndex((s) => s.rate > 0);
+        const together = tap.slice(1, firstFlight).filter((s) => !s.move);
+        expect(together.map(label)).toEqual([
+          "enact type",
+          "hold split",
+          "hold split",
+          "enact type",
+          "hold split",
+        ]);
+        for (const shot of together) {
+          expect(shot.framing).toBe("split");
+          expect(containers(shot)).toEqual(["Classic", "Kitchen Sync"]);
+        }
+        expect(together[0]?.enact).toEqual({
+          kind: "type",
+          client: "Classic",
+          text: "Eggs",
+        });
+        expect(together[3]?.enact).toMatchObject({ client: "Kitchen Sync" });
+        // Each hold shows its own line of the moment, in order.
+        const from = result.timeline.entries.findIndex(
+          (e) => e.event.seq >= (result.beats[2]?.firstSeq ?? 0),
+        );
+        expect(together[1]?.through).toBe(
+          indexOf(result, (e) => e._tag === "SavingBegan", from),
+        );
+        expect(together[2]?.through).toBe(
+          indexOf(
+            result,
+            (e) => e._tag === "Sent" && e.message.kind === "request",
+            from,
+          ),
+        );
+        // One move into the split, and none between the moment's shots.
+        expect(
+          tap
+            .slice(1, firstFlight)
+            .filter((s) => s.move && s.framing === "split"),
+        ).toHaveLength(1);
+      }),
+  );
+
+  it.effect(
+    "follows the classic request and its reply, slowing into each",
+    () =>
+      Effect.gen(function* () {
+        const { cut } = yield* compiled;
+        const flights = shotsOf(cut, 2).filter((s) => s.rate > 0);
+        expect(flights.length).toBeGreaterThanOrEqual(2);
+        for (const flight of flights) {
+          expect(flight.framing).toBe("follow");
+          expect(flight.rate).toBe(SLOW_RATE);
+          expect(flight.subjects).toEqual([
+            expect.objectContaining({ kind: "message", client: "Classic" }),
+          ]);
+        }
+      }),
+  );
+
+  it.effect(
+    "holds on the reply's rows, then on the handler's end, each its own shot",
+    () =>
+      Effect.gen(function* () {
+        const { result, cut } = yield* compiled;
+        const tap = shotsOf(cut, 2).filter((s) => !s.move);
+        const [saved, ended] = tap.slice(-2);
+        const savedAt = indexOf(
+          result,
+          (e) => e._tag === "Saved" && e.client === "Classic",
+        );
+        expect(saved?.through).toBe(savedAt);
+        expect(saved?.subjects).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ kind: "row", where: "Classic" }),
+            expect.objectContaining({ kind: "ring", where: "Classic" }),
+          ]),
+        );
+        expect(saved?.notes.map((n) => n.text)).toEqual([
+          "Classic sets its list from the reply, v2: Eggs arrives.",
+        ]);
+        expect(ended?.through).toBe(savedAt + 1);
+        expect(ended?.screen).toBe(LINE_HOLD_MILLIS);
+        expect(ended?.notes).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    "lays the basins on the light table once butter reaches the engine's phones",
+    () =>
+      Effect.gen(function* () {
+        const { cut } = yield* compiled;
+        expect(
+          shotsOf(cut, 4).some((s) => s.framing === "table" && s.rate === 0),
+        ).toBe(true);
+      }),
+  );
+
+  it.effect(
+    "says the server saves the classic phone's change, with no id",
+    () =>
+      Effect.gen(function* () {
+        const { cut } = yield* compiled;
+        const notes = shotsOf(cut, 2).flatMap((s) =>
+          s.notes.map((n) => n.text),
+        );
+        expect(notes).toContain("The server saves Classic's change.");
+        expect(notes.some((n) => n.includes("Classic's #"))).toBe(false);
+      }),
+  );
+
+  it.effect(
+    "in the tunnel, gives each line of the handler a hold of its own",
+    () =>
+      Effect.gen(function* () {
+        const { result, cut } = yield* compiled;
+        const tunnel = shotsOf(cut, 3);
+        const lines = (
+          ["SavingBegan", "SaveFailed", "SavingEnded"] as const
+        ).map((tag) =>
+          indexOf(
+            result,
+            (e) => e._tag === tag && e.client === "Classic",
+            indexOf(result, (e) => e._tag === "WentOffline"),
+          ),
+        );
+        for (const at of lines) {
+          expect(
+            tunnel.some((s) => s.rate === 0 && !s.move && s.through === at),
+          ).toBe(true);
+        }
+        const failed = tunnel.find((s) => s.through === lines[1]);
+        expect(failed?.notes.map((n) => n.text)).toEqual([
+          "Classic gives up: it is offline; nothing reached the server.",
+        ]);
+        expect(tunnel.some((s) => s.framing === "follow")).toBe(false);
+      }),
+  );
+
+  it.effect(
+    "holds on a refresh that changed the rows, and not on one that did not",
+    () =>
+      Effect.gen(function* () {
+        const { result, cut } = yield* compiled;
+        const refreshed = (step: number) => {
+          const beat = result.beats[step];
+          const at = result.timeline.entries.findIndex(
+            (e) =>
+              e.event._tag === "Refreshed" &&
+              beat !== undefined &&
+              e.event.seq >= beat.firstSeq,
+          );
+          return shotsOf(cut, step).find(
+            (s) => s.rate === 0 && !s.move && s.through === at,
+          );
+        };
+        expect(refreshed(5)?.notes.map((n) => n.text)).toEqual([
+          "Classic refreshes to v5: Lemons, Butter and 1 more arrive.",
+        ]);
+        expect(refreshed(6)).toBeUndefined();
+      }),
   );
 });

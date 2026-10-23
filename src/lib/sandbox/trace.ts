@@ -152,9 +152,11 @@ export type TraceEventBody =
       readonly version: number;
     }
   // `setError` with text. Not `message`: that names a wire message here.
+  // `label` is the request that failed, as `SavingBegan` said it.
   | {
       readonly _tag: "SaveFailed";
       readonly client: ClientName;
+      readonly label: string;
       readonly error: string;
     }
   | {
@@ -163,8 +165,12 @@ export type TraceEventBody =
       readonly version: number;
       readonly changed: boolean;
     }
-  // `setSaving(false)`, the handler's `finally`.
-  | { readonly _tag: "SavingEnded"; readonly client: ClientName };
+  // `setSaving(false)`, the handler's `finally`, naming the request it ends.
+  | {
+      readonly _tag: "SavingEnded";
+      readonly client: ClientName;
+      readonly label: string;
+    };
 
 export type TraceEvent = TraceEventBody & {
   readonly at: number;
