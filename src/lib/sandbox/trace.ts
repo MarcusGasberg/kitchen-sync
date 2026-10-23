@@ -145,11 +145,13 @@ export type TraceEventBody =
       readonly label: string;
       readonly name: string | null;
     }
-  // The reply came in and the handler set its rows from it.
+  // The reply came in and the handler set its rows from it. `label` is the
+  // request it answered, as `SavingBegan` said it.
   | {
       readonly _tag: "Saved";
       readonly client: ClientName;
       readonly version: number;
+      readonly label: string;
     }
   // `setError` with text. Not `message`: that names a wire message here.
   // `label` is the request that failed, as `SavingBegan` said it.

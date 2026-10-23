@@ -75,10 +75,28 @@ export const noteOf = (event: TraceEvent): string => {
       return `${event.client} · ${ids(event.from)} → ${ids(event.to)}`;
     case "Poked":
       return `poke v${event.serverVersion}`;
+    case "SavingBegan":
+      return `${event.client} · ${event.label}`;
+    case "Saved":
+    case "Refreshed":
+      return `${event.client} · v${event.version}`;
+    case "SaveFailed":
+      return `${event.client} · couldn't save`;
+    // `finally` runs after a failure too: done, not saved.
+    case "SavingEnded":
+      return `${event.client} · done`;
     case "Converged":
     case "Diverged":
       return "";
-    default:
+    case "WentOffline":
+    case "CameOnline":
+    case "Retrying":
+    case "Recovered":
+    case "SyncStopped":
+    case "SyncRetried":
+    case "Reloaded":
       return event.client;
+    default:
+      return event satisfies never;
   }
 };

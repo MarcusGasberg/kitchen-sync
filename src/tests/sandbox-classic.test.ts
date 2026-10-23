@@ -54,7 +54,7 @@ describe("diffClassicState", () => {
   it("setItems while a change saves is Saved, at the reply's version", () => {
     const next = { ...adding, items: [milk, eggs], version: 2 };
     expect(diffClassicState("classic", adding, next)).toEqual([
-      { _tag: "Saved", client: "classic", version: 2 },
+      { _tag: "Saved", client: "classic", version: 2, label: "POST /items" },
     ]);
   });
 

@@ -699,18 +699,18 @@ Steps:
 
 **Files:** `src/lib/sandbox/classic/handlers.ts` (span markers, already placed in Task 2), `src/lib/sandbox/classic/lights.ts` (`CLASSIC_ADD_LIGHTS(client)`), `src/ui/code/lit.ts` (`noteOf` cases), `src/lib/director/compile.ts` if the holds need it; tests `code-lit.test.ts`, `snippet-regions.test.ts`, `figure-classic-code.test.tsx`.
 
-- [ ] **Step 1: Lights as data.** `CLASSIC_ADD_LIGHTS(client)` returns, in order: `finally` ← `SavingEnded`; `catch` ← `SaveFailed`; `set-items` ← `Saved`; `await` ← `Sent` of a `request` from that client; `start` ← `SavingBegan`. Each is filtered to that client. A `Refreshed` lights nothing, because the refresh handler is not on screen. `missingSpans(snippet, lights)` is empty (content test).
-- [ ] **Step 2: Every line in its turn.** In one instant the trace records `SavingBegan` then `Sent`, and later `Saved` then `SavingEnded`. Test with `litAt` at each entry index that the spans light in source order. In the cut, the director's hold on `SavingBegan` shows `start` before the follow lights `await`, and its hold on `Saved` shows `set-items` before `finally`. If the rules give an entry no screen time, the direction gives it a short hold (Task 6's salience). Test this on the cut as data: each of the five spans is lit in at least one frame of the tap step.
-- [ ] **Step 3: The failure path.** In the tunnel, `SavingBegan`, `SaveFailed` and `SavingEnded` all fall in one instant with nothing sent. The `await` span is never lit, and `catch` is lit and held. Test it.
-- [ ] **Step 4: The lit note.** `noteOf` gives the five events' mono words (`classic · POST /items`, `classic · couldn't save`, …). Every new event gets a case and the switch stays exhaustive.
-- [ ] **Step 5: Free play.** In Your turn the same panel lights the reader's own classic adds. Test with an `act` in free play.
-- [ ] **Step 6:** Commit `feat(code): the classic handler lights line by line as it runs`.
+- [x] **Step 1: Lights as data.** `CLASSIC_ADD_LIGHTS(client)` returns, in order: `finally` ← `SavingEnded`; `catch` ← `SaveFailed`; `set-items` ← `Saved`; `await` ← `Sent` of a `request` from that client; `start` ← `SavingBegan`. Each is filtered to that client. A `Refreshed` lights nothing, because the refresh handler is not on screen. `missingSpans(snippet, lights)` is empty (content test).
+- [x] **Step 2: Every line in its turn.** In one instant the trace records `SavingBegan` then `Sent`, and later `Saved` then `SavingEnded`. Test with `litAt` at each entry index that the spans light in source order. In the cut, the director's hold on `SavingBegan` shows `start` before the follow lights `await`, and its hold on `Saved` shows `set-items` before `finally`. If the rules give an entry no screen time, the direction gives it a short hold (Task 6's salience). Test this on the cut as data: each of the five spans is lit in at least one frame of the tap step.
+- [x] **Step 3: The failure path.** In the tunnel, `SavingBegan`, `SaveFailed` and `SavingEnded` all fall in one instant with nothing sent. The `await` span is never lit, and `catch` is lit and held. Test it.
+- [x] **Step 4: The lit note.** `noteOf` gives the five events' mono words (`classic · POST /items`, `classic · couldn't save`, …). Every new event gets a case and the switch stays exhaustive.
+- [x] **Step 5: Free play.** In Your turn the same panel lights the reader's own classic adds. Test with an `act` in free play.
+- [x] **Step 6:** Commit `feat(code): the classic handler lights line by line as it runs`.
 
 #### Task 11, code-level steps (written against `3824bbd`)
 
 Files change from the task's list: the lights go in `src/app/prologue-code.ts` (see the calls above), and `src/lib/sandbox/classic/lights.ts` is not made.
 
-- [ ] **Step 1.** `prologue-code.ts`:
+- [x] **Step 1.** `prologue-code.ts`:
   - `import classicAdd from "#/lib/sandbox/classic/handlers.ts?region=classic-add&snippet"`;
   - `classicAddCode(client): FigureCode` with the five lights in the task's order, each requiring `event.client === client`;
   - `start`, `catch` and `finally` also require a label starting with `POST ` (`SavingBegan`, `SaveFailed` and `SavingEnded` carry it after Task 6 Step 0);
@@ -719,22 +719,30 @@ Files change from the task's list: the lights go in `src/app/prologue-code.ts` (
     - `missingSpans` is empty;
     - a refresh's and a toggle's events light nothing;
     - the snippet's text is the spec's 13 lines.
-- [ ] **Step 2.** On `CLASSIC_SCENE`'s cut, for the tap step, collect `litAt(timeline, indexAt(cut, timeline, cursor), lights)` at each shot's start and end:
+- [x] **Step 2.** On `CLASSIC_SCENE`'s cut, for the tap step, collect `litAt(timeline, indexAt(cut, timeline, cursor), lights)` at each shot's start and end:
   - the spans appear in source order `start`, `await`, `set-items`, `finally`;
   - each of the four appears in at least one shot.
   - (`catch` is Step 3's.)
-- [ ] **Step 3.** The tunnel step:
+- [x] **Step 3.** The tunnel step:
   - `catch` is lit in at least one hold;
   - `await` is never lit between its `SavingBegan` and `SavingEnded`;
   - its last hold shows `finally`.
-- [ ] **Step 4.** `lit.ts` `noteOf`:
+- [x] **Step 4.** `lit.ts` `noteOf`:
   - `SavingBegan` → "`<c>` · `<label>`";
   - `Saved` → "`<c>` · v`<n>`";
   - `SaveFailed` → "`<c>` · couldn't save";
   - `Refreshed` → "`<c>` · v`<n>`";
   - `SavingEnded` → "`<c>` · saved" or "`<c>` · done" (Impeccable picks).
   - No `default` reaches a classic event. Test each.
-- [ ] **Step 5.** `figure-classic-code.test.tsx`: a `Figure` on `CLASSIC_SCENE` with `free` and `code={classicAddCode("Classic")}`. Act a classic add with the fake host, advance, and the panel's lit span goes `await` → `set-items` → `finally`.
+- [x] **Step 5.** `figure-classic-code.test.tsx`: a `Figure` on `CLASSIC_SCENE` with `free` and `code={classicAddCode("Classic")}`. Act a classic add with the fake host, advance, and the panel's lit span goes `await` → `set-items` → `finally`.
+
+**What the build found (2026-10-22).**
+- **`Saved` gains a `label`.** Without one, a check's or a removal's `Saved` would light `set-items`. `diffClassicState` now names the request it answered, as `SaveFailed` and `SavingEnded` do. Every light in `classicAddCode` asks for a `POST ` label.
+- **The handler is 12 lines, not 13.** The spec's code is 12 lines; "13" was a miscount. The content test pins the spec's text itself, with semicolons.
+- **The direction needed no change.** Task 6's line-by-line holds already give each of the tap's spans its own screen time in the scene's cut: `start`, `await`, `set-items`, `finally`, in order. In the tunnel the cut shows `start`, `catch`, `finally`, and never `await`.
+- **Free play shows an instant whole, so it skips `set-items`.** `Saved` and `SavingEnded` land in one instant, and a free-play frame shows the instant's last entry. The reader's own add therefore lights `await`, then `finally`. Step 5 hoped for `set-items` between them; that would need free play to hold an instant entry by entry. The test pins what it does. Task 15 can judge whether it matters.
+- **`noteOf` is exhaustive now.** The switch has no `default` that returns a client; the last case is `event satisfies never`. `SavingEnded` reads "`<c>` · done", not "saved", because `finally` runs after a failure too.
+- **`ADD_INTENT` is the file morph's import.** `prologue-code.ts` exports it, and `snippet-references.test.ts` resolves it with the rest.
 
 ---
 

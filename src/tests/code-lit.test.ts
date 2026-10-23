@@ -104,6 +104,55 @@ describe("missingSpans", () => {
 });
 
 describe("noteOf", () => {
+  it("names a classic phone's handler's step, in a word or two", () => {
+    const at = { at: 0, seq: 0 };
+    expect(
+      noteOf({
+        _tag: "SavingBegan",
+        client: "Classic",
+        label: "POST /items",
+        name: "Eggs",
+        ...at,
+      }),
+    ).toBe("Classic · POST /items");
+    expect(
+      noteOf({
+        _tag: "Saved",
+        client: "Classic",
+        version: 2,
+        label: "POST /items",
+        ...at,
+      }),
+    ).toBe("Classic · v2");
+    expect(
+      noteOf({
+        _tag: "SaveFailed",
+        client: "Classic",
+        label: "POST /items",
+        error: "Couldn't save Rice",
+        ...at,
+      }),
+    ).toBe("Classic · couldn't save");
+    expect(
+      noteOf({
+        _tag: "Refreshed",
+        client: "Classic",
+        version: 3,
+        changed: true,
+        ...at,
+      }),
+    ).toBe("Classic · v3");
+    // `finally` runs after a failure too: done, not saved.
+    expect(
+      noteOf({
+        _tag: "SavingEnded",
+        client: "Classic",
+        label: "POST /items",
+        ...at,
+      }),
+    ).toBe("Classic · done");
+  });
+
   it("names whose code ran, and on what", () => {
     expect(noteOf(sent)).toBe("A · #3–#5");
     expect(noteOf(applied)).toBe("A · #3");

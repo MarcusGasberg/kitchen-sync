@@ -51,7 +51,12 @@ export const diffClassicState = (
             version: next.version,
             changed: rowsKey(prev.items) !== rowsKey(next.items),
           }
-        : { _tag: "Saved", client, version: next.version },
+        : {
+            _tag: "Saved",
+            client,
+            version: next.version,
+            label: prev.saving.label,
+          },
     );
   }
   if (prev.error === null && next.error !== null) {
