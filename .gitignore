@@ -12,3 +12,5 @@ dist-ssr
 __unconfig*
 todos.json
 .superpowers/brainstorm
+.amp/portals/
+.amp/postgres/

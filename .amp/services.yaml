@@ -1,0 +1,10 @@
+services:
+  postgres:
+    command: exec /usr/lib/postgresql/15/bin/postgres -D "$PWD/.amp/postgres"
+    port: 5433
+  web:
+    command: pnpm dev --host 0.0.0.0 --port "$PORT"
+    port: 3000
+    health: /
+    portal:
+      title: Kitchen Sync

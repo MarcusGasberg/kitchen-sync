@@ -60,6 +60,26 @@ pnpm start             # serves it; PORT selects the port (default 3000)
 Nitro is host-agnostic — the same `.output/` runs on any Node host, and Nitro
 presets can retarget other platforms without changing application code.
 
+## Amp orbs
+
+Executable `.agents/setup` installs locked pnpm dependencies and native PostgreSQL
+15 from Debian 12, creates isolated development and test databases, and copies
+`.env.example` only when `.env` is missing. Node.js (22.12+) and pnpm come from
+the orb image. Prepared dependencies and database files are cached in Amp's
+project snapshot; warm setup runs reuse them. No Docker or external secrets are
+needed. The local Docker workflow above continues to use PostgreSQL 16.
+
+After activation, run `amp orb services ensure` to start supervised PostgreSQL
+and the Vite dev server and print the app's authenticated portal URL. PostgreSQL
+listens only on loopback at port 5433; its data lives in ignored `.amp/postgres/`.
+This disposable instance uses local trust authentication and disables durability
+for speed. Never point it at production data. The app and tests run migrations
+automatically, and tests use the separate `kitchen_sync_test` database.
+
+`.agents/resume` only repairs a missing `.env`; it never reinstalls dependencies
+or overwrites existing configuration. Use `pnpm test` and `pnpm build` as usual
+after ensuring services. Setup can also be rerun safely with `.agents/setup`.
+
 
 
 ## Routing

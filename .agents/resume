@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# Repair a removed local template without replacing thread-specific configuration.
+# Dependencies belong to setup; PostgreSQL and Vite belong to the orb supervisor.
+[[ -f .env ]] || cp -- .env.example .env

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SECONDS=0
+
+echo "[setup] Checking the orb's Node.js and pnpm toolchain"
+node --version
+pnpm --version
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 12)) throw new Error("Node.js 22.12+ required")'
+
+echo "[setup] Installing locked dependencies"
+time CI=true pnpm install --frozen-lockfile
+
+echo "[setup] Preparing local PostgreSQL (Debian 12 package)"
+if ! dpkg-query -W -f='${Status}' postgresql-15 2>/dev/null | grep -qx 'install ok installed'; then
+  sudo apt-get update
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends postgresql-15
+fi
+
+pg_bin=/usr/lib/postgresql/15/bin
+pg_data="$PWD/.amp/postgres"
+if [[ ! -f "$pg_data/PG_VERSION" ]]; then
+  mkdir -p "$pg_data"
+  # Disposable, loopback-only development instance; no personal credentials.
+  "$pg_bin/initdb" -D "$pg_data" -U kitchen_sync --auth=trust --encoding=UTF8 --locale=C
+  cat >> "$pg_data/postgresql.conf" <<EOF
+listen_addresses = 'localhost'
+port = 5433
+unix_socket_directories = '$pg_data'
+fsync = off
+synchronous_commit = off
+full_page_writes = off
+EOF
+fi
+
+# Bootstrap databases in a temporary server, not a daemon left for the snapshot.
+# On warm runs, use the already-supervised server without stopping it.
+if ! "$pg_bin/pg_ctl" -D "$pg_data" status >/dev/null 2>&1; then
+  trap '"$pg_bin/pg_ctl" -D "$pg_data" -m fast -w stop' EXIT
+  "$pg_bin/pg_ctl" -D "$pg_data" -l "$pg_data/server.log" -w start
+fi
+for database in kitchen_sync kitchen_sync_test; do
+  if [[ "$("$pg_bin/psql" -h "$pg_data" -p 5433 -U kitchen_sync -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname = '$database'")" != 1 ]]; then
+    "$pg_bin/createdb" -h "$pg_data" -p 5433 -U kitchen_sync "$database"
+  fi
+done
+
+[[ -f .env ]] || cp -- .env.example .env
+echo "[setup] Ready in ${SECONDS}s; start runtime services with: amp orb services ensure"
