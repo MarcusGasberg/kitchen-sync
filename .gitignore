@@ -14,3 +14,12 @@ todos.json
 .superpowers/brainstorm
 .amp/portals/
 .amp/postgres/
+
+# Claude Code worktrees
+.claude/worktrees
+# Impeccable: the skill copy and its working files stay local
+.claude/skills/impeccable
+.impeccable/mocks
+.impeccable/questions
+.impeccable/review
+.impeccable/build

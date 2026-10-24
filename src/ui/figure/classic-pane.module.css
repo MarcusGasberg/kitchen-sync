@@ -1,0 +1,31 @@
+/* Refresh sits under the field, at its end, as a form's secondary action. */
+.refresh {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+/* A scene's Refresh: inert, holding the touch that presses it. */
+.replica {
+  position: relative;
+  display: inline-grid;
+}
+
+/* Saving: a still hollow ring before the word, the row ring's size. It
+   does not turn: the band's dashes and the word say it is waiting. */
+.ring {
+  display: inline-block;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  margin-inline-end: var(--space-2);
+  border: var(--rule) solid var(--text-2);
+  border-radius: 50%;
+  vertical-align: -0.0625rem;
+}
+
+@media (forced-colors: active) {
+  .ring {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+}

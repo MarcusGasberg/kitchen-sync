@@ -1,0 +1,49 @@
+/* A pane's state line in a figure. The pane sets its face: mono, the
+   second text colour. */
+.status {
+  white-space: nowrap;
+}
+
+.odometer {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A rolling digit: a window one line tall onto a reel of the old digit over
+   the new, moved up by the roll's progress. */
+.column {
+  display: inline-block;
+  height: 1lh;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.reel {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(var(--roll, 0) * -1lh));
+}
+
+/* The tag fades in whole, separator and all; the separator keeps the line's
+   own colour, and only the words after it are fresh ink. */
+.tag {
+  color: var(--text-2);
+}
+
+/* Behind: the one fresh-ink word in the line, from the poke to the pull. */
+.behind {
+  display: inline-block;
+  color: var(--ink-fresh);
+}
+
+/* While a narrow window's word floor grows the tag over its own line
+   (`useWordFloor`), the rest of the line steps back to the spotlight's 35%,
+   so it never reads on into the tag. */
+.status:has(.behind[data-grown]) [data-rest] {
+  opacity: 0.35;
+}
+
+@media (forced-colors: active) {
+  .behind {
+    color: CanvasText;
+  }
+}

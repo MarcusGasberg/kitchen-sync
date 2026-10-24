@@ -1,0 +1,20 @@
+/* A line under a phone's header: the words in the text face, the numbers in
+   mono, tabular so a count does not jitter as it climbs. */
+.tally {
+  margin: 0;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-text);
+  white-space: nowrap;
+}
+
+.number {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The count of them all steps back behind the last wait. */
+.rest,
+.rest .number {
+  color: var(--text-3);
+}

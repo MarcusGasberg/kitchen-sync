@@ -26,7 +26,9 @@ export interface BatchOutcome extends BatchBase {
 }
 
 // The one wording of why the server refused a mutation. The UI shows it as is.
-const describeRefusal = (failure: ItemNotFoundError | StaleMutationError) => {
+export const describeRefusal = (
+  failure: ItemNotFoundError | StaleMutationError,
+) => {
   switch (failure._tag) {
     case "ItemNotFoundError":
       return `item ${failure.itemId} not found`;

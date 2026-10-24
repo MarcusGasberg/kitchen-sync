@@ -1,0 +1,5 @@
+/* A scene's Retry: inert, holding the touch that presses it. */
+.retry {
+  position: relative;
+  display: inline-grid;
+}

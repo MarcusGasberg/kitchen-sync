@@ -1,0 +1,168 @@
+/* A phone stacks the figure in reading order: its words, playback, the
+   stage, the speed and hand-over, then the breaking controls. A desktop keeps
+   all but the stage in the left third and gives the stage the rest. */
+.figure {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-areas:
+    "copy"
+    "playback"
+    "stage"
+    "pace"
+    "breaking";
+  min-width: 0;
+  margin: 0;
+}
+
+@media (min-width: 64rem) {
+  .figure {
+    grid-template-columns: minmax(18rem, 1fr) minmax(0, 2fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "copy stage"
+      "playback stage"
+      "pace stage"
+      "breaking stage";
+    column-gap: var(--space-7);
+    align-items: start;
+  }
+}
+
+.copy {
+  grid-area: copy;
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* Titles are light: the figure's is the chapter's own, at 2.75rem, and 2rem
+   on a phone, where it would otherwise keep the server's basin off the
+   first screen. */
+.title {
+  font: 300 var(--text-2xl) / 1.1 var(--font-text);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* A phone also sets its words, playback and the stage a step closer: the
+   whole of the server's basin reaches the first screen. */
+@media (max-width: 44.99rem) {
+  .figure {
+    row-gap: var(--space-4);
+  }
+
+  .title {
+    font-size: var(--text-2xl-phone);
+  }
+}
+
+.playback {
+  grid-area: playback;
+}
+
+.pace {
+  grid-area: pace;
+}
+
+/* On a desktop, under playback at playback's own gap, as one block with it. */
+@media (min-width: 64rem) {
+  .pace {
+    margin-top: calc(var(--space-4) - var(--space-5));
+  }
+}
+
+.stage {
+  grid-area: stage;
+  min-width: 0;
+  border-radius: var(--radius-control);
+}
+
+.stage:focus-visible {
+  outline-offset: var(--space-2);
+}
+
+.preparing {
+  display: grid;
+  place-items: center;
+  min-height: 24rem;
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.5 var(--font-text);
+}
+
+/* Set apart from playback, by space. */
+.breaking {
+  grid-area: breaking;
+  padding-top: var(--space-6);
+}
+
+.stopped {
+  margin: 0;
+}
+
+.code {
+  grid-area: code;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* A figure with code: on a phone and a tablet its code follows everything
+   else. */
+.figure.withCode {
+  grid-template-areas:
+    "copy"
+    "playback"
+    "stage"
+    "pace"
+    "breaking"
+    "code";
+}
+
+@media (min-width: 64rem) {
+  .figure.withCode {
+    grid-template-rows: auto auto auto 1fr auto;
+    grid-template-areas:
+      "copy stage"
+      "playback stage"
+      "pace stage"
+      "breaking stage"
+      "code code";
+  }
+}
+
+/* Stage | code (the user's choice, 2026-10-17): from 80rem the title,
+   caption and playback take a band across the top. Under it the stage and
+   its code sit side by side, the code held in view while the stage scrolls
+   past and never taller than the screen; speed, the hand-over and the
+   breaking controls go under the stage. The stage keeps a floor of 47rem,
+   now only the window's least width beside the code: the plane lays itself
+   out at least 47rem wide whatever the window, and the camera frames it.
+   The code takes what is left. */
+@media (min-width: 80rem) {
+  .figure.withCode {
+    grid-template-columns: minmax(47rem, 3fr) minmax(0, 2fr);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "copy playback"
+      "stage code"
+      "pace code"
+      "breaking code";
+  }
+
+  .withCode .playback {
+    align-self: end;
+    /* Named, so the playback buttons can see how wide their cell is: it is
+       the narrow code column's width here, and nowhere else. */
+    container: playback / inline-size;
+  }
+
+  .withCode .pace {
+    margin-top: 0;
+  }
+
+  .withCode .code {
+    position: sticky;
+    top: var(--space-5);
+    align-self: start;
+    max-block-size: calc(100dvh - 2 * var(--space-5));
+  }
+}

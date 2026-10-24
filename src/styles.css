@@ -1,4 +1,24 @@
-* {
+@import "@fontsource-variable/commissioner";
+@import "@fontsource-variable/spline-sans-mono";
+@import "./styles/tokens.css";
+
+/* The page follows the system's day or night. A subtree can pin one, as the
+   specimen's columns do. */
+:root {
+  color-scheme: light dark;
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+}
+
+[data-theme="night"] {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -8,9 +28,78 @@ body,
   min-height: 100%;
 }
 
+html {
+  scrollbar-color: var(--edge) transparent;
+}
+
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: var(--page);
+  color: var(--text);
+  font: 400 var(--text-md) / 1.5 var(--font-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  caret-color: var(--text);
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul,
+figure {
+  margin: 0;
+}
+
+ol,
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--text);
+  color: var(--page);
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: var(--rule);
+  text-underline-offset: 0.25em;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must beat every component's own timing. */
+    animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must beat every component's own timing. */
+    animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must beat every component's own timing. */
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,68 +1,33 @@
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { Layer, ManagedRuntime } from "effect";
-import { FetchHttpClient } from "effect/unstable/http";
-import { useRef } from "react";
-import {
-  type ClientRuntime,
-  StoreRuntimeContext,
-  useSyncService,
-} from "#/lib/react";
-import { StoreService } from "#/lib/store";
-import { SyncEngineService } from "#/lib/sync";
-import { SyncTransportService } from "#/lib/transport";
+import { ThemeColor } from "#/ui/theme-color";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      {
-        charSet: "utf-8",
-      },
+      { charSet: "utf-8" },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1",
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
-      {
-        title: "Kitchen Sync",
-      },
+      { title: "Kitchen Sync" },
     ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-    ],
+    links: [{ rel: "stylesheet", href: appCss }],
   }),
   shellComponent: RootDocument,
 });
 
+// The shell every page shares, the series' included. It starts nothing: the
+// app's runtime belongs to the `/` route.
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const runtimeRef = useRef<ClientRuntime | null>(null);
-  if (runtimeRef.current === null) {
-    const mergedLayer = SyncEngineService.Live.pipe(
-      Layer.provideMerge(
-        Layer.mergeAll(
-          StoreService.Live,
-          SyncTransportService.Live.pipe(
-            Layer.provideMerge(FetchHttpClient.layer),
-          ),
-        ),
-      ),
-    );
-    runtimeRef.current = ManagedRuntime.make(mergedLayer);
-  }
-
-  useSyncService(runtimeRef.current);
-
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <ThemeColor />
       </head>
       <body>
-        <StoreRuntimeContext value={runtimeRef.current}>
-          {children}
-        </StoreRuntimeContext>
+        {children}
         <Scripts />
       </body>
     </html>

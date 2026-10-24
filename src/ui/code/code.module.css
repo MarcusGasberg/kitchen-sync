@@ -1,0 +1,74 @@
+/* What every code block shares: a head of title and path, then the code in
+   mono on the still margin under a hairline. No card. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-block-size: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+}
+
+/* Set as a pane's name is. */
+.title {
+  font: 500 var(--text-sm) / 1.2 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.path {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}
+
+/* The code scrolls up and down inside its block, never the page, and its
+   lines wrap. Positioned, so lit lines measure their offset from it. */
+.code {
+  position: relative;
+  min-block-size: 0;
+  margin: 0;
+  padding-block: var(--space-3);
+  overflow: auto;
+  border-block-start: var(--rule) solid var(--line);
+  color: var(--code-foreground);
+  font: 400 var(--text-code) / 1.6 var(--font-mono);
+  tab-size: 2;
+}
+
+/* A line wraps at the block's measure and never scrolls sideways. The code's
+   own indentation (`--indent`, set by the line) stays, and a continuation
+   sits two characters in from it. The text is untouched, so it copies as it
+   is. A lit region's rule (`--lit-rule`) takes 1px of the inset, so lit and
+   unlit code share one edge. */
+/* The browser sets `code` in its own monospace face. Scoped to the code
+   block, so inline code in prose is not pulled into this face. */
+.code code {
+  font: inherit;
+}
+
+.line {
+  display: block;
+  min-block-size: 1lh;
+  padding-inline-start: calc(
+    var(--space-3) +
+    var(--indent, 0ch) +
+    2ch -
+    var(--lit-rule, 0px)
+  );
+  padding-inline-end: var(--space-3);
+  text-indent: calc(-1 * (var(--indent, 0ch) + 2ch));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}

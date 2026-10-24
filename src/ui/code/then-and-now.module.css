@@ -1,0 +1,66 @@
+/* Then and Now are words, not numbers: Commissioner, in the speed control's
+   options. Then's date and commit sit beside it, and drop under it on a narrow panel. The selectors
+   carry an element, so they beat `.option` from another module whatever
+   order the stylesheets load in. */
+label.version {
+  grid-auto-flow: column;
+  gap: var(--space-2);
+  font-family: var(--font-text);
+}
+
+/* Inside the option: when Then was, and its commit in mono. */
+.when {
+  color: var(--text-3);
+}
+
+label.version .commit {
+  font-family: var(--font-mono);
+}
+
+/* The panel is an inline-size container: its code is drawn by its own width,
+   not the page's. */
+.panel {
+  container-type: inline-size;
+}
+
+/* The renderer's container sets `white-space: pre`: here the code wraps at
+   the panel's measure, as the other code blocks do, and sits on their edge.
+   Magic-move draws one flat run of tokens, so a wrapped line has no hanging
+   indent. */
+pre.snippet {
+  /* The renderer holds the container at its old height while the new tokens
+     sit in it, so the content overflows for the length of the morph. Clip,
+     so no scrollbar shows. This code wraps and has no height cap. */
+  overflow: clip;
+  padding-inline: var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Under 40rem the morph would wrap its lines flush left, so the panel shows
+   the same version as per-line code (hanging indents) and the choice cuts.
+   From 40rem the morph shows. `display: none` keeps the hidden copy out of
+   the accessibility tree, so the code is never read twice. The renderer
+   keeps following the version on the hidden morph. */
+@container (width >= 40rem) {
+  pre.lines {
+    display: none;
+  }
+}
+
+/* Only on a narrow panel, where Then and Now must share one row: Then's date
+   and commit go on a second line under "Then", start-aligned. Now stays one
+   line, centred. From 40rem the Then option stays on one line, as the speed
+   control's options are. */
+@container (width < 40rem) {
+  pre.snippet {
+    display: none;
+  }
+
+  label.then {
+    grid-auto-flow: row;
+    justify-items: start;
+    align-content: center;
+    gap: var(--space-1);
+  }
+}

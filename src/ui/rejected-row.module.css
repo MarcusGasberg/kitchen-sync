@@ -1,0 +1,35 @@
+.row {
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--rule) dashed var(--seal);
+  border-radius: var(--radius-control);
+  background: var(--water);
+}
+
+.ring {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: var(--rule) dashed var(--seal);
+  border-radius: 50%;
+}
+
+.text {
+  min-width: 0;
+}
+
+.name {
+  display: block;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reason {
+  display: block;
+  color: var(--seal);
+  font-size: var(--text-sm);
+}

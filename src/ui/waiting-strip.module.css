@@ -1,0 +1,158 @@
+/* One line, never two: it scrolls sideways before it grows. Where the
+   changes run past the edge, the last of them fades, so the strip shows that
+   it scrolls; a strip that cannot scroll has no scroll timeline and keeps
+   --fade at 0. */
+@property --fade {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The header keeps this line whether the outbox holds anything or not. It
+   shrinks with the header, so a long outbox scrolls instead of widening it. */
+.line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 1.5rem;
+}
+
+/* Shrinks to the line and scrolls, but never grows past its changes, so an
+   empty list takes no room from the words beside it. Positioned, so the
+   words only a screen reader hears, which are absolutely placed, scroll with
+   their changes instead of widening the page past its edge. */
+.strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - var(--fade)),
+    transparent
+  );
+}
+
+@supports (animation-timeline: scroll()) {
+  .strip {
+    animation: edge linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes edge {
+  from {
+    --fade: 2rem;
+  }
+
+  to {
+    --fade: 0px;
+  }
+}
+
+/* The mask would clip a ring drawn outside the box. */
+.strip:focus-visible {
+  outline-offset: -2px;
+}
+
+.change,
+.slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+}
+
+/* The ring, verb and id: what a push's copy covers as it rises. */
+.slot {
+  position: relative;
+}
+
+/* The run's word, in the text face, quieter than the changes it heads. */
+.word {
+  color: var(--text-3);
+  font-family: var(--font-text);
+}
+
+.ring {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: var(--rule) solid currentColor;
+  border-radius: 50%;
+}
+
+/* Acked: the ring half filled. In a figure's tray it fills as the ack lands
+   (--slot-acked, 0→1); in the app it is filled. */
+.change[data-acked="true"] .ring {
+  background: linear-gradient(
+    90deg,
+    currentColor calc(var(--slot-acked, 1) * 50%),
+    transparent calc(var(--slot-acked, 1) * 50%)
+  );
+}
+
+/* A figure's tray keeps room above its line, inside the strip's scroll box,
+   for a copy rising toward the wire; the line itself does not move. */
+.strip[data-looks] {
+  padding-block-start: var(--space-4);
+  margin-block-start: calc(-1 * var(--space-4));
+}
+
+/* A slot drops in from just above, and fades as a pull confirms it. */
+.change[data-look] {
+  position: relative;
+  opacity: calc(var(--slot-entered) * (1 - var(--slot-gone)));
+  translate: 0 calc((1 - var(--slot-entered)) * -1 * var(--space-2));
+}
+
+/* A push's copy of the slot, in fresh ink, rising toward the wire, where the
+   message's dot takes over, and fading as it goes. It starts exactly over the
+   ring, verb and id it copies. */
+.copy {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ink-fresh);
+  white-space: nowrap;
+  opacity: calc(1 - var(--slot-copy));
+  translate: 0 calc(var(--slot-copy) * -1 * var(--space-4));
+}
+
+.more {
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* An empty outbox, in the text face at the strip's size, with no ring. */
+.nothing {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.2 var(--font-text);
+}
+
+/* High Contrast drops backgrounds, which would empty the acked ring. */
+@media (forced-colors: active) {
+  .ring {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+
+  .change[data-acked="true"] .ring {
+    background: linear-gradient(
+      90deg,
+      CanvasText calc(var(--slot-acked, 1) * 50%),
+      transparent calc(var(--slot-acked, 1) * 50%)
+    );
+  }
+
+  .copy {
+    color: CanvasText;
+  }
+}

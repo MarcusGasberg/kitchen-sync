@@ -1,0 +1,94 @@
+/* The basin at the size of a word beside the app's name, with a button laid
+   over it. */
+.badge {
+  position: relative;
+  flex: none;
+  width: 5.75rem;
+  border-radius: var(--radius-badge);
+}
+
+.badge .small {
+  border-radius: var(--radius-badge);
+}
+
+/* A transparent edge, so High Contrast draws a frame round the badge. */
+.open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: var(--rule) solid transparent;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+  transition: border-color var(--motion-state) var(--ease-out);
+}
+
+/* The badge is 37 px tall; its hit area reaches the 44 px target. */
+.open::before {
+  content: "";
+  position: absolute;
+  inset-block: calc((100% - var(--target)) / 2);
+  inset-inline: 0;
+}
+
+@media (hover: hover) {
+  .open:hover {
+    border-color: var(--edge);
+  }
+}
+
+.dialog {
+  width: min(100% - 2 * var(--space-4), var(--column));
+  max-width: none;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border: var(--rule) solid var(--line);
+  border-radius: var(--radius-basin);
+  background: var(--page);
+  color: var(--text);
+  box-shadow: 0 1.5rem 3rem -1.5rem
+    light-dark(rgb(10 26 51 / 0.35), rgb(0 0 0 / 0.8));
+}
+
+.dialog[open] {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dialog::backdrop {
+  background: light-dark(rgb(10 26 51 / 0.4), rgb(2 6 14 / 0.72));
+}
+
+.title {
+  font: 300 var(--text-xl) / 1.2 var(--font-text);
+}
+
+.note {
+  max-width: 44ch;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* The basin full size, but no taller than the viewport leaves once the
+   title, note and foot are in, so Close stays in view on a landscape phone.
+   16rem is those, the gaps, the padding and the browser's margin round a
+   modal, with a little to spare; 2.5 is the basin's 5 / 2. */
+.full {
+  justify-self: center;
+  width: 100%;
+  max-inline-size: calc((100dvh - 16rem) * 2.5);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.counts {
+  margin-right: auto;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}

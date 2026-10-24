@@ -1,0 +1,37 @@
+.masthead {
+  border-bottom: var(--rule) solid var(--line);
+  background: var(--page);
+}
+
+.inner {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--column);
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+/* The badge, the name over the status line, and the mark. */
+.top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.name {
+  font: 400 var(--text-sm) / 1.2 var(--font-text);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.status {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}

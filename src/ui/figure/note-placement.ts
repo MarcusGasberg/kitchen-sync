@@ -1,0 +1,549 @@
+import {
+  type Framing,
+  isContainer,
+  type Note,
+  SERVER,
+  subjectKey,
+} from "#/lib/director/shots";
+import type { Point } from "#/ui/marbling/operations";
+import {
+  type Anchors,
+  besideIn,
+  boxOf,
+  LINE_PX,
+  MARGIN_PX,
+  NOTE_GAP_PX,
+  NOTE_SHARE,
+  project,
+  roomFor,
+  roomTop,
+  type Size,
+  shareFrom,
+  type View,
+} from "./camera";
+import type { Box } from "./wires";
+
+// Where a shot's notes sit, and which of them are tied to what they name.
+//
+// - Beside the subjects (a wide viewport's close-ups, splits and follows),
+//   the notes go in the share of the window the camera left for them. A note
+//   whose straight run from its subject's end touches no text and no basin
+//   water sits level with its subject and draws that run as its leader. The
+//   others keep only the dot at their subject's end (their words name it),
+//   stacked around the level ones in their subjects' order.
+// - Under a wide or a table hold's frame, which keeps the whole window, the
+//   notes go in the room the frame leaves at the window's foot, with dots;
+//   the camera keeps that room tall enough for them (`roomFor`).
+// - On a narrow viewport the notes leave the window for the stage's foot,
+//   and each subject keeps only its dot.
+
+export const EDGE_PX = 16;
+export const NOTE_MAX_PX = 288;
+// An average character's width, to estimate how tall a note runs (in lines
+// of LINE_PX) before it is drawn.
+export const CHAR_PX = 7.4;
+// The gap between a note and the end of its leader.
+const LEADER_GAP_PX = 6;
+// The room a dot keeps from the end of a pane header's text.
+const HEADER_GAP_PX = 6;
+// The stage's lens fades the window's edges over this (`--feather`, the
+// 1.5rem space token): a dot there or past them would float on nothing, so
+// it is dropped, and beside the subjects its leader with it.
+export const FEATHER_PX = 24;
+
+export interface PlacedNote {
+  readonly key: string;
+  readonly text: string;
+  // Where its words sit over the viewport, beside the subjects or in the
+  // room under a wide or a table frame; null when they are in the stage's
+  // foot.
+  readonly at: {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+  } | null;
+  // From the subject's end straight into the note, level with both; null
+  // unless that run touches no text or basin water, beside the subjects.
+  readonly leader: ReadonlyArray<Point> | null;
+  // The dot at the subject's end; null when the subject was not measured or
+  // its end lies outside the window less its feather.
+  readonly pin: Point | null;
+}
+
+// Where a shot's notes go: beside the subjects, in the room under a wide or
+// a table frame (screen pixels), or in the stage's foot.
+export type NoteSpot =
+  | { readonly kind: "beside" }
+  | {
+      readonly kind: "room";
+      readonly top: number;
+      readonly left: number;
+      readonly right: number;
+    }
+  | { readonly kind: "foot" };
+
+const heightOf = (text: string, width: number) =>
+  Math.max(1, Math.ceil((text.length * CHAR_PX) / Math.max(1, width))) *
+  LINE_PX;
+
+// A plane box on screen.
+const onScreen = (b: Box, view: View, viewport: Size): Box => {
+  const from = project(view, viewport, { x: b.left, y: b.top });
+  const to = project(view, viewport, { x: b.right, y: b.bottom });
+  return { left: from.x, top: from.y, right: to.x, bottom: to.y };
+};
+
+const clamp = (n: number, low: number, high: number) =>
+  Math.min(high, Math.max(low, n));
+
+// Where `count` notes go for a shot of `framing` whose frame is `frame` (a
+// wide or a table hold's box on the plane, from `frameBoxOf`). On a narrow
+// viewport, the foot. On a wide one, beside the subjects; under a wide or a
+// table frame, in the room it leaves at the window's foot, a margin under
+// the frame's projected bottom. The camera frames such a hold so that room
+// holds the notes; while it eases there, the room starts no lower than the
+// notes need, so they never leave the window. With no frame, the room is at
+// the window's foot.
+export const spotFor = (
+  framing: Framing,
+  count: number,
+  frame: Box | null,
+  view: View,
+  viewport: Size,
+): NoteSpot => {
+  if (!besideIn(viewport)) return { kind: "foot" };
+  if (framing !== "wide" && framing !== "table") return { kind: "beside" };
+  const lowest = viewport.height - roomFor(count);
+  if (frame === null) {
+    return {
+      kind: "room",
+      top: lowest,
+      left: EDGE_PX,
+      right: viewport.width - EDGE_PX,
+    };
+  }
+  const framed = onScreen(frame, view, viewport);
+  return {
+    kind: "room",
+    top: Math.min(roomTop(frame, view, viewport), lowest),
+    left: Math.max(EDGE_PX, framed.left),
+    right: Math.min(viewport.width - EDGE_PX, framed.right),
+  };
+};
+
+// Notes of `heights` set as near their `wanted` tops as `[low, high]` and
+// each other allow. Forward: each as level with its subject as the notes
+// before it allow, and never above `low`; `packed` is where each would sit
+// were every note before it packed from `low`. Backward, last first: each
+// note's bottom no lower than `high` (the last) or the top of the note below
+// less the gap, never above its packed floor, so notes never overlap; when
+// too many to fit, the extras run past `high`.
+const pack = (
+  wanted: ReadonlyArray<number>,
+  heights: ReadonlyArray<number>,
+  low: number,
+  high: number,
+): Array<number> => {
+  const tops: Array<number> = [];
+  const packed: Array<number> = [];
+  let next = low;
+  let floor = low;
+  for (const [i, want] of wanted.entries()) {
+    const height = heights[i] ?? 0;
+    const top = Math.max(want, next);
+    tops.push(top);
+    packed.push(floor);
+    next = top + height + NOTE_GAP_PX;
+    floor += height + NOTE_GAP_PX;
+  }
+  const final = [...tops];
+  let below = high;
+  for (let i = wanted.length - 1; i >= 0; i--) {
+    const height = heights[i] ?? 0;
+    const top = Math.max(
+      packed[i] ?? low,
+      Math.min(tops[i] ?? low, below - height),
+    );
+    final[i] = top;
+    below = top - NOTE_GAP_PX;
+  }
+  return final;
+};
+
+// The height a run of notes needs, gaps between them included.
+const stacked = (heights: ReadonlyArray<number>) =>
+  heights.reduce((all, h) => all + h, 0) +
+  Math.max(0, heights.length - 1) * NOTE_GAP_PX;
+
+// Whether a level run at `y` from `from` to `to` runs through a box's
+// inside, short of `until` (the notes' share, where the plane is faded out).
+const crosses = (
+  y: number,
+  from: number,
+  to: number,
+  inside: Box,
+  until: number,
+) => {
+  const right = Math.min(to, until);
+  return (
+    from < right &&
+    from < inside.right &&
+    right > inside.left &&
+    y > inside.top &&
+    y < inside.bottom
+  );
+};
+
+interface Target {
+  readonly note: Note;
+  readonly index: number;
+  // What its end is at: its subject, or for the server's row whose end is
+  // dropped, the row's ring (`tiedTo`).
+  readonly on: Note["on"];
+  // The subject's box on screen, and whether it is a container (a device,
+  // the server, the light table, a message; `isContainer`) rather than
+  // something in a pane.
+  readonly box: Box | null;
+  readonly container: boolean;
+  // A device's or the server's pane header on screen, when measured.
+  readonly header: Box | null;
+}
+
+// The pane header a note on a device or the server ends at, by its key. A
+// pane's header and basin are keyed by its place (`header:<place>`,
+// `basin:<place>`), not by its container (`containerOf`), so this and
+// `ownOf` read the place straight off the subject.
+const headerKeyOf = (on: Note["on"]): string | null =>
+  on.kind === "server"
+    ? `header:${SERVER}`
+    : on.kind === "device"
+      ? `header:${on.client}`
+      : null;
+
+// What a subject's own leader may cross: the subject itself; a row's or a
+// ring's own basin (a ring sits in its water); a pane's own header.
+const ownOf = (on: Note["on"]): ReadonlySet<string> => {
+  const own = new Set([subjectKey(on)]);
+  if (on.kind === "row" || on.kind === "ring") own.add(`basin:${on.where}`);
+  const header = headerKeyOf(on);
+  if (header !== null) own.add(header);
+  return own;
+};
+
+// How a shot's notes are placed: where they go (`spotFor`); by default beside
+// the subjects on a wide viewport, in the foot on a narrow one. `marked`: the
+// note (by its index in `notes`) that carries the shared mark, a mono line
+// over its words, which it is counted a line taller for. `landed`: the view
+// the camera comes to rest on in the shot (`landedAt`), when it is easing
+// there: a note keeps a leader, or a dot, only where it would keep it there,
+// so none is drawn and then drops out mid-ease, and a leader it keeps is
+// drawn through the whole ease, into the line (first or last) it meets
+// there. `lit`: the containers the shot's spotlight
+// keeps lit (`litOf`), null when it dims nothing: a leader may run over the
+// text of a pane the spotlight dims, never over its water.
+export interface NoteOptions {
+  readonly spot?: NoteSpot;
+  readonly marked?: number | null;
+  readonly landed?: View | null;
+  readonly lit?: ReadonlySet<string> | null;
+}
+
+// The container an obstacle's key is in: its place's pane.
+const containerOfKey = (key: string): string => {
+  const place = key.split(":")[1] ?? "";
+  return place === SERVER ? SERVER : `device:${place}`;
+};
+
+// Which of a level note's lines its leader meets: its first, or its last
+// where the first would leave the strip.
+type LevelLine = "first" | "last";
+
+export const placeNotes = (
+  notes: ReadonlyArray<Note>,
+  anchors: Anchors,
+  view: View,
+  viewport: Size,
+  options: NoteOptions = {},
+): ReadonlyArray<PlacedNote> =>
+  placeWithLines(notes, anchors, view, viewport, options).placed;
+
+// The notes as placed, and the line each level note's leader meets, by its
+// key.
+const placeWithLines = (
+  notes: ReadonlyArray<Note>,
+  anchors: Anchors,
+  view: View,
+  viewport: Size,
+  {
+    spot = besideIn(viewport) ? { kind: "beside" } : { kind: "foot" },
+    marked = null,
+    landed = null,
+    lit = null,
+  }: NoteOptions,
+): {
+  readonly placed: ReadonlyArray<PlacedNote>;
+  readonly lines: ReadonlyMap<string, LevelLine>;
+} => {
+  // Each note as it is placed at the landed view, by its key, and the line
+  // each level one meets its leader with there.
+  const rest =
+    landed === null
+      ? null
+      : placeWithLines(notes, anchors, landed, viewport, {
+          spot,
+          marked,
+          lit,
+        });
+  const atRest =
+    rest === null ? null : new Map(rest.placed.map((p) => [p.key, p] as const));
+  const restsWith = (index: number, what: "leader" | "pin") =>
+    atRest === null || (atRest.get(String(index))?.[what] ?? null) !== null;
+  const beside = spot.kind === "beside";
+  const share = shareFrom(viewport);
+  // A note's height at `width`: a line taller for the one that carries the
+  // shared mark over its words.
+  const heightFor = ({ note, index }: Target, width: number) =>
+    heightOf(note.text, width) + (index === marked ? LINE_PX : 0);
+  const subjects: ReadonlyArray<Target> = notes.map((note, index) => {
+    const b = boxOf(note.on, anchors);
+    const key = headerKeyOf(note.on);
+    const header = key === null ? undefined : anchors.boxes.get(key);
+    return {
+      note,
+      index,
+      on: note.on,
+      box: b === null ? null : onScreen(b, view, viewport),
+      container: isContainer(note.on),
+      header: header === undefined ? null : onScreen(header, view, viewport),
+    };
+  });
+  // Beside, an end under the notes' share sits where the framed subjects
+  // end instead.
+  const facing = (x: number) => (beside ? Math.min(x, share - MARGIN_PX) : x);
+  // The subject's end, facing the notes:
+  // - a row's or a ring's right edge at its middle;
+  // - just past a device's or the server's pane header's right edge, at its
+  //   middle, beside its version, or without a measured header the pane's right
+  //   edge, level with what shows of it;
+  // - none for the light table: its words name every basin in view;
+  // - another container's right edge, level with what shows of it.
+  const endOf = ({ note, box: b, container, header }: Target): Point | null => {
+    if (note.on.kind === "basins") return null;
+    if (header !== null) {
+      return {
+        x: facing(header.right + HEADER_GAP_PX),
+        y: (header.top + header.bottom) / 2,
+      };
+    }
+    if (b === null) return null;
+    if (!container) return { x: b.right, y: (b.top + b.bottom) / 2 };
+    const top = clamp(b.top, 0, viewport.height);
+    const bottom = clamp(b.bottom, 0, viewport.height);
+    return { x: facing(b.right), y: (top + bottom) / 2 };
+  };
+  // A subject's end shows a dot only inside the window, less its feather,
+  // and beside the subjects, short of the notes' share, where the plane is
+  // faded out (the server's close-up leaves its list's rows there).
+  const shown = (p: Point | null): Point | null =>
+    p !== null &&
+    p.x >= FEATHER_PX &&
+    p.x <= (beside ? share : viewport.width - FEATHER_PX) &&
+    p.y >= FEATHER_PX &&
+    p.y <= viewport.height - FEATHER_PX
+      ? p
+      : null;
+  // The server's close-up frames its whole basin and may leave its list's
+  // rows under the notes' share: a note on a server row whose end is dropped
+  // is tied to that row's ring in the basin instead, which the shot names,
+  // where it shows.
+  const tiedTo = (target: Target): Target => {
+    const { on } = target.note;
+    if (on.kind !== "row" || on.where !== SERVER) return target;
+    if (shown(endOf(target)) !== null) return target;
+    const ring = { kind: "ring", where: SERVER, itemId: on.itemId } as const;
+    const b = boxOf(ring, anchors);
+    if (b === null) return target;
+    const tied = { ...target, on: ring, box: onScreen(b, view, viewport) };
+    return shown(endOf(tied)) === null ? target : tied;
+  };
+  const targets = subjects.map(tiedTo);
+  // Notes whose subject was measured come first, in the order of their
+  // subjects (down the share beside them, across otherwise); those with
+  // none sort last.
+  const along = (end: Point | null): number | null =>
+    end === null ? null : beside ? end.y : end.x;
+  const ordered = [...targets].sort((a, b) => {
+    const x = along(endOf(a));
+    const y = along(endOf(b));
+    if (x === null || y === null)
+      return (x === null ? 1 : 0) - (y === null ? 1 : 0);
+    return x - y;
+  });
+  const dotted = (target: Target, at: PlacedNote["at"]): PlacedNote => ({
+    key: String(target.index),
+    text: target.note.text,
+    at,
+    leader: null,
+    pin: restsWith(target.index, "pin") ? shown(endOf(target)) : null,
+  });
+
+  const noLines: ReadonlyMap<string, LevelLine> = new Map();
+  if (spot.kind === "foot") {
+    return { placed: ordered.map((t) => dotted(t, null)), lines: noLines };
+  }
+  if (spot.kind === "room") {
+    // Stacked from the room's top, left-aligned with the frame.
+    const width = Math.max(1, spot.right - spot.left);
+    let top = spot.top;
+    const placed = ordered.map((target) => {
+      const at = dotted(target, { left: spot.left, top, width });
+      top += heightFor(target, width) + NOTE_GAP_PX;
+      return at;
+    });
+    return { placed, lines: noLines };
+  }
+
+  const strip = {
+    left: share + EDGE_PX,
+    top: EDGE_PX,
+    width: Math.min(NOTE_MAX_PX, viewport.width * NOTE_SHARE - 2 * EDGE_PX),
+    bottom: viewport.height - EDGE_PX,
+  };
+  const into = strip.left - LEADER_GAP_PX;
+  const heights = ordered.map((target) => heightFor(target, strip.width));
+  // What a leader may not touch, on screen: text (each row, list heading,
+  // pane header, basin version label and add field) in a pane the spotlight
+  // keeps lit, and basin water anywhere.
+  const isText = (key: string) =>
+    key.startsWith("row:") ||
+    key.startsWith("text:") ||
+    key.startsWith("label:") ||
+    key.startsWith("header:") ||
+    key.startsWith("field:");
+  const obstacles = [...anchors.boxes]
+    .filter(
+      ([key]) =>
+        key.startsWith("basin:") ||
+        (isText(key) && (lit === null || lit.has(containerOfKey(key)))),
+    )
+    .map(([key, b]) => [key, onScreen(b, view, viewport)] as const);
+  // Where a note sits level with its subject, and the line its leader runs
+  // into: its first line level with the subject's end, or where that would
+  // leave the strip its last line; null where neither fits the strip. Easing
+  // to a landed view, the line it meets there, wherever that puts it, so its
+  // words never jump from one line to the other mid-ease.
+  const levelAt = ordered.map(
+    (target, i): { readonly top: number; readonly line: LevelLine } | null => {
+      const end = shown(endOf(target));
+      if (end === null) return null;
+      const height = heights[i] ?? 0;
+      const first = end.y - LINE_PX / 2;
+      const last = end.y + LINE_PX / 2 - height;
+      const rested = rest?.lines.get(String(target.index));
+      if (rested !== undefined) {
+        return { top: rested === "first" ? first : last, line: rested };
+      }
+      const fits = (top: number) =>
+        top >= strip.top && top + height <= strip.bottom;
+      if (fits(first)) return { top: first, line: "first" };
+      return fits(last) ? { top: last, line: "last" } : null;
+    },
+  );
+  const levelTops = levelAt.map((at) => at?.top ?? null);
+  // Whether a note can sit level with its subject and run straight into it:
+  // its subject's end shows, it fits the strip level with it, and the run
+  // from that end into the note touches nothing (or, easing to a landed
+  // view, it keeps its leader there).
+  const level = ordered.map((target, i) => {
+    const end = shown(endOf(target));
+    if (end === null || !restsWith(target.index, "leader")) return false;
+    if (levelTops[i] === null) return false;
+    if (atRest !== null) return true;
+    const own = ownOf(target.on);
+    return obstacles.every(
+      ([key, b]) => own.has(key) || !crosses(end.y, end.x, into, b, share),
+    );
+  });
+  const wanted = ordered.map((target, i) => {
+    const end = endOf(target);
+    if (end === null) return strip.top;
+    return (level[i] ? levelTops[i] : null) ?? end.y - LINE_PX / 2;
+  });
+  // Level notes keep their subjects' heights, a later one that would
+  // overlap the one before dropping to a dot. The dotted notes stack in the
+  // gaps between them, in order; where a gap is too short for its notes, the
+  // level note under it (or the last) drops to a dot, and the stacking runs
+  // again.
+  const fixed = [...level];
+  let last = -1;
+  for (const [i, isLevel] of fixed.entries()) {
+    if (!isLevel) continue;
+    const previous =
+      last < 0 ? null : (wanted[last] ?? 0) + (heights[last] ?? 0);
+    if (previous !== null && (wanted[i] ?? 0) < previous + NOTE_GAP_PX) {
+      fixed[i] = false;
+    } else {
+      last = i;
+    }
+  }
+  const tops = [...wanted];
+  for (;;) {
+    const anchorsAt = fixed.flatMap((isFixed, i) => (isFixed ? [i] : []));
+    let dropped = false;
+    let low = strip.top;
+    let start = 0;
+    for (const boundary of [...anchorsAt, ordered.length]) {
+      const atBoundary = boundary < ordered.length;
+      const high = atBoundary
+        ? (wanted[boundary] ?? 0) - NOTE_GAP_PX
+        : strip.bottom;
+      const run = Array.from({ length: boundary - start }, (_, k) => start + k);
+      const runHeights = run.map((i) => heights[i] ?? 0);
+      if (
+        anchorsAt.length > 0 &&
+        run.length > 0 &&
+        stacked(runHeights) > high - low
+      ) {
+        // Too short: the level note under this gap, or the last one above
+        // the foot, drops to a dot.
+        const drop = atBoundary ? boundary : anchorsAt.at(-1);
+        if (drop !== undefined) fixed[drop] = false;
+        dropped = true;
+        break;
+      }
+      const packedTops = pack(
+        run.map((i) => wanted[i] ?? low),
+        runHeights,
+        low,
+        high,
+      );
+      for (const [k, i] of run.entries()) tops[i] = packedTops[k] ?? low;
+      if (atBoundary) {
+        tops[boundary] = wanted[boundary] ?? low;
+        low = (wanted[boundary] ?? 0) + (heights[boundary] ?? 0) + NOTE_GAP_PX;
+        start = boundary + 1;
+      }
+    }
+    if (!dropped) break;
+  }
+
+  const lines = new Map<string, LevelLine>();
+  const placed = ordered.map((target, i): PlacedNote => {
+    const top = tops[i] ?? strip.top;
+    const at = { left: strip.left, top, width: strip.width };
+    const end = shown(endOf(target));
+    const line = levelAt[i]?.line;
+    if (!fixed[i] || end === null || line === undefined) {
+      return dotted(target, at);
+    }
+    lines.set(String(target.index), line);
+    return {
+      key: String(target.index),
+      text: target.note.text,
+      at,
+      leader: [end, { x: into, y: end.y }],
+      pin: end,
+    };
+  });
+  return { placed, lines };
+};

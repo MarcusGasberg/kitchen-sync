@@ -1,0 +1,99 @@
+/* Over the whole stage, under nothing a reader touches. */
+.band {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wire {
+  stroke: var(--line);
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
+}
+
+/* The poke's ripple: rings of the second ink, a hairline at any zoom, clipped
+   to the band. */
+.ripple {
+  overflow: hidden;
+}
+
+.ripple circle {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
+}
+
+.message circle {
+  fill: var(--text-2);
+}
+
+/* A push carries changes: fresh ink, as they are on the device's basin. */
+.message[data-kind="push"] circle {
+  fill: var(--ink-fresh);
+}
+
+.message[data-held] circle {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-dasharray: 2 2;
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
+}
+
+/* A label keeps a halo of the page so it reads over a wire. */
+.band text {
+  fill: var(--text-2);
+  font: 400 var(--text-xs) / 1 var(--font-mono);
+  paint-order: stroke;
+  stroke: var(--page);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.lost text {
+  fill: var(--text-3);
+}
+
+/* A network rule a scene arms, written on its wire in the second ink, in
+   words: not an id, so not mono. */
+.band .armed {
+  fill: var(--ink-2);
+  font: 400 var(--text-sm) / 1 var(--font-text);
+}
+
+@media (forced-colors: active) {
+  .wire {
+    stroke: CanvasText;
+  }
+
+  .ripple circle {
+    stroke: CanvasText;
+  }
+
+  .message circle {
+    fill: CanvasText;
+  }
+
+  .message[data-kind="push"] circle {
+    fill: Highlight;
+  }
+
+  .message[data-held] circle {
+    fill: none;
+    stroke: CanvasText;
+  }
+
+  .band text,
+  .lost text {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .band .armed {
+    fill: CanvasText;
+  }
+}
+
+/* The spotlight: a wire a shot is not about steps back with its messages. */
+.band [data-dim] {
+  opacity: 0.35;
+}

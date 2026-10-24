@@ -1,0 +1,56 @@
+/* Labels in small tracked capitals, quiet beside the content they act on. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--target);
+  padding: 0 var(--space-5);
+  border: var(--rule) solid var(--text);
+  border-radius: var(--radius-control);
+  background: var(--text);
+  color: var(--page);
+  font: 500 var(--text-xs) / 1 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-state) var(--ease-out),
+    border-color var(--motion-state) var(--ease-out),
+    color var(--motion-state) var(--ease-out);
+}
+
+.button[data-kind="secondary"] {
+  border-color: var(--edge);
+  background: transparent;
+  color: var(--text);
+}
+
+.button[data-kind="breaking"] {
+  border-style: dashed;
+  border-color: var(--edge);
+  background: transparent;
+  color: var(--text-2);
+}
+
+@media (hover: hover) {
+  .button[data-kind="primary"]:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--text-2);
+    background: var(--text-2);
+  }
+
+  .button[data-kind="secondary"]:hover:not(:disabled, [aria-disabled="true"]),
+  .button[data-kind="breaking"]:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--text);
+    color: var(--text);
+  }
+}
+
+.button:disabled,
+.button[aria-disabled="true"] {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--text-3);
+  cursor: not-allowed;
+}

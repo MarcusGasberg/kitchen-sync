@@ -1,0 +1,30 @@
+/* A solid edge for offline or a stop, a dashed one while a loop retries. */
+.band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block: var(--rule) solid var(--edge);
+  background: var(--water);
+}
+
+.band[data-pattern="dashed"] {
+  border-block-style: dashed;
+}
+
+.label {
+  max-width: 60ch;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.label b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.band[data-tone="seal"] .label b {
+  color: var(--seal);
+}

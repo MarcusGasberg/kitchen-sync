@@ -31,6 +31,15 @@ interface SyncTransport {
 const classifyHttpClientError = (
   err: HttpClientError.HttpClientError,
 ): TransportFailure => {
+  // Bodies are read as text and parsed by the schema, so a `DecodeError` is
+  // only ever the read itself breaking: fetch's word for a socket dropped
+  // mid-response. A pushed batch may have landed; resending it is acked.
+  if (err.reason._tag === "DecodeError") {
+    return new TransportFailure({
+      retryable: true,
+      reason: "response cut off",
+    });
+  }
   if (
     err.reason._tag !== "TransportError" &&
     err.reason._tag !== "StatusCodeError"
@@ -134,10 +143,15 @@ export class SyncTransportService extends Context.Service<
                 body: yield* HttpBody.jsonSchema(PullRequest)(req),
               });
 
-              const body = yield* response.json;
-              return yield* Schema.decodeUnknownEffect(PullResponse)(body);
+              // Not `response.json`: its `DecodeError` would merge a body cut
+              // off on the way with one that arrived whole and is not JSON.
+              const body = yield* response.text;
+              return yield* Schema.decodeEffect(
+                Schema.fromJsonString(PullResponse),
+              )(body);
             }),
           ),
+        // #region http-push
         push: (req) =>
           asTransportFailure(
             Effect.gen(function* () {
@@ -147,10 +161,13 @@ export class SyncTransportService extends Context.Service<
                 body: yield* HttpBody.jsonSchema(PushRequest)(req),
               });
 
-              const body = yield* response.json;
-              return yield* Schema.decodeUnknownEffect(PushResponse)(body);
+              const body = yield* response.text;
+              return yield* Schema.decodeEffect(
+                Schema.fromJsonString(PushResponse),
+              )(body);
             }),
           ),
+        // #endregion
         pokes: Stream.unwrap(
           Effect.gen(function* () {
             const response = yield* httpClient

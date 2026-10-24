@@ -1,0 +1,97 @@
+/* A shot's notes: short lines in place, never in a box, each tied to what it
+   names by a 1 px leader in the second ink that leaves the subject's end at a
+   dot of 2.5 px radius. Beside the subjects the words sit in the notes'
+   share, where the plane is faded to the page; the leader draws in from the
+   dot and the words follow. Under them (a narrow viewport) the words stack in
+   the stage's foot and each subject keeps only its dot. */
+.notes {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.leaders {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.leader {
+  stroke: var(--ink-2);
+  stroke-width: var(--rule);
+  stroke-dasharray: 1;
+  animation: draw 300ms var(--ease-out) both;
+}
+
+.pin {
+  fill: var(--ink-2);
+  animation: appear var(--motion-state) var(--ease-out) both;
+}
+
+.note,
+.footNote {
+  margin: 0;
+  color: var(--text);
+  font: 400 var(--text-sm) / 1.45 var(--font-text);
+  text-wrap: pretty;
+  animation: appear var(--motion-state) var(--ease-out) 120ms both;
+}
+
+.note {
+  position: absolute;
+}
+
+/* The code's note for the event this note tells, "A · #6", over its words:
+   the one mark the code and the stage share, in fresh ink in both. */
+.mark {
+  display: block;
+  color: var(--ink-fresh);
+  font: 400 var(--text-xs) / 1.45 var(--font-mono);
+}
+
+.foot {
+  display: grid;
+  gap: var(--space-1);
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leader,
+  .pin,
+  .note,
+  .footNote {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .leader {
+    stroke: CanvasText;
+  }
+
+  .pin {
+    fill: CanvasText;
+  }
+
+  .note,
+  .footNote {
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  .mark {
+    color: CanvasText;
+  }
+}

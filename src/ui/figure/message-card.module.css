@@ -1,0 +1,55 @@
+/* A followed message's card: what it carries, opened out of its dot. Quiet:
+   the page's ground, a hairline edge, no shadow. It scales out of the dot as
+   it opens and back into it as the message lands, by --card-open (0→1), which
+   the cut's clock sets; reduced motion holds it at 1. */
+.card {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-2);
+  border: var(--rule) solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--page);
+  color: var(--text);
+  font: 400 var(--text-sm) / 1.25rem var(--font-text);
+  pointer-events: none;
+  opacity: var(--card-open);
+  transform: scale(calc(0.6 + 0.4 * var(--card-open)));
+  transform-origin: var(--card-origin-x) var(--card-origin-y);
+}
+
+/* One line each, cut short rather than wrapped: the card's width is its
+   longest line's, within a note's. */
+.head,
+.body {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+/* The message's name, quieter than what it carries. */
+.head {
+  color: var(--text-2);
+}
+
+/* Ids and versions, as the wire's own labels set them. */
+.data {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  /* The smaller face must not grow the line past the estimate's. */
+  line-height: 1;
+}
+
+@media (forced-colors: active) {
+  .card {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .head {
+    color: CanvasText;
+  }
+}

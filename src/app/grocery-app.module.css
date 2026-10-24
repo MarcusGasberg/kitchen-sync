@@ -1,0 +1,29 @@
+/* Room at the foot for the docked form, a refusal's hint included, so the
+   last row can scroll clear of it on a phone. */
+.app {
+  min-height: 100dvh;
+  padding-bottom: 10.5rem;
+}
+
+.list {
+  max-width: var(--column);
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+
+/* Below 45rem the form is docked over the foot of the viewport: a focused row
+   scrolls clear of it. The dock's two lines of fields, a refusal's hint,
+   padding and the safe-area inset. */
+:global(html):has(.app) {
+  scroll-padding-bottom: calc(9.75rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 45rem) {
+  .app {
+    padding-bottom: 0;
+  }
+
+  :global(html):has(.app) {
+    scroll-padding-bottom: 0;
+  }
+}

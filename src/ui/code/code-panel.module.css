@@ -1,0 +1,72 @@
+.reference {
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-text);
+}
+
+/* Whose code ran, and on what: at the head's far end. */
+.note {
+  margin-inline-start: auto;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}
+
+/* The event a note on the stage tells too: the mark they share, in fresh
+   ink in both. */
+.note[data-shared] {
+  color: var(--ink-fresh);
+}
+
+.lines {
+  display: block;
+}
+
+/* The branch that last ran: washed in water, with the world's 1px ink rule
+   at its start. The rule is a border, so forced colours keep it. */
+.lit {
+  display: block;
+  border-inline-start: var(--rule) solid var(--ink-2);
+  /* The rule takes 1px of the inset: the lines inside give it up
+     (`.line`, in the shared module), so lit and unlit code share one edge. */
+  --lit-rule: var(--rule);
+  background: var(--water);
+  color: inherit;
+}
+
+/* A new event settles in as a drop does; a jump shows at once. */
+.lit[data-motion="true"] {
+  animation: lit var(--settle) var(--ease-out);
+}
+
+@keyframes lit {
+  from {
+    border-inline-start-color: transparent;
+    background-color: transparent;
+  }
+}
+
+/* Forced colours: the lit lines take the system's mark colours. Taking the
+   forced-colour backplate away stops it drawing Canvas behind the text. Each
+   token carries its colour inline (`var(--code-token-*)`), which no rule
+   here could outrank, so the aliases it reads are what change: every one is
+   MarkText inside a lit line, and nothing shows its own colour on Mark. */
+@media (forced-colors: active) {
+  .lit {
+    forced-color-adjust: none;
+    background: Mark;
+    color: MarkText;
+    border-inline-start-color: MarkText;
+    --code-foreground: MarkText;
+    --code-token-constant: MarkText;
+    --code-token-function: MarkText;
+    --code-token-parameter: MarkText;
+    --code-token-keyword: MarkText;
+    --code-token-string: MarkText;
+    --code-token-string-expression: MarkText;
+    --code-token-link: MarkText;
+    --code-token-comment: MarkText;
+    --code-token-punctuation: MarkText;
+    --code-token-inserted: MarkText;
+    --code-token-deleted: MarkText;
+    --code-token-changed: MarkText;
+  }
+}

@@ -1,0 +1,83 @@
+/* One line: the field, then Add; the hint, when there is one, on its own
+   line under them. */
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.field {
+  min-width: 0;
+  min-height: var(--target);
+  padding: 0 var(--space-3);
+  border: var(--rule) solid var(--edge);
+  border-radius: var(--radius-control);
+  background: var(--water);
+  font: 400 var(--text-md) / 1.5 var(--font-text);
+  transition: border-color var(--motion-state) var(--ease-out);
+}
+
+.field::placeholder {
+  color: var(--text-3);
+  opacity: 1;
+}
+
+.field:focus-visible {
+  border-color: var(--text);
+  outline-offset: 0;
+}
+
+.hint {
+  grid-column: 1 / -1;
+  color: var(--text-2);
+  font: 400 var(--text-sm) / 1.5 var(--font-text);
+}
+
+/* A scene's field, acting: a box like the input's, holding what has been
+   typed so far on one line. */
+.shown {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: pre;
+}
+
+.placeholder {
+  color: var(--text-3);
+}
+
+/* The caret: one rule of fresh ink where the next letter lands. */
+.caret {
+  flex: none;
+  inline-size: var(--rule);
+  block-size: 1.25em;
+  background: var(--ink-fresh);
+}
+
+/* Add, holding the touch that presses it. */
+.add {
+  position: relative;
+  display: grid;
+}
+
+/* Pressed: the edge and the label in the text's own ink, as a hover has
+   them. */
+.add button[data-pressed] {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+/* A classic phone while it saves: the field's text and edge recede, as a
+   disabled button's do, and its text stays where it was typed. */
+.form[data-disabled] .field {
+  border-color: var(--line);
+  color: var(--text-3);
+}
+
+@media (forced-colors: active) {
+  .caret {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}

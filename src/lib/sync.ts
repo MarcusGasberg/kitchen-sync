@@ -3,7 +3,7 @@ import { merge } from "effect/Stream";
 import type { TransportFailure } from "#/domain/errors";
 import { PullRequest, PushRequest } from "#/domain/mutation";
 import { endIfHealthy, retrySyncLoop } from "./retry";
-import { StoreService, type SyncFailure } from "./store";
+import { StoreService, type SyncLoop } from "./store";
 import { SyncTransportService } from "./transport";
 
 interface SyncEngine {
@@ -32,11 +32,14 @@ export class SyncEngineService extends Context.Service<
       // stops, and the UI says so, rather than resending the same doomed
       // request every so often forever.
       const untilFatal =
-        (loop: SyncFailure["loop"]) =>
+        (loop: SyncLoop) =>
         <R>(iteration: Effect.Effect<void, TransportFailure, R>) =>
           iteration.pipe(
             endIfHealthy,
-            retrySyncLoop,
+            // Set inside the retry, so a failure `endIfHealthy` ends quietly
+            // says nothing: the loop re-runs at once, and names a retry only
+            // if that run fails too.
+            retrySyncLoop((failure) => store.setRetrying(loop, failure.reason)),
             Effect.forever,
             Effect.catch((failure) =>
               Effect.logError(`sync ${loop} loop stopped`, failure).pipe(
@@ -48,13 +51,16 @@ export class SyncEngineService extends Context.Service<
             ),
           );
 
+      // #region push-loop
       const pushLoop = (clientId: string) =>
         untilFatal("push")(
           Effect.gen(function* () {
+            // #region wake
             yield* Effect.race(
               store.awaitOutboxActivity,
               Effect.sleep("300 millis"),
             );
+            // #endregion
 
             const { outbox, appliedVersion, seeded, ackedThrough } =
               yield* store.getSnapShot();
@@ -62,6 +68,7 @@ export class SyncEngineService extends Context.Service<
             // renumbers them on the assumption that none was ever sent.
             if (!seeded) return;
 
+            // #region send
             // Acked entries wait in the outbox for a pull to confirm them;
             // sending them again would only be deduped.
             const pending = outbox.filter(
@@ -76,9 +83,18 @@ export class SyncEngineService extends Context.Service<
             });
 
             const response = yield* transport.push(request);
+            // #endregion
+            // #region settle
             yield* store.settle(response);
-          }),
+            // #endregion
+          }).pipe(
+            // Any iteration that completes is the push loop working, one with
+            // nothing left to send included: a pull may have emptied the
+            // outbox while a push waited on a lost ack.
+            Effect.andThen(store.setRetrying("push", null)),
+          ),
         );
+      // #endregion
       const pullLoop = (clientId: string) =>
         untilFatal("pull")(
           // A poke stream that ends ends the iteration with it, and
@@ -87,10 +103,15 @@ export class SyncEngineService extends Context.Service<
             haltStrategy: "left",
           }).pipe(
             Stream.buffer({ capacity: 1, strategy: "sliding" }),
-            Stream.runForEach((poke) => {
-              return Effect.gen(function* () {
+            Stream.runForEach((poke) =>
+              Effect.gen(function* () {
+                // The iteration ends only when the poke stream is lost, so the
+                // pull loop's success is a poke that arrives or a pull that
+                // returns.
+                if (poke !== undefined) {
+                  yield* store.setRetrying("pull", null);
+                }
                 const { appliedVersion } = yield* store.getSnapShot();
-                console.log(poke, appliedVersion);
                 if (poke === appliedVersion) {
                   return;
                 }
@@ -102,8 +123,9 @@ export class SyncEngineService extends Context.Service<
 
                 const response = yield* transport.pull(request);
                 yield* store.reconcile(response);
-              });
-            }),
+                yield* store.setRetrying("pull", null);
+              }),
+            ),
           ),
         );
 

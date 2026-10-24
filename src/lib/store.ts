@@ -2,6 +2,7 @@ import {
   Context,
   Effect,
   Layer,
+  Option,
   pipe,
   Queue,
   Result,
@@ -11,7 +12,6 @@ import {
 import type { ItemNotFoundError, StaleMutationError } from "#/domain/errors";
 import type {
   MutationIntent,
-  MutationRejection,
   OutboxEntry,
   PullResponse,
   PushResponse,
@@ -19,11 +19,31 @@ import type {
 import { rebase } from "#/domain/rebase";
 import { decide, type ItemState } from "#/domain/reduce";
 
+export type SyncLoop = "push" | "pull";
+
 // Sync stopped on a failure retrying cannot fix. The UI shows it until the
 // user retries.
 export interface SyncFailure {
-  readonly loop: "push" | "pull";
+  readonly loop: SyncLoop;
   readonly reason: string;
+}
+
+// What each loop is backing off from: the reason of the transient failure it
+// last retried, or null. Only that loop's own next success clears it.
+export interface Retrying {
+  readonly push: string | null;
+  readonly pull: string | null;
+}
+
+// A settled mutation the server refused, and what it was about, so a rejected
+// row can name its item after a pull has taken the item away. `intent` and
+// `name` are null when a pull confirmed the entry before the push response
+// arrived; `name` is also null when this client never showed the item.
+export interface Rejection {
+  readonly clientMutationId: number;
+  readonly reason: string;
+  readonly intent: MutationIntent["_tag"] | null;
+  readonly name: string | null;
 }
 
 export interface StoreState {
@@ -40,8 +60,9 @@ export interface StoreState {
   ackedThrough: number;
   // False until the first pull. Ids minted before it are provisional.
   seeded: boolean;
-  rejected: ReadonlyArray<typeof MutationRejection.Type>;
+  rejected: ReadonlyArray<Rejection>;
   syncFailure: SyncFailure | null;
+  retrying: Retrying;
 }
 
 export const EMPTY_STATE = {
@@ -54,6 +75,7 @@ export const EMPTY_STATE = {
   seeded: false,
   rejected: [],
   syncFailure: null,
+  retrying: { push: null, pull: null },
 } satisfies StoreState;
 
 interface Store {
@@ -67,6 +89,7 @@ interface Store {
   reconcile: (response: typeof PullResponse.Type) => Effect.Effect<StoreState>;
   dismissRejected(ids: ReadonlyArray<number>): Effect.Effect<StoreState>;
   setSyncFailure(failure: SyncFailure | null): Effect.Effect<StoreState>;
+  setRetrying(loop: SyncLoop, reason: string | null): Effect.Effect<void>;
 }
 
 export class StoreService extends Context.Service<StoreService, Store>()(
@@ -126,6 +149,27 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             );
             if (decided.length === 0) return { ...s, ackedThrough };
 
+            const toRejection = (
+              rejection: (typeof decided)[number],
+            ): Rejection => {
+              const entry = s.outbox.find(
+                (e) =>
+                  e.mutation.clientMutationId === rejection.clientMutationId,
+              );
+              if (entry === undefined) {
+                return { ...rejection, intent: null, name: null };
+              }
+              const { mutation } = entry;
+              const name =
+                mutation._tag === "AddItem"
+                  ? mutation.item.name
+                  : ((
+                      s.items.get(mutation.itemId) ??
+                      s.base.get(mutation.itemId)
+                    )?.name ?? null);
+              return { ...rejection, intent: mutation._tag, name };
+            };
+
             const retired = new Set(decided.map((r) => r.clientMutationId));
             const outbox = s.outbox.filter(
               (e) => !retired.has(e.mutation.clientMutationId),
@@ -135,7 +179,7 @@ export class StoreService extends Context.Service<StoreService, Store>()(
               outbox,
               ackedThrough,
               items: rebase(s.base, outbox, s.appliedVersion),
-              rejected: [...s.rejected, ...decided],
+              rejected: [...s.rejected, ...decided.map(toRejection)],
             };
           }),
         reconcile: (response) =>
@@ -184,6 +228,18 @@ export class StoreService extends Context.Service<StoreService, Store>()(
             ...s,
             syncFailure,
           }));
+        },
+        // Every retry of one outage names the same reason, so only a change
+        // is published.
+        setRetrying(loop, reason) {
+          return SubscriptionRef.updateSome(STORE, (s) =>
+            s.retrying[loop] === reason
+              ? Option.none()
+              : Option.some({
+                  ...s,
+                  retrying: { ...s.retrying, [loop]: reason },
+                }),
+          );
         },
         dismissRejected(ids) {
           return SubscriptionRef.updateAndGet(STORE, (s) => ({

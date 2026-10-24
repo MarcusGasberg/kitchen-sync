@@ -1,0 +1,144 @@
+/* A hairline of time with a dot for now, and a tick where each beat starts. */
+.scrub {
+  position: relative;
+}
+
+.range {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: var(--target);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: var(--rule);
+  background: var(--edge);
+}
+
+.range::-moz-range-track {
+  height: var(--rule);
+  background: var(--edge);
+}
+
+.range::-webkit-slider-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: calc(var(--rule) / 2 - 0.4375rem);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  appearance: none;
+}
+
+.range::-moz-range-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.range:focus-visible {
+  outline-offset: 0;
+}
+
+/* Inset by half the dot, so a tick sits where the dot's centre would. */
+.ticks {
+  position: absolute;
+  inset: 50% 0.4375rem auto;
+  height: 0.5rem;
+  translate: 0 -50%;
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  width: var(--rule);
+  height: 100%;
+  background: var(--text-3);
+}
+
+/* Waiting, while a fork is built: muted as a disabled button is, and no
+   pointer. */
+.range:disabled {
+  cursor: not-allowed;
+}
+
+.range:disabled::-webkit-slider-runnable-track {
+  background: var(--line);
+}
+
+.range:disabled::-moz-range-track {
+  background: var(--line);
+}
+
+.range:disabled::-webkit-slider-thumb {
+  background: var(--text-3);
+}
+
+.range:disabled::-moz-range-thumb {
+  background: var(--text-3);
+}
+
+.range:disabled + .ticks .tick {
+  background: var(--line);
+}
+
+/* Forced colours paint every background Canvas, which would leave only the
+   focus ring: the track, the dot and the ticks keep their own, in CanvasText,
+   and GrayText while the bar waits. */
+@media (forced-colors: active) {
+  .range,
+  .ticks {
+    forced-color-adjust: none;
+  }
+
+  .range::-webkit-slider-runnable-track {
+    background: CanvasText;
+  }
+
+  .range::-moz-range-track {
+    background: CanvasText;
+  }
+
+  .range::-webkit-slider-thumb {
+    background: CanvasText;
+  }
+
+  .range::-moz-range-thumb {
+    background: CanvasText;
+  }
+
+  .range:focus-visible {
+    outline-color: CanvasText;
+  }
+
+  .tick {
+    background: CanvasText;
+  }
+
+  .range:disabled::-webkit-slider-runnable-track {
+    background: GrayText;
+  }
+
+  .range:disabled::-moz-range-track {
+    background: GrayText;
+  }
+
+  .range:disabled::-webkit-slider-thumb {
+    background: GrayText;
+  }
+
+  .range:disabled::-moz-range-thumb {
+    background: GrayText;
+  }
+
+  .range:disabled + .ticks .tick {
+    background: GrayText;
+  }
+}

@@ -1,0 +1,346 @@
+/* The stage: the camera's window on the world, and under it a foot. */
+.stage {
+  display: grid;
+  row-gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The camera's window on the world: a fixed shape that clips the plane.
+   Nothing is drawn on it, so its edges are the page's. 16:10 from 45rem,
+   4:5 on a phone, never taller than most of the screen. It clips without
+   being a scroll container: a hidden overflow still scrolls to a focused
+   control, a find in the page or a screen reader's cursor outside the frame,
+   and nothing would scroll it back. `hidden` stays for browsers without
+   `clip`. */
+.viewport {
+  position: relative;
+  overflow: hidden;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: hidden, above, is the fallback for browsers without clip. */
+  overflow: clip;
+  inline-size: 100%;
+  aspect-ratio: 16 / 10;
+  max-block-size: 80svh;
+}
+
+@media (max-width: 44.99rem) {
+  .viewport {
+    aspect-ratio: 4 / 5;
+    max-block-size: 75svh;
+  }
+}
+
+/* How far the notes' share, and the room under a wide or a table frame, have
+   faded the plane out: 0 to 1. Registered, so they ease. */
+@property --share-on {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --room-on {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* The lens over the plane: the window's four edges fade to the page over
+   24 px (FEATHER_PX in note-placement.ts), so no glyph is sliced at them.
+   While notes show beside the subjects, the plane also fades out from
+   `--fade-from` (the framing margin before their share, set by the stage)
+   to `--share-from`, so their words sit on the page and a subject framed
+   against the share keeps full ink. A wide or a table hold keeps its whole
+   frame; its notes go in the room under it, where the plane fades out the
+   same way: from the frame's foot (`--room-fade-from`) to the room's top
+   (`--room-from`). The share and the room come and go with their notes,
+   easing as the notes' leader draws (300 ms), so the plane never drops out
+   or comes back in one frame; the stage keeps their edges set while they
+   go. The layers intersect. A mask reads alpha alone: #000 is opaque, never
+   a colour on screen. Forced colours keep the feather too: a line fading to
+   a partial CanvasText within 24 px of the edge is better than a glyph
+   sliced at it. */
+.lens {
+  --feather: var(--space-5);
+  --across: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--feather),
+    #000 calc(100% - var(--feather)),
+    transparent
+  );
+  --down: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--feather),
+    #000 calc(100% - var(--feather)),
+    transparent
+  );
+  --share: linear-gradient(
+    to right,
+    #000 var(--fade-from, 100%),
+    rgb(0 0 0 / calc(1 - var(--share-on))) var(--share-from, 100%)
+  );
+  --room: linear-gradient(
+    to bottom,
+    #000 var(--room-fade-from, 100%),
+    rgb(0 0 0 / calc(1 - var(--room-on))) var(--room-from, 100%)
+  );
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: var(--across), var(--down), var(--share), var(--room);
+  mask-image: var(--across), var(--down), var(--share), var(--room);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  transition:
+    --share-on 300ms var(--ease-out),
+    --room-on 300ms var(--ease-out);
+}
+
+.lens[data-notes] {
+  --share-on: 1;
+}
+
+.lens[data-room] {
+  --room-on: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lens {
+    transition: none;
+  }
+}
+
+/* Under the window, never over the plane, and at least `--foot-min` tall (set
+   by the stage), so the controls under it hold still. During a scene on a
+   narrow viewport it holds the hold's notes, and keeps two notes and the gap
+   between them however few there are, so the page holds still from hold to
+   hold. In free play it keeps one control's height: resting wide, a quiet
+   line at its start says that zooming exists; with something shown up close,
+   the way back to every device sits at its end. */
+.foot {
+  min-block-size: var(--foot-min);
+}
+
+.foot[data-foot="free"] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* The hint: Stage Note type, quiet, where a phone's scene set its notes. */
+.hint {
+  margin: 0;
+  margin-inline-end: auto;
+  color: var(--text-3);
+  font: 400 var(--text-sm) / 1.45 var(--font-text);
+  text-wrap: pretty;
+}
+
+/* One of the hint's two wordings: tap where the pointer cannot hover, click
+   where it can. */
+@media (hover: none) {
+  .mouse {
+    display: none;
+  }
+}
+
+@media (hover: hover) {
+  .touch {
+    display: none;
+  }
+}
+
+/* The world plane: laid out once, at the app's own density, at every screen
+   size, and placed by the camera's one transform. A container, so the
+   server's row lays itself out by the plane's own width: at least 47rem, so
+   its basin always sits beside its list. */
+.plane {
+  container: stage / inline-size;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  transform-origin: 0 0;
+  display: grid;
+  gap: calc(var(--space-7) + var(--space-6));
+  inline-size: max(
+    47rem,
+    calc(var(--clients) * 20rem + (var(--clients) - 1) * var(--space-6))
+  );
+  padding: var(--space-6);
+  /* The page sets border-box everywhere; the width above is the content's, so
+     the padding comes on top of it and the container query sees 47rem. */
+  box-sizing: content-box;
+}
+
+/* A behind tag grown to a narrow window's word floor (`useWordFloor`) covers
+   the rest of its own state line: it takes the page's halo, as a wire's label
+   does, so the small words under it do not print through. */
+.plane [data-word="behind"][data-grown] {
+  text-shadow:
+    0 0 3px var(--page),
+    0 0 3px var(--page),
+    0 0 3px var(--page);
+}
+
+@media (forced-colors: active) {
+  .plane [data-word="behind"][data-grown] {
+    text-shadow: none;
+    background-color: Canvas;
+  }
+}
+
+/* Free play's camera glides to a device and back; a scene's moves are drawn
+   frame by frame from its cut. */
+.gliding {
+  transition: transform 600ms var(--ease-out);
+}
+
+/* While a scene's camera moves (a move, an ease within a frame, a narrow
+   window's pan), the plane stays on the compositor. */
+.moving {
+  will-change: transform;
+}
+
+.server {
+  min-width: 0;
+}
+
+.serverBody {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* The basin first, its compact list in a 22rem column beside it, both from
+   the row's top. */
+@container stage (min-width: 47rem) {
+  .serverBody {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    grid-template-areas: "basin list";
+    align-items: start;
+    gap: var(--space-6);
+  }
+
+  .serverList {
+    grid-area: list;
+  }
+
+  .serverBasin {
+    grid-area: basin;
+  }
+}
+
+/* Each the box of its own Show in free play. */
+.serverList,
+.serverBasin {
+  position: relative;
+  min-width: 0;
+}
+
+/* One row of devices, however many: each the width of a phone's list. */
+.devices {
+  display: grid;
+  grid-template-columns: repeat(var(--clients), 20rem);
+  gap: var(--space-6);
+  align-items: start;
+  /* The light table's blend stays among the devices: stacked basins blend
+     with each other, not with the page. */
+  isolation: isolate;
+}
+
+.device {
+  position: relative;
+  min-width: 0;
+}
+
+/* The light table: a device's basin slides to the stack (the stage sets the
+   transform each frame from the cut) and sits over the device's other
+   content. Stacked, the basins blend so identical patterns register as one
+   and a pattern that disagrees shows doubled rings: by day the darker ink
+   wins, at night the lighter, whichever the page shows. */
+.stack {
+  position: relative;
+}
+
+.stack[data-stacked] {
+  z-index: 1;
+  mix-blend-mode: darken;
+}
+
+@media (prefers-color-scheme: dark) {
+  .stack[data-stacked] {
+    mix-blend-mode: lighten;
+  }
+}
+
+:global([data-theme="day"]) .stack[data-stacked] {
+  mix-blend-mode: darken;
+}
+
+:global([data-theme="night"]) .stack[data-stacked] {
+  mix-blend-mode: lighten;
+}
+
+/* High Contrast draws the basins in the system's colours: no blend, each at
+   half strength, so a disagreement still doubles. */
+@media (forced-colors: active) {
+  .stack[data-stacked],
+  :global([data-theme]) .stack[data-stacked] {
+    mix-blend-mode: normal;
+    opacity: 0.5;
+  }
+}
+
+/* A device's outbox tray, under its header: one line, which scrolls before
+   it widens the column. */
+.tray {
+  min-width: 0;
+}
+
+/* The spotlight: what a shot is not about steps back. */
+.server,
+.device {
+  transition: opacity var(--motion-state) var(--ease-out);
+}
+
+.server[data-dim],
+.device[data-dim] {
+  opacity: 0.35;
+}
+
+/* A reload's dip is drawn frame by frame from the clock: no transition
+   smooths it. A dimmed device dips from its dim. */
+.device[data-reloading] {
+  opacity: var(--dip);
+  transition: none;
+}
+
+.device[data-dim][data-reloading] {
+  opacity: calc(var(--dip) * 0.35);
+}
+
+/* Free play, while resting wide leaves the rows too small to use (under 0.75,
+   FOCUS_BELOW) or a pane cut off: each device's whole pane, and the server's
+   basin and its list each, is one button that shows it up close. Its focus
+   ring keeps its 2 px on screen at any scale. */
+.show {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.show:focus-visible {
+  outline: calc(2px / var(--camera-scale, 1)) solid var(--text);
+  outline-offset: calc(var(--space-2) / var(--camera-scale, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gliding,
+  .server,
+  .device {
+    transition: none;
+  }
+}

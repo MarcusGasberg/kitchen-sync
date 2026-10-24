@@ -1,0 +1,73 @@
+/* The list is a container, so a row decides its form by the room it has, not
+   by the viewport. An inline-size container: its parent must give it a
+   definite width, or a content-sized parent collapses it. */
+.list {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--space-6);
+}
+
+.rejected {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--space-2);
+}
+
+/* No margin of its own at any level: a figure's heads are h4s, which the
+   page's reset does not reach. */
+.title {
+  margin: 0;
+  color: var(--text-3);
+  font: 500 var(--text-xs) / 1.2 var(--font-text);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.left {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.2 var(--font-mono);
+}
+
+/* Compact: category groups closer and their heads tighter over their rows. */
+.list[data-density="compact"] {
+  display: block;
+}
+
+.list[data-density="compact"] > * + * {
+  margin-top: var(--space-4);
+}
+
+.list[data-density="compact"] .head {
+  padding-bottom: var(--space-1);
+}
+
+/* Two columns, asked for (`columns={2}`, the server's list in a figure): the
+   groups flow in two where the list has room for two 10rem ones, a group
+   never split across them. A device's list keeps one at any width. */
+.list[data-columns="2"] {
+  columns: 10rem 2;
+  column-gap: var(--space-5);
+}
+
+.list[data-columns="2"] > * {
+  break-inside: avoid;
+}
+
+/* A group made only for rows the shot ahead lands. */
+.group[data-presence="arriving"] {
+  visibility: hidden;
+}
+
+.empty {
+  max-width: 34ch;
+  padding-block: var(--space-6);
+  color: var(--text-2);
+  font-size: var(--text-lg);
+  line-height: 1.55;
+}

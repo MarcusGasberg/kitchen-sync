@@ -1,0 +1,384 @@
+.row {
+  --remove-width: var(--target);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5rem var(--remove-width);
+  align-items: center;
+  column-gap: var(--space-2);
+  min-height: var(--row-height);
+  border-top: var(--rule) solid var(--line);
+  /* Holds a scene's touch at the control it lands on. */
+  position: relative;
+}
+
+.row[data-readonly="true"] {
+  grid-template-columns: minmax(0, 1fr) 4.5rem;
+}
+
+/* A scene's row: read-only, its remove control an inert replica in the live
+   row's column, so the hand-over moves nothing. */
+.row[data-readonly="true"][data-controls="inert"] {
+  grid-template-columns: minmax(0, 1fr) 4.5rem var(--remove-width);
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: var(--target);
+}
+
+label.label {
+  cursor: pointer;
+}
+
+/* Synced, the row shows no state: the name takes the state's slot too, and
+   gives it back when a change waits. The row's box stays the same. */
+.row[data-sync="synced"] .label {
+  grid-column: span 2;
+}
+
+/* Compact: a read-only row, nothing on it a target, set closer. The mark,
+   the name and any state keep their form. */
+.row[data-density="compact"] {
+  min-height: var(--row-height-compact);
+}
+
+.row[data-density="compact"] .label {
+  min-height: 0;
+}
+
+/* An empty ring; checked, a drop of the text's ink. */
+.check {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  border: var(--rule) solid var(--edge);
+  border-radius: 50%;
+  background: transparent;
+  cursor: inherit;
+  appearance: none;
+  transition:
+    background-color var(--motion-state) var(--ease-out),
+    border-color var(--motion-state) var(--ease-out);
+}
+
+.check:checked,
+.row[data-checked="true"] .check {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+.what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount {
+  font-weight: 600;
+}
+
+.row[data-checked="true"] .what {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-thickness: var(--rule);
+}
+
+/* Compact rows sit in narrow columns: a name that will not fit wraps, the
+   row growing to hold it, rather than losing its end. */
+.row[data-density="compact"] .what {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* The #id over the state's word, beside a ring: hollow while pending, half
+   filled once acked. */
+.state {
+  display: grid;
+  grid-template-columns: 0.625rem auto;
+  column-gap: 0.375rem;
+  align-items: center;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1.25 var(--font-mono);
+}
+
+.ring {
+  grid-row: 1 / 3;
+  width: 0.625rem;
+  height: 0.625rem;
+  border: var(--rule) solid currentColor;
+  border-radius: 50%;
+}
+
+.row[data-sync="acked"] .ring {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+
+.word {
+  font-family: var(--font-text);
+}
+
+.remove {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  width: var(--remove-width);
+  height: var(--target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: 500 var(--text-sm) / 1 var(--font-text);
+  cursor: pointer;
+  transition: color var(--motion-state) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .remove:hover {
+    color: var(--text);
+  }
+}
+
+.cross {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline: auto;
+}
+
+.removeLabel {
+  display: none;
+}
+
+.remove[data-inert] {
+  cursor: default;
+}
+
+/* A classic phone while it saves: its controls recede as a disabled
+   button does, and take nothing. */
+.row[data-disabled] .check,
+.row[data-disabled] .remove {
+  border-color: var(--line);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .row[data-disabled] .remove:hover {
+    color: var(--text-3);
+  }
+}
+
+/* Where a touch lands: a point on the control, with the ring centred on
+   it. */
+.touch {
+  position: absolute;
+  inset-block-start: 50%;
+  inline-size: 0;
+  block-size: 0;
+  pointer-events: none;
+}
+
+/* The checkbox's middle: half its 1.25rem in from the row's start. */
+.touch[data-at="check"] {
+  inset-inline-start: 0.625rem;
+}
+
+/* The remove control's middle. */
+.touch[data-at="remove"] {
+  inset-inline-end: calc(var(--remove-width) / 2);
+}
+
+/* An edit or a move lands on the name. */
+.touch[data-at="row"] {
+  inset-inline-start: 50%;
+}
+
+/* Given 30rem of list, the control reads as a word with its mark. */
+@container (min-width: 30rem) {
+  .row {
+    --remove-width: 6rem;
+  }
+
+  .removeLabel {
+    display: inline;
+  }
+
+  .cross {
+    margin-inline: 0;
+  }
+}
+
+/* High Contrast drops backgrounds, which would empty the acked ring and the
+   checked circle: both keep their fill in the system's text colour. */
+@media (forced-colors: active) {
+  .check,
+  .ring {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+
+  .check:checked,
+  .row[data-checked="true"] .check {
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+
+  .check:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .row[data-sync="acked"] .ring {
+    background: linear-gradient(90deg, CanvasText 50%, transparent 50%);
+  }
+}
+
+/* A figure draws a row's latest change on its own clock (a `RowLook`): a
+   wash of fresh ink that dries (--row-wet, 1 to 0) and, for a new row, its
+   ink spreading in from the start of the line (--row-inked, 0 to 1). The
+   stage sets both every frame, so nothing here transitions: a pause holds
+   the look and a seek lands on its own. A new row takes its full height at
+   once; only its ink moves. */
+.row[data-change] {
+  background-color: color-mix(
+    in oklab,
+    var(--ink-fresh) calc(var(--row-wet, 0) * 14%),
+    transparent
+  );
+}
+
+.row[data-change="added"] {
+  clip-path: inset(0 calc((1 - var(--row-inked, 1)) * 100%) 0 0);
+}
+
+/* High Contrast drops the wash: a row is marked only while it is wet, and
+   keeps a rule at its start in the system's text colour for that long. */
+@media (forced-colors: active) {
+  .row[data-change] {
+    position: relative;
+  }
+
+  .row[data-change]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--rule);
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}
+
+/* A check soaks in: ink fills the box from its centre (--row-soak, how full
+   it is) and a strike draws through the name from its start (--row-strike,
+   how much is drawn). An uncheck drains and retracts the same way, and a
+   removed row is struck as it goes. A row the figure is not marking keeps
+   the drawing above. */
+.row[data-change="checked"] .check,
+.row[data-change="unchecked"] .check {
+  border-color: color-mix(
+    in oklab,
+    var(--text) calc(var(--row-soak, 0) * 100%),
+    var(--edge)
+  );
+  background: radial-gradient(
+    circle closest-side,
+    var(--text) calc(var(--row-soak, 0) * 100%),
+    transparent calc(var(--row-soak, 0) * 100%)
+  );
+  transition: none;
+}
+
+.row[data-change="checked"] .what,
+.row[data-change="unchecked"] .what,
+.row[data-change="removed"] .what {
+  position: relative;
+  text-decoration: none;
+}
+
+.row[data-change="checked"] .what::after,
+.row[data-change="unchecked"] .what::after,
+.row[data-change="removed"] .what::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 55%;
+  height: var(--rule);
+  background: currentColor;
+  transform: scaleX(var(--row-strike, 0));
+  transform-origin: 0 50%;
+}
+
+/* A removed row holds its place while it goes (--row-leaving, 0 to 1): it
+   fades to the spotlight's 35%, struck, and the stage then drops it in one
+   step. Under reduced motion that struck, faded row is its still form. */
+.row[data-presence="leaving"] {
+  opacity: calc(1 - 0.65 * var(--row-leaving, 0));
+}
+
+@media (forced-colors: active) {
+  .row[data-change="checked"] .check,
+  .row[data-change="unchecked"] .check {
+    border-color: CanvasText;
+    background: radial-gradient(
+      circle closest-side,
+      CanvasText calc(var(--row-soak, 0) * 100%),
+      transparent calc(var(--row-soak, 0) * 100%)
+    );
+  }
+
+  .row[data-change] .what::after {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}
+
+/* A row the shot ahead lands: its place kept, unseen, while the camera
+   moves to where it will be. */
+.row[data-presence="arriving"] {
+  visibility: hidden;
+}
+
+/* A ghost: a row the server holds that this device has not pulled. Its
+   place is kept, its edge dashed in the third ink, its words faint, and it
+   says so in the state's slot, so its name gives that slot back. */
+.row[data-presence="ghost"] {
+  outline: var(--rule) dashed var(--ink-3);
+  outline-offset: calc(-1 * var(--rule));
+  color: var(--text-3);
+}
+
+.row[data-presence="ghost"] .label {
+  grid-column: auto;
+}
+
+.row[data-presence="ghost"] .check {
+  border-style: dashed;
+  border-color: var(--ink-3);
+}
+
+/* It keeps the remove column, so its box is the live row's, and hides the
+   cross: the device could never make that removal. */
+.row[data-presence="ghost"] .remove[data-inert] {
+  visibility: hidden;
+}
+
+.ghost {
+  color: var(--text-3);
+  font: 400 var(--text-xs) / 1.25 var(--font-text);
+}
+
+@media (forced-colors: active) {
+  .row[data-presence="ghost"] {
+    outline-color: CanvasText;
+  }
+
+  .row[data-presence="ghost"] .check {
+    border-color: CanvasText;
+  }
+}

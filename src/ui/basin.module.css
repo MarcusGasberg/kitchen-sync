@@ -1,0 +1,121 @@
+/* Recessed water: the basin sits a little below the still margin around it.
+   The shade is an overlay, since the canvas would paint over an inset shadow
+   on the box itself. */
+.basin {
+  position: relative;
+  aspect-ratio: 5 / 2;
+  overflow: hidden;
+  border-radius: var(--radius-basin);
+  background: var(--water);
+}
+
+.basin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 2px 8px light-dark(rgb(10 26 51 / 0.12), rgb(0 0 0 / 0.55)),
+    inset 0 0 0 var(--rule) var(--line);
+  pointer-events: none;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* High Contrast drops the shade and its ring: a plain edge in the system's
+   text colour keeps the water's shape. */
+@media (forced-colors: active) {
+  .basin {
+    border: var(--rule) solid CanvasText;
+  }
+}
+
+/* A version set just outside its item's outer ring, on clear water: its spot
+   is on the ring's edge, and the label hangs off it to its side. A halo of
+   water keeps it legible where a ring runs close, without boxing it. */
+.label {
+  position: absolute;
+  z-index: 1;
+  translate: var(--space-1) -50%;
+  color: var(--text-2);
+  font: 400 var(--text-xs) / 1 var(--font-mono);
+  text-shadow:
+    0 0 3px var(--water),
+    0 0 3px var(--water);
+  pointer-events: none;
+}
+
+.label[data-side="west"] {
+  translate: calc(-100% - var(--space-1)) -50%;
+}
+
+.label[data-side="south"] {
+  translate: -50% var(--space-1);
+}
+
+.label[data-side="north"] {
+  translate: -50% calc(-100% - var(--space-1));
+}
+
+.label[data-side="southeast"] {
+  translate: var(--space-1) var(--space-1);
+}
+
+.label[data-side="northeast"] {
+  translate: var(--space-1) calc(-100% - var(--space-1));
+}
+
+.label[data-side="southwest"] {
+  translate: calc(-100% - var(--space-1)) var(--space-1);
+}
+
+.label[data-side="northwest"] {
+  translate: calc(-100% - var(--space-1)) calc(-100% - var(--space-1));
+}
+
+@media (forced-colors: active) {
+  .label {
+    color: CanvasText;
+    text-shadow: none;
+  }
+}
+
+/* An item's rings, for a figure's camera and notes: an invisible square on
+   the item's landmark, never a target. */
+.anchor {
+  position: absolute;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+
+/* Where a ghost's drop will land once the device pulls it: a dashed ring of
+   the third ink over the water, a hairline at any zoom. The basin is 5:2,
+   the world's own shape, so the world's units map onto it evenly. */
+.ghosts {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ghosts circle {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: calc(var(--rule) / var(--camera-scale, 1));
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (forced-colors: active) {
+  .ghosts circle {
+    stroke: CanvasText;
+  }
+}
