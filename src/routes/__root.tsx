@@ -1,4 +1,5 @@
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { SiteNavigation } from "#/ui/site-navigation";
 import { ThemeColor } from "#/ui/theme-color";
 import appCss from "../styles.css?url";
 
@@ -27,6 +28,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <ThemeColor />
       </head>
       <body>
+        <SiteNavigation />
         {children}
         <Scripts />
       </body>

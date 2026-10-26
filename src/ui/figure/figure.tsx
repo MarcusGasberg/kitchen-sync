@@ -46,6 +46,7 @@ import { BreakingControls, WeatherControl } from "./breaking-controls";
 import styles from "./figure.module.css";
 import { browserFigureHost, type FigureHost } from "./figure-host";
 import { PaceControls, PlayerControls } from "./player-controls";
+import { PresentationControls } from "./presentation-controls";
 import { sharedMarkAt } from "./shared-mark";
 import { type Cue, type FreeFocus, Stage } from "./stage";
 import { NO_MARKS, stageMarksAt } from "./stage-marks";
@@ -67,6 +68,8 @@ export interface FigureProps {
   // rebuild on every render.
   readonly scene: Scene;
   readonly title: string;
+  // Manual chapter navigation and playback that holds at each beat's end.
+  readonly presentation?: boolean;
   // Opens in free play at the scene's end, as chapter 0 does.
   readonly free?: boolean;
   // The controls that break the network; one offline toggle per device if
@@ -117,6 +120,7 @@ export function Figure(props: FigureProps) {
 function FigureBody({
   scene,
   title,
+  presentation,
   free,
   breaks,
   code,
@@ -128,6 +132,7 @@ function FigureBody({
   const titleId = useId();
   const { player, view, error } = usePlayer(element, scene, {
     free,
+    presentation,
     check: import.meta.env.DEV,
     host,
   });
@@ -312,7 +317,11 @@ function FigureBody({
   // A restart opens free play afresh, however far back the reader had gone.
   const restart = (restarting: Player) => {
     opened.current = null;
-    run(restarting.restart);
+    run(
+      presentation
+        ? restarting.pause.pipe(Effect.andThen(restarting.restart))
+        : restarting.restart,
+    );
   };
 
   // A defect in a playing world stops the figure in place. This is the same
@@ -327,6 +336,8 @@ function FigureBody({
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    // Presentation keys work across the page, not just inside the figure.
+    if (presentation && !inFreePlay) return;
     if (player === null || view === null) return;
     if (event.target instanceof Element && event.target.closest(CONTROLS)) {
       return;
@@ -395,6 +406,7 @@ function FigureBody({
           : `${styles.figure} ${styles.withCode}`
       }
       aria-labelledby={titleId}
+      data-presentation={(presentation && !inFreePlay) || undefined}
       onKeyDown={onKeyDown}
     >
       <div className={styles.copy}>
@@ -409,17 +421,25 @@ function FigureBody({
       </div>
 
       <div className={styles.playback}>
-        {view !== null && player !== null && (
-          <PlayerControls
-            view={view}
-            onPlay={() => run(player.play)}
-            onPause={() => run(player.pause)}
-            onPrevious={() => run(player.previous)}
-            onNext={() => run(player.next)}
-            onRestart={() => restart(player)}
-            onScrub={(at) => run(player.scrub(at))}
-          />
-        )}
+        {view !== null &&
+          player !== null &&
+          (presentation && !inFreePlay ? (
+            <PresentationControls
+              player={player}
+              view={view}
+              onYourTurn={() => handOver(player.yourTurn)}
+            />
+          ) : (
+            <PlayerControls
+              view={view}
+              onPlay={() => run(player.play)}
+              onPause={() => run(player.pause)}
+              onPrevious={() => run(player.previous)}
+              onNext={() => run(player.next)}
+              onRestart={() => restart(player)}
+              onScrub={(at) => run(player.scrub(at))}
+            />
+          ))}
       </div>
 
       {/* biome-ignore lint/a11y/useSemanticElements: the stage is not a form group; the role names the world whose keys it takes */}
@@ -476,7 +496,7 @@ function FigureBody({
 
       {/* After the stage in reading order, as on a phone they are under it. */}
       <div className={styles.pace}>
-        {view !== null && player !== null && (
+        {(!presentation || inFreePlay) && view !== null && player !== null && (
           <PaceControls
             view={view}
             onSpeed={(speed) => run(player.setSpeed(speed))}
@@ -486,7 +506,8 @@ function FigureBody({
       </div>
 
       <div className={styles.breaking}>
-        {view !== null &&
+        {(!presentation || inFreePlay) &&
+          view !== null &&
           player !== null &&
           weather !== undefined &&
           weatherNow !== undefined && (
@@ -496,18 +517,21 @@ function FigureBody({
               onWeather={(w) => handOver(player.act(setWeather(weather, w)))}
             />
           )}
-        {view !== null && player !== null && snapshot !== null && (
-          <BreakingControls
-            breaks={offered}
-            offline={snapshot.offline}
-            disabled={view.busy}
-            onBreak={(b) =>
-              handOver(
-                player.act(breakAction(b, snapshot.offline.has(b.client))),
-              )
-            }
-          />
-        )}
+        {(!presentation || inFreePlay) &&
+          view !== null &&
+          player !== null &&
+          snapshot !== null && (
+            <BreakingControls
+              breaks={offered}
+              offline={snapshot.offline}
+              disabled={view.busy}
+              onBreak={(b) =>
+                handOver(
+                  player.act(breakAction(b, snapshot.offline.has(b.client))),
+                )
+              }
+            />
+          )}
       </div>
 
       {code !== undefined && (

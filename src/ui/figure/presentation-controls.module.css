@@ -1,0 +1,37 @@
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.position {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.position select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--target);
+  border: var(--rule) solid var(--edge);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
+  background: var(--page);
+  color: var(--text);
+}
+
+.hint {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}

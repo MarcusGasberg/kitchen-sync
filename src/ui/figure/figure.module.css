@@ -166,3 +166,41 @@
     max-block-size: calc(100dvh - 2 * var(--space-5));
   }
 }
+
+/* Presentations keep their navigation above the world at every width.
+   No free-play controls take up space while the presenter tells the story. */
+.figure[data-presentation] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+  grid-template-areas: "copy" "playback" "stage";
+}
+
+.figure.withCode[data-presentation] {
+  grid-template-areas: "copy" "playback" "stage" "code";
+}
+
+[data-presentation] .pace,
+[data-presentation] .breaking {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .figure[data-presentation] {
+    grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr);
+    grid-template-areas: "copy playback" "stage stage";
+    gap: var(--space-5);
+  }
+
+  .figure.withCode[data-presentation] {
+    grid-template-areas: "copy playback" "stage code";
+  }
+
+  [data-presentation] .code {
+    position: static;
+    max-block-size: calc(100svh - 16rem);
+  }
+
+  [data-presentation] [data-anchor="viewport"] {
+    max-block-size: max(15rem, calc(100svh - 19rem));
+  }
+}

@@ -101,6 +101,8 @@ export interface PlayerOptions {
   // Plays once visible. False under reduced motion, where nothing starts on
   // its own.
   readonly autoplay: boolean;
+  // Presentation playback holds on each step's final frame until advanced.
+  readonly pauseAtSteps?: boolean;
   // Opens in free play at the scene's end, as chapter 0 does.
   readonly free?: boolean;
   // Development: compare every fork with the recording; on a difference, log
@@ -127,6 +129,8 @@ export interface Player {
   // Moves the playhead `screen` milliseconds into the scene's cut. In free
   // play, which has no cut, it does nothing.
   readonly seek: (screen: number) => Effect.Effect<void>;
+  // Opens a scene step paused, even when several steps have zero duration.
+  readonly seekStep: (step: number) => Effect.Effect<void>;
   readonly setSpeed: (speed: Speed) => Effect.Effect<void>;
   // Whether the figure may run: half in view, its tab shown, and on a phone
   // the one figure running.
@@ -395,15 +399,38 @@ export const makePlayer = (
         Effect.sync(() => {
           if (failure !== null) return;
           if (live === null) {
+            const step = cut.steps[stepAt(cut, cursor)];
+            const last =
+              step === undefined ? undefined : cut.shots[step.end - 1];
+            if (
+              options.pauseAtSteps &&
+              step !== undefined &&
+              last !== undefined &&
+              cursor.shot === step.end - 1 &&
+              cursor.offset >= last.screen
+            ) {
+              cursor = pastOpening(cut, stepStart(cut, stepAt(cut, cursor)));
+              jumped = true;
+            }
             // From the end the opening is new to the reader, so it is held,
             // and the playhead jumps there: the figure shows the opening at
             // once instead of settling backwards into it. Otherwise they had
             // this step's opening in front of them.
-            if (atEnd(cut, cursor)) {
+            else if (atEnd(cut, cursor)) {
               cursor = openingCursor();
               jumped = true;
             } else {
               cursor = pastOpening(cut, cursor);
+            }
+            // An opening-only step has no action to skip to. Keep its own
+            // final frame rather than skipping into the next chapter.
+            if (
+              options.pauseAtSteps &&
+              step !== undefined &&
+              last !== undefined &&
+              cursor.shot >= step.end
+            ) {
+              cursor = { shot: step.end - 1, offset: last.screen };
             }
           }
           playing = true;
@@ -503,6 +530,16 @@ export const makePlayer = (
             publish();
           }),
         ),
+      seekStep: (step) =>
+        locked(
+          Effect.sync(() => {
+            if (live !== null) return;
+            cursor = stepStart(cut, step);
+            playing = false;
+            jumped = true;
+            publish();
+          }),
+        ),
       setSpeed: (next) =>
         locked(
           Effect.sync(() => {
@@ -562,9 +599,27 @@ export const makePlayer = (
                   : 0;
                 const budget = frame * speed;
                 if (live === null) {
-                  const moved = advance(cut, cursor, budget);
-                  cursor = moved.cursor;
-                  if (moved.ended) playing = false;
+                  const step = cut.steps[stepAt(cut, cursor)];
+                  const last =
+                    step === undefined ? undefined : cut.shots[step.end - 1];
+                  const end =
+                    step === undefined
+                      ? cursor
+                      : {
+                          shot: step.end - 1,
+                          offset: last?.screen ?? 0,
+                        };
+                  if (
+                    options.pauseAtSteps &&
+                    screenOf(cut, cursor) + budget >= screenOf(cut, end)
+                  ) {
+                    cursor = end;
+                    playing = false;
+                  } else {
+                    const moved = advance(cut, cursor, budget);
+                    cursor = moved.cursor;
+                    if (moved.ended) playing = false;
+                  }
                 } else if (at < now) {
                   // Behind the live edge, history plays back and nothing
                   // runs. A long quiet wait plays in SKIP_SCREEN_MILLIS, as a

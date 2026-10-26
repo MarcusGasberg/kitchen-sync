@@ -25,6 +25,22 @@ This project uses [Vitest](https://vitest.dev/) for testing. You can run the tes
 npm run test
 ```
 
+## Presentation mode
+
+Open `/present/prologue` (also linked from `/lab`). It starts paused. **Play
+step** plays the current step and holds its final frame; **Previous**, **Next**
+and the step menu play another step. Use ← / → or Page Up / Page Down to
+navigate, Space to play or pause, and Home / End for the first / last step.
+Native fields keep their keyboard controls. **Full screen** is available where
+the browser supports it; Escape leaves full screen. The last step's **Your
+turn** opens the interactive world, and Restart returns to the presentation.
+
+Future blog parts can render `Presentation` from `src/ui/presentation.tsx` with
+their own `name`, `title`, `scene`, and optional `code` and `weather`. Navigation
+comes from the scene's beats (beat zero prepares the world), not a separate
+prologue-only slide list. This mode presents the existing scene; it does not
+add the still-unwritten blog prose.
+
 ## Styling
 
 This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.

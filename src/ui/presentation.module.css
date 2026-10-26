@@ -1,0 +1,35 @@
+.presentation {
+  min-height: 100svh;
+  max-width: 100rem;
+  margin-inline: auto;
+  padding: var(--space-5);
+  background: var(--page);
+  overflow-y: auto;
+}
+
+.presentation:fullscreen {
+  max-width: none;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--rule) solid var(--line);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.header h1 {
+  flex: 1;
+  font: inherit;
+}
+
+@media (min-width: 64rem) {
+  .presentation {
+    padding-inline: var(--space-7);
+  }
+}

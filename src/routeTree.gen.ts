@@ -15,6 +15,7 @@ import { Route as LabRouteImport } from './routes/lab'
 import { Route as SpecimenRouteImport } from './routes/specimen'
 import { Route as ApiPullRouteImport } from './routes/api/pull'
 import { Route as ApiPushRouteImport } from './routes/api/push'
+import { Route as PresentPrologueRouteImport } from './routes/present.prologue'
 import { Route as ApiPullStreamRouteImport } from './routes/api/pull/stream'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const ApiPushRoute = ApiPushRouteImport.update({
   path: '/api/push',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PresentPrologueRoute = PresentPrologueRouteImport.update({
+  id: '/present/prologue',
+  path: '/present/prologue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPullStreamRoute = ApiPullStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/specimen': typeof SpecimenRoute
   '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
+  '/present/prologue': typeof PresentPrologueRoute
   '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/specimen': typeof SpecimenRoute
   '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
+  '/present/prologue': typeof PresentPrologueRoute
   '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/specimen': typeof SpecimenRoute
   '/api/pull': typeof ApiPullRouteWithChildren
   '/api/push': typeof ApiPushRoute
+  '/present/prologue': typeof PresentPrologueRoute
   '/api/pull/stream': typeof ApiPullStreamRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/specimen'
     | '/api/pull'
     | '/api/push'
+    | '/present/prologue'
     | '/api/pull/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/specimen'
     | '/api/pull'
     | '/api/push'
+    | '/present/prologue'
     | '/api/pull/stream'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/specimen'
     | '/api/pull'
     | '/api/push'
+    | '/present/prologue'
     | '/api/pull/stream'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   SpecimenRoute: typeof SpecimenRoute
   ApiPullRoute: typeof ApiPullRouteWithChildren
   ApiPushRoute: typeof ApiPushRoute
+  PresentPrologueRoute: typeof PresentPrologueRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -164,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/present/prologue': {
+      id: '/present/prologue'
+      path: '/present/prologue'
+      fullPath: '/present/prologue'
+      preLoaderRoute: typeof PresentPrologueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/pull/stream': {
       id: '/api/pull/stream'
       path: '/stream'
@@ -192,6 +212,7 @@ const rootRouteChildren: RootRouteChildren = {
   SpecimenRoute: SpecimenRoute,
   ApiPullRoute: ApiPullRouteWithChildren,
   ApiPushRoute: ApiPushRoute,
+  PresentPrologueRoute: PresentPrologueRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

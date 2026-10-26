@@ -18,6 +18,7 @@ import {
 
 interface UsePlayerOptions {
   readonly free?: boolean;
+  readonly presentation?: boolean;
   readonly check?: boolean;
   readonly host?: FigureHost;
   readonly one?: RunningOne;
@@ -58,6 +59,7 @@ export const usePlayer = (
 ): UsedPlayer => {
   const {
     free,
+    presentation,
     check,
     host = browserFigureHost,
     one = runningOne,
@@ -82,7 +84,12 @@ export const usePlayer = (
     let cancelled = false;
     let built: Player | null = null;
     const fiber = Effect.runFork(
-      build(scene, { autoplay: !host.reducedMotion(), free, check }).pipe(
+      build(scene, {
+        autoplay: !presentation && !host.reducedMotion(),
+        pauseAtSteps: presentation,
+        free,
+        check,
+      }).pipe(
         Effect.flatMap((made) =>
           Effect.sync(() => {
             built = made;
@@ -109,7 +116,7 @@ export const usePlayer = (
         ),
       );
     };
-  }, [near, scene, free, check, host, build]);
+  }, [near, scene, free, presentation, check, host, build]);
 
   const subscribe = useCallback(
     (listener: () => void) => player?.subscribe(listener) ?? ignore(),
@@ -140,7 +147,12 @@ export const usePlayer = (
     () => one.leads(id),
     () => false,
   );
-  const visible = ratio >= 0.5 && pageVisible && (!narrow || leads);
+  // A presentation is manually played and can be taller than the viewport
+  // (stage plus code on a phone). Do not require half its full height to fit.
+  const visible =
+    (presentation ? ratio > 0 : ratio >= 0.5) &&
+    pageVisible &&
+    (!narrow || leads);
   useEffect(() => {
     if (player !== null) Effect.runFork(player.setVisible(visible));
   }, [player, visible]);

@@ -147,6 +147,46 @@ const addOn = (client: string, name: string) => (world: WorldHandle) =>
   );
 
 describe("makePlayer", () => {
+  it.effect(
+    "presentation playback holds each step's final frame and replays only that step",
+    () =>
+      Effect.gen(function* () {
+        // Both ordinary steps and steps sharing one world instant must stop;
+        // pausing by world time would run past the latter.
+        for (const source of [scene, stacked]) {
+          const player = yield* makePlayer(source, {
+            autoplay: false,
+            pauseAtSteps: true,
+          });
+          yield* player.setVisible(true);
+          yield* player.setSpeed(4);
+          for (const beat of [1, 2]) {
+            if (beat > 1) yield* player.next;
+            yield* player.play;
+            for (
+              let frame = 0;
+              frame < 1000 && player.view().playing;
+              frame++
+            ) {
+              yield* player.tick(100);
+            }
+            const held = player.view();
+            expect(held.playing).toBe(false);
+            expect(held.beat).toBe(beat);
+            expect(held.at).toBe(held.beats[beat]?.endedAt);
+            yield* player.tick(100);
+            expect(player.view().screen).toBe(held.screen);
+            yield* player.play;
+            expect(player.view().playing).toBe(true);
+            expect(player.view().beat).toBe(beat);
+            expect(player.view().screen).toBeLessThan(held.screen ?? 0);
+            yield* player.pause;
+          }
+          yield* player.close;
+        }
+      }),
+  );
+
   it.effect("opens, replays and restarts on step 1 when it takes 0 ms", () =>
     Effect.gen(function* () {
       const instant: Scene = {
