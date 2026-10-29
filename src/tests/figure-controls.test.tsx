@@ -122,6 +122,9 @@ describe("PlayerControls", () => {
     expect(slowRateOf(viewOf())).toBeNull();
     expect(whereIs(on(1))).toBe("beat 2 of 2 · 1.25 s · 0.5×");
     expect(whereIs(on(0))).toBe("beat 2 of 2 · 1.25 s");
+    expect(
+      whereIs(viewOf({ cut: { ...cut, shots: [shot(1 / 15)] }, shot: 0 })),
+    ).toBe("beat 2 of 2 · 1.25 s · 0.067×");
     const { rerender } = render(
       <PlayerControls view={on(2)} {...handlers()} />,
     );

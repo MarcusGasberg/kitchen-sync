@@ -14,10 +14,11 @@ export const SKIP_SCREEN_MILLIS = 500;
 export const FAST_RATE = 16;
 export const QUIET_MILLIS = 500;
 
-// Long enough to read a caption: 260 ms a word, between 1.2 and 4 s.
+// Orient to the words, then read at 200 words/minute. Long notes must not
+// hit the old 4 s ceiling before the reader can finish them.
 export const dwellFor = (caption: string): number => {
   const words = caption.split(/\s+/).filter((word) => word.length > 0).length;
-  return Math.min(4000, Math.max(1200, words * 260));
+  return Math.min(10000, Math.max(1800, 800 + words * 300));
 };
 
 const movingAt = (timeline: Timeline, at: number): boolean =>

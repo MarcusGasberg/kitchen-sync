@@ -157,6 +157,8 @@ describe("compile", () => {
         expect(server?.notes.map((n) => n.text)).toEqual([
           "The server applies A's #3.",
         ]);
+        // 1800 ms to settle, then 800 ms to orient and 5 × 300 ms to read.
+        expect(server?.screen).toBe(4100);
         expect(server?.subjects[0]).toEqual({ kind: "server" });
         expect(poke?.notes.map((n) => n.text)).toEqual([
           "The server is at v3. It pokes every online phone.",
@@ -413,23 +415,22 @@ describe("compile", () => {
   );
 
   it.effect(
-    "plays a followed flight too short to slow into its decision slow all the way",
+    "gives a short followed flight time to read without changing its world time",
     () =>
       Effect.gen(function* () {
         const cut = compile(yield* runHeadless(MILK_SCENE), MILK_SCENE);
         const story = storyOf(cut, 1);
         const into = story.indexOf("move→follow");
-        expect(story.slice(into, into + 3)).toEqual([
-          "move→follow",
-          `follow ×${SLOW_RATE}`,
-          "move→close",
-        ]);
         const flight = shotsOf(cut, 1)[into + 1];
+        expect(story[into + 2]).toBe("move→close");
+        expect(flight?.framing).toBe("follow");
+        expect(flight?.move).toBe(false);
         const span = (flight?.to ?? 0) - (flight?.from ?? 0);
         // The world's default latency is under SLOW_INTO_MILLIS.
         expect(span).toBeGreaterThan(0);
         expect(span).toBeLessThan(SLOW_INTO_MILLIS);
-        expect(flight?.screen).toBe(span / SLOW_RATE);
+        expect(flight?.screen).toBe(2000);
+        expect(flight?.rate).toBe(span / 2000);
       }),
   );
 
@@ -808,7 +809,8 @@ describe("compile, a classic phone", () => {
         expect(flights.length).toBeGreaterThanOrEqual(2);
         for (const flight of flights) {
           expect(flight.framing).toBe("follow");
-          expect(flight.rate).toBe(SLOW_RATE);
+          expect(flight.rate).toBeLessThanOrEqual(SLOW_RATE);
+          expect(flight.screen).toBeGreaterThanOrEqual(2000);
           expect(flight.subjects).toEqual([
             expect.objectContaining({ kind: "message", client: "Classic" }),
           ]);

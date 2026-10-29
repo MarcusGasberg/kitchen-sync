@@ -56,10 +56,11 @@ const SCENE = timeline(
   entry(9000),
 );
 describe("dwellFor", () => {
-  it("gives a caption 260 ms a word, between 1.2 and 4 seconds", () => {
-    expect(dwellFor("Setup.")).toBe(1200);
-    expect(dwellFor(EIGHT_WORDS)).toBe(2080);
-    expect(dwellFor("word ".repeat(40))).toBe(4000);
+  it("allows orientation and 200 words/minute, with room for longer notes", () => {
+    expect(dwellFor("Setup.")).toBe(1800);
+    expect(dwellFor(EIGHT_WORDS)).toBe(3200);
+    expect(dwellFor("word ".repeat(20))).toBe(6800);
+    expect(dwellFor("word ".repeat(40))).toBe(10000);
   });
 });
 

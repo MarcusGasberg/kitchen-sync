@@ -147,9 +147,45 @@ describe("the prologue's cut", () => {
         ["split", "split"],
       );
       expect(
-        tap.some((s) => s.framing === "follow" && s.rate === SLOW_RATE),
+        tap.some(
+          (s) => s.framing === "follow" && s.rate > 0 && s.rate <= SLOW_RATE,
+        ),
       ).toBe(true);
     }),
+  );
+
+  it.effect(
+    "budgets reading time per message, not per interrupted segment",
+    () =>
+      Effect.gen(function* () {
+        const cafe = yield* step("In a café, both phones add again.");
+        const flights = cafe.filter((s) => s.framing === "follow" && !s.move);
+        const messages = new Map<number, Array<Shot>>();
+        for (const shot of flights) {
+          const subject = shot.subjects[0];
+          if (subject?.kind !== "message")
+            throw new Error("No followed message");
+          const run = messages.get(subject.messageId) ?? [];
+          run.push(shot);
+          messages.set(subject.messageId, run);
+        }
+        // Request and response are each split by other network events.
+        expect(messages.size).toBe(2);
+        for (const run of messages.values()) {
+          expect(run.length).toBeGreaterThan(1);
+          expect(run.reduce((sum, s) => sum + s.screen, 0)).toBeCloseTo(2000);
+          const first = run[0];
+          const last = run.at(-1);
+          if (first === undefined || last === undefined)
+            throw new Error("No run");
+          // Preserve the slower arrival, rather than making every segment
+          // equally long or stretching each to a separate two-second hold.
+          expect(last.rate / first.rate).toBeCloseTo(0.5);
+          for (const shot of run) {
+            expect(shot.screen * shot.rate).toBeCloseTo(shot.to - shot.from);
+          }
+        }
+      }),
   );
 
   it.effect("holds on the failure in the tunnel, and lingers there", () =>

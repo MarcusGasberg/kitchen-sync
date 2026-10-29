@@ -38,17 +38,22 @@ import {
 // them where a story needs it.
 
 // Screen milliseconds at 1×.
-export const MOVE_MILLIS = 800;
+export const MOVE_MILLIS = 1100;
 export const TYPE_START_MILLIS = 400;
 export const TYPE_CHAR_MILLIS = 85;
 export const TYPE_PRESS_MILLIS = 350;
 export const TAP_MILLIS = 700;
 export const ARM_MILLIS = 900;
-// A hold with nothing to read still lasts this long.
-export const BARE_HOLD_MILLIS = 1200;
+// Let a close-up's 1800 ms basin settle finish before spending reading time.
+export const SETTLE_HOLD_MILLIS = 1800;
+// Even without words, leave a settled result on screen before moving on.
+export const BARE_HOLD_MILLIS = 2400;
 // A classic handler's last line, `setSaving(false)`, held with no note: long
 // enough for the code beside the world to show it ran.
-export const LINE_HOLD_MILLIS = 600;
+export const LINE_HOLD_MILLIS = 1200;
+// A card needs time to open, be read, and close. Apply this to a whole
+// uninterrupted follow, not each segment of a flight's slowdown.
+export const FOLLOW_MIN_MILLIS = 2000;
 // A followed message plays at half speed, and slows to a quarter for the
 // last stretch of world time before what it causes.
 export const FOLLOW_RATE = 0.5;
@@ -582,7 +587,8 @@ const holdOf = (
   rate: 0,
   screen:
     group.notes.length > 0
-      ? dwellFor(group.notes.map((note) => note.text).join(" "))
+      ? SETTLE_HOLD_MILLIS +
+        dwellFor(group.notes.map((note) => note.text).join(" "))
       : group.tag === "SavingEnded"
         ? LINE_HOLD_MILLIS
         : BARE_HOLD_MILLIS,
@@ -887,6 +893,48 @@ export const frameKey = (shot: Pick<Shot, "framing" | "subjects">): string => {
   return `${shot.framing}|${[...containers].sort().join(",")}`;
 };
 
+// Events can split one message's flight into several shots. Budget reading
+// time for the card's entire run, preserving the relative slowdown and all
+// world instants. A different card starts a new reading budget.
+const withReadableFlights = (shots: ReadonlyArray<Shot>): Array<Shot> => {
+  const out = [...shots];
+  for (let first = 0; first < out.length; ) {
+    const shot = out[first];
+    const message = shot?.subjects[0];
+    if (shot?.framing !== "follow" || message?.kind !== "message") {
+      first += 1;
+      continue;
+    }
+    let end = first;
+    let screen = 0;
+    while (end < out.length) {
+      const next = out[end];
+      const subject = next?.subjects[0];
+      if (
+        next?.framing !== "follow" ||
+        subject?.kind !== "message" ||
+        subject.messageId !== message.messageId
+      )
+        break;
+      screen += next.screen;
+      end += 1;
+    }
+    const stretch = Math.max(1, FOLLOW_MIN_MILLIS / screen);
+    for (let i = first; i < end; i++) {
+      const part = out[i];
+      if (part !== undefined) {
+        out[i] = {
+          ...part,
+          screen: part.screen * stretch,
+          rate: part.rate / stretch,
+        };
+      }
+    }
+    first = end;
+  }
+  return out;
+};
+
 // A step's shots with a move wherever the frame changes; the world holds
 // while the camera moves.
 const withMoves = (shots: ReadonlyArray<Shot>): Array<Shot> => {
@@ -1014,7 +1062,9 @@ export const compile = (
             },
           ];
     const first = shots.length;
-    shots.push(...withMoves([opening, ...content, ...held]));
+    shots.push(
+      ...withMoves(withReadableFlights([opening, ...content, ...held])),
+    );
     steps.push({
       label: beat.caption,
       first,

@@ -45,7 +45,7 @@ export const whereIs = (view: PlayerView): string => {
   }
   const where = `beat ${view.beat + 1} of ${view.beats.length} · ${time}`;
   const rate = slowRateOf(view);
-  return rate === null ? where : `${where} · ${rate}×`;
+  return rate === null ? where : `${where} · ${Number(rate.toPrecision(2))}×`;
 };
 
 // A control waits while a fork is built, and on a stopped figure.

@@ -67,7 +67,7 @@ export const PAN_SHARE = 0.2;
 // Screen milliseconds over which a shot eases from the view of the shot
 // before it, when the two share a frame but not a view (an add acted out on
 // its field, then held on its new row and tray beside a note).
-export const EASE_MILLIS = 400;
+export const EASE_MILLIS = 600;
 // Plane pixels kept around a message when its wire was not measured.
 const MESSAGE_PAD_PX = 48;
 
